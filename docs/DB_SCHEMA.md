@@ -1,0 +1,308 @@
+# DB Schema
+
+## 1. 목적
+
+이 문서는 외고반장 MVP에서 필요한 주요 DB 테이블을 정의한다.
+
+정형 상태는 PostgreSQL에 저장한다.  
+공식 문서 검색용 데이터는 Chroma에 저장한다.
+
+---
+
+## 2. 설계 원칙
+
+```txt
+RAG = 공식 근거와 절차를 찾는 곳
+DB = 현재 사업장·직원·후보자·서류·승인 상태를 저장하는 곳
+Rule Base = 날짜 계산과 true/false 판단을 하는 곳
+```
+
+DB에는 현재 상태와 실행 이력을 저장한다.
+
+RAG에는 법령, 절차, 서식, 안전자료, 메시지 템플릿을 저장한다.
+
+---
+
+## 3. users
+
+관리자 또는 담당자 계정.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 사용자 ID |
+| email | varchar | N | 로그인 이메일 |
+| password_hash | varchar | N | 비밀번호 해시 |
+| name | varchar | N | 사용자 이름 |
+| role | varchar | N | ADMIN/MANAGER |
+| is_active | boolean | N | 활성 여부 |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+
+---
+
+## 4. companies
+
+사업장 정보.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 사업장 ID |
+| name | varchar | N | 사업장명 |
+| business_number | varchar | Y | 사업자등록번호 |
+| industry | varchar | N | 업종 |
+| region | varchar | N | 지역 |
+| address | varchar | Y | 주소 |
+| current_foreign_workers | int | N | 현재 외국인 근로자 수 |
+| housing_available | boolean | Y | 숙소 제공 여부 |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+
+---
+
+## 5. workers
+
+외국인 근로자 정보.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 근로자 ID |
+| company_id | UUID | N | 사업장 ID |
+| name | varchar | N | 이름 |
+| nationality | varchar | N | 국적 |
+| preferred_language | varchar | Y | 선호 언어 |
+| visa_type | varchar | N | 체류자격 |
+| visa_expires_at | date | N | 체류만료일 |
+| contract_starts_at | date | Y | 계약시작일 |
+| contract_ends_at | date | Y | 계약종료일 |
+| status | varchar | N | ACTIVE/INACTIVE/LEFT/PENDING |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+
+민감정보인 여권번호, 외국인등록번호는 별도 보안 테이블 또는 암호화 필드로 분리한다.
+
+---
+
+## 6. worker_sensitive_profiles
+
+근로자 민감정보.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 민감정보 ID |
+| worker_id | UUID | N | 근로자 ID |
+| passport_number_encrypted | varchar | Y | 암호화된 여권번호 |
+| alien_registration_number_encrypted | varchar | Y | 암호화된 외국인등록번호 |
+| phone_number_encrypted | varchar | Y | 암호화된 연락처 |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+
+---
+
+## 7. candidates
+
+신규 채용 후보자 정보.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 후보자 ID |
+| company_id | UUID | N | 사업장 ID |
+| nationality | varchar | N | 국적 |
+| visa_type | varchar | Y | 예상 체류자격 |
+| passport_ready | boolean | N | 여권 준비 여부 |
+| photo_ready | boolean | N | 사진 준비 여부 |
+| health_check_ready | boolean | N | 건강검진 준비 여부 |
+| available_start_date | date | Y | 근무 가능일 |
+| status | varchar | N | PENDING/READY/NEEDS_INFO/REJECTED |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+
+후보자는 추천 대상이 아니라 준비 상태 확인 대상이다.
+
+---
+
+## 8. hiring_requests
+
+신규 인력 요청.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 채용 요청 ID |
+| company_id | UUID | N | 사업장 ID |
+| requested_count | int | N | 요청 인원 |
+| visa_type | varchar | N | 요청 체류자격 |
+| nationality_preference_note | text | Y | 국적 관련 입력 원문 보관 주의 |
+| job_description | text | Y | 직무 설명 |
+| housing_required | boolean | Y | 숙소 필요 여부 |
+| status | varchar | N | DRAFT/PENDING_REVIEW/APPROVED/CANCELLED |
+| created_by | UUID | N | 생성자 |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+
+국적별 선호 또는 차별적 추천은 금지한다. 입력값은 검토가 필요하다.
+
+---
+
+## 9. visas
+
+비자/체류 상태.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 비자 상태 ID |
+| worker_id | UUID | N | 근로자 ID |
+| visa_type | varchar | N | 체류자격 |
+| issued_at | date | Y | 발급일 |
+| expires_at | date | N | 만료일 |
+| status | varchar | N | ACTIVE/EXPIRING/EXPIRED/REVIEW_REQUIRED |
+| last_checked_at | timestamp | Y | 마지막 확인일 |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+
+D-day는 저장해도 되지만, 기본적으로 날짜 기반 Rule Base에서 계산한다.
+
+---
+
+## 10. document_requirements
+
+케이스별 필수 서류 기준.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 기준 ID |
+| case_type | varchar | N | stay_extension/new_hiring/employment_change 등 |
+| visa_type | varchar | N | E-9 등 |
+| required_doc | varchar | N | 필수 서류 코드 |
+| required | boolean | N | 필수 여부 |
+| source_id | varchar | N | 근거 문서 source_id |
+| notes | text | Y | 설명 |
+| created_at | timestamp | N | 생성일 |
+
+초기에는 CSV로 관리하다가 DB로 옮길 수 있다.
+
+---
+
+## 11. worker_documents
+
+근로자별 제출 서류 상태.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 문서 ID |
+| worker_id | UUID | N | 근로자 ID |
+| doc_type | varchar | N | 문서 종류 |
+| status | varchar | N | MISSING/SUBMITTED/REVIEWED/EXPIRED |
+| file_path | varchar | Y | 파일 경로 |
+| submitted_at | timestamp | Y | 제출일 |
+| reviewed_at | timestamp | Y | 검토일 |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+
+---
+
+## 12. contact_messages
+
+다국어 메시지 초안 및 발송 이력.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 메시지 ID |
+| worker_id | UUID | Y | 대상 근로자 |
+| company_id | UUID | N | 사업장 ID |
+| purpose | varchar | N | passport_request/safety_notice 등 |
+| language | varchar | N | vi/km/uz/ne/id/ko 등 |
+| korean_text | text | N | 한국어 원문 |
+| translated_text | text | Y | 번역문 |
+| status | varchar | N | DRAFT/PENDING_APPROVAL/APPROVED/SENT/CANCELLED |
+| approval_id | UUID | Y | 승인 ID |
+| created_by | UUID | N | 생성자 |
+| created_at | timestamp | N | 생성일 |
+| sent_at | timestamp | Y | 발송일 |
+
+실제 발송은 승인 이후에만 가능하다.
+
+---
+
+## 13. approvals
+
+관리자 승인 상태.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 승인 ID |
+| request_id | UUID | N | 요청 ID |
+| company_id | UUID | N | 사업장 ID |
+| action_type | varchar | N | 승인 대상 작업 |
+| status | varchar | N | PENDING/APPROVED/REJECTED/CANCELLED |
+| reason | text | Y | 승인 필요 사유 |
+| requested_by | UUID | Y | 요청자 |
+| approved_by | UUID | Y | 승인자 |
+| created_at | timestamp | N | 생성일 |
+| decided_at | timestamp | Y | 처리일 |
+
+---
+
+## 14. evidence_logs
+
+AI 판단 근거와 실행 이력.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 로그 ID |
+| request_id | UUID | N | 요청 ID |
+| company_id | UUID | N | 사업장 ID |
+| worker_id | UUID | Y | 근로자 ID |
+| agent_name | varchar | N | Agent 이름 |
+| step_name | varchar | N | 단계 |
+| event_type | varchar | N | 이벤트 유형 |
+| tool_name | varchar | Y | 실행 Tool |
+| input_snapshot | jsonb | Y | 입력 스냅샷 |
+| output_snapshot | jsonb | Y | 출력 스냅샷 |
+| citation_ids | jsonb | Y | 근거 문서 ID |
+| risk_level | varchar | Y | LOW/MEDIUM/HIGH |
+| approval_id | UUID | Y | 승인 ID |
+| created_at | timestamp | N | 생성일 |
+
+민감정보 원문은 저장하지 않는다.
+
+---
+
+## 15. rag_sources
+
+RAG 원천 문서 메타데이터.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| source_id | varchar | N | 문서 source_id |
+| title | varchar | N | 제목 |
+| publisher | varchar | N | 발행기관 |
+| source_type | varchar | N | official_law/procedure/form 등 |
+| url | text | Y | 원문 URL |
+| retrieved_at | date | N | 수집일 |
+| effective_date | date | Y | 시행일 |
+| evidence_grade | varchar | N | A/B/C/D/E/F |
+| created_at | timestamp | N | 생성일 |
+
+Vector 자체는 Chroma에 저장하고, 메타데이터는 필요하면 PostgreSQL에도 저장한다.
+
+---
+
+## 16. 초기 Seed 파일
+
+```txt
+data-pipeline/seed/companies.csv
+data-pipeline/seed/employees.csv
+data-pipeline/seed/candidates.csv
+data-pipeline/seed/document_requirements.csv
+data-pipeline/seed/visa_lookup.csv
+data-pipeline/seed/country_lookup.csv
+data-pipeline/seed/message_templates.csv
+```
+
+---
+
+## 17. 향후 검토
+
+- Refresh token/session 관리가 필요하면 auth_sessions 추가
+- 파일 업로드가 본격화되면 files 테이블 추가
+- 장기 스케줄링이 필요하면 scheduled_jobs 테이블 추가
+- 인터뷰 기반 케이스가 쌓이면 case_examples 테이블 추가

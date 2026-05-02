@@ -138,13 +138,15 @@ Human Approval = 발송·제출·전달 전 최종 승인 지점
 
 ---
 
-## 에이전트 역할
+## 에이전트 구성
 
-| 담당자 | Agent | 주요 책임 |
-|---|---|---|
-| 현욱님 | Visa Document Agent | 비자, 체류, 서류, D-day, 행정사 전달 패키지 |
-| 태나님 | Workforce Agent | 인력 확보, 신규 채용 요청, 후보자 준비 상태 |
-| 현희님 | Multilingual Contact Agent | 다국어 메시지, 응답 해석, 온보딩 안내 |
+외고반장은 3개 Agent로 구성된다.
+
+- Visa Document Agent
+- Workforce Agent
+- Multilingual Contact Agent
+
+상세 역할은 `docs/AI_OS_DESIGN.md`를 참고한다.
 
 ---
 

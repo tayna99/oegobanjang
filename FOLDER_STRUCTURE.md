@@ -76,7 +76,7 @@ oegobanjang
 │  │  │  ├─ evidence_service.py      # Evidence Log 저장/조회 로직
 │  │  │  └─ agent_service.py         # Agent Runtime 호출 및 결과 저장 조율
 │  │  │
-│  │  ├─ agent_runtime/              # 기존 ai-agent를 흡수한 AI 실행 모듈
+│  │  ├─ agent_runtime/              # AI 실행 모듈
 │  │  │  ├─ README.md                # Agent Runtime 구조와 실행 흐름 설명
 │  │  │  │
 │  │  │  ├─ graph/                   # LangGraph 상태 머신 구성 영역

@@ -1,0 +1,150 @@
+# Architecture
+
+## 1. 전체 구조
+
+외고반장은 초기 MVP에서 FastAPI backend 중심 구조를 사용한다.
+
+```txt
+frontend
+→ backend FastAPI
+   ├─ API
+   ├─ DB services
+   ├─ Agent Runtime
+   ├─ RAG
+   ├─ Approval
+   └─ Evidence Log
+
+data-pipeline
+→ Chroma Vector DB
+
+PostgreSQL
+→ 서비스 데이터 저장
+```
+
+---
+
+## 2. Backend
+
+```txt
+backend/
+```
+
+역할:
+
+- 프론트엔드 API 제공
+- DB 조회/저장
+- Agent Runtime 실행
+- 승인 처리
+- Evidence Log 저장
+
+---
+
+## 3. Agent Runtime
+
+```txt
+backend/app/agent_runtime/
+```
+
+역할:
+
+- Intent Router
+- Planner
+- Agent Execution
+- RAG Retrieval
+- Tool Orchestration
+- Approval Gate
+- Evidence Logger
+
+---
+
+## 4. Frontend
+
+역할:
+
+- 대시보드
+- 직원 관리
+- 채용 요청
+- 비자/체류 관리
+- 서류 체크
+- 다국어 메시지
+- 승인 대기
+- Evidence Log 조회
+
+---
+
+## 5. Data Pipeline
+
+역할:
+
+- 공식 문서 수집
+- PDF/HTML/CSV 로딩
+- chunking
+- metadata 정규화
+- Vector DB 적재
+
+---
+
+## 6. 데이터 저장소
+
+### PostgreSQL
+
+서비스의 정형 데이터를 저장한다.
+
+- users
+- companies
+- workers
+- candidates
+- visas
+- documents
+- contacts
+- approvals
+- evidence_logs
+
+### Chroma
+
+RAG 검색용 벡터 데이터를 저장한다.
+
+- 법령
+- 절차 안내
+- 서식
+- 안전/생활 안내
+- 메시지 템플릿
+- 합성 케이스
+
+### Redis
+
+초기 필수 구성요소는 아니다.
+
+추후 아래 용도로 사용할 수 있다.
+
+- 알림 중복 방지
+- 백그라운드 작업 큐
+- 짧은 캐시
+- Agent 실행 상태 임시 저장
+
+---
+
+## 7. 요청 흐름
+
+```txt
+사용자 요청
+→ frontend
+→ backend API
+→ Agent Runtime
+→ RAG/Rule/DB 조회
+→ approval_required 판단
+→ Evidence Log 저장
+→ frontend 응답
+```
+
+---
+
+## 8. 확장 기준
+
+다음 조건이 생기면 Agent Runtime을 별도 서비스로 분리할 수 있다.
+
+- Agent 실행 시간이 길어짐
+- Agent 실행만 별도 스케일링해야 함
+- 비동기 큐 기반 실행이 필요함
+- 다른 서비스에서 Agent Runtime을 호출해야 함
+- RAG/LLM 비용 모니터링을 독립적으로 해야 함
