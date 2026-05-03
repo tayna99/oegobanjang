@@ -1,7 +1,7 @@
 [project]
-name = "workbridge"
+name = "oegobanjang"
 version = "0.1.0"
-description = "Add your description here"
+description = "Foreign hiring operations OS with FastAPI and Agent Runtime"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
