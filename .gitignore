@@ -37,3 +37,8 @@ venv/
 # =========================
 .DS_Store
 Thumbs.db
+
+# Generated artifacts (regeneratable)
+data-pipeline/cache/
+data-pipeline/index/
+evals/reports/*.json
