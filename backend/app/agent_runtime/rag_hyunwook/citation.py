@@ -1,27 +1,3 @@
-<<<<<<< HEAD
-from __future__ import annotations
-
-from typing import Any
-
-
-ANSWER_EVIDENCE_GRADES = frozenset({"A", "B", "E"})
-
-
-def can_use_as_answer_evidence(metadata: dict[str, Any]) -> bool:
-    return str(metadata.get("evidence_grade", "")).upper() in ANSWER_EVIDENCE_GRADES
-
-
-def format_citation(result: dict[str, Any]) -> dict[str, Any]:
-    metadata = result.get("metadata", {})
-    return {
-        "source_id": result.get("source_id"),
-        "chunk_id": result.get("chunk_id"),
-        "title": result.get("title") or metadata.get("title"),
-        "publisher": metadata.get("publisher"),
-        "url": metadata.get("url", ""),
-        "evidence_grade": metadata.get("evidence_grade"),
-    }
-=======
 from langchain_core.documents import Document
 from app.agent_runtime.schemas.tool import Citation
 
@@ -46,4 +22,3 @@ def build_citations(results: list[Document]) -> list[Citation]:
             )
         )
     return citations
->>>>>>> ccaa904 (Phase 3a 완료: LangChain 1.0 Agent Runtime 기본 골격 구현)
