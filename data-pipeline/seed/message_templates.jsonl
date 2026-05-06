@@ -1,18 +1,6 @@
-{"language":"ko","purpose":"document_request","content":"아래 서류를 [제출기한]까지 제출해 주세요. 서류 준비에 어려움이 있으면 사업장 담당자에게 알려주세요."}
-{"language":"vi","purpose":"document_request","content":"Vui lòng nộp các giấy tờ sau trước ngày [deadline]. Nếu bạn gặp khó khăn trong việc chuẩn bị giấy tờ, vui lòng thông báo cho nhân viên phòng nhân sự."}
-{"language":"km","purpose":"document_request","content":"សូមលើកយកឯកសារខាងក្រោមដោយយោងតាម [deadline]។ ប្រសិនបើអ្នកមានការលំបាកក្នុងការរៀបចំឯកសារ សូមប្រាប់ក្រុមផ្នែកធនធានមនុស្ស។"}
-{"language":"uz","purpose":"document_request","content":"Quyidagi hujjatlarni [deadline] tomonida taqdim eting. Hujjatlarni tayyorlashda qiynalayotgan bo'lsangiz, HR bo'limi bilan bog'laning."}
-{"language":"ne","purpose":"document_request","content":"कृपया निम्नलिखित कागजातहरु [deadline] सम्म जमा गर्नुहोस्। यदि कागजातहरु तयार गर्न कठिनाई भएमा, HR विभागलाई जनाउनुहोस्।"}
-{"language":"id","purpose":"document_request","content":"Harap serahkan dokumen-dokumen berikut sebelum tanggal [deadline]. Jika Anda mengalami kesulitan dalam menyiapkan dokumen, silakan hubungi departemen SDM."}
-{"language":"ko","purpose":"visa_extension_notice","content":"체류자격이 [날짜]에 만료될 예정입니다. 연장을 원하신다면, 행정사와 함께 절차를 진행해야 합니다. 자세한 사항은 사업장에 문의하세요."}
-{"language":"vi","purpose":"visa_extension_notice","content":"Thị thực của bạn sẽ hết hạn vào ngày [date]. Nếu bạn muốn gia hạn, bạn phải thực hiện thủ tục với công ty dịch vụ nhân sự. Chi tiết vui lòng liên hệ với người sử dụng lao động."}
-{"language":"km","purpose":"visa_extension_notice","content":"វីសារបស់អ្នកនឹងផុតកំណត់នៅថ្ងៃ [date]។ ប្រសិនបើអ្នកចង់ពង្រីក អ្នកត្រូវតែអនុវត្តតាមលក្ខណ៍វិធីជាមួយក្រុមបុគ្គលិក។ សម្រាប់ព័ត៌មានលម្អិត សូមទាក់ទងអង្គការផ្តល់ការងារ។"}
-{"language":"uz","purpose":"visa_extension_notice","content":"Sizning vizangiz [date] sanasida tugaydi. Agar siz yana oshkorlamoqchi bo'lsangiz, inson resurslar bo'limi bilan contact qiling."}
-{"language":"ne","purpose":"visa_extension_notice","content":"तपाईंको भिसा [date] मा समाप्त हुनेछ। यदि तपाई लम्बाउन चाहनुहुन्छ भने, HR विभागसँग सम्पर्क गर्नुहोस्।"}
-{"language":"id","purpose":"visa_extension_notice","content":"Visa Anda akan berakhir pada tanggal [date]. Jika ingin memperpanjang, silakan hubungi departemen SDM untuk panduan lebih lanjut."}
-{"language":"ko","purpose":"contract_termination","content":"계약 종료일이 [날짜]입니다. 계약 종료 후 절차에 대해 사업장에서 설명할 예정입니다."}
-{"language":"vi","purpose":"contract_termination","content":"Ngày kết thúc hợp đồng là [date]. Các thủ tục sau khi kết thúc hợp đồng sẽ được giải thích bởi người sử dụng lao động."}
-{"language":"km","purpose":"contract_termination","content":"ថ្ងៃបញ្ចប់계약ត្រូវបាន [date]។ នីតិវិធីបន្ទាប់ពីការបញ្ចប់កិច្ចសន្យាត្រូវបានពន្យល់ដោយអង្គការផ្តល់ការងារ។"}
-{"language":"uz","purpose":"contract_termination","content":"Shartnoma [date] sanasida tugaydi. Shartnoma tugagandan keyin jarayonlar mehnat beruvchi tomonidan tushuntiriladi."}
-{"language":"ne","purpose":"contract_termination","content":"अनुबंध [date] मा समाप्त हुनेछ। अनुबंध समाप्त भएपछिको प्रक्रिया नियोगकर्ताले व्याख्या गर्नेछ।"}
-{"language":"id","purpose":"contract_termination","content":"Kontrak akan berakhir pada tanggal [date]. Prosedur setelah berakhir kontrak akan dijelaskan oleh pemberi kerja."}
+{"language":"ko","purpose":"document_request","content":"아래 서류를 [제출기한]까지 제출해 주세요. 이 정보는 안내된 개인정보 사용 목적 범위에서만 사용됩니다. 서류 준비에 어려움이 있으면 사업장 담당자에게 알려주세요.","approval_required":true,"support_scope":"source_text"}
+{"language":"vi","purpose":"document_request","content":"Vui lòng nộp các giấy tờ sau trước [deadline]. Thông tin này chỉ được sử dụng trong phạm vi mục đích sử dụng thông tin cá nhân đã được thông báo. Nếu bạn gặp khó khăn khi chuẩn bị giấy tờ, vui lòng báo cho người phụ trách tại nơi làm việc.","approval_required":true,"support_scope":"end_to_end"}
+{"language":"id","purpose":"document_request","content":"Harap serahkan dokumen berikut sebelum [deadline]. Informasi ini hanya digunakan sesuai tujuan penggunaan data pribadi yang telah diberitahukan. Jika Anda kesulitan menyiapkan dokumen, beri tahu penanggung jawab di tempat kerja.","approval_required":true,"support_scope":"message_generation_demo"}
+{"language":"ko","purpose":"safety_training_notice","content":"[교육일시]에 안전교육이 있습니다. 지정된 장소로 와주세요. 이 메시지는 안내 목적이며 발송 전 담당자 승인이 필요합니다.","approval_required":true,"support_scope":"source_text"}
+{"language":"vi","purpose":"safety_training_notice","content":"Có buổi đào tạo an toàn vào [training_time]. Vui lòng đến địa điểm được chỉ định. Tin nhắn này chỉ nhằm mục đích thông báo và cần được người phụ trách phê duyệt trước khi gửi.","approval_required":true,"support_scope":"end_to_end"}
+{"language":"id","purpose":"safety_training_notice","content":"Ada pelatihan keselamatan pada [training_time]. Harap datang ke lokasi yang ditentukan. Pesan ini hanya untuk pemberitahuan dan harus disetujui oleh penanggung jawab sebelum dikirim.","approval_required":true,"support_scope":"message_generation_demo"}

@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=safety_training_unavailable
+purpose=safety_training_reply
+language_code=id
+incoming_message=Saya tidak bisa mengikuti pelatihan keselamatan pada waktu itu.
+korean_meaning=해당 시간의 안전교육에 참석할 수 없다는 의미의 합성 답변.
+expected_summary=근로자는 지정된 시간의 안전교육 참석이 어렵다고 답했다.
+expected_status_update=safety_training:attendance_unavailable_candidate
+next_action=불참 사유와 가능한 시간을 확인하는 메시지 초안을 만들고 담당자 검토를 요청한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

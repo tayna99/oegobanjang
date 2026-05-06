@@ -38,7 +38,22 @@ venv/
 .DS_Store
 Thumbs.db
 
+# =========================
 # Generated artifacts (regeneratable)
+# =========================
 data-pipeline/cache/
 data-pipeline/index/
 evals/reports/*.json
+
+# =========================
+# Downloaded source captures; keep generated chunks/metadata instead.
+# =========================
+data-pipeline/raw/life_guides/
+data-pipeline/raw/safety/
+
+# =========================
+# SQLite local DB
+# =========================
+backend/data/*.sqlite3
+backend/data/*.sqlite
+backend/data/*.db

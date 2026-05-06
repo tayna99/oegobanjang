@@ -1,8 +1,19 @@
-from fastapi import APIRouter, HTTPException
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.agent_runtime.runner import run_workflow
 from app.agent_runtime.schemas import ForeignHiringState
+from backend.app.db.session import get_sync_db
+from backend.app.services.agent_service import (
+    AgentRunRequest as ContactAgentRunRequest,
+    run_agent as run_contact_agent,
+)
+
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -25,17 +36,25 @@ class AgentRunResponse(BaseModel):
     rag_context_count: int
 
 
-@router.post("/run", response_model=AgentRunResponse)
-async def run_agent(body: AgentRunRequest) -> AgentRunResponse:
+@router.post("/run")
+async def run_agent(
+    body: dict[str, Any] = Body(...),
+    db: Session = Depends(get_sync_db),
+) -> dict[str, Any]:
+    if "user_request" in body:
+        request = ContactAgentRunRequest.model_validate(body)
+        return run_contact_agent(request, db=db).model_dump()
+
     try:
+        request = AgentRunRequest.model_validate(body)
         state: ForeignHiringState = await run_workflow(
-            user_message=body.user_message,
-            user_id=body.user_id,
-            company_id=body.company_id,
-            thread_id=body.thread_id,
+            user_message=request.user_message,
+            user_id=request.user_id,
+            company_id=request.company_id,
+            thread_id=request.thread_id,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     return AgentRunResponse(
         request_id=state.request_id,
@@ -46,13 +65,14 @@ async def run_agent(body: AgentRunRequest) -> AgentRunResponse:
         approval_status=state.approval.status,
         evidence_event_count=len(state.evidence_events),
         rag_context_count=len(state.rag_contexts),
-    )
+    ).model_dump()
 
 
 @router.get("/state/{request_id}")
 async def get_agent_state(request_id: str) -> dict:
-    """thread_id 기반으로 저장된 state를 조회합니다. (MemorySaver 기반 — 프로세스 내 유지)"""
+    """thread_id 기반으로 저장된 state를 조회합니다. (MemorySaver 기반 - 프로세스 내 유지)"""
     from app.agent_runtime.graph.workflow import get_compiled_app
+
     app = get_compiled_app()
     try:
         config = {"configurable": {"thread_id": request_id}}
@@ -63,4 +83,4 @@ async def get_agent_state(request_id: str) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

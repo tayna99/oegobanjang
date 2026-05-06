@@ -2,13 +2,17 @@ oegobanjang
 ├─ AGENTS.md                         # 모든 AI/사람 개발자가 공통으로 따라야 하는 작업 규칙
 ├─ CLAUDE.md                         # Claude Code 사용자가 가장 먼저 읽는 루트 지침
 ├─ README.md                         # 프로젝트 소개, 실행 방법, 전체 구조 설명
+├─ FOLDER_STRUCTURE.md               # 실제 프로젝트 폴더/파일 구조 문서
 ├─ .gitignore                        # Git에 올리지 않을 파일/폴더 목록
+├─ .python-version                   # 로컬 Python 버전 고정
 ├─ .env                              # 실제 로컬 환경변수 파일, Git에 올리면 안 됨
 ├─ .env.example                      # 팀원이 참고할 환경변수 예시 파일, Git에 올림
+├─ pyproject.toml                    # Python 프로젝트 설정, 의존성, formatter/test 설정
+├─ uv.lock                           # uv 의존성 lockfile
 ├─ docker-compose.yml                # 로컬 개발용 Postgres, Chroma, Redis 등 인프라 실행 설정
+├─ DATA_GENERATION_REPORT.md         # 더미 운영 데이터 생성 결과 리포트
 │
 ├─ backend/                          # FastAPI 단일 백엔드 서버: 제품 API + Agent Runtime 통합
-│  ├─ pyproject.toml                 # Python 프로젝트 설정, 의존성, formatter/test 설정
 │  ├─ README.md                      # 백엔드 실행 방법, 구조, 테스트 방법 설명
 │  ├─ alembic.ini                    # Alembic DB 마이그레이션 설정
 │  │
@@ -128,8 +132,7 @@ oegobanjang
 │  │
 │  └─ migrations/                    # Alembic DB 마이그레이션
 │     ├─ env.py                      # Alembic 실행 환경 설정
-│     ├─ script.py.mako              # 마이그레이션 파일 템플릿
-│     └─ versions/                   # 실제 마이그레이션 파일 저장 위치
+│     └─ script.py.mako              # 마이그레이션 파일 템플릿
 │
 ├─ frontend/                         # Next.js / React 프론트엔드
 │  ├─ app/                           # Next.js App Router 라우트
@@ -163,10 +166,45 @@ oegobanjang
 │  ├─ loaders/                       # PDF, HTML, CSV 등 원천 문서 로더
 │  ├─ splitters/                     # 문서 chunk 분할 로직
 │  ├─ normalizers/                   # 텍스트 정제, 메타데이터 표준화
+│  ├─ metadata/
+│  │  └─ multilingual_source_registry.jsonl # 다국어 데이터 수집 소스 레지스트리, MVP 대상 vi/id
 │  ├─ seed/
+│  │  ├─ companies.csv               # 샘플 사업장 데이터
+│  │  ├─ counseling_centers.csv      # 상담센터 안내 seed, MVP 대상 vi/id
+│  │  ├─ country_lookup.csv          # MVP 언어/국가 lookup: vi end-to-end, id message-only
+│  │  ├─ document_requirements.csv   # 비자/상태별 필요 서류 데이터
+│  │  ├─ interview_case_patterns.jsonl # 인터뷰 기반 내부 운영 패턴 placeholder
+│  │  ├─ message_templates.jsonl     # 다국어 메시지 템플릿 legacy seed, vi/id 중심
+│  │  ├─ message_templates.csv       # target language 기준 메시지 템플릿 seed, vi/id
+│  │  ├─ public_case_patterns.jsonl  # 공개 상담 사례 원문이 아닌 패턴 요약
 │  │  ├─ sample_policy_docs.jsonl    # 샘플 정책 문서 데이터
-│  │  └─ sample_required_docs.jsonl  # 샘플 필수 서류 데이터
+│  │  ├─ sample_required_docs.jsonl  # 샘플 필수 서류 데이터
+│  │  ├─ synthetic_cases.jsonl       # 데모/평가용 합성 케이스
+│  │  ├─ visa_lookup.csv             # 비자 유형 lookup
+│  │  ├─ visas.csv                   # 샘플 비자/체류 상태 데이터
+│  │  ├─ worker_documents.csv        # 샘플 근로자 서류 상태 데이터
+│  │  └─ workers.csv                 # 샘플 근로자 데이터
 │  ├─ raw/                           # 원본 문서 저장 위치, 대용량 파일은 Git 제외 권장
+│  │  ├─ safety/
+│  │  │  ├─ kosha_multilingual/      # 안전보건 다국어 안내 수집 위치
+│  │  │  ├─ safety_signs/            # 안전표지 데이터 수집 위치
+│  │  │  └─ safety_training/         # 안전교육 안내 수집 위치
+│  │  ├─ life_guides/
+│  │  │  ├─ counseling_centers/      # 상담센터 안내 데이터 수집 위치
+│  │  │  ├─ hiring_guides/           # 사업주·인력확보 Agent용 고용허가제 신청절차, 접수 안내, 제출서류, FAQ, 문의처 등 고용지원 자료 저장 위치
+│  │  │  ├─ housing/                 # 생활/숙소 안내 데이터 수집 위치
+│  │  │  ├─ medical/                 # 의료 안내 데이터 수집 위치
+│  │  │  ├─ banking_telecom/         # 은행/통신 안내 데이터 수집 위치
+│  │  │  └─ transportation/          # 교통 안내 데이터 수집 위치
+│  │  ├─ templates/
+│  │  │  ├─ messages/
+│  │  │  │  ├─ vi/                   # 베트남어 메시지 생성, 응답 해석, 상태 업데이트 검증
+│  │  │  │  └─ id/                   # 인도네시아어 메시지 생성, 응답 해석, 상태 업데이트 검증
+│  │  │  └─ worker_replies/
+│  │  │     └─ vi/                   # 베트남어 근로자 응답 해석, 상태 업데이트 후보 검증
+│  │  │     └─ id/                   # 인도네시아어 근로자 응답 해석, 상태 업데이트 후보 검증
+│  │  ├─ public_cases/               # 공개 상담 사례 패턴 수집 위치
+│  │  └─ synthetic_cases/            # 합성 케이스 수집 위치
 │  ├─ processed/                     # 전처리된 문서 저장 위치, Git 제외 권장
 │  └─ ingest.py                      # 전처리 문서를 Vector DB에 적재하는 실행 스크립트
 │

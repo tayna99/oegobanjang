@@ -1,8 +1,17 @@
+import sys
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import get_settings
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
+for path in (BACKEND_DIR, ROOT_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+
 from app.api.v1.router import router as api_v1_router
+from app.config import get_settings
 
 
 settings = get_settings()

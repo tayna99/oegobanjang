@@ -1,5 +1,32 @@
 from functools import lru_cache
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+
+def normalize_database_url(database_url: str) -> str:
+    """Resolve relative SQLite URLs from the backend directory.
+
+    `sqlite:///./data/oegobanjang.sqlite3` must point to the same file whether
+    commands run from the repository root or from `backend/`.
+    """
+
+    sqlite_prefix = "sqlite:///"
+    if not database_url.startswith(sqlite_prefix):
+        return database_url
+
+    path_value = database_url.removeprefix(sqlite_prefix)
+    if path_value == ":memory:":
+        return database_url
+
+    db_path = Path(path_value).expanduser()
+    if not db_path.is_absolute():
+        db_path = BACKEND_DIR / db_path
+
+    return f"{sqlite_prefix}{db_path.resolve().as_posix()}"
 
 
 class Settings(BaseSettings):
@@ -26,9 +53,11 @@ class Settings(BaseSettings):
     backend_port: int = 8000
 
     # Database
-    database_url: str = (
-        "postgresql+psycopg://oegobanjang:oegobanjang@localhost:5432/oegobanjang"
-    )
+    database_url: str = "sqlite:///./data/oegobanjang.sqlite3"
+
+    @property
+    def normalized_database_url(self) -> str:
+        return normalize_database_url(self.database_url)
 
     # Redis
     redis_host: str = "localhost"
@@ -43,7 +72,6 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
     google_api_key: str | None = None
-    anthropic_api_key: str | None = None
 
     # Security
     jwt_secret: str = "change-this-local-secret"
