@@ -310,6 +310,50 @@ approval.status=PENDING
 
 `worker_reply` 원문은 요청 처리에는 사용될 수 있지만, `evidence_events`에는 저장하지 않는다.
 
+#### LLM 번역 opt-in
+
+기본값은 rule-based/template 기반 번역 및 요약이다.
+
+`use_llm_translation=true`는 현재 `worker_reply_summary`에만 적용된다.
+`message_draft`는 계속 `message_templates.csv` 기반 번역문을 사용하며, LLM 자유번역을 시도하지 않는다.
+
+요청 예시:
+
+```json
+{
+  "user_request": "이 베트남어 답변 요약하고 서류 상태 후보 만들어줘: Tôi có hộ chiếu.",
+  "input_payload": {
+    "task_type": "worker_reply_summary",
+    "worker_id": "worker_001",
+    "language_code": "vi",
+    "worker_reply": "Tôi có hộ chiếu.",
+    "use_llm_translation": true
+  }
+}
+```
+
+동작:
+
+```txt
+use_llm_translation=true
+→ LLMTranslationProvider 사용
+→ OPENAI_API_KEY가 없거나 LLM 호출이 실패하면 rule-based fallback 사용
+→ LLM 결과도 담당자 검토 필요
+→ approval_required=true 유지
+→ manager_review_required=true 유지
+```
+
+응답의 `agent_results.multilingual_contact_agent.translation_provider`에는 아래 값이 포함될 수 있다.
+
+```txt
+rule_based
+llm
+rule_based_fallback
+mock
+```
+
+`worker_reply` 원문과 `translated_ko` 전문은 `evidence_events` 또는 DB `evidence_logs`에 저장하지 않는다.
+
 #### 요청 예시 E: 자동 발송 금지
 
 요청:

@@ -179,7 +179,7 @@ def save_worker_reply_summary_result(
             status_update_candidate_id=candidate.id,
             approval_id=approval.id,
             risk_flags=risk_flags,
-            forbidden_texts=[worker_reply],
+            forbidden_texts=[worker_reply, agent_result.get("translated_ko")],
         )
 
     db.flush()

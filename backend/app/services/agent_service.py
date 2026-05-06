@@ -14,6 +14,10 @@ from backend.app.agent_runtime.agents.multilingual_contact_agent import (
 from backend.app.agent_runtime.agents.multilingual_contact_input_extractor import (
     extract_multilingual_contact_input,
 )
+from backend.app.agent_runtime.translation.translator import (
+    LLMTranslationProvider,
+    TranslationProvider,
+)
 from backend.app.models.evidence import EvidenceLog
 from backend.app.services.contact_persistence_service import (
     save_message_draft_result,
@@ -103,7 +107,14 @@ def _run_contact_runtime(request: AgentRunRequest) -> ContactRuntimeState:
         state.final_response = "요청을 처리하지 못했습니다: CONTACT intent가 필요합니다."
         return state
 
-    agent = MultilingualContactAgent()
+    if state.task_type == "message_draft" and payload.get("use_llm_translation") is True:
+        state.risk_flags = _dedupe(
+            state.risk_flags + ["LLM_TRANSLATION_NOT_APPLIED_TO_MESSAGE_DRAFT"]
+        )
+
+    agent = MultilingualContactAgent(
+        translation_provider=_build_translation_provider(payload, state.task_type)
+    )
     try:
         if state.task_type == "worker_reply_summary":
             result = agent.summarize_worker_reply(
@@ -173,6 +184,18 @@ def _request_risk_flags(user_request: str) -> list[str]:
     if any(keyword in text for keyword in ("확답", "확정", "가능하다고")) and "비자" in text:
         flags.append("LEGAL_CERTAINTY_NOT_ALLOWED")
     return flags
+
+
+def _build_translation_provider(
+    input_payload: dict[str, Any],
+    task_type: str | None,
+) -> TranslationProvider | None:
+    if (
+        task_type == "worker_reply_summary"
+        and input_payload.get("use_llm_translation") is True
+    ):
+        return LLMTranslationProvider()
+    return None
 
 
 def _build_plan(state: ContactRuntimeState) -> dict[str, Any]:

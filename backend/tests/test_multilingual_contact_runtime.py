@@ -13,7 +13,14 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import backend.app.agent_runtime.agents.multilingual_contact_agent as contact_agent_module
+import backend.app.services.agent_service as agent_service_module
+from backend.app.agent_runtime.agents.multilingual_contact_agent import (
+    MessageDraftInput,
+    MultilingualContactAgent,
+    WorkerReplySummaryInput,
+)
 from backend.app.main import app
+from backend.app.agent_runtime.translation.translator import MockTranslationProvider
 
 
 MOCK_CITATION = {
@@ -157,8 +164,17 @@ def test_vi_worker_reply_summary_creates_candidates_without_logging_raw_reply(
     assert body["intent"] == "CONTACT"
     assert body["task_type"] == "worker_reply_summary"
     assert result["status"] == "SUCCESS"
+    assert result["translated_ko"]
+    assert result["translation_provider"] == "rule_based"
     assert result["summary_ko"]
     assert result["status_update_candidates"]
+    candidate_types = {
+        candidate["candidate_type"]
+        for candidate in result["status_update_candidates"]
+    }
+    assert "passport_received_candidate" in candidate_types
+    assert "photo_pending_candidate" in candidate_types
+    assert "expected_submission_date_candidate" in candidate_types
     assert all(
         "candidate" in candidate["candidate_type"]
         and candidate["is_final"] is False
@@ -168,8 +184,131 @@ def test_vi_worker_reply_summary_creates_candidates_without_logging_raw_reply(
     assert result["manager_review_required"] is True
     assert body["approval"]["required"] is True
     assert body["approval"]["status"] == "PENDING"
-    assert worker_reply not in json.dumps(body["evidence_events"], ensure_ascii=False)
+    evidence_payload = json.dumps(body["evidence_events"], ensure_ascii=False)
+    assert worker_reply not in evidence_payload
+    assert result["translated_ko"] not in evidence_payload
     _assert_no_forbidden_runtime_markers(body)
+
+
+def test_worker_reply_summary_without_llm_option_uses_rule_based_provider(
+    monkeypatch,
+) -> None:
+    client = _client(monkeypatch)
+    worker_reply = "Tôi có hộ chiếu, ảnh thì ngày mai tôi gửi."
+
+    body = _post_agent(
+        client,
+        {
+            "user_request": "베트남어 답변을 요약하고 서류 상태 업데이트 후보를 만들어줘",
+            "input_payload": {
+                "task_type": "worker_reply_summary",
+                "worker_id": "worker-demo-001",
+                "language_code": "vi",
+                "worker_reply": worker_reply,
+            },
+        },
+    )
+
+    result = _contact_result(body)
+    assert result["translation_provider"] == "rule_based"
+    assert result["approval_required"] is True
+    assert result["manager_review_required"] is True
+
+
+def test_worker_reply_summary_with_llm_false_uses_rule_based_provider(
+    monkeypatch,
+) -> None:
+    client = _client(monkeypatch)
+    worker_reply = "Tôi có hộ chiếu, ảnh thì ngày mai tôi gửi."
+
+    body = _post_agent(
+        client,
+        {
+            "user_request": "베트남어 답변을 요약하고 서류 상태 업데이트 후보를 만들어줘",
+            "input_payload": {
+                "task_type": "worker_reply_summary",
+                "worker_id": "worker-demo-001",
+                "language_code": "vi",
+                "worker_reply": worker_reply,
+                "use_llm_translation": False,
+            },
+        },
+    )
+
+    result = _contact_result(body)
+    assert result["translation_provider"] == "rule_based"
+    assert result["approval_required"] is True
+    assert result["manager_review_required"] is True
+
+
+def test_worker_reply_summary_with_llm_true_uses_injected_provider(
+    monkeypatch,
+) -> None:
+    translated_ko = "여권은 있고 사진은 내일 보낼 수 있습니다."
+    provider = MockTranslationProvider(
+        {("vi", "ko", "Tôi có hộ chiếu, ảnh thì ngày mai tôi gửi."): translated_ko}
+    )
+    monkeypatch.setattr(
+        agent_service_module,
+        "LLMTranslationProvider",
+        lambda: provider,
+    )
+    client = _client(monkeypatch)
+    worker_reply = "Tôi có hộ chiếu, ảnh thì ngày mai tôi gửi."
+
+    body = _post_agent(
+        client,
+        {
+            "user_request": "베트남어 답변을 요약하고 서류 상태 업데이트 후보를 만들어줘",
+            "input_payload": {
+                "task_type": "worker_reply_summary",
+                "worker_id": "worker-demo-001",
+                "language_code": "vi",
+                "worker_reply": worker_reply,
+                "use_llm_translation": True,
+            },
+        },
+    )
+
+    result = _contact_result(body)
+    evidence_payload = json.dumps(body["evidence_events"], ensure_ascii=False)
+    assert result["translation_provider"] == "mock"
+    assert result["translated_ko"] == translated_ko
+    assert worker_reply not in evidence_payload
+    assert translated_ko not in evidence_payload
+    assert result["approval_required"] is True
+    assert result["manager_review_required"] is True
+
+
+def test_worker_reply_summary_with_llm_true_without_api_key_falls_back(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    client = _client(monkeypatch)
+    worker_reply = "Tôi có hộ chiếu, ảnh thì ngày mai tôi gửi."
+
+    body = _post_agent(
+        client,
+        {
+            "user_request": "베트남어 답변을 요약하고 서류 상태 업데이트 후보를 만들어줘",
+            "input_payload": {
+                "task_type": "worker_reply_summary",
+                "worker_id": "worker-demo-001",
+                "language_code": "vi",
+                "worker_reply": worker_reply,
+                "use_llm_translation": True,
+            },
+        },
+    )
+
+    result = _contact_result(body)
+    evidence_payload = json.dumps(body["evidence_events"], ensure_ascii=False)
+    assert result["translation_provider"] == "rule_based_fallback"
+    assert "LLM_TRANSLATION_UNAVAILABLE" in result["risk_flags"]
+    assert worker_reply not in evidence_payload
+    assert result["translated_ko"] not in evidence_payload
+    assert result["approval_required"] is True
+    assert result["manager_review_required"] is True
 
 
 def test_send_now_request_stays_draft_and_adds_approval_risk_flag(monkeypatch) -> None:
@@ -197,6 +336,37 @@ def test_send_now_request_stays_draft_and_adds_approval_risk_flag(monkeypatch) -
     result = _contact_result(body)
     assert "APPROVAL_REQUIRED_FOR_SEND" in result["risk_flags"]
     assert "APPROVAL_REQUIRED_FOR_SEND" in body["risk_flags"]
+
+
+def test_message_draft_with_llm_option_keeps_template_translation(
+    monkeypatch,
+) -> None:
+    client = _client(monkeypatch)
+
+    body = _post_agent(
+        client,
+        {
+            "user_request": "베트남 근로자에게 안전교육 안내 메시지 작성해줘",
+            "input_payload": {
+                "task_type": "message_draft",
+                "worker_id": "worker-demo-001",
+                "worker_name": "Nguyen",
+                "language_code": "vi",
+                "message_purpose": "safety_training_notice",
+                "training_date": "2026-05-10",
+                "training_time": "10:00",
+                "location": "교육장",
+                "contact_person": "담당자",
+                "use_llm_translation": True,
+            },
+        },
+    )
+
+    result = _contact_result(body)
+    assert result["status"] == "SUCCESS"
+    assert result["translated_text"]
+    assert result.get("translation_provider") is None
+    assert "LLM_TRANSLATION_NOT_APPLIED_TO_MESSAGE_DRAFT" in result["risk_flags"]
 
 
 def test_unknown_message_purpose_fails_with_template_not_found(monkeypatch) -> None:
@@ -292,7 +462,9 @@ def test_natural_language_worker_reply_summary_is_extracted(
     assert result["status"] == "SUCCESS"
     assert result["summary_ko"]
     assert result["status_update_candidates"]
-    assert worker_reply not in json.dumps(body["evidence_events"], ensure_ascii=False)
+    evidence_payload = json.dumps(body["evidence_events"], ensure_ascii=False)
+    assert worker_reply not in evidence_payload
+    assert result["translated_ko"] not in evidence_payload
     _assert_no_forbidden_runtime_markers(body)
 
 
@@ -315,3 +487,66 @@ def test_natural_language_send_request_keeps_approval_required_flag(
     _assert_message_draft_success(body, "vi")
     assert "APPROVAL_REQUIRED_FOR_SEND" in body["risk_flags"]
     assert "APPROVAL_REQUIRED_FOR_SEND" in _contact_result(body)["risk_flags"]
+
+
+def test_message_draft_reflects_quality_checker_risk_flags(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        contact_agent_module,
+        "search_multilingual_contact_rag_tool",
+        _mock_rag_tool,
+    )
+    template_path = tmp_path / "message_templates.csv"
+    template_path.write_text(
+        "\n".join(
+            [
+                "purpose,target_language,korean_text,translated_text,required_fields,approval_required,review_status",
+                "missing_document_request,vi,서류를 제출해 주세요. 문의는 {contact_person}에게 해 주세요.,Vui lòng nộp hồ sơ. Hãy liên hệ {contact_person}.,contact_person,true,approved",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    agent = MultilingualContactAgent(template_path=template_path)
+
+    result = agent.generate_message_draft(
+        MessageDraftInput(
+            worker_id="worker-demo-001",
+            language_code="vi",
+            message_purpose="missing_document_request",
+            due_date="2026-05-10",
+            contact_person="담당자",
+            user_request="서류 요청 메시지 작성",
+            privacy_purpose="외국인 고용 업무 및 서류 확인",
+        )
+    )
+
+    assert result.status == "SUCCESS"
+    assert "PRIVACY_PURPOSE_MISSING" in result.risk_flags
+    assert "DEADLINE_MISSING" in result.risk_flags
+    assert "TRANSLATION_QUALITY_REVIEW_REQUIRED" in result.risk_flags
+
+
+def test_worker_reply_summary_with_provider_keeps_evidence_events_sanitized() -> None:
+    worker_reply = "Tôi có hộ chiếu, ảnh thì ngày mai tôi gửi."
+    translated_ko = "여권은 있고 사진은 내일 보낼 수 있습니다."
+    provider = MockTranslationProvider(
+        {("vi", "ko", worker_reply): translated_ko}
+    )
+    agent = MultilingualContactAgent(translation_provider=provider)
+
+    result = agent.summarize_worker_reply(
+        WorkerReplySummaryInput(
+            worker_id="worker-demo-001",
+            language_code="vi",
+            worker_reply=worker_reply,
+        )
+    )
+
+    evidence_payload = json.dumps(result.evidence_events, ensure_ascii=False)
+    assert result.translated_ko == translated_ko
+    assert worker_reply not in evidence_payload
+    assert translated_ko not in evidence_payload
+    assert result.approval_required is True
+    assert result.manager_review_required is True
