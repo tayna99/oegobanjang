@@ -1,4 +1,5 @@
 from app.agent_runtime.schemas import ForeignHiringState, EvidenceEvent, EventType
+from app.agent_runtime.middleware.pii_filter import mask_pii
 
 
 def log_event(state: ForeignHiringState, event: EvidenceEvent) -> ForeignHiringState:
@@ -20,7 +21,7 @@ def make_event(
         request_id=request_id,
         agent_name=agent_name,
         step_name=step_name,
-        summary=summary,
+        summary=mask_pii(summary),
         citation_ids=citation_ids or [],
         risk_level=risk_level,
     )

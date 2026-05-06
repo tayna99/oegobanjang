@@ -17,6 +17,8 @@ class ExecutionPlan(BaseModel):
     steps: list[str] = Field(default_factory=list)
     required_agents: list[str] = Field(default_factory=list)
     requires_approval: bool = False
+    blocked: bool = False
+    blocked_reasons: list[str] = Field(default_factory=list)
 
 
 class ForeignHiringState(BaseModel):

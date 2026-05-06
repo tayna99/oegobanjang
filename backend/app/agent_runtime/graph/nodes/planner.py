@@ -25,6 +25,8 @@ def planner_node(state: ForeignHiringState) -> ForeignHiringState:
     required_agents: list[str] = []
     steps: list[str] = []
     requires_approval = False
+    blocked = False
+    blocked_reasons: list[str] = []
 
     unsupported = [i for i in intents if i in _UNSUPPORTED_INTENTS]
     supported = [i for i in intents if i not in _UNSUPPORTED_INTENTS]
@@ -40,12 +42,16 @@ def planner_node(state: ForeignHiringState) -> ForeignHiringState:
         requires_approval = True
 
     if unsupported:
-        steps.append(f"지원하지 않는 요청: {[i.value for i in unsupported]}")
+        blocked = True
+        blocked_reasons = [i.value for i in unsupported]
+        steps.append(f"지원하지 않는 요청: {blocked_reasons}")
 
     state.plan = ExecutionPlan(
         steps=steps,
         required_agents=required_agents,
         requires_approval=requires_approval,
+        blocked=blocked,
+        blocked_reasons=blocked_reasons,
     )
 
     event = make_event(
