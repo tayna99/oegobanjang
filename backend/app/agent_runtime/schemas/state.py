@@ -21,10 +21,19 @@ class ExecutionPlan(BaseModel):
     blocked_reasons: list[str] = Field(default_factory=list)
 
 
+class ContextBlocker(BaseModel):
+    type: str
+    message: str
+    severity: str = "MEDIUM"
+    id: str = ""
+
+
 class ForeignHiringState(BaseModel):
     request_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str = ""
     company_id: str = ""
+    worker_id: str = ""
+    candidate_id: str = ""
     user_message: str = ""
 
     detected_intents: list[Intent] = Field(default_factory=list)
@@ -33,6 +42,8 @@ class ForeignHiringState(BaseModel):
     company_context: dict[str, Any] = Field(default_factory=dict)
     worker_context: dict[str, Any] = Field(default_factory=dict)
     candidate_context: dict[str, Any] = Field(default_factory=dict)
+    context_blockers: list[ContextBlocker] = Field(default_factory=list)
+    context_loaded: bool = False
 
     agent_results: list[dict[str, Any]] = Field(default_factory=list)
     tool_results: list[ToolResult] = Field(default_factory=list)
