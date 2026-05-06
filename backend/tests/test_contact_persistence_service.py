@@ -16,6 +16,8 @@ from backend.app.models.approval import Approval
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate
 from backend.app.models.evidence import EvidenceLog
 from backend.app.services.contact_persistence_service import (
+    approve_approval,
+    reject_approval,
     save_message_draft_result,
     save_worker_reply_summary_result,
 )
@@ -203,3 +205,107 @@ def test_worker_reply_evidence_logs_do_not_store_raw_reply_or_finalize_status() 
 
     candidates = db.scalars(select(StatusUpdateCandidate)).all()
     assert all(candidate.status == "PENDING_REVIEW" for candidate in candidates)
+
+
+def test_approve_contact_message_approval_marks_message_approved_without_sending() -> None:
+    db = _session()
+    message = save_message_draft_result(db, agent_result=_message_result())
+    db.commit()
+
+    approval = approve_approval(
+        db,
+        message.approval_id,
+        reviewed_by="manager-demo",
+    )
+    db.commit()
+
+    saved_message = db.get(ContactMessage, message.id)
+    assert approval.status == "APPROVED"
+    assert approval.reviewed_by == "manager-demo"
+    assert approval.reviewed_at is not None
+    assert saved_message.status == "APPROVED"
+    assert saved_message.sent_at is None
+
+
+def test_reject_contact_message_approval_marks_message_rejected() -> None:
+    db = _session()
+    message = save_message_draft_result(db, agent_result=_message_result())
+    db.commit()
+
+    approval = reject_approval(
+        db,
+        message.approval_id,
+        reviewed_by="manager-demo",
+        reason="문구 수정 필요",
+    )
+    db.commit()
+
+    saved_message = db.get(ContactMessage, message.id)
+    assert approval.status == "REJECTED"
+    assert approval.reviewed_by == "manager-demo"
+    assert approval.reason == "문구 수정 필요"
+    assert saved_message.status == "REJECTED"
+    assert saved_message.sent_at is None
+
+
+def test_approve_status_update_candidate_marks_candidate_approved_without_apply() -> None:
+    db = _session()
+    candidates = save_worker_reply_summary_result(
+        db,
+        agent_result=_worker_reply_result(),
+        worker_id="worker-demo-001",
+    )
+    db.commit()
+
+    candidate = candidates[0]
+    approval = approve_approval(
+        db,
+        candidate.approval_id,
+        reviewed_by="manager-demo",
+    )
+    db.commit()
+
+    saved_candidate = db.get(StatusUpdateCandidate, candidate.id)
+    assert approval.status == "APPROVED"
+    assert saved_candidate.status == "APPROVED"
+    assert saved_candidate.reviewed_at is not None
+    assert saved_candidate.candidate_status == candidate.candidate_status
+
+
+def test_reject_status_update_candidate_marks_candidate_rejected() -> None:
+    db = _session()
+    candidates = save_worker_reply_summary_result(
+        db,
+        agent_result=_worker_reply_result(),
+        worker_id="worker-demo-001",
+    )
+    db.commit()
+
+    candidate = candidates[0]
+    approval = reject_approval(
+        db,
+        candidate.approval_id,
+        reviewed_by="manager-demo",
+    )
+    db.commit()
+
+    saved_candidate = db.get(StatusUpdateCandidate, candidate.id)
+    assert approval.status == "REJECTED"
+    assert saved_candidate.status == "REJECTED"
+    assert saved_candidate.reviewed_at is not None
+
+
+def test_approval_cannot_be_reviewed_twice() -> None:
+    db = _session()
+    message = save_message_draft_result(db, agent_result=_message_result())
+    db.commit()
+
+    approve_approval(db, message.approval_id)
+    db.commit()
+
+    try:
+        reject_approval(db, message.approval_id)
+    except ValueError as exc:
+        assert "must be PENDING" in str(exc)
+    else:
+        raise AssertionError("reviewed approval must not be reviewed again")
