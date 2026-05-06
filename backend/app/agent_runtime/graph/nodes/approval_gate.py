@@ -5,7 +5,8 @@ from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
 
 
 def approval_gate_node(state: ForeignHiringState) -> ForeignHiringState:
-    if state.plan.requires_approval:
+    aggregated_requires_approval = bool(state.aggregated_output.get("approval_required"))
+    if state.plan.requires_approval or aggregated_requires_approval:
         state.approval = ApprovalStatus(
             required=True,
             status="PENDING",

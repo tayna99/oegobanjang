@@ -90,6 +90,7 @@ oegobanjang
 │  │  │  │     ├─ intent_router.py   # 사용자 요청 의도 분류
 │  │  │  │     ├─ planner.py         # 실행 계획 수립
 │  │  │  │     ├─ executor.py        # Agent/Tool 실행 제어
+│  │  │  │     ├─ aggregator.py      # 여러 Agent 결과, 근거, risk, 승인 필요 작업 통합
 │  │  │  │     ├─ approval_gate.py   # 승인 필요 여부 판단
 │  │  │  │     ├─ evidence_logger.py # Evidence Log 후보 이벤트 생성
 │  │  │  │     └─ final_response.py  # 최종 응답 생성
