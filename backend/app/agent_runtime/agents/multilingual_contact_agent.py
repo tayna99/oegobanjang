@@ -9,6 +9,21 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from backend.app.agent_runtime.translation.quality_checker import (
+    check_translation_quality,
+)
+from backend.app.agent_runtime.translation.reply_interpreter import (
+    interpret_worker_reply,
+)
+from backend.app.agent_runtime.translation.reply_summarizer import (
+    translate_and_summarize_worker_reply,
+)
+from backend.app.agent_runtime.translation.schemas import (
+    ReplyInterpretationRequest,
+    TranslationQualityCheckRequest,
+    WorkerReplySummaryRequest,
+)
+from backend.app.agent_runtime.translation.translator import TranslationProvider
 from backend.app.agent_runtime.tools.search_multilingual_contact_rag_tool import (
     SearchMultilingualContactRagInput,
     search_multilingual_contact_rag_tool,
@@ -72,6 +87,8 @@ class WorkerReplySummaryOutput(BaseModel):
     worker_id: str
     language_code: str
     status: Literal["SUCCESS", "FAILED"]
+    translated_ko: str | None = None
+    translation_provider: str | None = None
     summary_ko: str | None = None
     status_update_candidates: list[dict[str, Any]] = Field(default_factory=list)
     approval_required: bool = True
@@ -82,8 +99,14 @@ class WorkerReplySummaryOutput(BaseModel):
 
 
 class MultilingualContactAgent:
-    def __init__(self, template_path: str | Path = DEFAULT_TEMPLATE_PATH) -> None:
+    def __init__(
+        self,
+        template_path: str | Path = DEFAULT_TEMPLATE_PATH,
+        *,
+        translation_provider: TranslationProvider | None = None,
+    ) -> None:
         self.template_path = Path(template_path)
+        self.translation_provider = translation_provider
 
     def generate_message_draft(self, request: MessageDraftInput) -> MessageDraftOutput:
         risk_flags: list[str] = []
@@ -135,6 +158,19 @@ class MultilingualContactAgent:
         review_status = str(template.get("review_status", "")).strip()
         if review_status in TRANSLATION_REVIEW_STATUSES or not translated_text.strip():
             risk_flags.append("TRANSLATION_REVIEW_REQUIRED")
+        quality_result = check_translation_quality(
+            TranslationQualityCheckRequest(
+                korean_text=korean_text,
+                translated_text=translated_text,
+                purpose=request.message_purpose,
+                privacy_purpose=request.privacy_purpose,
+                deadline=request.due_date,
+                contact_person=request.contact_person,
+            )
+        )
+        risk_flags.extend(quality_result.risk_flags)
+        if quality_result.review_required:
+            risk_flags.append("TRANSLATION_QUALITY_REVIEW_REQUIRED")
 
         evidence_events = [
             build_evidence_event(
@@ -174,13 +210,31 @@ class MultilingualContactAgent:
     def summarize_worker_reply(
         self, request: WorkerReplySummaryInput
     ) -> WorkerReplySummaryOutput:
-        summary_ko, candidates, risk_flags = summarize_worker_reply_rule_based(
-            request.worker_reply
+        summary_result = translate_and_summarize_worker_reply(
+            WorkerReplySummaryRequest(
+                worker_reply=request.worker_reply,
+                language_code=request.language_code,
+            ),
+            provider=self.translation_provider,
+        )
+        interpretation = interpret_worker_reply(
+            ReplyInterpretationRequest(
+                worker_reply=request.worker_reply,
+                translated_ko=summary_result.translated_ko,
+                language_code=request.language_code,
+            )
+        )
+        candidates = [
+            candidate.model_dump(exclude_none=True)
+            for candidate in interpretation.status_update_candidates
+        ]
+        risk_flags = _dedupe(
+            summary_result.risk_flags + interpretation.uncertainty_flags
         )
         evidence_events = [
             build_evidence_event(
                 "worker_reply_summarized",
-                "근로자 답변을 요약했습니다. 원문은 Evidence Log 후보에 저장하지 않습니다.",
+                "근로자 답변을 번역 및 요약했습니다. 원문과 번역 전문은 Evidence Log 후보에 저장하지 않습니다.",
                 [],
                 approval_required=True,
             ),
@@ -202,7 +256,9 @@ class MultilingualContactAgent:
             worker_id=request.worker_id,
             language_code=request.language_code,
             status="SUCCESS",
-            summary_ko=summary_ko,
+            translated_ko=summary_result.translated_ko,
+            translation_provider=summary_result.translation_provider,
+            summary_ko=summary_result.summary_ko,
             status_update_candidates=candidates,
             approval_required=True,
             manager_review_required=True,
@@ -259,96 +315,22 @@ def build_evidence_event(
 def summarize_worker_reply_rule_based(
     worker_reply: str,
 ) -> tuple[str, list[dict[str, Any]], list[str]]:
-    normalized = worker_reply.lower()
-    candidates: list[dict[str, Any]] = []
-    fragments: list[str] = []
-
-    if _contains_any(normalized, ("여권", "hộ chiếu", "passport")):
-        candidates.append(
-            {
-                "candidate_type": "passport_received_candidate",
-                "field": "passport",
-                "candidate_status": "available",
-                "is_final": False,
-            }
+    summary_result = translate_and_summarize_worker_reply(
+        WorkerReplySummaryRequest(worker_reply=worker_reply, language_code="vi")
+    )
+    interpretation = interpret_worker_reply(
+        ReplyInterpretationRequest(
+            worker_reply=worker_reply,
+            translated_ko=summary_result.translated_ko,
+            language_code="vi",
         )
-        fragments.append("여권은 보유한 것으로 보입니다")
-
-    if _contains_any(normalized, ("사진", "ảnh", "photo")):
-        status = "pending"
-        if _contains_any(normalized, ("내일", "ngày mai", "besok")):
-            status = "pending_until_next_day"
-        candidates.append(
-            {
-                "candidate_type": "photo_pending_candidate",
-                "field": "photo",
-                "candidate_status": status,
-                "is_final": False,
-            }
-        )
-        fragments.append("사진 제출 상태 확인이 필요합니다")
-
-    if _contains_any(normalized, ("내일", "ngày mai", "besok")):
-        candidates.append(
-            {
-                "candidate_type": "expected_submission_date_candidate",
-                "field": "expected_submission_date",
-                "candidate_status": "next_day",
-                "is_final": False,
-            }
-        )
-        fragments.append("내일 제출 가능하다는 의미가 포함되어 있습니다")
-
-    if _contains_any(normalized, ("못", "không thể", "belum", "belum bisa")):
-        candidates.append(
-            {
-                "candidate_type": "delay_or_unavailable_candidate",
-                "field": "submission_status",
-                "candidate_status": "needs_follow_up",
-                "is_final": False,
-            }
-        )
-        fragments.append("제출 지연 또는 준비 어려움 가능성이 있습니다")
-
-    if _contains_any(normalized, ("전화", "call", "gọi")):
-        candidates.append(
-            {
-                "candidate_type": "contact_request_candidate",
-                "field": "contact_request",
-                "candidate_status": "requested",
-                "is_final": False,
-            }
-        )
-        fragments.append("전화 연락 요청 가능성이 있습니다")
-
-    if _contains_any(normalized, ("기숙사", "housing", "asrama")):
-        candidates.append(
-            {
-                "candidate_type": "housing_issue_candidate",
-                "field": "housing",
-                "candidate_status": "needs_review",
-                "is_final": False,
-            }
-        )
-        fragments.append("기숙사 또는 주거 관련 확인이 필요할 수 있습니다")
-
-    if _contains_any(normalized, ("상담", "counseling")):
-        candidates.append(
-            {
-                "candidate_type": "counseling_support_candidate",
-                "field": "support_channel",
-                "candidate_status": "counseling_may_help",
-                "is_final": False,
-            }
-        )
-        fragments.append("상담 지원이 필요할 수 있습니다")
-
-    if not fragments:
-        fragments.append("근로자 답변의 주요 의미를 규칙 기반으로 확정하기 어렵습니다")
-
-    summary = "근로자 답변 요약 후보: " + ", ".join(fragments) + "."
-    risk_flags = ["MANAGER_REVIEW_REQUIRED"]
-    return summary, candidates, risk_flags
+    )
+    candidates = [
+        candidate.model_dump(exclude_none=True)
+        for candidate in interpretation.status_update_candidates
+    ]
+    risk_flags = _dedupe(summary_result.risk_flags + interpretation.uncertainty_flags)
+    return summary_result.summary_ko, candidates, risk_flags
 
 
 def _missing_required_fields(

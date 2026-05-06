@@ -69,6 +69,7 @@ def _worker_reply_result() -> dict:
         "worker_id": "worker-demo-001",
         "language_code": "vi",
         "status": "SUCCESS",
+        "translated_ko": "여권은 보유한 것으로 보이며 사진은 내일 제출 가능하다는 답변입니다.",
         "summary_ko": "근로자가 여권 보유 및 사진 추후 제출 의사를 밝힘",
         "status_update_candidates": [
             {
@@ -200,6 +201,7 @@ def test_worker_reply_evidence_logs_do_not_store_raw_reply_or_finalize_status() 
     assert logs
     for log in logs:
         assert worker_reply not in log.summary
+        assert result["translated_ko"] not in log.summary
         assert "SENT" not in log.summary
         assert "APPLIED" not in log.summary
 
