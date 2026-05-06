@@ -158,11 +158,43 @@ POST /api/v1/agent/run
 DB 저장 opt-in 정책:
 
 - 기본 실행은 Runtime response만 반환하고 DB에 저장하지 않는다.
-- `input_payload.persist_result=true`일 때만 메시지 초안, 승인, Evidence Log 후보, 상태 업데이트 후보를 SQLite 운영 DB에 저장한다.
+- `input_payload.persist_result=false` 또는 필드가 없으면 응답만 반환하고 DB에 저장하지 않는다.
+- `input_payload.persist_result=true`일 때만 성공 결과를 SQLite 운영 DB에 저장한다.
+- 메시지 초안 생성 성공 결과는 `contact_messages`, `approvals`, `evidence_logs`를 생성한다.
+- 근로자 답변 요약 성공 결과는 `status_update_candidates`, `approvals`, `evidence_logs`를 생성한다.
 - 자연어 extractor는 `worker_name`을 추출할 수 있지만, DB 저장에는 `worker_id`가 필요하다.
 - `persist_result=true` 요청에서는 `input_payload.worker_id`를 명시해야 한다.
 - `worker_name` 기반 `worker_id` lookup은 workers 테이블/조회 기능이 생긴 뒤 후속 작업으로 구현한다.
 - DB 저장 시에도 메시지는 초안 상태이며 `approval_required=true`, `approval.status=PENDING`을 유지한다.
+
+예시:
+
+```json
+{
+  "user_request": "베트남 근로자에게 안전교육 안내 메시지 작성해줘",
+  "input_payload": {
+    "worker_id": "worker_001",
+    "language_code": "vi",
+    "message_purpose": "safety_training_notice",
+    "training_date": "2026-05-10",
+    "training_time": "10:00",
+    "location": "교육장",
+    "persist_result": true
+  }
+}
+```
+
+`persist_result=true` 응답의 `persistence` 예시:
+
+```json
+{
+  "enabled": true,
+  "saved": true,
+  "contact_message_id": "uuid",
+  "approval_id": "uuid",
+  "evidence_log_ids": ["uuid"]
+}
+```
 
 #### 요청 예시 A: 자연어 vi 안전교육 메시지
 
@@ -389,6 +421,32 @@ POST /api/v1/approvals/{approval_id}/reject
 ```
 
 승인 필요한 작업은 Agent가 직접 실행하지 않고 approval pending 상태로 넘긴다.
+
+현재 승인 처리 서비스 규칙:
+
+```txt
+contact_message approval 승인
+→ approvals.status=APPROVED
+→ contact_messages.status=APPROVED
+→ 실제 발송은 아직 하지 않음
+
+contact_message approval 반려
+→ approvals.status=REJECTED
+→ contact_messages.status=REJECTED
+→ 실제 발송은 하지 않음
+
+status_update_candidate approval 승인
+→ approvals.status=APPROVED
+→ status_update_candidates.status=APPROVED
+→ 실제 worker_documents 반영은 아직 하지 않음
+
+status_update_candidate approval 반려
+→ approvals.status=REJECTED
+→ status_update_candidates.status=REJECTED
+→ 실제 worker_documents 반영은 하지 않음
+```
+
+승인/반려는 `PENDING` approval에만 가능하다.
 
 ---
 

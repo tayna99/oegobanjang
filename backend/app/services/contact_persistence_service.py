@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -13,12 +14,71 @@ from backend.app.models.evidence import EvidenceLog
 MESSAGE_INITIAL_STATUS = "PENDING_APPROVAL"
 APPROVAL_INITIAL_STATUS = "PENDING"
 CANDIDATE_INITIAL_STATUS = "PENDING_REVIEW"
+APPROVAL_APPROVED_STATUS = "APPROVED"
+APPROVAL_REJECTED_STATUS = "REJECTED"
+MESSAGE_APPROVED_STATUS = "APPROVED"
+MESSAGE_REJECTED_STATUS = "REJECTED"
+CANDIDATE_APPROVED_STATUS = "APPROVED"
+CANDIDATE_REJECTED_STATUS = "REJECTED"
 FORBIDDEN_EVIDENCE_MARKERS = (
     "여권번호",
     "외국인등록번호",
     "전화번호 전체",
     "주소 전체",
 )
+
+
+def approve_approval(
+    db: Session,
+    approval_id: str,
+    *,
+    reviewed_by: str | None = None,
+) -> Approval:
+    approval = _get_pending_approval(db, approval_id)
+    approval.status = APPROVAL_APPROVED_STATUS
+    approval.reviewed_by = reviewed_by
+    approval.reviewed_at = _now()
+
+    if approval.target_type == "contact_message":
+        message = _get_contact_message(db, approval.target_id)
+        message.status = MESSAGE_APPROVED_STATUS
+    elif approval.target_type == "status_update_candidate":
+        candidate = _get_status_update_candidate(db, approval.target_id)
+        candidate.status = CANDIDATE_APPROVED_STATUS
+        candidate.reviewed_at = approval.reviewed_at
+    else:
+        raise ValueError(f"Unsupported approval target_type: {approval.target_type}")
+
+    db.flush()
+    return approval
+
+
+def reject_approval(
+    db: Session,
+    approval_id: str,
+    *,
+    reviewed_by: str | None = None,
+    reason: str | None = None,
+) -> Approval:
+    approval = _get_pending_approval(db, approval_id)
+    approval.status = APPROVAL_REJECTED_STATUS
+    approval.reviewed_by = reviewed_by
+    approval.reviewed_at = _now()
+    if reason:
+        approval.reason = reason
+
+    if approval.target_type == "contact_message":
+        message = _get_contact_message(db, approval.target_id)
+        message.status = MESSAGE_REJECTED_STATUS
+    elif approval.target_type == "status_update_candidate":
+        candidate = _get_status_update_candidate(db, approval.target_id)
+        candidate.status = CANDIDATE_REJECTED_STATUS
+        candidate.reviewed_at = approval.reviewed_at
+    else:
+        raise ValueError(f"Unsupported approval target_type: {approval.target_type}")
+
+    db.flush()
+    return approval
 
 
 def save_message_draft_result(
@@ -199,6 +259,38 @@ def create_approval_for_status_update_candidate(
     db.add(approval)
     db.flush()
     return approval
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _get_pending_approval(db: Session, approval_id: str) -> Approval:
+    approval = db.get(Approval, approval_id)
+    if approval is None:
+        raise ValueError(f"Approval not found: {approval_id}")
+    if approval.status != APPROVAL_INITIAL_STATUS:
+        raise ValueError(
+            f"Approval must be PENDING before review: {approval_id} is {approval.status}"
+        )
+    return approval
+
+
+def _get_contact_message(db: Session, message_id: str) -> ContactMessage:
+    message = db.get(ContactMessage, message_id)
+    if message is None:
+        raise ValueError(f"Contact message not found: {message_id}")
+    return message
+
+
+def _get_status_update_candidate(
+    db: Session,
+    candidate_id: str,
+) -> StatusUpdateCandidate:
+    candidate = db.get(StatusUpdateCandidate, candidate_id)
+    if candidate is None:
+        raise ValueError(f"Status update candidate not found: {candidate_id}")
+    return candidate
 
 
 def _validate_message_draft_result(agent_result: dict[str, Any]) -> None:
