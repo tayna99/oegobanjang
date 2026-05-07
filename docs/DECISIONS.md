@@ -120,3 +120,47 @@ TBD
 
 - `contact_messages`는 메시지 전문을 저장하므로 접근 권한과 보관 정책이 필요하다.
 - `evidence_logs.summary`에는 개인정보 원문을 넣지 않도록 service 계층에서 추가 검증이 필요하다.
+
+---
+
+## Decision 005: Handoff Package는 저장 가능한 초안이지만 자동 전달하지 않는다
+
+### Date
+
+2026-05-06
+
+### Context
+
+Aggregator 이후 고위험 케이스 또는 명시적 전문가 전달 케이스에서는 handoff package draft가 생성된다.
+이 draft는 담당자가 나중에 조회하고 승인/반려할 수 있어야 하지만, 전문가에게 자동 전달되면 안 된다.
+
+### Decision
+
+- `handoff_package_drafts` 테이블에 전문가 검토용 초안을 저장한다.
+- 저장은 LangGraph `user_message` 경로에서 top-level `persist_result=true`일 때만 수행한다.
+- Contact Runtime `user_request` 경로는 기존처럼 `input_payload.persist_result`를 사용하며, 현재 handoff draft를 저장하지 않는다.
+- `package_json`은 allowlist 기반 sanitize JSON만 저장한다.
+- `worker_id`는 DB relation 필드로만 저장하고, `package_json`과 API response draft body에는 저장하지 않는다.
+- `company_id`는 handoff draft 조회/승인 scope 검사용으로 저장한다.
+- MVP/demo 단계의 조회 API는 `X-Company-Id` header와 draft의 `company_id`를 비교해 접근을 제한한다.
+- `X-Company-Id`가 없거나 scope가 다르면 `403 Forbidden`으로 차단한다.
+- 초안 생성 시 `approval_required=true`, `approval.status=PENDING`, `transferred_at=null`을 유지한다.
+- approve/reject API는 review decision만 저장한다.
+- 승인 시 `handoff_package_drafts.status=APPROVED`, `approvals.status=APPROVED`로 변경하지만 `transferred_at=null`을 유지한다.
+- 반려 시 `handoff_package_drafts.status=REJECTED`, `approvals.status=REJECTED`로 변경하지만 `transferred_at=null`을 유지한다.
+- 이미 승인/반려된 draft 재처리는 `409 Conflict`로 차단한다.
+- 승인 후에도 실제 전문가 전달은 별도 실행 단계에서만 가능하다.
+
+### Consequence
+
+장점:
+
+- handoff draft 생성 이력과 승인 이력을 추적할 수 있다.
+- API response에는 safe summary만 노출하면서 DB에는 검토 가능한 초안을 보존할 수 있다.
+- 전문가 전달과 초안 저장이 분리되어 자동 전달 사고를 줄인다.
+
+주의:
+
+- `package_json` sanitize allowlist를 계속 유지해야 한다.
+- 향후 실제 전달 API를 만들 때도 별도 approval-required flow가 필요하다.
+- 운영 전에는 `X-Company-Id` header 기반 MVP scope 검사를 인증 토큰 기반 company membership/role 검증으로 교체해야 한다.

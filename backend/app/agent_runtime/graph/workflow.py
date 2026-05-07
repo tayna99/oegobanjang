@@ -10,6 +10,7 @@ from app.agent_runtime.graph.nodes import (
     executor_node,
     aggregator_node,
     approval_gate_node,
+    handoff_package_node,
     final_response_node,
 )
 
@@ -39,6 +40,7 @@ def build_workflow() -> StateGraph:
     graph.add_node("executor", _wrap(executor_node))
     graph.add_node("aggregator", _wrap(aggregator_node))
     graph.add_node("approval_gate", _wrap(approval_gate_node))
+    graph.add_node("handoff_package", _wrap(handoff_package_node))
     graph.add_node("final_response", _wrap(final_response_node))
 
     graph.set_entry_point("intent_router")
@@ -47,7 +49,8 @@ def build_workflow() -> StateGraph:
     graph.add_edge("state_loader", "executor")
     graph.add_edge("executor", "aggregator")
     graph.add_edge("aggregator", "approval_gate")
-    graph.add_edge("approval_gate", "final_response")
+    graph.add_edge("approval_gate", "handoff_package")
+    graph.add_edge("handoff_package", "final_response")
     graph.add_edge("final_response", END)
 
     return graph

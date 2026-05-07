@@ -60,7 +60,8 @@ POST /api/v1/agent/run
   "request_id": "req_001",
   "user_id": "user_001",
   "company_id": "company_001",
-  "user_message": "베트남 E-9 근로자 3명 추가 채용 준비해줘. Nguyen 체류만료도 확인해줘."
+  "user_message": "베트남 E-9 근로자 3명 추가 채용 준비해줘. Nguyen 체류만료도 확인해줘.",
+  "persist_result": false
 }
 ```
 
@@ -138,7 +139,10 @@ POST /api/v1/agent/run
   },
   "evidence_events": [],
   "risk_flags": [],
-  "final_response": "다국어 메시지 초안을 생성했습니다..."
+  "final_response": "다국어 메시지 초안을 생성했습니다...",
+  "handoff": {
+    "available": false
+  }
 }
 ```
 
@@ -166,6 +170,225 @@ DB 저장 opt-in 정책:
 - `persist_result=true` 요청에서는 `input_payload.worker_id`를 명시해야 한다.
 - `worker_name` 기반 `worker_id` lookup은 workers 테이블/조회 기능이 생긴 뒤 후속 작업으로 구현한다.
 - DB 저장 시에도 메시지는 초안 상태이며 `approval_required=true`, `approval.status=PENDING`을 유지한다.
+
+Handoff response 정책:
+
+- 모든 `/api/v1/agent/run` 응답은 top-level `handoff` 필드를 포함한다.
+- `handoff.available=false`이면 handoff draft가 생성되지 않은 상태다.
+- `handoff.available=true`여도 자동 전달된 것이 아니다.
+- `approval_status=PENDING`이면 담당자 승인 전 외부 전송 금지 상태다.
+- API response에는 전체 handoff draft 본문을 노출하지 않는다.
+- `worker_id`, `worker_reply` 원문, `translated_ko` 전문, 근로자-facing message body 전문, 개인정보 원문은 포함하지 않는다.
+- LangGraph `user_message` 경로는 top-level `persist_result=true`일 때 handoff draft를 저장한다.
+- Contact Runtime `user_request` 경로는 기존처럼 `input_payload.persist_result=true`를 사용한다.
+
+Handoff draft 없음:
+
+```json
+{
+  "handoff": {
+    "available": false
+  }
+}
+```
+
+Handoff draft 있음:
+
+```json
+{
+  "handoff": {
+    "available": true,
+    "package_type": "expert_handoff_draft",
+    "approval_required": true,
+    "approval_status": "PENDING",
+    "not_for_legal_judgment": true,
+    "handoff_ready": false,
+    "handoff_blockers": [],
+    "raw_worker_reply_included": false,
+    "full_translation_included": false,
+    "message_body_included": false
+  }
+}
+```
+
+Handoff draft 저장 성공:
+
+```json
+{
+  "handoff": {
+    "available": true,
+    "draft_id": "uuid",
+    "approval_id": "uuid",
+    "package_type": "expert_handoff_draft",
+    "approval_required": true,
+    "approval_status": "PENDING",
+    "not_for_legal_judgment": true,
+    "handoff_ready": false,
+    "handoff_blockers": [],
+    "raw_worker_reply_included": false,
+    "full_translation_included": false,
+    "message_body_included": false
+  }
+}
+```
+
+### GET /api/v1/handoff-package-drafts/{draft_id}
+
+저장된 전문가 검토용 handoff package draft를 안전한 detail view로 조회한다.
+
+조회 API는 read-only이며, 전문가 전달, 외부 export, 메시지 발송, 정부 제출, 상태 확정을 실행하지 않는다.
+
+MVP/demo 단계에서는 회사 접근 scope 확인을 위해 `X-Company-Id` header가 필요하다.
+운영 전에는 인증 토큰 기반 `company_id`/role 검증으로 교체해야 한다.
+
+```http
+GET /api/v1/handoff-package-drafts/{draft_id}
+X-Company-Id: company-demo-001
+```
+
+접근 제어:
+
+- `X-Company-Id`가 없으면 `403 Forbidden`
+- draft의 `company_id`와 `X-Company-Id`가 다르면 `403 Forbidden`
+- `draft_id` 자체가 없으면 `404 Not Found`
+- `403`/`404` 응답에는 worker 정보, package 요약, 개인정보를 포함하지 않는다.
+
+응답 예시:
+
+```json
+{
+  "id": "uuid",
+  "package_type": "expert_handoff_draft",
+  "status": "PENDING_APPROVAL",
+  "approval_required": true,
+  "approval_id": "uuid",
+  "approval_status": "PENDING",
+  "transferred_at": null,
+  "not_for_legal_judgment": true,
+  "handoff_ready": false,
+  "handoff_blockers": [],
+  "case_summary": {
+    "summary": "체류만료가 임박하여 서류 누락 여부 확인이 필요합니다.",
+    "risk_level": "HIGH"
+  },
+  "worker_summary": {
+    "masked_worker_id": "worker_***",
+    "visa_type": "E-9",
+    "stay_expires_at": "2026-06-01",
+    "contract_ends_at": "2026-05-25"
+  },
+  "document_summary": {
+    "missing_documents": ["passport_copy"]
+  },
+  "contact_summary": {
+    "raw_worker_reply_included": false,
+    "full_translation_included": false,
+    "message_body_included": false
+  },
+  "evidence": {
+    "citation_ids": ["gov24_stay_extension"],
+    "evidence_log_ids": [],
+    "not_for_legal_judgment": true
+  },
+  "created_at": "2026-05-06T12:00:00+00:00",
+  "updated_at": "2026-05-06T12:00:00+00:00"
+}
+```
+
+반환 정책:
+
+- 전체 `package_json` 원문은 반환하지 않는다.
+- `case_summary`와 `document_summary`는 저장 시 allowlist sanitize된 값만 반환한다.
+- 조회 직전 금지 marker와 개인정보 패턴을 재검사한다.
+- `worker_id` 원문, `worker_name`, `nationality`, `worker_reply` 원문, `translated_ko` 전문, 근로자-facing message body 전문, 여권번호, 외국인등록번호, 전화번호 전체, 주소 전체, OCR/문서 원문은 반환하지 않는다.
+- 안전하지 않은 저장 데이터가 감지되면 detail을 반환하지 않고 오류로 막는다.
+
+### POST /api/v1/handoff-package-drafts/{draft_id}/approve
+
+전문가 검토용 handoff package draft를 담당자가 승인 처리한다.
+이 API는 review decision만 저장하며, 전문가 자동 전달, 외부 export, 정부 제출, 메시지 발송을 실행하지 않는다.
+
+요청:
+
+```http
+POST /api/v1/handoff-package-drafts/{draft_id}/approve
+X-Company-Id: company-demo-001
+```
+
+```json
+{
+  "reviewed_by": "manager-demo",
+  "reason": "검토 완료"
+}
+```
+
+응답:
+
+```json
+{
+  "draft_id": "uuid",
+  "approval_id": "uuid",
+  "status": "APPROVED",
+  "approval_status": "APPROVED",
+  "transferred_at": null
+}
+```
+
+상태 전이:
+
+```txt
+handoff_package_drafts.status: PENDING_APPROVAL → APPROVED
+approvals.status: PENDING → APPROVED
+transferred_at: null 유지
+```
+
+### POST /api/v1/handoff-package-drafts/{draft_id}/reject
+
+전문가 검토용 handoff package draft를 담당자가 반려 처리한다.
+이 API도 review decision만 저장하며 외부 작업을 실행하지 않는다.
+
+요청:
+
+```http
+POST /api/v1/handoff-package-drafts/{draft_id}/reject
+X-Company-Id: company-demo-001
+```
+
+```json
+{
+  "reviewed_by": "manager-demo",
+  "reason": "보완 필요"
+}
+```
+
+응답:
+
+```json
+{
+  "draft_id": "uuid",
+  "approval_id": "uuid",
+  "status": "REJECTED",
+  "approval_status": "REJECTED",
+  "transferred_at": null
+}
+```
+
+상태 전이:
+
+```txt
+handoff_package_drafts.status: PENDING_APPROVAL → REJECTED
+approvals.status: PENDING → REJECTED
+transferred_at: null 유지
+```
+
+approve/reject 에러 정책:
+
+- `X-Company-Id`가 없으면 `403 Forbidden`
+- draft의 `company_id`와 `X-Company-Id`가 다르면 `403 Forbidden`
+- `draft_id` 자체가 없으면 `404 Not Found`
+- 이미 승인/반려된 draft를 다시 처리하면 `409 Conflict`
+- `403`/`404`/`409` 응답에는 worker 정보, package 요약, 개인정보를 포함하지 않는다.
+- 응답에는 전체 `package_json`, `worker_id` 원문, worker reply 원문, `translated_ko` 전문, message body 전문, 개인정보 원문을 포함하지 않는다.
 
 예시:
 
@@ -428,6 +651,7 @@ language_code=id 유지
 | `evidence_events` | Evidence Log 후보 이벤트. 실제 DB 저장 전 후보 상태 |
 | `risk_flags` | 안전상 주의가 필요한 플래그 |
 | `final_response` | 사용자에게 보여줄 최종 응답 문구 |
+| `handoff` | 전문가 전달용 초안 생성 여부와 승인 상태를 나타내는 안전 summary. 전체 draft 본문은 포함하지 않음 |
 
 #### 실패 케이스
 

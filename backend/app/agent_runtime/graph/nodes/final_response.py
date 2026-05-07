@@ -11,6 +11,10 @@ _UNSUPPORTED_MESSAGES: dict[str, str] = {
     Intent.UNSUPPORTED_LEGAL_JUDGMENT.value: "비자 가능 여부 확정이나 법률·노무 자문은 제공하지 않습니다. 행정사 또는 노무사에게 문의하세요.",
     Intent.UNSUPPORTED_AUTO_SUBMISSION.value: "정부 포털 자동 제출이나 비자 신청 대행은 지원하지 않습니다.",
 }
+_HANDOFF_DRAFT_NOTICE = (
+    "전문가 검토용 handoff package 초안이 생성되었습니다.\n"
+    "자동 전달은 하지 않으며, 담당자 승인 전에는 외부로 전송되지 않습니다."
+)
 
 _SYSTEM_PROMPT = """당신은 외국인 고용 운영 시스템의 응답 생성기입니다.
 사용자 질문, 검색된 공식 문서, 에이전트 분석 결과를 바탕으로 정확하고 간결한 답변을 생성합니다.
@@ -49,6 +53,17 @@ def _build_agent_summary(agent_results: list[dict]) -> str:
         for flag in risk_flags:
             parts.append(f"  ⚠ {flag}")
     return "\n".join(parts)
+
+
+def _append_handoff_notice(state: ForeignHiringState) -> None:
+    if not state.handoff_package_draft:
+        return
+    if not state.final_response:
+        state.final_response = _HANDOFF_DRAFT_NOTICE
+        return
+    if _HANDOFF_DRAFT_NOTICE in state.final_response:
+        return
+    state.final_response = f"{state.final_response}\n\n{_HANDOFF_DRAFT_NOTICE}"
 
 
 def final_response_node(state: ForeignHiringState) -> ForeignHiringState:
@@ -100,6 +115,8 @@ def final_response_node(state: ForeignHiringState) -> ForeignHiringState:
             state.final_response = mask_pii(response.content)
         except Exception as e:
             state.final_response = f"응답 생성 중 오류가 발생했습니다: {str(e)}"
+
+    _append_handoff_notice(state)
 
     citation_ids = [ctx.get("source_id", "") for ctx in state.rag_contexts]
     event = make_event(

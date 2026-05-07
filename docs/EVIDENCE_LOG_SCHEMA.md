@@ -55,8 +55,14 @@ Evidence Log에는 다음 원문을 저장하지 않는다.
 - 전화번호 전체
 - 주소 전체
 - 서류 파일 원문
+- OCR 원문
 - 메시지 전문
 - worker_reply 원문
+- translated_ko 전문
+- 근로자-facing message body 전문
+- 상담 내용 전문
+- 계약, 급여, 숙소, 의료 관련 원문
+- API key, .env 값, token, secret
 - 기타 개인정보 원문
 
 저장 가능한 정보:
@@ -96,6 +102,8 @@ status_update_candidate_created
 
 - 메시지 전문
 - worker_reply 원문
+- translated_ko 전문
+- 근로자-facing message body 전문
 - 개인정보 원문
 
 예시 요약:
@@ -108,7 +116,62 @@ status_update_candidate_created → 사진 제출 예정 상태 후보가 생성
 
 ---
 
-## 6. 예시
+## 6. Handoff Package 이벤트
+
+Handoff Package는 전문가 전달용 초안 생성 이벤트만 Evidence Log에 남긴다.
+
+저장 가능:
+
+- package type
+- case type
+- masked_worker_id
+- risk_flags
+- source_id 목록
+- approval_required 여부
+- approval.status
+- handoff_blockers 요약
+- handoff_package_draft_created 이벤트 요약
+
+저장 금지:
+
+- worker_id 원문
+- worker_name 원문
+- nationality
+- worker_reply 원문
+- translated_ko 전문
+- 근로자-facing message body 전문
+- 여권번호 원문
+- 외국인등록번호 원문
+- 전화번호 전체
+- 주소 전체
+
+Handoff Package 관련 이벤트는 아래 상태를 유지해야 한다.
+
+```txt
+package_type=expert_handoff_draft
+approval_required=true
+approval.status=PENDING
+not_for_legal_judgment=true
+raw_worker_reply_included=false
+full_translation_included=false
+message_body_included=false
+```
+
+DB 저장 시 Evidence Log 예시:
+
+```txt
+event_type=handoff_package_draft_created
+summary=전문가 검토용 handoff package 초안이 생성되었습니다.
+approval_required=true
+approval.status=PENDING
+```
+
+Evidence Log에는 handoff package 전문을 저장하지 않는다.
+저장된 handoff draft 조회 API도 같은 원칙을 따른다. 조회 응답은 safe detail view만 반환하며, package_json 원문이나 민감정보 원문을 노출하지 않는다.
+
+---
+
+## 7. 예시
 
 ```json
 {

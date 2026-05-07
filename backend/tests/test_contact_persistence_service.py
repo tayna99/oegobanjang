@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -18,6 +19,7 @@ from backend.app.models.evidence import EvidenceLog
 from backend.app.services.contact_persistence_service import (
     approve_approval,
     reject_approval,
+    save_evidence_events,
     save_message_draft_result,
     save_worker_reply_summary_result,
 )
@@ -151,6 +153,15 @@ def test_message_draft_evidence_log_does_not_store_message_body() -> None:
         assert log.approval_id == message.approval_id
 
 
+def test_message_draft_evidence_log_rejects_message_body() -> None:
+    db = _session()
+    result = _message_result()
+    result["evidence_events"][0]["summary"] = result["korean_text"]
+
+    with pytest.raises(ValueError, match="original text"):
+        save_message_draft_result(db, agent_result=result)
+
+
 def test_save_worker_reply_summary_creates_candidate_level_approvals() -> None:
     db = _session()
     result = _worker_reply_result()
@@ -207,6 +218,94 @@ def test_worker_reply_evidence_logs_do_not_store_raw_reply_or_finalize_status() 
 
     candidates = db.scalars(select(StatusUpdateCandidate)).all()
     assert all(candidate.status == "PENDING_REVIEW" for candidate in candidates)
+
+
+def test_worker_reply_evidence_log_rejects_raw_reply_and_translation() -> None:
+    db = _session()
+    worker_reply = "Tôi có hộ chiếu, nhưng ảnh thì ngày mai tôi có thể gửi."
+    result = _worker_reply_result()
+    result["evidence_events"][0]["summary"] = worker_reply
+
+    with pytest.raises(ValueError, match="original text"):
+        save_worker_reply_summary_result(
+            db,
+            agent_result=result,
+            worker_id="worker-demo-001",
+            worker_reply=worker_reply,
+        )
+
+    db = _session()
+    result = _worker_reply_result()
+    result["evidence_events"][0]["summary"] = result["translated_ko"]
+    with pytest.raises(ValueError, match="original text"):
+        save_worker_reply_summary_result(
+            db,
+            agent_result=result,
+            worker_id="worker-demo-001",
+            worker_reply=worker_reply,
+        )
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "여권번호 M12345678 확인됨",
+        "외국인등록번호 900101-1234567 확인됨",
+        "전화번호 010-1234-5678 확인됨",
+    ],
+)
+def test_evidence_log_rejects_raw_pii_patterns(summary: str) -> None:
+    db = _session()
+
+    with pytest.raises(ValueError):
+        save_evidence_events(
+            db,
+            evidence_events=[
+                {
+                    "event_type": "risk_flagged",
+                    "agent_name": "test_agent",
+                    "summary": summary,
+                    "source_ids": ["safe_source"],
+                    "approval_required": True,
+                }
+            ],
+        )
+
+
+def test_evidence_log_rejects_raw_text_in_risk_flags_and_source_ids() -> None:
+    db = _session()
+    forbidden = "근로자가 보낸 원문 답변입니다"
+
+    with pytest.raises(ValueError, match="original text"):
+        save_evidence_events(
+            db,
+            evidence_events=[
+                {
+                    "event_type": "risk_flagged",
+                    "agent_name": "test_agent",
+                    "summary": "원문 없는 요약",
+                    "source_ids": ["safe_source"],
+                    "approval_required": True,
+                }
+            ],
+            risk_flags=[forbidden],
+            forbidden_texts=[forbidden],
+        )
+
+    with pytest.raises(ValueError, match="source_id"):
+        save_evidence_events(
+            db,
+            evidence_events=[
+                {
+                    "event_type": "risk_flagged",
+                    "agent_name": "test_agent",
+                    "summary": "원문 없는 요약",
+                    "source_ids": [forbidden],
+                    "approval_required": True,
+                }
+            ],
+            forbidden_texts=[forbidden],
+        )
 
 
 def test_approve_contact_message_approval_marks_message_approved_without_sending() -> None:

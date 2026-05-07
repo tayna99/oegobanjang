@@ -1,6 +1,7 @@
 import pytest
 
 from app.agent_runtime.runner import run_workflow
+from app.agent_runtime.graph.workflow import build_workflow
 from app.agent_runtime.schemas import ForeignHiringState
 
 
@@ -95,3 +96,17 @@ async def test_workflow_accepts_worker_id_for_state_loader(monkeypatch) -> None:
 
     assert state.worker_context["id"] == "650e8400-e29b-41d4-a716-446655440001"
     assert state.worker_context["visa_type"] == "E-9"
+
+
+def test_workflow_includes_handoff_package_node_between_approval_and_final_response() -> None:
+    graph_spec = build_workflow().compile().get_graph()
+
+    assert "handoff_package" in graph_spec.nodes
+    assert any(
+        edge.source == "approval_gate" and edge.target == "handoff_package"
+        for edge in graph_spec.edges
+    )
+    assert any(
+        edge.source == "handoff_package" and edge.target == "final_response"
+        for edge in graph_spec.edges
+    )

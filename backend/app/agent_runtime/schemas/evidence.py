@@ -13,6 +13,7 @@ class EventType(str, Enum):
     RISK_FLAGGED = "risk_flagged"
     APPROVAL_REQUESTED = "approval_requested"
     APPROVAL_COMPLETED = "approval_completed"
+    HANDOFF_PACKAGE_DRAFT_CREATED = "handoff_package_draft_created"
     FINAL_RESPONSE_GENERATED = "final_response_generated"
 
 

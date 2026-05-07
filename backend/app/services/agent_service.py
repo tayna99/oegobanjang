@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_serializer
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agent_runtime.middleware.pii_filter import mask_pii
 from backend.app.agent_runtime.agents.multilingual_contact_agent import (
     MessageDraftInput,
     MultilingualContactAgent,
@@ -30,6 +31,43 @@ class AgentRunRequest(BaseModel):
     input_payload: dict[str, Any] = Field(default_factory=dict)
 
 
+class HandoffResponse(BaseModel):
+    available: bool
+    draft_id: str | None = None
+    approval_id: str | None = None
+    package_type: str | None = None
+    approval_required: bool | None = None
+    approval_status: str | None = None
+    not_for_legal_judgment: bool | None = None
+    handoff_ready: bool | None = None
+    handoff_blockers: list[str] = Field(default_factory=list)
+    raw_worker_reply_included: bool | None = None
+    full_translation_included: bool | None = None
+    message_body_included: bool | None = None
+
+    @model_serializer
+    def serialize(self) -> dict[str, Any]:
+        if not self.available:
+            return {"available": False}
+        payload = {
+            "available": True,
+            "package_type": self.package_type,
+            "approval_required": self.approval_required,
+            "approval_status": self.approval_status,
+            "not_for_legal_judgment": self.not_for_legal_judgment,
+            "handoff_ready": self.handoff_ready,
+            "handoff_blockers": self.handoff_blockers,
+            "raw_worker_reply_included": self.raw_worker_reply_included,
+            "full_translation_included": self.full_translation_included,
+            "message_body_included": self.message_body_included,
+        }
+        if self.draft_id:
+            payload["draft_id"] = self.draft_id
+        if self.approval_id:
+            payload["approval_id"] = self.approval_id
+        return payload
+
+
 class AgentRunResponse(BaseModel):
     intent: str | None
     task_type: str | None
@@ -39,6 +77,9 @@ class AgentRunResponse(BaseModel):
     evidence_events: list[dict[str, Any]]
     risk_flags: list[str]
     final_response: str
+    handoff: HandoffResponse = Field(
+        default_factory=lambda: HandoffResponse(available=False)
+    )
     persistence: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -76,7 +117,35 @@ def run_agent(
         evidence_events=state.evidence_events,
         risk_flags=state.risk_flags,
         final_response=state.final_response,
+        handoff=HandoffResponse(available=False),
         persistence=persistence,
+    )
+
+
+def build_handoff_response(
+    draft: dict[str, Any],
+    persistence: dict[str, Any] | None = None,
+) -> HandoffResponse:
+    if not draft:
+        return HandoffResponse(available=False)
+    approval = draft.get("approval") if isinstance(draft.get("approval"), dict) else {}
+    persistence = persistence or {}
+    return HandoffResponse(
+        available=True,
+        draft_id=_safe_optional_str(persistence.get("handoff_package_draft_id")),
+        approval_id=_safe_optional_str(persistence.get("approval_id")),
+        package_type=_safe_optional_str(draft.get("package_type")),
+        approval_required=bool(draft.get("approval_required")),
+        approval_status=_safe_optional_str(approval.get("status")),
+        not_for_legal_judgment=bool(draft.get("not_for_legal_judgment")),
+        handoff_ready=bool(draft.get("handoff_ready")),
+        handoff_blockers=[
+            _sanitize_blocker(str(blocker))
+            for blocker in draft.get("handoff_blockers", [])
+        ],
+        raw_worker_reply_included=bool(draft.get("raw_worker_reply_included")),
+        full_translation_included=bool(draft.get("full_translation_included")),
+        message_body_included=bool(draft.get("message_body_included")),
     )
 
 
@@ -269,6 +338,36 @@ def _dedupe(values: list[str]) -> list[str]:
             seen.add(value)
             result.append(value)
     return result
+
+
+def _safe_optional_str(value: Any) -> str | None:
+    if value is None:
+        return None
+    return mask_pii(str(value))
+
+
+_BLOCKER_FORBIDDEN_MARKERS = (
+    "worker_reply",
+    "translated_ko",
+    "message_body",
+    "worker_id",
+    "worker_name",
+    "nationality",
+    "passport_number",
+    "alien_registration_number",
+    "phone",
+    "여권번호",
+    "외국인등록번호",
+    "전화번호",
+    "주소",
+)
+
+
+def _sanitize_blocker(blocker: str) -> str:
+    lowered = blocker.lower()
+    if any(marker in lowered for marker in _BLOCKER_FORBIDDEN_MARKERS):
+        return "민감정보가 포함된 blocker는 응답에서 제외되었습니다."
+    return mask_pii(blocker)
 
 
 def _persist_runtime_output(state: Any, db: Session | None) -> dict[str, Any]:

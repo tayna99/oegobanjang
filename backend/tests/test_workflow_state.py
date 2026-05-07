@@ -1,5 +1,8 @@
 from app.agent_runtime.graph.nodes.evidence_logger import make_event
-from app.agent_runtime.graph.nodes.final_response import final_response_node
+from app.agent_runtime.graph.nodes.final_response import (
+    _HANDOFF_DRAFT_NOTICE,
+    final_response_node,
+)
 from app.agent_runtime.schemas import EventType, ForeignHiringState
 
 
@@ -51,3 +54,72 @@ def test_evidence_event_summary_masks_raw_pii() -> None:
 
     assert "010-1234-5678" not in event.summary
     assert "[전화번호]" in event.summary
+
+
+def test_final_response_without_handoff_draft_keeps_existing_response(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.agent_runtime.graph.nodes.final_response.ChatOpenAI",
+        _FakeFinalLLM,
+    )
+    state = ForeignHiringState(
+        request_id="no-handoff-final",
+        user_message="요약해줘",
+        rag_contexts=[
+            {
+                "source_id": "source-1",
+                "title": "공식 안내",
+                "evidence_grade": "B",
+                "content": "담당자 승인 후 안내합니다.",
+            }
+        ],
+        handoff_package_draft={},
+    )
+
+    final = final_response_node(state)
+
+    assert _HANDOFF_DRAFT_NOTICE not in final.final_response
+    assert "handoff package 초안" not in final.final_response
+
+
+def test_final_response_appends_handoff_draft_notice() -> None:
+    state = ForeignHiringState(
+        request_id="handoff-final",
+        user_message="전문가 검토 준비해줘",
+        handoff_package_draft={"package_type": "expert_handoff_draft"},
+    )
+
+    final = final_response_node(state)
+
+    assert "handoff package 초안" in final.final_response
+    assert "자동 전달" in final.final_response
+    assert "담당자 승인" in final.final_response
+
+
+def test_final_response_handoff_notice_does_not_include_draft_sensitive_values() -> None:
+    state = ForeignHiringState(
+        request_id="handoff-sensitive-final",
+        user_message="전문가 검토 준비해줘",
+        handoff_package_draft={
+            "package_type": "expert_handoff_draft",
+            "worker_reply": "Tôi có hộ chiếu, ảnh mai gửi.",
+            "translated_ko": "여권이 있고 사진은 내일 보내겠다는 답변입니다.",
+            "message_body": "안녕하세요. 여권 사본을 제출해주세요.",
+            "worker_id": "worker-demo-001",
+            "worker_name": "Nguyen Van A",
+            "passport_number": "M12345678",
+            "alien_registration_number": "900101-1234567",
+            "phone": "010-1234-5678",
+        },
+    )
+
+    final = final_response_node(state)
+
+    assert "handoff package 초안" in final.final_response
+    assert "Tôi có hộ chiếu" not in final.final_response
+    assert "여권이 있고 사진은 내일" not in final.final_response
+    assert "안녕하세요. 여권 사본" not in final.final_response
+    assert "worker-demo-001" not in final.final_response
+    assert "Nguyen Van A" not in final.final_response
+    assert "M12345678" not in final.final_response
+    assert "900101-1234567" not in final.final_response
+    assert "010-1234-5678" not in final.final_response

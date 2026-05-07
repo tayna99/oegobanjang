@@ -49,6 +49,7 @@ class ForeignHiringState(BaseModel):
     tool_results: list[ToolResult] = Field(default_factory=list)
     rag_contexts: list[dict[str, Any]] = Field(default_factory=list)
     aggregated_output: dict[str, Any] = Field(default_factory=dict)
+    handoff_package_draft: dict[str, Any] = Field(default_factory=dict)
     risk_flags: list[str] = Field(default_factory=list)
     key_findings: list[dict[str, Any]] = Field(default_factory=list)
 

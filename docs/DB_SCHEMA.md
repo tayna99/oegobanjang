@@ -277,7 +277,98 @@ CANCELLED
 
 ---
 
-## 14. evidence_logs
+## 14. handoff_package_drafts
+
+전문가 검토용 handoff package 초안.
+
+| column | type | nullable | description |
+|---|---|---:|---|
+| id | UUID | N | 초안 ID |
+| request_id | UUID | Y | Runtime 요청 ID |
+| company_id | UUID | Y | 접근 scope. MVP에서는 X-Company-Id와 비교 |
+| package_type | varchar | N | expert_handoff_draft |
+| case_type | varchar | Y | stay_extension 등 |
+| worker_id | UUID | Y | 내부 relation용. package_json에는 저장하지 않음 |
+| masked_worker_id | varchar | N | 응답/요약용 마스킹 ID |
+| risk_level | varchar | Y | LOW/MEDIUM/HIGH |
+| handoff_ready | boolean | N | 전문가 검토 초안 준비 가능 여부 |
+| handoff_blockers | text | Y | JSON string |
+| package_json | text | N | allowlist 기반 sanitize JSON string |
+| approval_required | boolean | N | 승인 필요 여부 |
+| approval_id | UUID | Y | 승인 ID |
+| status | varchar | N | PENDING_APPROVAL/APPROVED/REJECTED |
+| created_by | UUID | Y | 생성 요청자 |
+| created_at | timestamp | N | 생성일 |
+| updated_at | timestamp | N | 수정일 |
+| transferred_at | timestamp | Y | 전문가 전달 시각. 초안 생성/승인 시에는 null |
+
+초기 상태:
+
+```txt
+status=PENDING_APPROVAL
+approval_required=true
+approval.status=PENDING
+transferred_at=null
+```
+
+승인/반려 상태 전이:
+
+```txt
+approve:
+handoff_package_drafts.status=PENDING_APPROVAL → APPROVED
+approvals.status=PENDING → APPROVED
+transferred_at=null 유지
+
+reject:
+handoff_package_drafts.status=PENDING_APPROVAL → REJECTED
+approvals.status=PENDING → REJECTED
+transferred_at=null 유지
+```
+
+이미 `APPROVED` 또는 `REJECTED`인 draft는 다시 처리하지 않는다.
+
+`package_json` 저장 허용:
+
+- 요약
+- masked_worker_id
+- visa_type
+- stay_expires_at
+- contract_ends_at
+- 서류 종류와 누락 여부
+- 상태 후보 요약
+- citation_ids
+- evidence_log_ids
+- risk_flags
+- approval_required
+- approval.status=PENDING
+- not_for_legal_judgment=true
+
+`package_json` 저장 금지:
+
+- worker_id 원문
+- worker_name 원문
+- nationality
+- worker_reply 원문
+- translated_ko 전문
+- 근로자-facing message body 전문
+- 여권번호 원문
+- 외국인등록번호 원문
+- 전화번호 전체
+- 주소 전체
+- 문서/OCR 원문
+- 법률·노무 판단 확정 문장
+- 비자 가능 여부 확정 문장
+
+`company_id`는 접근 제어용 scope다.
+`created_by`는 생성 요청 사용자이고, `worker_id`는 내부 relation이다.
+MVP/demo 조회 API는 `X-Company-Id` header와 `handoff_package_drafts.company_id`를 비교한다.
+운영 전에는 인증 토큰 기반 company membership/role 검증으로 교체해야 한다.
+
+실제 전문가 전달은 `status=APPROVED` 이후에도 별도 실행 단계에서만 가능하다.
+
+---
+
+## 15. evidence_logs
 
 AI 판단 근거와 실행 이력.
 
@@ -339,7 +430,7 @@ worker_reply_summarized → 근로자가 여권 보유 및 사진 추후 제출 
 
 ---
 
-## 15. status_update_candidates
+## 16. status_update_candidates
 
 근로자 답변에서 추출한 상태 업데이트 후보.
 
@@ -379,7 +470,7 @@ manager_review_required=true
 
 ---
 
-## 16. rag_sources
+## 17. rag_sources
 
 RAG 원천 문서 메타데이터.
 
@@ -399,7 +490,7 @@ Vector 자체는 Chroma에 저장하고, 메타데이터는 필요하면 Postgre
 
 ---
 
-## 17. 초기 Seed 파일
+## 18. 초기 Seed 파일
 
 ```txt
 data-pipeline/seed/companies.csv
@@ -413,7 +504,7 @@ data-pipeline/seed/message_templates.csv
 
 ---
 
-## 18. 향후 검토
+## 19. 향후 검토
 
 - Refresh token/session 관리가 필요하면 auth_sessions 추가
 - 파일 업로드가 본격화되면 files 테이블 추가

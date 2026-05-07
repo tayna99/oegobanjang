@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -9,6 +10,12 @@ from sqlalchemy.orm import Session
 from backend.app.models.approval import Approval
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate
 from backend.app.models.evidence import EvidenceLog
+from backend.app.services.handoff_persistence_service import (
+    HANDOFF_APPROVED_STATUS,
+    HANDOFF_REJECTED_STATUS,
+    HANDOFF_TARGET_TYPE,
+    mark_handoff_approval_reviewed,
+)
 
 
 MESSAGE_INITIAL_STATUS = "PENDING_APPROVAL"
@@ -25,7 +32,14 @@ FORBIDDEN_EVIDENCE_MARKERS = (
     "외국인등록번호",
     "전화번호 전체",
     "주소 전체",
+    "worker_reply 원문",
+    "translated_ko 전문",
+    "메시지 전문",
+    "OCR 원문",
 )
+_ALIEN_REGISTRATION_RE = re.compile(r"\b\d{6}-[1-4]\d{6}\b")
+_PHONE_RE = re.compile(r"\b(?:010-\d{4}-\d{4}|010\d{8})\b")
+_PASSPORT_RE = re.compile(r"\b[A-Z]{1,2}\d{7,8}\b")
 
 
 def approve_approval(
@@ -46,6 +60,12 @@ def approve_approval(
         candidate = _get_status_update_candidate(db, approval.target_id)
         candidate.status = CANDIDATE_APPROVED_STATUS
         candidate.reviewed_at = approval.reviewed_at
+    elif approval.target_type == HANDOFF_TARGET_TYPE:
+        mark_handoff_approval_reviewed(
+            db,
+            approval=approval,
+            status=HANDOFF_APPROVED_STATUS,
+        )
     else:
         raise ValueError(f"Unsupported approval target_type: {approval.target_type}")
 
@@ -74,6 +94,12 @@ def reject_approval(
         candidate = _get_status_update_candidate(db, approval.target_id)
         candidate.status = CANDIDATE_REJECTED_STATUS
         candidate.reviewed_at = approval.reviewed_at
+    elif approval.target_type == HANDOFF_TARGET_TYPE:
+        mark_handoff_approval_reviewed(
+            db,
+            approval=approval,
+            status=HANDOFF_REJECTED_STATUS,
+        )
     else:
         raise ValueError(f"Unsupported approval target_type: {approval.target_type}")
 
@@ -202,8 +228,13 @@ def save_evidence_events(
     logs: list[EvidenceLog] = []
     for event in evidence_events:
         summary = str(event.get("summary") or "").strip()
-        _validate_evidence_summary(summary, forbidden_texts or [])
         source_ids = event.get("source_ids") or default_source_ids or []
+        _validate_evidence_payload(
+            summary=summary,
+            source_ids=_as_list(source_ids),
+            risk_flags=risk_flags or [],
+            forbidden_texts=forbidden_texts or [],
+        )
         log = EvidenceLog(
             event_type=str(event.get("event_type") or "unknown"),
             agent_name=str(event.get("agent_name") or "unknown"),
@@ -328,14 +359,58 @@ def _validate_evidence_summary(
     summary: str,
     forbidden_texts: list[str | None],
 ) -> None:
+    _validate_evidence_payload(
+        summary=summary,
+        source_ids=[],
+        risk_flags=[],
+        forbidden_texts=forbidden_texts,
+    )
+
+
+def _validate_evidence_payload(
+    *,
+    summary: str,
+    source_ids: list[Any],
+    risk_flags: list[Any],
+    forbidden_texts: list[str | None],
+) -> None:
     if not summary:
         raise ValueError("evidence summary is required")
+    _validate_sensitive_text(summary, forbidden_texts)
+    for flag in risk_flags:
+        _validate_sensitive_text(str(flag), forbidden_texts)
+    for source_id in source_ids:
+        _validate_source_id(str(source_id), forbidden_texts)
+
+
+def _validate_sensitive_text(
+    text: str,
+    forbidden_texts: list[str | None],
+) -> None:
     for marker in FORBIDDEN_EVIDENCE_MARKERS:
-        if marker in summary:
+        if marker in text:
             raise ValueError("evidence summary contains forbidden personal data marker")
-    for text in forbidden_texts:
-        if text and text in summary:
+    for forbidden in forbidden_texts:
+        if forbidden and forbidden in text:
             raise ValueError("evidence summary must not contain original text")
+    if _ALIEN_REGISTRATION_RE.search(text):
+        raise ValueError("evidence summary contains raw alien registration number")
+    if _PHONE_RE.search(text):
+        raise ValueError("evidence summary contains raw phone number")
+    if _PASSPORT_RE.search(text):
+        raise ValueError("evidence summary contains raw passport number")
+
+
+def _validate_source_id(
+    source_id: str,
+    forbidden_texts: list[str | None],
+) -> None:
+    for marker in FORBIDDEN_EVIDENCE_MARKERS:
+        if marker in source_id:
+            raise ValueError("evidence source_id contains forbidden personal data marker")
+    for forbidden in forbidden_texts:
+        if forbidden and forbidden in source_id:
+            raise ValueError("evidence source_id must not contain original text")
 
 
 def _citation_source_ids(citations: list[dict[str, Any]]) -> list[str]:
