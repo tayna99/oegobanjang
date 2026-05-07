@@ -4,7 +4,7 @@ from typing import Any
 from langchain_core.tools import tool
 
 from app.agent_runtime.schemas.tool import ToolResult, ToolContractLevel, ToolStatus, Citation
-from app.agent_runtime.rag_hyunwook.retriever import RAGRetriever
+from app.agent_runtime.rag_tayna.retriever import RAGRetriever
 
 _SEED_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data-pipeline", "seed")

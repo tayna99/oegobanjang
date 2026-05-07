@@ -49,3 +49,49 @@ async def test_workflow_preserves_langgraph_state_and_refuses_legal_judgment(mon
     assert "비자 가능 여부 확정" in state.final_response
     assert state.plan.blocked is True
     assert state.approval.required is False
+
+
+@pytest.mark.asyncio
+async def test_workflow_loads_company_context_before_execution(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.agent_runtime.graph.nodes.intent_router.ChatOpenAI",
+        _FakeIntentLLM,
+    )
+    monkeypatch.setattr(
+        "app.agent_runtime.graph.nodes.executor.RAGRetriever",
+        _FakeRetriever,
+    )
+
+    state = await run_workflow(
+        user_message="이 회사의 비자 업무 상태를 확인해줘",
+        user_id="user-1",
+        company_id="550e8400-e29b-41d4-a716-446655440001",
+        thread_id="state-loader-thread",
+    )
+
+    assert state.company_context["id"] == "550e8400-e29b-41d4-a716-446655440001"
+    assert state.context_loaded is True
+    assert state.context_blockers == []
+
+
+@pytest.mark.asyncio
+async def test_workflow_accepts_worker_id_for_state_loader(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.agent_runtime.graph.nodes.intent_router.ChatOpenAI",
+        _FakeIntentLLM,
+    )
+    monkeypatch.setattr(
+        "app.agent_runtime.graph.nodes.executor.RAGRetriever",
+        _FakeRetriever,
+    )
+
+    state = await run_workflow(
+        user_message="이 근로자의 체류연장 상태를 확인해줘",
+        user_id="user-1",
+        company_id="550e8400-e29b-41d4-a716-446655440001",
+        worker_id="650e8400-e29b-41d4-a716-446655440001",
+        thread_id="state-loader-worker-thread",
+    )
+
+    assert state.worker_context["id"] == "650e8400-e29b-41d4-a716-446655440001"
+    assert state.worker_context["visa_type"] == "E-9"

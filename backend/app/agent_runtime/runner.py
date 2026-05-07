@@ -7,6 +7,8 @@ async def run_workflow(
     user_message: str,
     user_id: str,
     company_id: str,
+    worker_id: str = "",
+    candidate_id: str = "",
     thread_id: str | None = None,
 ) -> ForeignHiringState:
     app = get_compiled_app()
@@ -19,6 +21,8 @@ async def run_workflow(
         request_id=request_id,
         user_id=user_id,
         company_id=company_id,
+        worker_id=worker_id,
+        candidate_id=candidate_id,
         user_message=user_message,
     )
 

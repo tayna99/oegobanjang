@@ -6,6 +6,7 @@ from app.agent_runtime.schemas import ForeignHiringState
 from app.agent_runtime.graph.nodes import (
     intent_router_node,
     planner_node,
+    state_loader_node,
     executor_node,
     aggregator_node,
     approval_gate_node,
@@ -34,6 +35,7 @@ def build_workflow() -> StateGraph:
 
     graph.add_node("intent_router", _wrap(intent_router_node))
     graph.add_node("planner", _wrap(planner_node))
+    graph.add_node("state_loader", _wrap(state_loader_node))
     graph.add_node("executor", _wrap(executor_node))
     graph.add_node("aggregator", _wrap(aggregator_node))
     graph.add_node("approval_gate", _wrap(approval_gate_node))
@@ -41,7 +43,8 @@ def build_workflow() -> StateGraph:
 
     graph.set_entry_point("intent_router")
     graph.add_edge("intent_router", "planner")
-    graph.add_edge("planner", "executor")
+    graph.add_edge("planner", "state_loader")
+    graph.add_edge("state_loader", "executor")
     graph.add_edge("executor", "aggregator")
     graph.add_edge("aggregator", "approval_gate")
     graph.add_edge("approval_gate", "final_response")

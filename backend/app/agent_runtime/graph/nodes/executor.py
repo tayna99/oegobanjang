@@ -1,6 +1,6 @@
 """Executor: plan의 required_agents를 순서대로 호출합니다."""
 from app.agent_runtime.schemas import ForeignHiringState, Intent, EventType
-from app.agent_runtime.rag_hyunwook.retriever import RAGRetriever
+from app.agent_runtime.rag_tayna.retriever import RAGRetriever
 from app.agent_runtime.middleware.summarizer import maybe_summarize_contexts
 from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
 
