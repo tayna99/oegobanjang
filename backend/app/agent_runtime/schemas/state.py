@@ -39,6 +39,7 @@ class ForeignHiringState(BaseModel):
     rag_contexts: list[dict[str, Any]] = Field(default_factory=list)
     aggregated_output: dict[str, Any] = Field(default_factory=dict)
     risk_flags: list[str] = Field(default_factory=list)
+    key_findings: list[dict[str, Any]] = Field(default_factory=list)
 
     approval: ApprovalStatus = Field(default_factory=ApprovalStatus)
 
