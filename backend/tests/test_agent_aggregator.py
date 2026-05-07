@@ -57,8 +57,22 @@ def test_aggregator_combines_three_agent_results_and_tool_evidence() -> None:
                 "summary": "베트남어 메시지 초안",
                 "approval_required": True,
                 "risk_flags": ["메시지 발송 전 승인 필요"],
+                "approval_reasons": ["worker_message_draft"],
             },
-            {"agent": "visa_document_agent", "summary": "체류 D-day 확인", "risk_flags": ["D-30 임박"]},
+            {
+                "agent": "visa_document_agent",
+                "summary": "체류 D-day 확인",
+                "risk_flags": ["D-30 임박"],
+                "key_findings": [
+                    {
+                        "agent": "visa_document_agent",
+                        "type": "document_gap",
+                        "message": "여권 사본이 누락되었습니다.",
+                        "severity": "MEDIUM",
+                        "citation_ids": ["doc_requirement_e9_renewal"],
+                    }
+                ],
+            },
         ],
         tool_results=[
             ToolResult(
@@ -100,7 +114,149 @@ def test_aggregator_combines_three_agent_results_and_tool_evidence() -> None:
         "eps_employer_process_001",
         "gov24_stay_extension_001",
     } <= set(result.aggregated_output["citation_ids"])
+    assert len(result.aggregated_output["key_findings"]) == 1
+    assert result.aggregated_output["key_findings"][0]["type"] == "document_gap"
+    assert "worker_message_draft" in result.aggregated_output["approval_reasons"]
+    assert len(result.aggregated_output["risk_reasons"]) > 0
     assert any(event.event_type.value == "risk_flagged" for event in result.evidence_events)
+
+
+def test_risk_level_high_d30() -> None:
+    state = ForeignHiringState(
+        request_id="risk-high-d30",
+        agent_results=[],
+        risk_flags=["D-30 임박"],
+    )
+
+    result = aggregator_node(state)
+    assert result.aggregated_output["risk_level"] == "HIGH"
+
+
+def test_risk_level_high_guardrail() -> None:
+    state = ForeignHiringState(
+        request_id="risk-high-guardrail",
+        agent_results=[],
+        risk_flags=["guardrail 차단: 법적 판단 불가"],
+    )
+
+    result = aggregator_node(state)
+    assert result.aggregated_output["risk_level"] == "HIGH"
+
+
+def test_risk_level_medium_approval_only() -> None:
+    state = ForeignHiringState(
+        request_id="risk-medium",
+        agent_results=[{"agent": "test_agent", "summary": "테스트", "approval_required": True}],
+        risk_flags=[],
+    )
+
+    result = aggregator_node(state)
+    assert result.aggregated_output["risk_level"] == "MEDIUM"
+    assert result.aggregated_output["approval_required"] is True
+
+
+def test_risk_level_low() -> None:
+    state = ForeignHiringState(
+        request_id="risk-low",
+        agent_results=[{"agent": "test_agent", "summary": "정보 조회 완료", "risk_flags": []}],
+        risk_flags=[],
+    )
+
+    result = aggregator_node(state)
+    assert result.aggregated_output["risk_level"] == "LOW"
+    assert result.aggregated_output["approval_required"] is False
+
+
+def test_approval_reasons_collected() -> None:
+    state = ForeignHiringState(
+        request_id="approval-reasons",
+        agent_results=[
+            {
+                "agent": "contact_agent",
+                "summary": "메시지 생성",
+                "approval_reasons": ["worker_message_draft", "translation_review"],
+            }
+        ],
+    )
+
+    result = aggregator_node(state)
+    assert "worker_message_draft" in result.aggregated_output["approval_reasons"]
+    assert "translation_review" in result.aggregated_output["approval_reasons"]
+
+
+def test_key_findings_collected() -> None:
+    state = ForeignHiringState(
+        request_id="key-findings",
+        agent_results=[
+            {
+                "agent": "visa_agent",
+                "summary": "비자 확인",
+                "key_findings": [
+                    {
+                        "agent": "visa_agent",
+                        "type": "document_gap",
+                        "message": "여권 사본 누락",
+                        "severity": "HIGH",
+                        "citation_ids": ["doc_requirement"],
+                    }
+                ],
+            }
+        ],
+    )
+
+    result = aggregator_node(state)
+    assert len(result.aggregated_output["key_findings"]) == 1
+    assert result.key_findings[0]["type"] == "document_gap"
+    assert result.key_findings[0]["message"] == "여권 사본 누락"
+
+
+def test_handoff_ready_true() -> None:
+    state = ForeignHiringState(
+        request_id="handoff-ready",
+        agent_results=[{"agent": "visa_agent", "summary": "비자 확인"}],
+        key_findings=[
+            {
+                "agent": "visa_agent",
+                "type": "document_gap",
+                "message": "여권 사본",
+            }
+        ],
+    )
+    state.plan.requires_approval = True
+
+    result = aggregator_node(state)
+    assert result.aggregated_output["handoff_ready"] is True
+    assert len(result.aggregated_output["handoff_blockers"]) == 0
+
+
+def test_handoff_blockers_populated() -> None:
+    state = ForeignHiringState(
+        request_id="handoff-blockers",
+        agent_results=[
+            {
+                "agent": "visa_agent",
+                "summary": "비자 확인",
+                "key_findings": [
+                    {
+                        "agent": "visa_agent",
+                        "type": "missing_info",
+                        "message": "회사 정보 누락",
+                    },
+                    {
+                        "agent": "visa_agent",
+                        "type": "missing_info",
+                        "message": "근로자 연락처 없음",
+                    },
+                ],
+            }
+        ],
+    )
+    state.plan.requires_approval = True
+
+    result = aggregator_node(state)
+    assert result.aggregated_output["handoff_ready"] is False
+    assert len(result.aggregated_output["handoff_blockers"]) == 2
+    assert "회사 정보 누락" in result.aggregated_output["handoff_blockers"]
 
 
 @pytest.mark.asyncio
