@@ -19,6 +19,7 @@ from backend.app.models.evidence import EvidenceLog
 from backend.app.services.contact_persistence_service import (
     approve_approval,
     reject_approval,
+    resolve_approval_target_company_id,
     save_evidence_events,
     save_message_draft_result,
     save_worker_reply_summary_result,
@@ -116,6 +117,7 @@ def test_save_message_draft_creates_contact_message_pending_approval() -> None:
     message = save_message_draft_result(
         db,
         agent_result=result,
+        company_id="company-demo-001",
         created_by="manager-demo",
         request_id="request-demo",
     )
@@ -123,6 +125,7 @@ def test_save_message_draft_creates_contact_message_pending_approval() -> None:
 
     saved_message = db.get(ContactMessage, message.id)
     assert saved_message is not None
+    assert saved_message.company_id == "company-demo-001"
     assert saved_message.status == "PENDING_APPROVAL"
     assert saved_message.approval_required is True
     assert saved_message.sent_at is None
@@ -135,13 +138,18 @@ def test_save_message_draft_creates_contact_message_pending_approval() -> None:
     assert approval.target_type == "contact_message"
     assert approval.target_id == saved_message.id
     assert approval.status == "PENDING"
+    assert resolve_approval_target_company_id(db, approval) == "company-demo-001"
 
 
 def test_message_draft_evidence_log_does_not_store_message_body() -> None:
     db = _session()
     result = _message_result()
 
-    message = save_message_draft_result(db, agent_result=result)
+    message = save_message_draft_result(
+        db,
+        agent_result=result,
+        company_id="company-demo-001",
+    )
     db.commit()
 
     logs = db.scalars(select(EvidenceLog)).all()
@@ -149,6 +157,7 @@ def test_message_draft_evidence_log_does_not_store_message_body() -> None:
     for log in logs:
         assert result["korean_text"] not in log.summary
         assert result["translated_text"] not in log.summary
+        assert log.company_id == "company-demo-001"
         assert log.contact_message_id == message.id
         assert log.approval_id == message.approval_id
 
@@ -171,6 +180,7 @@ def test_save_worker_reply_summary_creates_candidate_level_approvals() -> None:
         db,
         agent_result=result,
         worker_id="worker-demo-001",
+        company_id="company-demo-001",
         request_id="request-demo",
         requested_by="manager-demo",
         worker_reply=worker_reply,
@@ -185,6 +195,7 @@ def test_save_worker_reply_summary_creates_candidate_level_approvals() -> None:
     assert len(approvals) == 2
     for candidate in saved_candidates:
         assert candidate.status == "PENDING_REVIEW"
+        assert candidate.company_id == "company-demo-001"
         assert candidate.manager_review_required is True
         assert candidate.approval_id is not None
         assert candidate.status != "APPLIED"
@@ -193,6 +204,7 @@ def test_save_worker_reply_summary_creates_candidate_level_approvals() -> None:
         assert approval.target_type == "status_update_candidate"
         assert approval.target_id == candidate.id
         assert approval.status == "PENDING"
+        assert resolve_approval_target_company_id(db, approval) == "company-demo-001"
 
 
 def test_worker_reply_evidence_logs_do_not_store_raw_reply_or_finalize_status() -> None:
@@ -204,6 +216,7 @@ def test_worker_reply_evidence_logs_do_not_store_raw_reply_or_finalize_status() 
         db,
         agent_result=result,
         worker_id="worker-demo-001",
+        company_id="company-demo-001",
         worker_reply=worker_reply,
     )
     db.commit()
@@ -211,6 +224,7 @@ def test_worker_reply_evidence_logs_do_not_store_raw_reply_or_finalize_status() 
     logs = db.scalars(select(EvidenceLog)).all()
     assert logs
     for log in logs:
+        assert log.company_id == "company-demo-001"
         assert worker_reply not in log.summary
         assert result["translated_ko"] not in log.summary
         assert "SENT" not in log.summary

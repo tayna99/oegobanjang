@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend.app.models.approval import Approval
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate
 from backend.app.models.evidence import EvidenceLog
+from backend.app.models.handoff import HandoffPackageDraft
 from backend.app.services.handoff_persistence_service import (
     HANDOFF_APPROVED_STATUS,
     HANDOFF_REJECTED_STATUS,
@@ -107,11 +108,30 @@ def reject_approval(
     return approval
 
 
+def resolve_approval_target_company_id(
+    db: Session,
+    approval: Approval,
+) -> str | None:
+    if approval.target_type == "contact_message":
+        message = _get_contact_message(db, approval.target_id)
+        return message.company_id
+    if approval.target_type == "status_update_candidate":
+        candidate = _get_status_update_candidate(db, approval.target_id)
+        return candidate.company_id
+    if approval.target_type == HANDOFF_TARGET_TYPE:
+        draft = db.get(HandoffPackageDraft, approval.target_id)
+        if draft is None:
+            raise ValueError(f"Handoff package draft not found: {approval.target_id}")
+        return draft.company_id
+    raise ValueError(f"Unsupported approval target_type: {approval.target_type}")
+
+
 def save_message_draft_result(
     db: Session,
     *,
     agent_result: dict[str, Any],
     worker_id: str | None = None,
+    company_id: str | None = None,
     created_by: str | None = None,
     request_id: str | None = None,
 ) -> ContactMessage:
@@ -120,6 +140,7 @@ def save_message_draft_result(
     risk_flags = _as_list(agent_result.get("risk_flags"))
 
     message = ContactMessage(
+        company_id=company_id,
         worker_id=worker_id or agent_result.get("worker_id"),
         message_purpose=agent_result["message_purpose"],
         language_code=agent_result["language_code"],
@@ -146,6 +167,7 @@ def save_message_draft_result(
         db,
         evidence_events=agent_result.get("evidence_events") or [],
         request_id=request_id,
+        company_id=company_id,
         worker_id=message.worker_id,
         contact_message_id=message.id,
         approval_id=approval.id,
@@ -165,6 +187,7 @@ def save_worker_reply_summary_result(
     *,
     agent_result: dict[str, Any],
     worker_id: str,
+    company_id: str | None = None,
     request_id: str | None = None,
     source_message_id: str | None = None,
     requested_by: str | None = None,
@@ -177,6 +200,7 @@ def save_worker_reply_summary_result(
     for item in agent_result.get("status_update_candidates") or []:
         _validate_status_update_candidate(item)
         candidate = StatusUpdateCandidate(
+            company_id=company_id,
             worker_id=worker_id,
             target_type=item.get("target_type") or "worker_document",
             target_key=item["field"],
@@ -201,6 +225,7 @@ def save_worker_reply_summary_result(
             db,
             evidence_events=agent_result.get("evidence_events") or [],
             request_id=request_id,
+            company_id=company_id,
             worker_id=worker_id,
             status_update_candidate_id=candidate.id,
             approval_id=approval.id,
@@ -217,6 +242,7 @@ def save_evidence_events(
     *,
     evidence_events: list[dict[str, Any]],
     request_id: str | None = None,
+    company_id: str | None = None,
     worker_id: str | None = None,
     contact_message_id: str | None = None,
     status_update_candidate_id: str | None = None,
@@ -244,6 +270,7 @@ def save_evidence_events(
             approval_required=bool(event.get("approval_required", False)),
             risk_flags=_json_dumps(risk_flags or []),
             request_id=request_id,
+            company_id=company_id,
             worker_id=worker_id,
             contact_message_id=contact_message_id,
             status_update_candidate_id=status_update_candidate_id,

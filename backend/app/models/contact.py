@@ -21,6 +21,7 @@ class ContactMessage(Base):
     __tablename__ = "contact_messages"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    company_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     worker_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     message_purpose: Mapped[str] = mapped_column(String(100), nullable=False)
     language_code: Mapped[str] = mapped_column(String(16), nullable=False)
@@ -65,6 +66,7 @@ class StatusUpdateCandidate(Base):
     __tablename__ = "status_update_candidates"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    company_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     worker_id: Mapped[str] = mapped_column(String(64), nullable=False)
     target_type: Mapped[str] = mapped_column(String(80), nullable=False)
     target_key: Mapped[str] = mapped_column(String(100), nullable=False)

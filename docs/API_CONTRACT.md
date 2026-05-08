@@ -168,6 +168,9 @@ DB 저장 opt-in 정책:
 - 근로자 답변 요약 성공 결과는 `status_update_candidates`, `approvals`, `evidence_logs`를 생성한다.
 - 자연어 extractor는 `worker_name`을 추출할 수 있지만, DB 저장에는 `worker_id`가 필요하다.
 - `persist_result=true` 요청에서는 `input_payload.worker_id`를 명시해야 한다.
+- `persist_result=true` 요청에서는 `input_payload.company_id`도 명시해야 한다.
+- `worker_id`가 없으면 Agent 응답은 유지하되 `persistence.saved=false`, `reason="worker_id is required for persistence"`를 반환한다.
+- `company_id`가 없으면 Agent 응답은 유지하되 `persistence.saved=false`, `reason="company_id is required for persistence"`를 반환한다.
 - `worker_name` 기반 `worker_id` lookup은 workers 테이블/조회 기능이 생긴 뒤 후속 작업으로 구현한다.
 - DB 저장 시에도 메시지는 초안 상태이며 `approval_required=true`, `approval.status=PENDING`을 유지한다.
 
@@ -217,8 +220,8 @@ Handoff draft 저장 성공:
 {
   "handoff": {
     "available": true,
-    "draft_id": "uuid",
-    "approval_id": "uuid",
+    "draft_id": "draft-id-string",
+    "approval_id": "approval-id-string",
     "package_type": "expert_handoff_draft",
     "approval_required": true,
     "approval_status": "PENDING",
@@ -257,11 +260,11 @@ X-Company-Id: company-demo-001
 
 ```json
 {
-  "id": "uuid",
+  "id": "draft-id-string",
   "package_type": "expert_handoff_draft",
   "status": "PENDING_APPROVAL",
   "approval_required": true,
-  "approval_id": "uuid",
+  "approval_id": "approval-id-string",
   "approval_status": "PENDING",
   "transferred_at": null,
   "not_for_legal_judgment": true,
@@ -326,8 +329,8 @@ X-Company-Id: company-demo-001
 
 ```json
 {
-  "draft_id": "uuid",
-  "approval_id": "uuid",
+  "draft_id": "draft-id-string",
+  "approval_id": "approval-id-string",
   "status": "APPROVED",
   "approval_status": "APPROVED",
   "transferred_at": null
@@ -365,8 +368,8 @@ X-Company-Id: company-demo-001
 
 ```json
 {
-  "draft_id": "uuid",
-  "approval_id": "uuid",
+  "draft_id": "draft-id-string",
+  "approval_id": "approval-id-string",
   "status": "REJECTED",
   "approval_status": "REJECTED",
   "transferred_at": null
@@ -413,9 +416,9 @@ approve/reject 에러 정책:
 {
   "enabled": true,
   "saved": true,
-  "contact_message_id": "uuid",
-  "approval_id": "uuid",
-  "evidence_log_ids": ["uuid"]
+  "contact_message_id": "contact-message-id-string",
+  "approval_id": "approval-id-string",
+  "evidence_log_ids": ["evidence-log-id-string"]
 }
 ```
 
@@ -684,11 +687,71 @@ language_code=id 유지
 ## 6. 승인 API
 
 ```txt
+GET /api/v1/approvals/{approval_id}
 POST /api/v1/approvals/{approval_id}/approve
 POST /api/v1/approvals/{approval_id}/reject
 ```
 
 승인 필요한 작업은 Agent가 직접 실행하지 않고 approval pending 상태로 넘긴다.
+
+공용 approval API는 MVP/demo 단계에서 `X-Company-Id` header를 필수로 사용한다.
+운영 전에는 인증 토큰 기반 company membership/role 검증으로 교체해야 한다.
+
+```http
+GET /api/v1/approvals/{approval_id}
+X-Company-Id: company-demo-001
+```
+
+조회 응답:
+
+```json
+{
+  "approval_id": "approval-id-string",
+  "target_type": "contact_message",
+  "target_id": "target-id-string",
+  "approval_status": "PENDING",
+  "target_status": "PENDING_APPROVAL",
+  "approval_required": true,
+  "reviewed_by": null,
+  "reviewed_at": null,
+  "reason": null
+}
+```
+
+승인/반려 요청:
+
+```json
+{
+  "reviewed_by": "manager-demo",
+  "reason": "검토 완료"
+}
+```
+
+승인/반려 응답:
+
+```json
+{
+  "approval_id": "approval-id-string",
+  "target_type": "handoff_package_draft",
+  "target_id": "target-id-string",
+  "approval_status": "APPROVED",
+  "target_status": "APPROVED",
+  "approval_required": true,
+  "reviewed_by": "manager-demo",
+  "reviewed_at": "2026-05-08T12:00:00+00:00",
+  "reason": "검토 완료"
+}
+```
+
+접근/충돌 정책:
+
+- `X-Company-Id`가 없으면 `403 Forbidden`
+- `approval_id` 자체가 없으면 `404 Not Found`
+- target row의 `company_id`와 `X-Company-Id`가 다르면 `403 Forbidden`
+- approval row는 있지만 target row가 없으면 `409 Conflict`
+- 지원하지 않는 `target_type`이면 `409 Conflict`
+- approval 또는 target이 이미 승인/반려 등 PENDING 계열이 아니면 `409 Conflict`
+- 에러 응답에는 worker 정보, 메시지 본문, package 요약, 개인정보를 포함하지 않는다.
 
 현재 승인 처리 서비스 규칙:
 
@@ -712,9 +775,23 @@ status_update_candidate approval 반려
 → approvals.status=REJECTED
 → status_update_candidates.status=REJECTED
 → 실제 worker_documents 반영은 하지 않음
+
+handoff_package_draft approval 승인
+→ approvals.status=APPROVED
+→ handoff_package_drafts.status=APPROVED
+→ 실제 전문가 전달, external export, 정부 제출은 하지 않음
+→ transferred_at=null 유지
+
+handoff_package_draft approval 반려
+→ approvals.status=REJECTED
+→ handoff_package_drafts.status=REJECTED
+→ 실제 전문가 전달, external export, 정부 제출은 하지 않음
+→ transferred_at=null 유지
 ```
 
 승인/반려는 `PENDING` approval에만 가능하다.
+공용 approval API는 review decision만 저장하며 실제 메시지 발송, worker_documents 반영, 전문가 전달, external export, 정부 제출을 실행하지 않는다.
+응답에는 메시지 전문, worker reply 원문, `translated_ko` 전문, `package_json` 전문, `worker_id` 원문, 여권번호, 외국인등록번호, 전화번호 전체, 주소 전체를 포함하지 않는다.
 
 ---
 

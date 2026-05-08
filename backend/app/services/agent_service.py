@@ -386,6 +386,11 @@ def _persist_runtime_output(state: Any, db: Session | None) -> dict[str, Any]:
         and not state.input_payload.get("worker_id")
     ):
         return _not_persisted("worker_id is required for persistence")
+    if (
+        state.task_type in {"message_draft", "worker_reply_summary"}
+        and not state.input_payload.get("company_id")
+    ):
+        return _not_persisted("company_id is required for persistence")
 
     result = state.agent_results.get("multilingual_contact_agent") or {}
     if result.get("status") != "SUCCESS":
@@ -416,6 +421,7 @@ def _persist_message_draft(
         db,
         agent_result=result,
         worker_id=state.input_payload.get("worker_id") or result.get("worker_id"),
+        company_id=state.input_payload.get("company_id"),
         created_by=state.input_payload.get("created_by"),
         request_id=state.input_payload.get("request_id"),
     )
@@ -443,6 +449,7 @@ def _persist_worker_reply_summary(
         db,
         agent_result=result,
         worker_id=state.input_payload.get("worker_id") or result["worker_id"],
+        company_id=state.input_payload.get("company_id"),
         request_id=state.input_payload.get("request_id"),
         source_message_id=state.input_payload.get("source_message_id"),
         requested_by=state.input_payload.get("created_by"),

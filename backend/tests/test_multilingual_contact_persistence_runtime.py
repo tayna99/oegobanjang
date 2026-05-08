@@ -50,6 +50,7 @@ def _message_payload(*, persist_result: bool | None = None) -> dict[str, Any]:
     input_payload: dict[str, Any] = {
         "task_type": "message_draft",
         "worker_id": "worker-demo-001",
+        "company_id": "company-demo-001",
         "worker_name": "Nguyen",
         "language_code": "vi",
         "message_purpose": "safety_training_notice",
@@ -72,6 +73,7 @@ def _reply_payload(*, persist_result: bool = True) -> dict[str, Any]:
         "input_payload": {
             "task_type": "worker_reply_summary",
             "worker_id": "worker-demo-001",
+            "company_id": "company-demo-001",
             "language_code": "vi",
             "worker_reply": "Tôi có hộ chiếu, nhưng ảnh thì ngày mai tôi có thể gửi.",
             "message_purpose": "document_reply",
@@ -130,6 +132,26 @@ def test_persist_result_true_without_worker_id_returns_clear_reason(monkeypatch)
     assert db.scalar(select(EvidenceLog)) is None
 
 
+def test_persist_result_true_without_company_id_returns_clear_reason(monkeypatch) -> None:
+    monkeypatch.setattr(
+        contact_agent_module,
+        "search_multilingual_contact_rag_tool",
+        _mock_rag_tool,
+    )
+    db = _db()
+    payload = _message_payload(persist_result=True)
+    payload["input_payload"].pop("company_id")
+
+    body = _run(payload, db)
+
+    assert body["persistence"]["enabled"] is False
+    assert body["persistence"]["saved"] is False
+    assert body["persistence"]["reason"] == "company_id is required for persistence"
+    assert db.scalar(select(ContactMessage)) is None
+    assert db.scalar(select(Approval)) is None
+    assert db.scalar(select(EvidenceLog)) is None
+
+
 def test_message_draft_persist_result_true_writes_pending_records(monkeypatch) -> None:
     monkeypatch.setattr(
         contact_agent_module,
@@ -152,6 +174,7 @@ def test_message_draft_persist_result_true_writes_pending_records(monkeypatch) -
     logs = db.scalars(select(EvidenceLog)).all()
 
     assert message is not None
+    assert message.company_id == "company-demo-001"
     assert message.status == "PENDING_APPROVAL"
     assert message.approval_required is True
     assert message.sent_at is None
@@ -159,6 +182,7 @@ def test_message_draft_persist_result_true_writes_pending_records(monkeypatch) -
     assert approval.status == "PENDING"
     assert approval.target_type == "contact_message"
     assert logs
+    assert all(log.company_id == "company-demo-001" for log in logs)
     assert all(message.korean_text not in log.summary for log in logs)
     assert all((message.translated_text or "") not in log.summary for log in logs)
 
@@ -192,6 +216,7 @@ def test_worker_reply_summary_persist_result_true_writes_candidate_approvals(
     assert candidates
     assert logs
     for candidate in candidates:
+        assert candidate.company_id == "company-demo-001"
         assert candidate.status == "PENDING_REVIEW"
         assert candidate.manager_review_required is True
         assert candidate.approval_id
@@ -199,6 +224,7 @@ def test_worker_reply_summary_persist_result_true_writes_candidate_approvals(
     for approval in approvals:
         assert approval.status == "PENDING"
         assert approval.target_type == "status_update_candidate"
+    assert all(log.company_id == "company-demo-001" for log in logs)
     assert worker_reply not in json.dumps([log.summary for log in logs], ensure_ascii=False)
 
 

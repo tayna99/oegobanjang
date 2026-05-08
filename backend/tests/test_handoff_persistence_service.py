@@ -115,6 +115,7 @@ def test_save_handoff_package_draft_creates_pending_row_approval_and_evidence() 
     assert logs
     assert logs[0].summary == "전문가 검토용 handoff package 초안이 생성되었습니다."
     assert logs[0].approval_id == approval.id
+    assert logs[0].company_id == "company-demo-001"
     assert logs[0].worker_id == worker_id
 
     package_json = draft.package_json
@@ -365,6 +366,11 @@ def test_approve_handoff_package_draft_updates_review_status_without_transfer() 
     assert approval.reason == "검토 완료"
     assert any(log.event_type == "handoff_package_draft_approved" for log in logs)
     assert any(
+        log.event_type == "handoff_package_draft_approved"
+        and log.company_id == "company-demo-001"
+        for log in logs
+    )
+    assert any(
         log.summary == "전문가 검토용 handoff package 초안이 승인되었습니다."
         for log in logs
     )
@@ -407,6 +413,11 @@ def test_reject_handoff_package_draft_updates_review_status_without_transfer() -
     assert approval.reviewed_by == "manager-demo"
     assert approval.reason == "보완 필요"
     assert any(log.event_type == "handoff_package_draft_rejected" for log in logs)
+    assert any(
+        log.event_type == "handoff_package_draft_rejected"
+        and log.company_id == "company-demo-001"
+        for log in logs
+    )
     assert any(
         log.summary == "전문가 검토용 handoff package 초안이 반려되었습니다."
         for log in logs

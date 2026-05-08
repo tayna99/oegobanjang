@@ -56,11 +56,21 @@ copy .env.example .env
 `.env`에는 실제 API Key, DB 접속 정보 등을 작성합니다.  
 `.env`는 Git에 올리지 않습니다.
 
+현재 MVP의 service DB는 SQLite입니다.
+backend 폴더 실행 기준 기본 DB URL은 아래와 같습니다.
+
+```bash
+DATABASE_URL=sqlite:///./data/oegobanjang.sqlite3
+```
+
 ---
 
 ### 2. 로컬 인프라 실행
 
-PostgreSQL, Chroma, Redis 등을 Docker로 실행합니다.
+현재 MVP의 service DB는 SQLite를 사용합니다.
+DB 파일은 backend 실행 기준 `backend/data/oegobanjang.sqlite3`에 생성됩니다.
+Chroma는 RAG/vector search용 저장소이며 SQLite service DB와 별도입니다.
+필요한 로컬 인프라가 있을 때 Docker로 실행합니다.
 
 ```bash
 docker compose up -d

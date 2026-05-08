@@ -123,6 +123,7 @@ def save_handoff_package_draft(
         approval_required=True,
         risk_flags=_json_dumps(risk_flags),
         request_id=request_id,
+        company_id=company_id,
         worker_id=worker_id,
         approval_id=approval.id,
     )
@@ -261,6 +262,7 @@ def _review_handoff_package_draft(
         approval_required=True,
         risk_flags=_json_dumps([]),
         request_id=draft.request_id,
+        company_id=draft.company_id,
         worker_id=draft.worker_id,
         approval_id=approval.id,
     )

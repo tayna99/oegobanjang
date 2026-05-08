@@ -17,8 +17,8 @@ frontend
 data-pipeline
 → Chroma Vector DB
 
-PostgreSQL
-→ 서비스 데이터 저장
+SQLite service DB
+→ 서비스 데이터 저장 (`backend/data/oegobanjang.sqlite3`)
 ```
 
 ---
@@ -86,9 +86,19 @@ backend/app/agent_runtime/
 
 ## 6. 데이터 저장소
 
-### PostgreSQL
+### SQLite service DB
 
-서비스의 정형 데이터를 저장한다.
+현재 MVP의 서비스 정형 데이터를 저장한다.
+DB 파일은 backend 실행 기준 `backend/data/oegobanjang.sqlite3`이다.
+Chroma와는 별도 저장소다.
+
+- approvals
+- contact_messages
+- status_update_candidates
+- handoff_package_drafts
+- evidence_logs
+
+아래 context tables는 planned 상태이며 아직 실제 SQLAlchemy 모델/migration이 없다.
 
 - users
 - companies
@@ -96,9 +106,6 @@ backend/app/agent_runtime/
 - candidates
 - visas
 - documents
-- contacts
-- approvals
-- evidence_logs
 
 ### Chroma
 

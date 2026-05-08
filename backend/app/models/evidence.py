@@ -33,6 +33,7 @@ class EvidenceLog(Base):
     )
     risk_flags: Mapped[str | None] = mapped_column(Text, nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    company_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     worker_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     contact_message_id: Mapped[str | None] = mapped_column(
         String(36),

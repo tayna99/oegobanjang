@@ -1,512 +1,574 @@
 # DB Schema
 
-## 1. 목적
+## Purpose
 
-이 문서는 외고반장 MVP에서 필요한 주요 DB 테이블을 정의한다.
+이 문서는 외고반장 service DB의 현재 구현 상태와 향후 계획을 분리해서 기록한다.
 
-정형 상태는 PostgreSQL에 저장한다.  
-공식 문서 검색용 데이터는 Chroma에 저장한다.
-
----
-
-## 2. 설계 원칙
+현재 구현은 SQLite MVP 기준이다.
+운영 DB 전환은 후속 검토 대상이다.
 
 ```txt
-RAG = 공식 근거와 절차를 찾는 곳
-DB = 현재 사업장·직원·후보자·서류·승인 상태를 저장하는 곳
-Rule Base = 날짜 계산과 true/false 판단을 하는 곳
+Current Implementation: SQLite MVP
 ```
 
-DB에는 현재 상태와 실행 이력을 저장한다.
-
-RAG에는 법령, 절차, 서식, 안전자료, 메시지 템플릿을 저장한다.
-
----
-
-## 3. users
-
-관리자 또는 담당자 계정.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 사용자 ID |
-| email | varchar | N | 로그인 이메일 |
-| password_hash | varchar | N | 비밀번호 해시 |
-| name | varchar | N | 사용자 이름 |
-| role | varchar | N | ADMIN/MANAGER |
-| is_active | boolean | N | 활성 여부 |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-
----
-
-## 4. companies
-
-사업장 정보.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 사업장 ID |
-| name | varchar | N | 사업장명 |
-| business_number | varchar | Y | 사업자등록번호 |
-| industry | varchar | N | 업종 |
-| region | varchar | N | 지역 |
-| address | varchar | Y | 주소 |
-| current_foreign_workers | int | N | 현재 외국인 근로자 수 |
-| housing_available | boolean | Y | 숙소 제공 여부 |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-
----
-
-## 5. workers
-
-외국인 근로자 정보.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 근로자 ID |
-| company_id | UUID | N | 사업장 ID |
-| name | varchar | N | 이름 |
-| nationality | varchar | N | 국적 |
-| preferred_language | varchar | Y | 선호 언어 |
-| visa_type | varchar | N | 체류자격 |
-| visa_expires_at | date | N | 체류만료일 |
-| contract_starts_at | date | Y | 계약시작일 |
-| contract_ends_at | date | Y | 계약종료일 |
-| status | varchar | N | ACTIVE/INACTIVE/LEFT/PENDING |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-
-민감정보인 여권번호, 외국인등록번호는 별도 보안 테이블 또는 암호화 필드로 분리한다.
-
----
-
-## 6. worker_sensitive_profiles
-
-근로자 민감정보.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 민감정보 ID |
-| worker_id | UUID | N | 근로자 ID |
-| passport_number_encrypted | varchar | Y | 암호화된 여권번호 |
-| alien_registration_number_encrypted | varchar | Y | 암호화된 외국인등록번호 |
-| phone_number_encrypted | varchar | Y | 암호화된 연락처 |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-
----
-
-## 7. candidates
-
-신규 채용 후보자 정보.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 후보자 ID |
-| company_id | UUID | N | 사업장 ID |
-| nationality | varchar | N | 국적 |
-| visa_type | varchar | Y | 예상 체류자격 |
-| passport_ready | boolean | N | 여권 준비 여부 |
-| photo_ready | boolean | N | 사진 준비 여부 |
-| health_check_ready | boolean | N | 건강검진 준비 여부 |
-| available_start_date | date | Y | 근무 가능일 |
-| status | varchar | N | PENDING/READY/NEEDS_INFO/REJECTED |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-
-후보자는 추천 대상이 아니라 준비 상태 확인 대상이다.
-
----
-
-## 8. hiring_requests
-
-신규 인력 요청.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 채용 요청 ID |
-| company_id | UUID | N | 사업장 ID |
-| requested_count | int | N | 요청 인원 |
-| visa_type | varchar | N | 요청 체류자격 |
-| nationality_preference_note | text | Y | 국적 관련 입력 원문 보관 주의 |
-| job_description | text | Y | 직무 설명 |
-| housing_required | boolean | Y | 숙소 필요 여부 |
-| status | varchar | N | DRAFT/PENDING_REVIEW/APPROVED/CANCELLED |
-| created_by | UUID | N | 생성자 |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-
-국적별 선호 또는 차별적 추천은 금지한다. 입력값은 검토가 필요하다.
-
----
-
-## 9. visas
-
-비자/체류 상태.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 비자 상태 ID |
-| worker_id | UUID | N | 근로자 ID |
-| visa_type | varchar | N | 체류자격 |
-| issued_at | date | Y | 발급일 |
-| expires_at | date | N | 만료일 |
-| status | varchar | N | ACTIVE/EXPIRING/EXPIRED/REVIEW_REQUIRED |
-| last_checked_at | timestamp | Y | 마지막 확인일 |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-
-D-day는 저장해도 되지만, 기본적으로 날짜 기반 Rule Base에서 계산한다.
-
----
-
-## 10. document_requirements
-
-케이스별 필수 서류 기준.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 기준 ID |
-| case_type | varchar | N | stay_extension/new_hiring/employment_change 등 |
-| visa_type | varchar | N | E-9 등 |
-| required_doc | varchar | N | 필수 서류 코드 |
-| required | boolean | N | 필수 여부 |
-| source_id | varchar | N | 근거 문서 source_id |
-| notes | text | Y | 설명 |
-| created_at | timestamp | N | 생성일 |
-
-초기에는 CSV로 관리하다가 DB로 옮길 수 있다.
-
----
-
-## 11. worker_documents
-
-근로자별 제출 서류 상태.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 문서 ID |
-| worker_id | UUID | N | 근로자 ID |
-| doc_type | varchar | N | 문서 종류 |
-| status | varchar | N | MISSING/SUBMITTED/REVIEWED/EXPIRED |
-| file_path | varchar | Y | 파일 경로 |
-| submitted_at | timestamp | Y | 제출일 |
-| reviewed_at | timestamp | Y | 검토일 |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-
----
-
-## 12. contact_messages
-
-다국어 메시지 초안 및 승인 이후 발송 이력.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 메시지 ID |
-| worker_id | UUID | Y | 대상 근로자 |
-| message_purpose | varchar | N | safety_training_notice/counseling_center_guide/passport_request 등 |
-| language_code | varchar | N | MVP는 vi/id 중심 |
-| korean_text | text | N | 한국어 원문 |
-| translated_text | text | Y | 번역 초안 |
-| status | varchar | N | DRAFT/PENDING_APPROVAL/APPROVED/SENT/CANCELLED |
-| approval_required | boolean | N | 발송 전 승인 필요 여부 |
-| approval_id | UUID | Y | 승인 ID |
-| citation_source_ids | jsonb | Y | RAG 근거 source_id 목록 |
-| risk_flags | jsonb | Y | 안전 플래그 |
-| created_by | UUID | N | 생성자 |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-| sent_at | timestamp | Y | 발송일 |
-
-상태 예시:
+핵심 분리 원칙:
 
 ```txt
-DRAFT
-PENDING_APPROVAL
-APPROVED
-SENT
-CANCELLED
+RAG 문서/embedding = Chroma
+운영 상태 = SQLite service DB
+Agent 초안/후보 = SQLite service DB
+승인 상태 = approvals
+감사 요약 = evidence_logs
+민감정보 원문 = 저장 금지
+승인 = review decision, 실행 아님
 ```
-
-초안 생성 시 기본 상태:
-
-```txt
-status=PENDING_APPROVAL
-approval_required=true
-sent_at=null
-```
-
-`korean_text`와 `translated_text`는 담당자 검토가 필요한 운영 데이터이므로 저장한다.
-단, 이 데이터는 발송 전 초안이며 실제 발송은 승인 이후 별도 단계에서만 가능하다.
-
-자동 발송은 금지한다.
 
 ---
 
-## 13. approvals
+## Current SQLite MVP Schema
 
-관리자 승인 상태.
+현재 실제 SQLAlchemy 모델과 Alembic migration이 존재하는 service DB 테이블은 아래 5개다.
 
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 승인 ID |
-| target_type | varchar | N | contact_message/status_update_candidate 등 승인 대상 유형 |
-| target_id | UUID | N | 승인 대상 ID |
-| status | varchar | N | PENDING/APPROVED/REJECTED/CANCELLED |
-| requested_by | UUID | Y | 요청자 |
-| reviewed_by | UUID | Y | 검토자 |
-| created_at | timestamp | N | 생성일 |
-| reviewed_at | timestamp | Y | 검토일 |
-| reason | text | Y | 승인 필요 사유 |
+```txt
+approvals
+contact_messages
+status_update_candidates
+handoff_package_drafts
+evidence_logs
+```
 
-상태 예시:
+구현 파일:
+
+```txt
+backend/app/models/approval.py
+backend/app/models/contact.py
+backend/app/models/handoff.py
+backend/app/models/evidence.py
+```
+
+Migration:
+
+```txt
+backend/migrations/versions/20260505_0001_contact_persistence_tables.py
+backend/migrations/versions/20260506_0002_handoff_package_drafts.py
+backend/migrations/versions/20260507_0003_handoff_company_scope.py
+backend/migrations/versions/20260507_0004_company_scope_for_agent_outputs.py
+```
+
+SQLite MVP type policy:
+
+| Logical type | Current SQLite MVP |
+|---|---|
+| ID | `String(36)` / `String(64)` |
+| JSON list/object | `Text(JSON string)` |
+| Company scope | nullable string column or resolver |
+| Relation | selective FK, some string relation IDs |
+
+### approvals
+
+역할:
+
+관리자 승인 상태를 저장한다. `approvals` 자체에는 `company_id`를 저장하지 않고, target row의 `company_id`로 company scope를 검사한다.
+
+주요 컬럼:
+
+| column | current type | note |
+|---|---|---|
+| `id` | `String(36)` | approval ID |
+| `target_type` | `String(80)` | polymorphic target type |
+| `target_id` | `String(36)` | target row ID |
+| `status` | `String(40)` | review status |
+| `requested_by` | `String(64) nullable` | 요청자 |
+| `reviewed_by` | `String(64) nullable` | 검토자 |
+| `created_at` | `DateTime` | 생성 시각 |
+| `reviewed_at` | `DateTime nullable` | 검토 시각 |
+| `reason` | `Text nullable` | 승인 필요 사유 또는 반려 사유 |
+
+Scope/relations:
+
+```txt
+company_id: 없음
+worker_id: 없음
+approval_id: id 자체
+FK: 없음. target_type/target_id resolver 사용
+```
+
+지원 target_type:
+
+```txt
+contact_message
+status_update_candidate
+handoff_package_draft
+```
+
+상태값:
 
 ```txt
 PENDING
 APPROVED
 REJECTED
-CANCELLED
+CANCELLED (planned/documented)
 ```
 
-`target_type`/`target_id`는 `contact_messages`, `status_update_candidates` 등 승인 대상과 연결한다.
-
-메시지 발송과 상태 반영은 `status=APPROVED` 이후 별도 실행 단계에서만 가능하다.
-
----
-
-## 14. handoff_package_drafts
-
-전문가 검토용 handoff package 초안.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 초안 ID |
-| request_id | UUID | Y | Runtime 요청 ID |
-| company_id | UUID | Y | 접근 scope. MVP에서는 X-Company-Id와 비교 |
-| package_type | varchar | N | expert_handoff_draft |
-| case_type | varchar | Y | stay_extension 등 |
-| worker_id | UUID | Y | 내부 relation용. package_json에는 저장하지 않음 |
-| masked_worker_id | varchar | N | 응답/요약용 마스킹 ID |
-| risk_level | varchar | Y | LOW/MEDIUM/HIGH |
-| handoff_ready | boolean | N | 전문가 검토 초안 준비 가능 여부 |
-| handoff_blockers | text | Y | JSON string |
-| package_json | text | N | allowlist 기반 sanitize JSON string |
-| approval_required | boolean | N | 승인 필요 여부 |
-| approval_id | UUID | Y | 승인 ID |
-| status | varchar | N | PENDING_APPROVAL/APPROVED/REJECTED |
-| created_by | UUID | Y | 생성 요청자 |
-| created_at | timestamp | N | 생성일 |
-| updated_at | timestamp | N | 수정일 |
-| transferred_at | timestamp | Y | 전문가 전달 시각. 초안 생성/승인 시에는 null |
-
-초기 상태:
+관련 service/API:
 
 ```txt
-status=PENDING_APPROVAL
-approval_required=true
-approval.status=PENDING
-transferred_at=null
+backend/app/services/approval_service.py
+backend/app/services/contact_persistence_service.py
+backend/app/services/handoff_persistence_service.py
+backend/app/api/v1/approvals.py
+backend/app/api/v1/handoff.py
 ```
 
-승인/반려 상태 전이:
+민감정보 저장 정책:
+
+`reason`에는 민감정보 원문을 넣지 않는다. 공용 approval service는 명백한 여권번호, 외국인등록번호, 전화번호 패턴과 금지 marker를 차단한다.
+
+승인은 실행이 아니다:
 
 ```txt
-approve:
-handoff_package_drafts.status=PENDING_APPROVAL → APPROVED
-approvals.status=PENDING → APPROVED
-transferred_at=null 유지
-
-reject:
-handoff_package_drafts.status=PENDING_APPROVAL → REJECTED
-approvals.status=PENDING → REJECTED
-transferred_at=null 유지
+contact_message 승인 != 메시지 발송
+status_update_candidate 승인 != worker_documents 반영
+handoff_package_draft 승인 != 전문가 전달
 ```
 
-이미 `APPROVED` 또는 `REJECTED`인 draft는 다시 처리하지 않는다.
+### contact_messages
 
-`package_json` 저장 허용:
+역할:
 
-- 요약
-- masked_worker_id
-- visa_type
-- stay_expires_at
-- contract_ends_at
-- 서류 종류와 누락 여부
-- 상태 후보 요약
-- citation_ids
-- evidence_log_ids
-- risk_flags
-- approval_required
-- approval.status=PENDING
-- not_for_legal_judgment=true
+다국어 메시지 초안을 저장한다. 메시지 전문은 담당자 검토용 운영 데이터로 저장되지만, 실제 발송은 하지 않는다.
 
-`package_json` 저장 금지:
+주요 컬럼:
 
-- worker_id 원문
-- worker_name 원문
-- nationality
-- worker_reply 원문
-- translated_ko 전문
-- 근로자-facing message body 전문
-- 여권번호 원문
-- 외국인등록번호 원문
-- 전화번호 전체
-- 주소 전체
-- 문서/OCR 원문
-- 법률·노무 판단 확정 문장
-- 비자 가능 여부 확정 문장
+| column | current type | note |
+|---|---|---|
+| `id` | `String(36)` | message draft ID |
+| `company_id` | `String(64) nullable` | 접근 scope |
+| `worker_id` | `String(64) nullable` | 내부 relation |
+| `message_purpose` | `String(100)` | 메시지 목적 |
+| `language_code` | `String(16)` | MVP는 vi/id 중심 |
+| `korean_text` | `Text` | 한국어 초안 전문 |
+| `translated_text` | `Text nullable` | 번역 초안 전문 |
+| `status` | `String(40)` | draft/review 상태 |
+| `approval_required` | `Boolean` | 발송 전 승인 필요 |
+| `approval_id` | `String(36) FK approvals.id nullable` | 승인 ID |
+| `citation_source_ids` | `Text(JSON string) nullable` | source_id 목록 |
+| `risk_flags` | `Text(JSON string) nullable` | 안전 플래그 |
+| `created_by` | `String(64) nullable` | 생성자 |
+| `created_at` | `DateTime` | 생성 시각 |
+| `updated_at` | `DateTime` | 수정 시각 |
+| `sent_at` | `DateTime nullable` | 실제 발송 시각. 승인 시에도 null 유지 |
 
-`company_id`는 접근 제어용 scope다.
-`created_by`는 생성 요청 사용자이고, `worker_id`는 내부 relation이다.
-MVP/demo 조회 API는 `X-Company-Id` header와 `handoff_package_drafts.company_id`를 비교한다.
-운영 전에는 인증 토큰 기반 company membership/role 검증으로 교체해야 한다.
-
-실제 전문가 전달은 `status=APPROVED` 이후에도 별도 실행 단계에서만 가능하다.
-
----
-
-## 15. evidence_logs
-
-AI 판단 근거와 실행 이력.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 로그 ID |
-| request_id | UUID | N | 요청 ID |
-| worker_id | UUID | Y | 근로자 ID |
-| agent_name | varchar | N | Agent 이름 |
-| event_type | varchar | N | 이벤트 유형 |
-| tool_name | varchar | Y | 실행 Tool |
-| summary | text | N | 원문 없는 이벤트 요약 |
-| source_ids | jsonb | Y | 근거 source_id 목록 |
-| approval_required | boolean | N | 승인 필요 여부 |
-| risk_flags | jsonb | Y | 안전 플래그 |
-| contact_message_id | UUID | Y | 관련 메시지 초안 ID |
-| status_update_candidate_id | UUID | Y | 관련 상태 후보 ID |
-| approval_id | UUID | Y | 승인 ID |
-| created_at | timestamp | N | 생성일 |
-
-다국어 Contact Agent 주요 event_type:
+Scope/relations:
 
 ```txt
-rag_retrieved
-message_draft_created
-approval_requested
-worker_reply_summarized
-status_update_candidate_created
+company_id: 있음
+worker_id: 있음
+approval_id: 있음
+FK: approval_id -> approvals.id
 ```
 
-저장 가능:
-
-- 원문 없는 요약
-- source_id 목록
-- approval_required
-- risk_flags
-- candidate 상태 요약
-
-저장 금지:
-
-- 메시지 전문
-- worker_reply 원문
-- 여권번호
-- 외국인등록번호
-- 전화번호 전체
-- 주소 전체
-- 기타 개인정보 원문
-
-`summary`에는 원문이 아니라 요약만 저장한다.
-
-예:
+상태값:
 
 ```txt
-message_draft_created → 베트남어 안전교육 안내 메시지 초안이 생성됨
-worker_reply_summarized → 근로자가 여권 보유 및 사진 추후 제출 의사를 밝힘
+PENDING_APPROVAL
+APPROVED
+REJECTED
+SENT (future execution step)
+CANCELLED (planned/documented)
 ```
 
-민감정보 원문은 저장하지 않는다.
+Text(JSON string) 컬럼:
 
----
+```txt
+citation_source_ids
+risk_flags
+```
 
-## 16. status_update_candidates
+관련 service/API:
 
-근로자 답변에서 추출한 상태 업데이트 후보.
+```txt
+backend/app/services/contact_persistence_service.py
+backend/app/services/agent_service.py
+backend/app/services/approval_service.py
+POST /api/v1/agent/run
+GET/POST /api/v1/approvals/{approval_id}
+```
 
-| column | type | nullable | description |
-|---|---|---:|---|
-| id | UUID | N | 상태 후보 ID |
-| worker_id | UUID | N | 근로자 ID |
-| target_type | varchar | N | worker_document/worker_profile/support_case 등 |
-| target_key | varchar | N | passport/photo/expected_submission_date 등 |
-| candidate_status | varchar | N | available/pending_until_next_day/needs_review 등 |
-| confidence | varchar | Y | LOW/MEDIUM/HIGH 또는 nullable |
-| manager_review_required | boolean | N | 담당자 검토 필요 여부 |
-| status | varchar | N | PENDING_REVIEW/APPROVED/REJECTED/APPLIED |
-| source_message_id | UUID | Y | 관련 contact_messages ID |
-| approval_id | UUID | Y | 승인 ID |
-| created_at | timestamp | N | 생성일 |
-| reviewed_at | timestamp | Y | 검토일 |
+민감정보 저장 정책:
 
-상태 예시:
+- `korean_text`, `translated_text`는 메시지 초안 전문이므로 접근 제어가 필요하다.
+- Evidence Log에는 메시지 전문을 저장하지 않는다.
+- approve 이후에도 `sent_at=null`을 유지하며 자동 발송하지 않는다.
+
+### status_update_candidates
+
+역할:
+
+근로자 답변에서 추출한 상태 업데이트 후보를 저장한다. 실제 `worker_documents` 또는 worker 상태를 변경하지 않는다.
+
+주요 컬럼:
+
+| column | current type | note |
+|---|---|---|
+| `id` | `String(36)` | candidate ID |
+| `company_id` | `String(64) nullable` | 접근 scope |
+| `worker_id` | `String(64)` | 내부 relation |
+| `target_type` | `String(80)` | 예: `worker_document` |
+| `target_key` | `String(100)` | 예: `passport`, `photo` |
+| `candidate_status` | `String(100)` | 후보 상태값 |
+| `confidence` | `String(40) nullable` | confidence |
+| `manager_review_required` | `Boolean` | 담당자 검토 필요 |
+| `status` | `String(40)` | review/apply 상태 |
+| `source_message_id` | `String(36) FK contact_messages.id nullable` | 관련 메시지 |
+| `approval_id` | `String(36) FK approvals.id nullable` | 승인 ID |
+| `created_at` | `DateTime` | 생성 시각 |
+| `reviewed_at` | `DateTime nullable` | 검토 시각 |
+
+Scope/relations:
+
+```txt
+company_id: 있음
+worker_id: 있음
+approval_id: 있음
+FK: approval_id -> approvals.id
+FK: source_message_id -> contact_messages.id
+```
+
+상태값:
 
 ```txt
 PENDING_REVIEW
 APPROVED
 REJECTED
-APPLIED
+APPLIED (future apply step)
 ```
 
-상태 업데이트 후보 생성 시 기본 상태:
+Text(JSON string) 컬럼:
 
 ```txt
-status=PENDING_REVIEW
-manager_review_required=true
+없음
 ```
 
-실제 `worker_documents` 상태를 바로 변경하지 않는다.
-승인 후 별도 apply 단계에서만 반영한다.
-
----
-
-## 17. rag_sources
-
-RAG 원천 문서 메타데이터.
-
-| column | type | nullable | description |
-|---|---|---:|---|
-| source_id | varchar | N | 문서 source_id |
-| title | varchar | N | 제목 |
-| publisher | varchar | N | 발행기관 |
-| source_type | varchar | N | official_law/procedure/form 등 |
-| url | text | Y | 원문 URL |
-| retrieved_at | date | N | 수집일 |
-| effective_date | date | Y | 시행일 |
-| evidence_grade | varchar | N | A/B/C/D/E/F |
-| created_at | timestamp | N | 생성일 |
-
-Vector 자체는 Chroma에 저장하고, 메타데이터는 필요하면 PostgreSQL에도 저장한다.
-
----
-
-## 18. 초기 Seed 파일
+관련 service/API:
 
 ```txt
-data-pipeline/seed/companies.csv
-data-pipeline/seed/employees.csv
-data-pipeline/seed/candidates.csv
-data-pipeline/seed/document_requirements.csv
-data-pipeline/seed/visa_lookup.csv
-data-pipeline/seed/country_lookup.csv
-data-pipeline/seed/message_templates.csv
+backend/app/services/contact_persistence_service.py
+backend/app/services/agent_service.py
+backend/app/services/approval_service.py
+POST /api/v1/agent/run
+GET/POST /api/v1/approvals/{approval_id}
+```
+
+민감정보 저장 정책:
+
+- `worker_reply` 원문과 `translated_ko` 전문은 저장하지 않는다.
+- 상태 후보는 담당자 검토 전까지 확정 상태가 아니다.
+- approve 이후에도 `candidate_status`만 유지하고 실제 `worker_documents`를 반영하지 않는다.
+
+### handoff_package_drafts
+
+역할:
+
+전문가 검토용 handoff package 초안을 저장한다. 실제 전문가 전달, external export, 정부 제출을 실행하지 않는다.
+
+주요 컬럼:
+
+| column | current type | note |
+|---|---|---|
+| `id` | `String(36)` | draft ID |
+| `request_id` | `String(64) nullable` | Runtime request ID |
+| `company_id` | `String(64) nullable` | 접근 scope |
+| `package_type` | `String(80)` | `expert_handoff_draft` |
+| `case_type` | `String(80) nullable` | case type |
+| `worker_id` | `String(64) nullable` | 내부 relation. package_json/API detail에는 미노출 |
+| `masked_worker_id` | `String(80)` | safe display ID |
+| `risk_level` | `String(40) nullable` | risk level |
+| `handoff_ready` | `Boolean` | 초안 준비 가능 여부 |
+| `handoff_blockers` | `Text(JSON string) nullable` | blockers |
+| `package_json` | `Text(JSON string)` | allowlist 기반 safe package |
+| `approval_required` | `Boolean` | 승인 필요 |
+| `approval_id` | `String(36) FK approvals.id nullable` | 승인 ID |
+| `status` | `String(40)` | review 상태 |
+| `created_by` | `String(64) nullable` | 생성자 |
+| `created_at` | `DateTime` | 생성 시각 |
+| `updated_at` | `DateTime` | 수정 시각 |
+| `transferred_at` | `DateTime nullable` | 실제 전달 시각. 승인 시에도 null 유지 |
+
+Scope/relations:
+
+```txt
+company_id: 있음
+worker_id: 있음
+approval_id: 있음
+FK: approval_id -> approvals.id
+```
+
+상태값:
+
+```txt
+PENDING_APPROVAL
+APPROVED
+REJECTED
+```
+
+Text(JSON string) 컬럼:
+
+```txt
+handoff_blockers
+package_json
+```
+
+관련 service/API:
+
+```txt
+backend/app/services/handoff_persistence_service.py
+backend/app/services/approval_service.py
+GET /api/v1/handoff-package-drafts/{draft_id}
+POST /api/v1/handoff-package-drafts/{draft_id}/approve
+POST /api/v1/handoff-package-drafts/{draft_id}/reject
+GET/POST /api/v1/approvals/{approval_id}
+```
+
+민감정보 저장 정책:
+
+`package_json`은 allowlist 기반으로만 저장한다.
+
+저장 금지:
+
+```txt
+worker_id 원문
+worker_name 원문
+nationality
+worker_reply 원문
+translated_ko 전문
+message body 전문
+여권번호
+외국인등록번호
+전화번호 전체
+주소 전체
+문서/OCR 원문
+법률·노무 판단 확정 문장
+비자 가능 여부 확정 문장
+```
+
+approve 이후에도 `transferred_at=null`을 유지하며 전문가 자동 전달은 하지 않는다.
+
+### evidence_logs
+
+역할:
+
+AI 판단, 초안 생성, 승인 요청/결정 등 주요 이벤트의 감사 요약을 저장한다.
+
+주요 컬럼:
+
+| column | current type | note |
+|---|---|---|
+| `id` | `String(36)` | log ID |
+| `event_type` | `String(100)` | event type |
+| `agent_name` | `String(100)` | agent/service name |
+| `tool_name` | `String(100) nullable` | tool name |
+| `summary` | `Text` | 원문 없는 요약 |
+| `source_ids` | `Text(JSON string) nullable` | source_id 목록 |
+| `approval_required` | `Boolean` | 승인 필요 여부 |
+| `risk_flags` | `Text(JSON string) nullable` | 안전 플래그 |
+| `request_id` | `String(64) nullable` | request ID |
+| `company_id` | `String(64) nullable` | 접근 scope |
+| `worker_id` | `String(64) nullable` | 내부 relation |
+| `contact_message_id` | `String(36) FK contact_messages.id nullable` | 관련 메시지 |
+| `status_update_candidate_id` | `String(36) FK status_update_candidates.id nullable` | 관련 상태 후보 |
+| `approval_id` | `String(36) FK approvals.id nullable` | 관련 approval |
+| `created_at` | `DateTime` | 생성 시각 |
+
+Scope/relations:
+
+```txt
+company_id: 있음
+worker_id: 있음
+approval_id: 있음
+FK: approval_id -> approvals.id
+FK: contact_message_id -> contact_messages.id
+FK: status_update_candidate_id -> status_update_candidates.id
+handoff_package_draft_id: 없음
+```
+
+Text(JSON string) 컬럼:
+
+```txt
+source_ids
+risk_flags
+```
+
+관련 service/API:
+
+```txt
+backend/app/services/contact_persistence_service.py
+backend/app/services/handoff_persistence_service.py
+backend/app/services/approval_service.py
+```
+
+`backend/app/api/v1/evidence.py`와 `backend/app/services/evidence_service.py`는 현재 비어 있다.
+
+저장 금지:
+
+```txt
+worker_reply 원문
+translated_ko 전문
+message body 전문
+package_json 전문
+여권번호
+외국인등록번호
+전화번호 전체
+주소 전체
+문서/OCR 원문
+```
+
+현재 `handoff_package_draft_id` FK는 없다. Handoff audit은 `approval_id`와 `request_id` 중심으로 추적한다. Draft 중심 감사 조회가 중요해지는 시점에 전용 FK 추가를 검토한다.
+
+---
+
+## Company Scope Status
+
+현재 구현 기준:
+
+| table | company_id | scope policy |
+|---|---:|---|
+| `contact_messages` | 있음 | target row scope |
+| `status_update_candidates` | 있음 | target row scope |
+| `handoff_package_drafts` | 있음 | target row scope |
+| `evidence_logs` | 있음 | audit query scope |
+| `approvals` | 없음 | target resolver 기반 |
+
+`approvals`에는 `company_id`를 직접 저장하지 않는다.
+공용 approval API는 `resolve_approval_target_company_id(db, approval)`로 target row의 `company_id`를 확인한다.
+
+MVP/demo 단계에서는 `X-Company-Id` header를 사용한다.
+운영 전에는 인증 토큰 기반 company membership/role 검증으로 교체해야 한다.
+
+---
+
+## Approval Semantics
+
+승인은 외부 실행이 아니라 review decision이다.
+
+```txt
+contact_message 승인
+→ approvals.status=APPROVED
+→ contact_messages.status=APPROVED
+→ 메시지 자동 발송 없음
+→ sent_at=null 유지
+
+status_update_candidate 승인
+→ approvals.status=APPROVED
+→ status_update_candidates.status=APPROVED
+→ worker_documents 자동 반영 없음
+→ candidate_status 유지
+
+handoff_package_draft 승인
+→ approvals.status=APPROVED
+→ handoff_package_drafts.status=APPROVED
+→ 전문가 자동 전달 없음
+→ external export 없음
+→ 정부 제출 없음
+→ transferred_at=null 유지
+```
+
+재처리/충돌:
+
+```txt
+approval 없음 → 404
+approval 있음 + target row 없음 → 409
+approval 있음 + target_type 미지원 → 409
+approval.status != PENDING → 409
+target 상태가 PENDING 계열이 아님 → 409
+target company_id와 X-Company-Id 불일치 → 403
 ```
 
 ---
 
-## 19. 향후 검토
+## Planned Context Tables
 
-- Refresh token/session 관리가 필요하면 auth_sessions 추가
-- 파일 업로드가 본격화되면 files 테이블 추가
-- 장기 스케줄링이 필요하면 scheduled_jobs 테이블 추가
-- 인터뷰 기반 케이스가 쌓이면 case_examples 테이블 추가
+아래 테이블은 문서상 planned 상태이며, 현재 실제 SQLAlchemy 모델/migration/service API 구현이 없다.
+
+```txt
+users
+companies
+workers
+worker_sensitive_profiles
+candidates
+hiring_requests
+visas
+document_requirements
+worker_documents
+rag_sources
+```
+
+현재 placeholder 파일은 존재할 수 있지만 실제 모델은 비어 있다.
+
+```txt
+backend/app/models/company.py
+backend/app/models/worker.py
+backend/app/models/document.py
+backend/app/models/user.py
+backend/app/models/hiring.py
+backend/app/models/visa.py
+```
+
+State Loader 현황:
+
+```txt
+현재 State Loader는 실제 DB를 읽지 않는다.
+CsvSeedContextRepository가 data-pipeline/seed/*.csv를 읽는다.
+Context tables는 다음 단계에서 State Loader DB 전환과 함께 설계한다.
+```
+
+Planned context table 역할:
+
+| table | planned role |
+|---|---|
+| `users` | 관리자/담당자 계정과 role |
+| `companies` | 사업장 master |
+| `workers` | 외국인 근로자 master |
+| `worker_sensitive_profiles` | 여권번호, 외국인등록번호, 전화번호 등 암호화 민감정보 |
+| `candidates` | 신규 채용 후보 준비 상태 |
+| `hiring_requests` | 신규 인력 요청 |
+| `visas` | 체류/비자 상태 |
+| `document_requirements` | 케이스별 필수 서류 기준 |
+| `worker_documents` | 근로자별 제출 서류 상태 |
+| `rag_sources` | 필요 시 RAG source metadata. Vector/embedding 자체는 Chroma |
+
+Planned context tables 구현 시 함께 결정할 것:
+
+- SQLite MVP table shape
+- State Loader `DbContextRepository`
+- company membership/role scope
+- worker/candidate lookup 정책
+- `worker_documents` apply flow
+- 민감정보 암호화/마스킹 정책
+
+---
+
+## Operating DB Transition
+
+운영 DB 전환은 후속 검토 대상이다.
+현재 문서의 기준은 SQLite MVP이며, JSON 형태 값은 `Text(JSON string)`으로 저장한다.
+
+Chroma는 service DB migration 대상이 아니다.
+공식 문서, chunk, embedding, vector index는 SQLite service DB와 분리한다.
+
+---
+
+## Verification Notes
+
+DB 관련 테스트는 현재 `Base.metadata.create_all()`로 SQLite in-memory DB를 구성한다.
+Alembic migration과 SQLAlchemy model의 차이를 확인하려면 별도 migration smoke test가 필요하다.
+
+현재 주요 테스트:
+
+```txt
+backend/tests/test_contact_persistence_service.py
+backend/tests/test_handoff_persistence_service.py
+backend/tests/test_handoff_api.py
+backend/tests/test_approval_api.py
+backend/tests/test_multilingual_contact_persistence_runtime.py
+```

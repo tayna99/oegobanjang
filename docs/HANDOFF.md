@@ -82,6 +82,13 @@ missions/active/*.md
 - `worker_id`는 DB relation 또는 내부 state 연결용으로만 유지 가능
 - Handoff Package에는 `approval_required=true`, `approval.status=PENDING`, `not_for_legal_judgment=true`를 유지
 - Handoff Package와 Evidence Log에는 `worker_reply` 원문, `translated_ko` 전문, 근로자-facing message body 전문을 저장하지 않음
+- Handoff draft 생성/저장/조회/승인/반려/API summary 흐름 완료
+- 저장된 handoff draft는 `GET /api/v1/handoff-package-drafts/{draft_id}`로 safe detail 조회 가능
+- 저장된 handoff draft는 draft id 기반 API와 공용 approval API 양쪽에서 승인/반려 가능
+- company scope는 MVP 단계에서 `X-Company-Id` header 기준으로 검사
+- 운영 전에는 인증 토큰 기반 company/role 검증으로 교체 필요
+- 현재 service DB는 SQLite MVP 기준이며, 실제 구현 테이블은 `approvals`, `contact_messages`, `status_update_candidates`, `handoff_package_drafts`, `evidence_logs` 중심
+- `companies`, `workers`, `candidates`, `worker_documents`, `users` 등 context tables는 아직 planned 상태이며 State Loader는 CSV seed repository를 사용
 
 현재 메시지 초안, 승인 필요 여부, Evidence Log 후보, 상태 업데이트 후보는 Runtime response로 반환된다.
 `persist_result=true`와 `worker_id`가 함께 전달되면 `contact_messages`, `approvals`, `evidence_logs`, `status_update_candidates`에 저장된다.
@@ -187,8 +194,10 @@ approve/reject 응답에는 전체 `package_json`, `worker_id` 원문, worker re
 
 ### 다음 작업
 
-1. workers 테이블/조회 기능 설계
-2. `worker_name` 기반 `worker_id` lookup 연결
-3. 저장된 contact message / approval 조회 API 구현
-4. 승인 후 발송/상태 반영 apply 흐름 설계
-5. Frontend Dashboard 연결
+1. DB 문서의 Current SQLite MVP / Planned Context Tables 구분 유지
+2. Context tables 설계 및 State Loader DB 전환 계획 수립
+3. workers 테이블/조회 기능 설계
+4. `worker_name` 기반 `worker_id` lookup 연결
+5. 저장된 contact message 조회 API 구현
+6. 승인 후 발송/상태 반영 apply 흐름 설계
+7. Frontend Dashboard 연결
