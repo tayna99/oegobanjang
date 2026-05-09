@@ -60,9 +60,9 @@ FORBIDDEN_INPUT_TERMS = FORBIDDEN_TERMS + (
 )
 
 PII_PATTERNS = (
-    ("passport_or_registration", re.compile(r"\b[A-Z][0-9]{7,9}\b")),
-    ("alien_registration_number", re.compile(r"\b\d{6}-\d{7}\b")),
-    ("korean_phone", re.compile(r"\b010-\d{3,4}-\d{4}\b")),
+    ("passport_or_registration", re.compile(r"(?<![A-Za-z0-9])[A-Z]{1,2}[0-9]{7,9}(?![A-Za-z0-9])")),
+    ("alien_registration_number", re.compile(r"(?<!\d)\d{6}-\d{7}(?!\d)")),
+    ("korean_phone", re.compile(r"(?<!\d)010-\d{3,4}-\d{4}(?!\d)")),
 )
 
 
@@ -138,6 +138,7 @@ def build_blocked_response(
             reason="자동 실행 없이 담당자 검토가 필요합니다.",
             blocked_actions=[
                 "auto_send_to_candidate",
+                "auto_send_to_sending_agency",
                 "auto_submit_to_government_portal",
                 "auto_send_to_admin_scrivener",
             ],

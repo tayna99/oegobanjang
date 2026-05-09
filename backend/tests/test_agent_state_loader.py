@@ -1,123 +1,98 @@
-from app.agent_runtime.legacy_graph.nodes.state_loader import (
-    InMemoryContextRepository,
-    state_loader_node,
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from backend.app.db.base import Base
+from backend.app.models.company import Company
+from backend.app.models.hiring import Candidate
+from backend.app.models.worker import Worker
+from backend.app.services.context_data_service import (
+    calculate_candidate_readiness,
+    get_company_data,
+    get_worker_profile_data,
 )
-from app.agent_runtime.schemas import ForeignHiringState
 
 
-def test_state_loader_populates_normalized_contexts() -> None:
-    repo = InMemoryContextRepository(
-        companies={
-            "company-1": {
-                "id": "company-1",
-                "name": "테스트 제조",
-                "business_number": "123-45-67890",
-                "address": "서울시 중구 테스트로 1",
-                "region": "서울",
-            }
-        },
-        workers={
-            "worker-1": {
-                "id": "worker-1",
-                "company_id": "company-1",
-                "name": "Nguyen Van A",
-                "nationality": "Vietnam",
-                "preferred_language": "vi",
-                "visa_type": "E-9",
-                "visa_expires_at": "2026-06-01",
-                "phone": "010-1234-5678",
-                "passport_number": "M12345678",
-            }
-        },
-        candidates={
-            "candidate-1": {
-                "id": "candidate-1",
-                "company_id": "company-1",
-                "name": "Tran Candidate",
-                "nationality": "Vietnam",
-                "phone": "010-9999-8888",
-            }
-        },
+def _db() -> Session:
+    engine = create_engine(
+        "sqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
-    state = ForeignHiringState(
-        request_id="req-1",
-        company_id="company-1",
-        worker_id="worker-1",
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    return factory()
+
+
+def test_context_data_service_populates_normalized_contexts_from_db() -> None:
+    db = _db()
+    db.add(Company(id="company-1", name="테스트 제조", industry="제조", region="서울"))
+    db.add(
+        Worker(
+            id="worker-1",
+            company_id="company-1",
+            name="Nguyen Van A",
+            nationality="Vietnam",
+            preferred_language="vi",
+            visa_type="E-9",
+            visa_expires_at="2026-06-01",
+        )
+    )
+    db.commit()
+
+    company = get_company_data("company-1", db=db)
+    worker = get_worker_profile_data("worker-1", db=db)
+
+    assert company is not None
+    assert company["id"] == "company-1"
+    assert company["region"] == "서울"
+    assert worker is not None
+    assert worker["id"] == "worker-1"
+    assert worker["visa_type"] == "E-9"
+
+
+def test_context_data_service_returns_none_for_missing_context() -> None:
+    db = _db()
+
+    assert get_company_data("missing-company", db=db) is None
+    assert get_worker_profile_data("missing-worker", db=db) is None
+
+
+def test_candidate_readiness_from_db_uses_missing_info_not_scores() -> None:
+    db = _db()
+    db.add(
+        Candidate(
+            id="candidate-1",
+            company_id="company-1",
+            nationality="VN",
+            desired_role="assembly",
+            passport=True,
+            photo=False,
+            health_check=False,
+            understood_housing=True,
+            understood_shift=False,
+        )
+    )
+    db.commit()
+
+    readiness = calculate_candidate_readiness(
         candidate_id="candidate-1",
-    )
-
-    loaded = state_loader_node(state, repository=repo)
-
-    assert loaded.context_loaded is True
-    assert loaded.context_blockers == []
-    assert loaded.company_context["id"] == "company-1"
-    assert loaded.worker_context["id"] == "worker-1"
-    assert loaded.candidate_context["id"] == "candidate-1"
-
-
-def test_state_loader_returns_structured_blockers_for_missing_context() -> None:
-    repo = InMemoryContextRepository()
-    state = ForeignHiringState(
-        request_id="req-missing",
-        company_id="missing-company",
-        worker_id="missing-worker",
-    )
-
-    loaded = state_loader_node(state, repository=repo)
-
-    assert loaded.context_loaded is False
-    assert loaded.company_context == {}
-    assert loaded.worker_context == {}
-    assert {
-        "type": "missing_company",
-        "message": "사업장 정보를 찾을 수 없습니다.",
-        "severity": "MEDIUM",
-        "id": "missing-company",
-    } in [blocker.model_dump() for blocker in loaded.context_blockers]
-    assert {
-        "type": "missing_worker",
-        "message": "근로자 정보를 찾을 수 없습니다.",
-        "severity": "MEDIUM",
-        "id": "missing-worker",
-    } in [blocker.model_dump() for blocker in loaded.context_blockers]
-
-
-def test_state_loader_masks_sensitive_values_in_contexts() -> None:
-    repo = InMemoryContextRepository(
-        companies={
-            "company-1": {
-                "id": "company-1",
-                "name": "테스트 제조",
-                "business_number": "123-45-67890",
-                "address": "서울시 중구 테스트로 1",
-            }
-        },
-        workers={
-            "worker-1": {
-                "id": "worker-1",
-                "company_id": "company-1",
-                "name": "Nguyen Van A",
-                "phone": "010-1234-5678",
-                "passport_number": "M12345678",
-                "worker_reply": "Tôi có hộ chiếu, ảnh mai gửi",
-                "translated_ko": "저는 여권이 있고 사진은 내일 보내겠습니다.",
-            }
-        },
-    )
-    state = ForeignHiringState(
-        request_id="req-mask",
         company_id="company-1",
-        worker_id="worker-1",
+        requested_role="assembly",
+        db=db,
     )
 
-    loaded = state_loader_node(state, repository=repo)
-    dumped = loaded.model_dump_json()
-
-    assert "010-1234-5678" not in dumped
-    assert "M12345678" not in dumped
-    assert "Tôi có hộ chiếu" not in dumped
-    assert "저는 여권이 있고" not in dumped
-    assert loaded.worker_context["phone"] == "[전화번호]"
-    assert loaded.worker_context["passport_number"] == "[여권번호]"
-    assert "worker_reply" not in loaded.worker_context
-    assert "translated_ko" not in loaded.worker_context
+    assert readiness[0]["candidate_id"] == "candidate-1"
+    assert readiness[0]["readiness_status"] == "missing_required_info"
+    assert "photo" in readiness[0]["missing_or_unconfirmed_items"]
+    assert "candidate_score" not in readiness[0]

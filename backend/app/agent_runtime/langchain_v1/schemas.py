@@ -175,3 +175,4 @@ class LangChainRuntimeState(StrictModel):
     evidence_events: list[dict[str, Any]] = Field(default_factory=list)
     approval: ApprovalBlock = Field(default_factory=ApprovalBlock)
     interrupt_metadata: dict[str, Any] = Field(default_factory=dict)
+    checkpoint_metadata: dict[str, Any] = Field(default_factory=dict)

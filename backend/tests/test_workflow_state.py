@@ -1,125 +1,71 @@
-from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event
-from app.agent_runtime.legacy_graph.nodes.final_response import (
-    _HANDOFF_DRAFT_NOTICE,
-    final_response_node,
+from __future__ import annotations
+
+from app.agent_runtime.langchain_v1.middleware import build_blocked_response, redact_pii
+from app.agent_runtime.langchain_v1.runtime import to_foreign_hiring_state
+from app.agent_runtime.langchain_v1.schemas import (
+    AgentRuntimeInput,
+    ApprovalBlock,
+    HandoffDraft,
+    LangChainRuntimeState,
+    WorkBridgeAgentResponse,
 )
-from app.agent_runtime.schemas import EventType, ForeignHiringState
 
 
-class _FakeFinalResponse:
-    content = "연락처는 010-1234-5678, 여권번호는 M12345678입니다."
+def test_runtime_redaction_masks_raw_pii() -> None:
+    text = "연락처는 010-1234-5678, 여권번호는 M12345678입니다."
+
+    redacted = redact_pii(text)
+
+    assert "010-1234-5678" not in redacted
+    assert "M12345678" not in redacted
+    assert "[REDACTED]" in redacted
 
 
-class _FakeFinalLLM:
-    def __init__(self, *args, **kwargs) -> None:
-        pass
-
-    def invoke(self, messages):
-        return _FakeFinalResponse()
-
-
-def test_final_response_masks_raw_pii(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.agent_runtime.legacy_graph.nodes.final_response.ChatOpenAI",
-        _FakeFinalLLM,
-    )
-    state = ForeignHiringState(
-        request_id="pii-final",
-        user_message="근로자 연락처 010-1234-5678과 여권 M12345678을 요약해줘",
-        rag_contexts=[
-            {
-                "source_id": "source-1",
-                "title": "공식 안내",
-                "evidence_grade": "B",
-                "content": "담당자 승인 후 안내합니다.",
-            }
-        ],
+def test_blocked_response_does_not_echo_sensitive_input() -> None:
+    response = build_blocked_response(
+        reason="010-1234-5678 M12345678 자동 제출 금지",
+        user_message="정부 포털에 바로 제출해줘",
     )
 
-    final = final_response_node(state)
-
-    assert "010-1234-5678" not in final.final_response
-    assert "M12345678" not in final.final_response
-    assert "[전화번호]" in final.final_response
-    assert "[여권번호]" in final.final_response
+    dumped = response.model_dump_json()
+    assert "010-1234-5678" not in dumped
+    assert "M12345678" not in dumped
+    assert response.approval.required is True
 
 
-def test_evidence_event_summary_masks_raw_pii() -> None:
-    event = make_event(
-        event_type=EventType.TOOL_EXECUTED,
-        request_id="pii-event",
-        summary="근로자 연락처 010-1234-5678 확인",
-        step_name="test",
-    )
-
-    assert "010-1234-5678" not in event.summary
-    assert "[전화번호]" in event.summary
-
-
-def test_final_response_without_handoff_draft_keeps_existing_response(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.agent_runtime.legacy_graph.nodes.final_response.ChatOpenAI",
-        _FakeFinalLLM,
-    )
-    state = ForeignHiringState(
-        request_id="no-handoff-final",
-        user_message="요약해줘",
-        rag_contexts=[
-            {
-                "source_id": "source-1",
-                "title": "공식 안내",
-                "evidence_grade": "B",
-                "content": "담당자 승인 후 안내합니다.",
-            }
-        ],
-        handoff_package_draft={},
-    )
-
-    final = final_response_node(state)
-
-    assert _HANDOFF_DRAFT_NOTICE not in final.final_response
-    assert "handoff package 초안" not in final.final_response
-
-
-def test_final_response_appends_handoff_draft_notice() -> None:
-    state = ForeignHiringState(
+def test_final_response_handoff_notice_comes_from_safe_handoff_contract() -> None:
+    runtime_state = LangChainRuntimeState(
         request_id="handoff-final",
-        user_message="전문가 검토 준비해줘",
-        handoff_package_draft={"package_type": "expert_handoff_draft"},
+        input=AgentRuntimeInput(
+            request_id="handoff-final",
+            user_message="전문가 검토 준비해줘",
+            company_id="company-001",
+        ),
+        structured_response=WorkBridgeAgentResponse(
+            final_response="handoff package 초안이 준비되었습니다. 자동 전달 없이 담당자 승인이 필요합니다.",
+            detected_intents=["DOCUMENT_CHECK"],
+            approval=ApprovalBlock(required=True, status="PENDING"),
+            handoff=HandoffDraft(
+                available=True,
+                package_type="expert_handoff_draft",
+                approval_required=True,
+                approval_status="PENDING",
+                payload={
+                    "worker_reply": "Tôi có hộ chiếu, ảnh mai gửi.",
+                    "worker_name": "Nguyen Van A",
+                    "passport_number": "M12345678",
+                },
+            ),
+        ),
+        approval=ApprovalBlock(required=True, status="PENDING"),
     )
 
-    final = final_response_node(state)
+    compat = to_foreign_hiring_state(runtime_state)
+    payload = compat.model_dump_json()
 
-    assert "handoff package 초안" in final.final_response
-    assert "자동 전달" in final.final_response
-    assert "담당자 승인" in final.final_response
-
-
-def test_final_response_handoff_notice_does_not_include_draft_sensitive_values() -> None:
-    state = ForeignHiringState(
-        request_id="handoff-sensitive-final",
-        user_message="전문가 검토 준비해줘",
-        handoff_package_draft={
-            "package_type": "expert_handoff_draft",
-            "worker_reply": "Tôi có hộ chiếu, ảnh mai gửi.",
-            "translated_ko": "여권이 있고 사진은 내일 보내겠다는 답변입니다.",
-            "message_body": "안녕하세요. 여권 사본을 제출해주세요.",
-            "worker_id": "worker-demo-001",
-            "worker_name": "Nguyen Van A",
-            "passport_number": "M12345678",
-            "alien_registration_number": "900101-1234567",
-            "phone": "010-1234-5678",
-        },
-    )
-
-    final = final_response_node(state)
-
-    assert "handoff package 초안" in final.final_response
-    assert "Tôi có hộ chiếu" not in final.final_response
-    assert "여권이 있고 사진은 내일" not in final.final_response
-    assert "안녕하세요. 여권 사본" not in final.final_response
-    assert "worker-demo-001" not in final.final_response
-    assert "Nguyen Van A" not in final.final_response
-    assert "M12345678" not in final.final_response
-    assert "900101-1234567" not in final.final_response
-    assert "010-1234-5678" not in final.final_response
+    assert "handoff package 초안" in compat.final_response
+    assert "자동 전달" in compat.final_response
+    assert "담당자 승인" in compat.final_response
+    assert "Tôi có hộ chiếu" not in payload
+    assert "Nguyen Van A" not in payload
+    assert "M12345678" not in payload

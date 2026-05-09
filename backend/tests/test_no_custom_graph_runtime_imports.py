@@ -8,19 +8,22 @@ PRODUCTION_PATHS = [
     "backend/app/agent_runtime/agents",
     "backend/app/agent_runtime/langchain_v1",
     "backend/app/agent_runtime/runner.py",
+    "backend/tests",
 ]
 
 
 def test_production_runtime_does_not_import_custom_graph() -> None:
     root = Path(__file__).resolve().parents[2]
     offenders: list[str] = []
+    legacy_token = "legacy" + "_graph"
+    graph_import_tokens = ("app.agent_runtime." + "graph", "agent_runtime." + "graph")
 
     for relative in PRODUCTION_PATHS:
         path = root / relative
         files = [path] if path.is_file() else list(path.rglob("*.py"))
         for file_path in files:
             source = file_path.read_text(encoding="utf-8")
-            if "app.agent_runtime.graph" in source or "agent_runtime.graph" in source:
+            if legacy_token in source or any(token in source for token in graph_import_tokens):
                 offenders.append(str(file_path.relative_to(root)))
 
     assert offenders == []

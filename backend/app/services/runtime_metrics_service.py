@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import delete, select
@@ -126,6 +127,61 @@ def get_runtime_metrics_for_company(
     }
 
 
+def get_runtime_metrics_summary_for_company(
+    db: Session,
+    *,
+    company_id: str,
+    from_at: str | None = None,
+    to_at: str | None = None,
+) -> dict[str, Any]:
+    if not company_id:
+        raise RuntimeMetricsForbiddenError("runtime metrics access forbidden")
+
+    snapshot_stmt = select(AgentRuntimeStateSnapshot.request_id).where(
+        AgentRuntimeStateSnapshot.company_id == company_id
+    )
+    from_dt = _datetime_or_none(from_at)
+    to_dt = _datetime_or_none(to_at)
+    if from_dt is not None:
+        snapshot_stmt = snapshot_stmt.where(AgentRuntimeStateSnapshot.created_at >= from_dt)
+    if to_dt is not None:
+        snapshot_stmt = snapshot_stmt.where(AgentRuntimeStateSnapshot.created_at <= to_dt)
+    request_ids = list(db.scalars(snapshot_stmt).all())
+    if not request_ids:
+        return {
+            "company_id": company_id,
+            "summary": _empty_company_summary(),
+        }
+
+    rows = db.scalars(
+        select(RuntimeMetric).where(RuntimeMetric.request_id.in_(request_ids))
+    ).all()
+    model_durations = [
+        row.duration_ms
+        for row in rows
+        if row.metric_type == "model_call" and row.duration_ms is not None
+    ]
+    tool_durations = [
+        row.duration_ms
+        for row in rows
+        if row.metric_type == "tool_call" and row.duration_ms is not None
+    ]
+    run_rows = [row for row in rows if row.metric_type == "run_summary"]
+    summary = {
+        "run_count": len(set(request_ids)),
+        "blocked_count": sum(row.blocked_count for row in run_rows),
+        "approval_pending_count": sum(row.approval_pending_count for row in run_rows),
+        "provider_error_count": sum(row.provider_error_count for row in run_rows),
+        "retrieval_count": sum(row.retrieval_count for row in run_rows),
+        "avg_model_duration_ms": _avg(model_durations),
+        "avg_tool_duration_ms": _avg(tool_durations),
+    }
+    return {
+        "company_id": company_id,
+        "summary": summary,
+    }
+
+
 class RuntimeMetricsNotFoundError(ValueError):
     pass
 
@@ -164,6 +220,33 @@ def _summary_payload(rows: list[RuntimeMetric]) -> dict[str, int]:
         "approval_pending_count": sum(row.approval_pending_count for row in rows),
         "provider_error_count": sum(row.provider_error_count for row in rows),
     }
+
+
+def _empty_company_summary() -> dict[str, int | float]:
+    return {
+        "run_count": 0,
+        "blocked_count": 0,
+        "approval_pending_count": 0,
+        "provider_error_count": 0,
+        "retrieval_count": 0,
+        "avg_model_duration_ms": 0.0,
+        "avg_tool_duration_ms": 0.0,
+    }
+
+
+def _avg(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 2)
+
+
+def _datetime_or_none(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 def _safe_metadata(value: dict[str, Any]) -> dict[str, Any]:
