@@ -486,24 +486,22 @@ target company_id와 X-Company-Id 불일치 → 403
 
 ---
 
-## Planned Context Tables
+## Implemented Context Tables
 
-아래 테이블은 문서상 planned 상태이며, 현재 실제 SQLAlchemy 모델/migration/service API 구현이 없다.
+아래 테이블은 2026-05-09 기준 실제 SQLAlchemy 모델과 Alembic migration이 있다.
+runtime 판단은 DB context repository를 우선 사용한다.
+seed CSV는 데모 fixture와 로컬 fallback 용도로만 서비스 계층에 격리한다.
 
 ```txt
 users
 companies
 workers
-worker_sensitive_profiles
 candidates
-hiring_requests
-visas
 document_requirements
 worker_documents
-rag_sources
 ```
 
-현재 placeholder 파일은 존재할 수 있지만 실제 모델은 비어 있다.
+구현 파일:
 
 ```txt
 backend/app/models/company.py
@@ -511,36 +509,50 @@ backend/app/models/worker.py
 backend/app/models/document.py
 backend/app/models/user.py
 backend/app/models/hiring.py
+backend/app/services/context_data_service.py
+backend/migrations/versions/20260509_0006_context_tables.py
+```
+
+아래 테이블은 계속 planned 상태다.
+
+```txt
+worker_sensitive_profiles
+hiring_requests
+visas
+rag_sources
+```
+
+현재 빈 placeholder 또는 후속 설계 대상 파일은 존재할 수 있다.
+
+```txt
 backend/app/models/visa.py
 ```
 
 State Loader 현황:
 
 ```txt
-현재 State Loader는 실제 DB를 읽지 않는다.
-CsvSeedContextRepository가 data-pipeline/seed/*.csv를 읽는다.
-Context tables는 다음 단계에서 State Loader DB 전환과 함께 설계한다.
+runtime tool은 DB context repository를 우선 읽는다.
+기존 legacy graph State Loader는 archive/legacy 영역이며 production runtime 경로가 아니다.
+seed CSV는 context_data_service 내부 fallback/fixture로만 사용한다.
 ```
 
-Planned context table 역할:
+Context table 역할:
 
-| table | planned role |
+| table | role |
 |---|---|
 | `users` | 관리자/담당자 계정과 role |
 | `companies` | 사업장 master |
 | `workers` | 외국인 근로자 master |
-| `worker_sensitive_profiles` | 여권번호, 외국인등록번호, 전화번호 등 암호화 민감정보 |
 | `candidates` | 신규 채용 후보 준비 상태 |
-| `hiring_requests` | 신규 인력 요청 |
-| `visas` | 체류/비자 상태 |
 | `document_requirements` | 케이스별 필수 서류 기준 |
 | `worker_documents` | 근로자별 제출 서류 상태 |
-| `rag_sources` | 필요 시 RAG source metadata. Vector/embedding 자체는 Chroma |
+| `worker_sensitive_profiles` | planned: 여권번호, 외국인등록번호, 전화번호 등 암호화 민감정보 |
+| `hiring_requests` | planned: 신규 인력 요청 |
+| `visas` | planned: 체류/비자 상태 |
+| `rag_sources` | planned: 필요 시 RAG source metadata. Vector/embedding 자체는 Chroma |
 
-Planned context tables 구현 시 함께 결정할 것:
+후속 구현 시 함께 결정할 것:
 
-- SQLite MVP table shape
-- State Loader `DbContextRepository`
 - company membership/role scope
 - worker/candidate lookup 정책
 - `worker_documents` apply flow

@@ -22,8 +22,8 @@ from .middleware import (
 from .schemas import (
     AgentRuntimeInput,
     ApprovalBlock,
-    HandoffDraft,
     EvidenceReference,
+    HandoffDraft,
     LangChainRuntimeState,
     RuntimeContext,
     WorkBridgeAgentResponse,
@@ -97,20 +97,32 @@ async def run_langchain_v1_agent(
             validate_response_safety(response)
     except (RuntimePreflightError, SafetyValidationError, ValueError) as exc:
         response = _blocked_response(runtime_input, str(exc))
-    except Exception as exc:  # LangChain interrupts/provider errors become structured PENDING/BLOCKED output.
+    except Exception as exc:
         response = _blocked_response(runtime_input, f"langchain_v1 runtime error: {exc}")
 
-    context_events = [_event_from_context(runtime_input.request_id, event) for event in context.evidence_events]
-    events.extend([event for event in context_events if event is not None])
+    context_events = [
+        event
+        for event in (
+            _event_from_context(runtime_input.request_id, raw)
+            for raw in context.evidence_events
+        )
+        if event is not None
+    ]
+    events.extend(context_events)
 
-    if response.rag_contexts and not any(event.event_type == EventType.RAG_RETRIEVED for event in events):
+    if response.rag_contexts and not any(
+        event.event_type == EventType.RAG_RETRIEVED for event in events
+    ):
         events.append(
             make_event(
                 event_type=EventType.RAG_RETRIEVED,
                 request_id=runtime_input.request_id,
                 step_name="retrieve_workforce_materials",
                 summary=f"RAG materials attached: {len(response.rag_contexts)}",
-                metadata={"source_ids": [r.get("source_id") for r in response.rag_contexts]},
+                metadata={
+                    "retrieval_count": len(response.rag_contexts),
+                    "source_ids": [row.get("source_id") for row in response.rag_contexts],
+                },
             )
         )
 
@@ -147,6 +159,7 @@ async def run_langchain_v1_agent(
             metadata={
                 "blocked": bool(response.blocked_reason),
                 "model": context.model_metadata,
+                "approval_required": response.approval.required,
             },
         )
     )
@@ -269,21 +282,6 @@ def _blocked_response(runtime_input: AgentRuntimeInput, reason: str) -> WorkBrid
     return response
 
 
-def _infer_intents(message: str) -> list[str]:
-    text = message.lower()
-    if any(term in text for term in ["법적", "법률", "확실히", "최종 판단", "가능 여부"]):
-        return ["UNSUPPORTED_LEGAL_JUDGMENT"]
-    if any(term in text for term in ["성실", "이탈", "더 나", "추천", "국적"]):
-        return ["UNSUPPORTED_VALUE_JUDGMENT"]
-    if any(term in text for term in ["발송", "전송", "문자", "카톡", "메시지", "베트남어"]):
-        return ["CONTACT"]
-    if any(term in text for term in ["비자", "체류", "서류", "만료"]):
-        return ["VISA_CHECK", "DOCUMENT_CHECK"]
-    if any(term in text for term in ["채용", "고용", "인력", "e-9", "근로자"]):
-        return ["HIRING"]
-    return ["BRIEFING"]
-
-
 def _build_user_prompt(runtime_input: AgentRuntimeInput) -> str:
     return (
         f"요청 ID: {runtime_input.request_id}\n"
@@ -294,7 +292,7 @@ def _build_user_prompt(runtime_input: AgentRuntimeInput) -> str:
         f"사용자 요청:\n{runtime_input.user_message}\n\n"
         f"입력 payload:\n{runtime_input.input_payload}\n\n"
         "필요하면 retrieve_workforce_materials tool로 공식 근거와 템플릿을 검색하세요. "
-        "외부 발송/제출/전달은 실행하지 말고 approval_required=true/PENDING으로 표시하세요."
+        "외부 발송, 제출, 전달은 실행하지 말고 approval_required=true/PENDING으로 표시하세요."
     )
 
 

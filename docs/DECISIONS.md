@@ -260,8 +260,9 @@ POST /api/v1/approvals/{approval_id}/reject
 ### Context
 
 `docs/DB_SCHEMA.md`에는 실제 구현된 service DB 테이블과 향후 필요한 context table 설계가 함께 적혀 있었다.
-현재 실제 SQLAlchemy 모델과 Alembic migration이 존재하는 service DB는 `approvals`, `contact_messages`, `status_update_candidates`, `handoff_package_drafts`, `evidence_logs` 중심이다.
-반면 `users`, `companies`, `workers`, `candidates`, `worker_documents` 등 context tables는 아직 실제 모델/migration이 없고 State Loader도 DB가 아니라 CSV seed repository를 사용한다.
+2026-05-08 시점에는 실제 SQLAlchemy 모델과 Alembic migration이 존재하는 service DB가 `approvals`, `contact_messages`, `status_update_candidates`, `handoff_package_drafts`, `evidence_logs` 중심이었다.
+2026-05-09 후속 구현으로 `agent_runtime_state_snapshots`, `users`, `companies`, `workers`, `candidates`, `document_requirements`, `worker_documents` 모델/migration을 추가했다.
+runtime tool은 DB context repository를 우선 조회하고, CSV seed는 데모 fixture/fallback으로만 서비스 계층에 격리한다.
 
 또한 현재 구현은 SQLite MVP 기준이므로 JSON 형태 값은 `Text(JSON string)`으로 저장한다.
 운영 DB 전환은 후속 검토 대상이며, 현재 DB 문서의 중심 범위가 아니다.
@@ -276,11 +277,11 @@ Current SQLite MVP Schema
 Planned Context Tables
 ```
 
-- 실제 구현된 service DB와 planned context tables를 문서에서 명확히 분리한다.
+- 실제 구현된 service DB/context DB와 planned context tables를 문서에서 명확히 분리한다.
 - SQLite MVP에서는 `Text(JSON string)`, `String ID`, 로컬 개발/테스트 기준을 사용한다.
 - 운영 DB 전환은 후속 검토로만 짧게 언급한다.
-- Context tables는 다음 단계의 State Loader DB 전환 시점에 설계한다.
-- 현재 State Loader는 CSV/seed 기반 context repository를 사용한다고 문서화한다.
+- context tables 중 `users`, `companies`, `workers`, `candidates`, `document_requirements`, `worker_documents`는 SQLite MVP 모델로 승격한다.
+- legacy graph State Loader는 archive 영역으로 두고, production runtime tool은 DB-first context repository를 사용한다고 문서화한다.
 
 ### Consequence
 

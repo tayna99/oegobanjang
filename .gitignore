@@ -46,6 +46,8 @@ data-pipeline/cache/
 data-pipeline/index/
 .chroma/
 evals/reports/*.json
+frontend/.next/
+frontend/node_modules/
 
 # =========================
 # Downloaded source captures; keep generated chunks/metadata instead.

@@ -1,6 +1,7 @@
 from langchain_core.tools import BaseTool
 from app.agent_runtime.schemas.tool import ToolContractLevel
 from .safe_read import (
+    get_candidate_readiness,
     get_worker_profile,
     get_visa_status,
     get_document_status,
@@ -26,6 +27,7 @@ SAFE_READ_TOOLS: list[BaseTool] = [
     get_worker_profile,
     get_visa_status,
     get_document_status,
+    get_candidate_readiness,
     search_policy_documents,
     get_document_requirements,
 ]

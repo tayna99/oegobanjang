@@ -1,4 +1,5 @@
 from .safe_read import (
+    get_candidate_readiness,
     get_worker_profile,
     get_visa_status,
     get_document_status,
@@ -31,6 +32,7 @@ from .registry import (
 
 __all__ = [
     "get_worker_profile", "get_visa_status", "get_document_status",
+    "get_candidate_readiness",
     "search_policy_documents", "get_document_requirements",
     "calculate_visa_d_day", "calculate_missing_documents", "calculate_contract_gap",
     "generate_multilingual_message_draft", "generate_expert_handoff_package_draft",

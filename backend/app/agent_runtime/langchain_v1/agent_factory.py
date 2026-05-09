@@ -15,7 +15,7 @@ from .tools import RuntimePreflightError, get_langchain_v1_tools, preflight_chro
 
 SYSTEM_PROMPT = """당신은 외국인 고용 운영 OS '외고반장'의 LangChain 1.0 통합 에이전트입니다.
 
-핵심 원칙:
+역할 원칙:
 - RAG는 공식 근거와 절차를 찾는 곳입니다.
 - DB/Rule은 현재 상태와 true/false 판단을 담당합니다.
 - LLM은 자연어 구조화, 요약, 초안 생성을 담당합니다.

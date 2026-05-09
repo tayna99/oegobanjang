@@ -87,8 +87,9 @@ missions/active/*.md
 - 저장된 handoff draft는 draft id 기반 API와 공용 approval API 양쪽에서 승인/반려 가능
 - company scope는 MVP 단계에서 `X-Company-Id` header 기준으로 검사
 - 운영 전에는 인증 토큰 기반 company/role 검증으로 교체 필요
-- 현재 service DB는 SQLite MVP 기준이며, 실제 구현 테이블은 `approvals`, `contact_messages`, `status_update_candidates`, `handoff_package_drafts`, `evidence_logs` 중심
-- `companies`, `workers`, `candidates`, `worker_documents`, `users` 등 context tables는 아직 planned 상태이며 State Loader는 CSV seed repository를 사용
+- 현재 service DB는 SQLite MVP 기준이며, 실제 구현 테이블은 `approvals`, `contact_messages`, `status_update_candidates`, `handoff_package_drafts`, `evidence_logs`, `agent_runtime_state_snapshots` 중심
+- `companies`, `workers`, `candidates`, `worker_documents`, `document_requirements`, `users` context tables는 2026-05-09 기준 모델/migration이 있으며, runtime tool은 DB context repository를 우선 사용
+- seed CSV는 데모 fixture/fallback으로만 서비스 계층에 격리
 
 현재 메시지 초안, 승인 필요 여부, Evidence Log 후보, 상태 업데이트 후보는 Runtime response로 반환된다.
 `persist_result=true`와 `worker_id`가 함께 전달되면 `contact_messages`, `approvals`, `evidence_logs`, `status_update_candidates`에 저장된다.

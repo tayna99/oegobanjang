@@ -148,6 +148,8 @@ def _review_approval_for_company(
         reviewed_at=reviewed_at,
     )
     _save_review_evidence_log(db, approval=approval, target=target)
+    if approval.target_type == RUNTIME_STATE_TARGET_TYPE:
+        _save_runtime_resume_evidence_logs(db, approval=approval, target=target)
     db.flush()
     return _safe_response(approval, target)
 
@@ -326,6 +328,49 @@ def _save_review_evidence_log(
     )
     db.add(log)
     return log
+
+
+def _save_runtime_resume_evidence_logs(
+    db: Session,
+    *,
+    approval: Approval,
+    target: AgentRuntimeStateSnapshot,
+) -> None:
+    reviewed_summary = (
+        "Agent runtime approval was reviewed. No external action was executed."
+    )
+    events = [
+        ("approval_reviewed", reviewed_summary),
+    ]
+    if approval.status == APPROVAL_APPROVED_STATUS:
+        events.extend(
+            [
+                (
+                    "resume_requested",
+                    "Limited internal resume was requested after approval.",
+                ),
+                (
+                    "resume_completed_or_blocked",
+                    "Approved draft finalization and internal handoff readiness were marked; external delivery and government submission remain blocked.",
+                ),
+            ]
+        )
+    for event_type, summary in events:
+        db.add(
+            EvidenceLog(
+                event_type=event_type,
+                agent_name="approval_api",
+                tool_name=None,
+                summary=summary,
+                source_ids=_json_dumps([]),
+                approval_required=True,
+                risk_flags=_json_dumps([]),
+                request_id=target.request_id,
+                company_id=target.company_id,
+                worker_id=None,
+                approval_id=approval.id,
+            )
+        )
 
 
 def _review_evidence_event(

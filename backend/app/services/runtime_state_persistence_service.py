@@ -78,9 +78,15 @@ def mark_runtime_state_snapshot_reviewed(
     snapshot: AgentRuntimeStateSnapshot,
     approval: Approval,
 ) -> None:
-    """승인 상태만 snapshot에 반영합니다. 외부 발송/제출/resume은 하지 않습니다."""
+    """승인 상태를 snapshot에 반영합니다.
+
+    승인 이후에도 외부 발송, 정부 제출, agent resume은 실행하지 않습니다.
+    APPROVED 상태에서는 내부 초안 확정/내부 handoff 준비 완료까지만 표시합니다.
+    """
 
     _attach_approval_to_snapshot(snapshot, approval)
+    if approval.status == "APPROVED":
+        _attach_limited_resume_marker(snapshot)
 
 
 def _snapshot_payload(state: LangChainRuntimeState) -> dict[str, Any]:
@@ -137,6 +143,33 @@ def _attach_approval_to_snapshot(
     structured_approval = structured_response.get("approval")
     if isinstance(structured_approval, dict):
         structured_approval["status"] = approval.status
+    snapshot.structured_response_json = _dumps(structured_response)
+
+
+def _attach_limited_resume_marker(snapshot: AgentRuntimeStateSnapshot) -> None:
+    resume_payload = {
+        "requested": True,
+        "status": "completed_or_blocked",
+        "completed_actions": [
+            "approved_draft_finalization",
+            "internal_handoff_package_ready",
+        ],
+        "blocked_actions": [
+            "external_delivery",
+            "government_submission",
+            "auto_send_to_candidate",
+            "auto_send_to_admin_scrivener",
+        ],
+        "note": "승인 후에도 외부 발송/전달/제출은 실행하지 않고 내부 준비 상태만 갱신합니다.",
+    }
+    approval_payload = _loads(snapshot.approval_json)
+    approval_payload["resume"] = resume_payload
+    snapshot.approval_json = _dumps(approval_payload)
+
+    structured_response = _loads(snapshot.structured_response_json)
+    domain_payload = structured_response.setdefault("domain_payload", {})
+    if isinstance(domain_payload, dict):
+        domain_payload["approval_resume"] = resume_payload
     snapshot.structured_response_json = _dumps(structured_response)
 
 

@@ -15,9 +15,15 @@ if str(ROOT_DIR) not in sys.path:
 from backend.app.config import get_settings, normalize_database_url
 from backend.app.db.base import Base
 from backend.app.models.approval import Approval  # noqa: F401
+from backend.app.models.company import Company  # noqa: F401
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate  # noqa: F401
+from backend.app.models.document import DocumentRequirement, WorkerDocument  # noqa: F401
 from backend.app.models.evidence import EvidenceLog  # noqa: F401
 from backend.app.models.handoff import HandoffPackageDraft  # noqa: F401
+from backend.app.models.hiring import Candidate  # noqa: F401
+from backend.app.models.runtime_state import AgentRuntimeStateSnapshot  # noqa: F401
+from backend.app.models.user import User  # noqa: F401
+from backend.app.models.worker import Worker  # noqa: F401
 
 
 config = context.config

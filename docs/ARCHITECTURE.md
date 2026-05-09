@@ -115,14 +115,22 @@ Chroma와는 별도 저장소다.
 - evidence_logs
 - agent_runtime_state_snapshots
 
-아래 context tables는 planned 상태이며 아직 실제 SQLAlchemy 모델/migration이 없다.
+아래 context tables는 2026-05-09 기준 SQLAlchemy 모델과 Alembic migration이 있다.
+runtime tool은 이 DB context repository를 우선 조회하고, seed CSV는 데모/fixture fallback으로만 서비스 계층에 격리한다.
 
 - users
 - companies
 - workers
 - candidates
+- document_requirements
+- worker_documents
+
+아래 context 영역은 아직 planned 상태다.
+
+- worker_sensitive_profiles
+- hiring_requests
 - visas
-- documents
+- rag_sources
 
 ### Chroma
 

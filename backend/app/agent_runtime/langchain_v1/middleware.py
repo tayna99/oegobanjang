@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import re
 import hashlib
 import json
+import re
+import time
 from collections.abc import Sequence
 from typing import Any
 
-from langchain.agents.middleware import AgentMiddleware
-from langchain.agents.middleware.types import ModelResponse
 from langchain.agents.middleware import (
+    AgentMiddleware,
     HumanInTheLoopMiddleware,
     ModelCallLimitMiddleware,
     PIIMiddleware,
     ToolCallLimitMiddleware,
 )
+from langchain.agents.middleware.types import ModelResponse
 from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agent_runtime.schemas import EventType
@@ -29,22 +30,31 @@ from .schemas import (
 
 FORBIDDEN_TERMS = (
     "성실",
+    "성격",
     "이탈 가능성",
     "도망",
     "국적별 선호",
-    "베트남 후보가 더",
-    "네팔 후보가 더",
+    "국적 우열",
     "좋은 사람",
-    "장기근속 가능성",
+    "더 나은 후보",
+    "더 낫",
+    "오래 일할",
+    "장기근속",
+    "추천",
     "비자 가능 확정",
     "비자 불가능 확정",
+    "최종 판정",
+    "candidate_score",
+    "nationality_preference",
+    "reliability_score",
+    "absconding_prediction",
+    "final_eligibility_decision",
 )
 
 FORBIDDEN_INPUT_TERMS = FORBIDDEN_TERMS + (
     "추천해줘",
-    "더 나아",
-    "더 낫",
-    "오래 일할",
+    "누가 나아",
+    "누가 더 나아",
     "비자 발급 가능",
     "가능 여부 확정",
 )
@@ -117,7 +127,7 @@ def build_blocked_response(
 ) -> WorkBridgeAgentResponse:
     return WorkBridgeAgentResponse(
         final_response=(
-            "요청을 자동 처리하지 않았습니다. 후보자 평가, 국적 선호, 비자 확정 판단, "
+            "요청을 자동 처리하지 않았습니다. 후보 평가, 국적 선호, 비자 확정 판단, "
             "외부 자동 발송은 담당자 검토가 필요합니다."
         ),
         detected_intents=_infer_blocked_intents(user_message),
@@ -139,7 +149,7 @@ def build_blocked_response(
 
 def _infer_blocked_intents(message: str) -> list[str]:
     text = message.lower()
-    if any(term in text for term in ["성실", "이탈", "추천", "국적", "더 나", "더 낫"]):
+    if any(term in text for term in ["성실", "이탈", "추천", "국적", "누가 나아", "더 낫"]):
         return ["UNSUPPORTED_VALUE_JUDGMENT"]
     if any(term in text for term in ["법적", "법률", "확정", "가능 여부", "비자 발급 가능"]):
         return ["UNSUPPORTED_LEGAL_JUDGMENT"]
@@ -171,6 +181,10 @@ def _hash_messages(messages: list[Any]) -> str:
         json.dumps([str(getattr(msg, "content", msg)) for msg in messages], ensure_ascii=False)
     )
     return hashlib.sha256(redacted.encode("utf-8")).hexdigest()[:16]
+
+
+def _model_name(model: Any) -> str:
+    return str(getattr(model, "model_name", None) or getattr(model, "model", None) or model)
 
 
 class WorkBridgeSafetyMiddleware(AgentMiddleware):
@@ -210,6 +224,7 @@ class WorkBridgeSafetyMiddleware(AgentMiddleware):
 class EvidenceCaptureMiddleware(AgentMiddleware):
     async def awrap_model_call(self, request, handler):
         context = _context_from_runtime(request.runtime)
+        started = time.perf_counter()
         try:
             response = await handler(request)
         except Exception as exc:
@@ -218,7 +233,8 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
                     "raw_present": False,
                     "raw_content_hash": _hash_messages(request.messages),
                     "parsing_error": str(exc),
-                    "model_name": str(getattr(request.model, "model_name", request.model)),
+                    "model_name": _model_name(request.model),
+                    "duration_ms": round((time.perf_counter() - started) * 1000, 2),
                 }
             raise
 
@@ -226,8 +242,12 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
             context.model_metadata = {
                 "raw_present": bool(response.result),
                 "raw_content_hash": _hash_messages(response.result),
-                "parsing_error": None if response.structured_response is not None else "missing_structured_response",
-                "model_name": str(getattr(request.model, "model_name", request.model)),
+                "parsing_error": None
+                if response.structured_response is not None
+                else "missing_structured_response",
+                "model_name": _model_name(request.model),
+                "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                "token_usage": _extract_token_usage(response.result),
             }
         return response
 
@@ -238,7 +258,9 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
             or request.tool_call.get("name")
             or "unknown_tool"
         )
+        started = time.perf_counter()
         result = await handler(request)
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
         payload = _json_payload(getattr(result, "content", None))
 
         if context is not None:
@@ -248,7 +270,7 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
                     request_id=context.request_id,
                     step_name=str(tool_name),
                     summary=f"LangChain tool executed: {tool_name}",
-                    metadata={"tool_name": tool_name},
+                    metadata={"tool_name": tool_name, "duration_ms": duration_ms},
                 )
             )
 
@@ -261,9 +283,11 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
                         step_name=str(tool_name),
                         summary=f"RAG materials retrieved: {len(records)}",
                         metadata={
+                            "retrieval_count": len(records),
                             "source_ids": [row.get("source_id") for row in records],
                             "evidence_grades": [row.get("evidence_grade") for row in records],
                             "doc_types": [row.get("doc_type") for row in records],
+                            "duration_ms": duration_ms,
                         },
                     )
                 )
@@ -305,12 +329,22 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
         return result
 
 
-def build_langchain_v1_middleware() -> Sequence[Any]:
-    """LangChain v1 middleware boundary.
+def _extract_token_usage(messages: list[Any]) -> dict[str, Any]:
+    for message in messages:
+        usage = getattr(message, "usage_metadata", None)
+        if isinstance(usage, dict):
+            return usage
+        response_metadata = getattr(message, "response_metadata", None)
+        if isinstance(response_metadata, dict) and isinstance(
+            response_metadata.get("token_usage"),
+            dict,
+        ):
+            return response_metadata["token_usage"]
+    return {}
 
-    P0 uses HITL as a second safety net. Approval-required tools still return
-    NEEDS_APPROVAL and the runtime adapter synthesizes the PENDING response.
-    """
+
+def build_langchain_v1_middleware() -> Sequence[Any]:
+    """LangChain v1 middleware boundary."""
 
     return [
         WorkBridgeSafetyMiddleware(),
