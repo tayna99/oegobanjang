@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,17 @@ from app.agent_runtime.langchain_v1.state_store import runtime_state_store
 from backend.app.services.runtime_state_persistence_service import (
     get_runtime_state_snapshot,
     save_runtime_state_snapshot,
+)
+from backend.app.services.runtime_metrics_service import (
+    RuntimeMetricsForbiddenError,
+    RuntimeMetricsNotFoundError,
+    get_runtime_metrics_for_company,
+)
+from backend.app.services.runtime_resume_service import (
+    RuntimeResumeForbiddenError,
+    RuntimeResumeNotFoundError,
+    get_runtime_resume_summary_for_company,
+    resume_runtime_action_for_company,
 )
 from backend.app.services.agent_service import HandoffResponse, build_handoff_response
 from backend.app.services.handoff_persistence_service import save_handoff_package_draft
@@ -55,6 +66,10 @@ class AgentRunResponse(BaseModel):
     )
     evidence_event_count: int
     rag_context_count: int
+
+
+class AgentResumeRequest(BaseModel):
+    action_type: str
 
 
 @router.post("/run")
@@ -125,3 +140,63 @@ async def get_agent_state(
     if snapshot is not None:
         return snapshot
     raise HTTPException(status_code=404, detail="state를 찾을 수 없습니다.")
+
+
+@router.post("/resume/{request_id}")
+async def resume_agent_runtime_action(
+    request_id: str,
+    body: AgentResumeRequest,
+    db: Session = Depends(get_sync_db),
+    company_id: str = Header(default="", alias="X-Company-Id"),
+) -> dict[str, Any]:
+    try:
+        result = resume_runtime_action_for_company(
+            db,
+            request_id=request_id,
+            action_type=body.action_type,
+            company_id=company_id,
+        )
+        db.commit()
+        return result
+    except RuntimeResumeNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="runtime resume action not found") from exc
+    except RuntimeResumeForbiddenError as exc:
+        db.rollback()
+        raise HTTPException(status_code=403, detail="resume action forbidden") from exc
+
+
+@router.get("/resume/{request_id}")
+async def get_agent_runtime_resume_summary(
+    request_id: str,
+    db: Session = Depends(get_sync_db),
+    company_id: str = Header(default="", alias="X-Company-Id"),
+) -> dict[str, Any]:
+    try:
+        return get_runtime_resume_summary_for_company(
+            db,
+            request_id=request_id,
+            company_id=company_id,
+        )
+    except RuntimeResumeNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="runtime resume action not found") from exc
+    except RuntimeResumeForbiddenError as exc:
+        raise HTTPException(status_code=403, detail="resume action forbidden") from exc
+
+
+@router.get("/metrics/{request_id}")
+async def get_agent_runtime_metrics(
+    request_id: str,
+    db: Session = Depends(get_sync_db),
+    company_id: str = Header(default="", alias="X-Company-Id"),
+) -> dict[str, Any]:
+    try:
+        return get_runtime_metrics_for_company(
+            db,
+            request_id=request_id,
+            company_id=company_id,
+        )
+    except RuntimeMetricsNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="runtime metrics not found") from exc
+    except RuntimeMetricsForbiddenError as exc:
+        raise HTTPException(status_code=403, detail="runtime metrics access forbidden") from exc

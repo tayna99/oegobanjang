@@ -19,7 +19,7 @@ production import 대상이 아니다.
 - `backend/app/agent_runtime/langchain_v1/`를 production runtime으로 사용한다.
 - `/api/v1/agent/run`은 `user_message`와 `user_request`를 모두 `AgentRuntimeInput.user_message`로 정규화한다.
 - `WorkBridgeAgentResponse` structured output을 기존 `AgentRunResponse` shape으로 변환한다.
-- approval은 resume 없는 pending-only 방식이다.
+- approval은 pending-first 방식이다. 승인 이후에도 외부 실행은 열지 않고 내부 action/outbox/checkpoint 기록까지만 허용한다.
 - `LangChainRuntimeStateStore`는 process-local hot store이고, `/api/v1/agent/run`은 `agent_runtime_state_snapshots` DB snapshot도 저장한다.
 - `/api/v1/agent/state/{request_id}`는 메모리에 없으면 DB snapshot으로 fallback한다.
 - Chroma workforce collections가 runtime retrieval의 주 경로이며 JSONL fallback은 runtime에서 사용하지 않는다.
@@ -34,13 +34,14 @@ production import 대상이 아니다.
 - `context_data_service`를 추가해 runtime tool이 DB context repository를 우선 조회하게 했다.
 - `safe_read`, `safe_calculate`, `safe_draft`에서 CSV 직접 읽기를 제거하고 context service로 격리했다.
 - seed CSV는 데모 fixture/fallback으로만 남긴다.
-- 승인 후에도 외부 발송/정부 제출/agent resume은 실행하지 않고, 내부 초안 확정과 internal handoff 준비 완료 상태만 snapshot에 표시한다.
-- approval review 시 `approval_reviewed`, `resume_requested`, `resume_completed_or_blocked` evidence log를 남긴다.
+- 승인 후에도 외부 발송/정부 제출은 실행하지 않고, `approval_actions`, `delivery_outbox`, `agent_checkpoints`에 내부 제한 resume 기록을 남긴다.
+- approval review 시 `approval_reviewed`, `resume_requested`, `resume_completed_or_blocked`, `approval_action_created`, `delivery_outbox_queued`, `agent_checkpoint_created` evidence log를 남긴다.
 - LangChain middleware model/tool/retrieval metadata에 latency, retrieval count, token usage 가능 값을 남긴다.
+- `runtime_metrics` table/API에서 model/tool/retrieval/approval 관측값을 조회할 수 있게 한다. 원문 PII는 저장하지 않는다.
 
 ## 후속 범위
 
 - approval resume 이후 실제 메시지 발송/전문가 전달/정부 제출 실행은 별도 보안 설계 이후 진행한다.
-- durable checkpoint 기반 resume 설계는 별도 mission으로 분리한다.
+- durable agent 실행 재개 checkpoint는 별도 mission으로 분리한다. 현재 `agent_checkpoints`는 제품 상태 전이와 idempotency용 checkpoint다.
 - `legacy_graph/` 최종 삭제 또는 별도 archive 이동은 legacy 테스트 이전 완료 후 결정한다.
 - 운영 OpenAI model 품질, 비용, latency monitoring은 deterministic/fake test와 분리해 운영 eval job으로 관리한다.

@@ -118,6 +118,8 @@ shape으로 변환한다. 기존 다국어 contact 세부 런타임은 service-l
 `/api/v1/agent/run`은 LangChain runtime state를 process-local store와
 `agent_runtime_state_snapshots` DB table에 저장한다. DB snapshot은 PII-redacted JSON만 저장하며,
 `/api/v1/agent/state/{request_id}`는 메모리 state가 없을 때 DB snapshot으로 fallback한다.
+승인 이후 제한 실행은 `/api/v1/agent/resume/{request_id}`에서 내부 action만 허용한다.
+runtime 관측값은 `/api/v1/agent/metrics/{request_id}`에서 조회한다.
 
 요청 기본 형태:
 
@@ -125,6 +127,121 @@ shape으로 변환한다. 기존 다국어 contact 세부 런타임은 service-l
 {
   "user_request": "Nguyen한테 베트남어로 5월 10일 10시에 교육장에서 안전교육 있다고 안내 메시지 만들어줘",
   "input_payload": {}
+}
+```
+
+### POST /api/v1/agent/resume/{request_id}
+
+승인된 runtime snapshot에 대해 내부 action만 처리한다.
+실제 후보자 메시지 발송, 행정사 자동 전달, 정부 포털 제출은 허용하지 않는다.
+
+허용 action:
+
+```txt
+finalize_internal_draft
+mark_handoff_package_ready
+prepare_external_delivery
+```
+
+차단 action:
+
+```txt
+auto_send_to_candidate
+auto_send_to_sending_agency
+auto_send_to_admin_scrivener
+auto_submit_to_government_portal
+```
+
+요청:
+
+```http
+POST /api/v1/agent/resume/request-id-string
+X-Company-Id: company-demo-001
+Content-Type: application/json
+```
+
+```json
+{
+  "action_type": "finalize_internal_draft"
+}
+```
+
+응답:
+
+```json
+{
+  "request_id": "request-id-string",
+  "action_type": "finalize_internal_draft",
+  "status": "COMPLETED",
+  "approval_id": "approval-id-string",
+  "external_delivery_executed": false,
+  "government_submission_executed": false
+}
+```
+
+외부 실행 action은 `403 Forbidden`으로 차단한다.
+
+### GET /api/v1/agent/resume/{request_id}
+
+승인 후 생성된 checkpoint, action, outbox 상태를 안전 요약으로 반환한다.
+`resume_token` 원문은 반환하지 않고 존재 여부만 표시한다.
+
+```http
+GET /api/v1/agent/resume/request-id-string
+X-Company-Id: company-demo-001
+```
+
+```json
+{
+  "request_id": "request-id-string",
+  "checkpoint": {
+    "checkpoint_id": "checkpoint-id-string",
+    "checkpoint_type": "approval_resume",
+    "status": "READY",
+    "resume_token_present": true,
+    "last_error": null
+  },
+  "allowed_actions": [
+    "finalize_internal_draft",
+    "mark_handoff_package_ready",
+    "prepare_external_delivery"
+  ],
+  "blocked_actions": [
+    "auto_send_to_candidate",
+    "auto_send_to_sending_agency",
+    "auto_send_to_admin_scrivener",
+    "auto_submit_to_government_portal"
+  ],
+  "actions": {},
+  "outbox": {
+    "available": true,
+    "status": "PENDING",
+    "external_delivery_executed": false,
+    "government_submission_executed": false
+  }
+}
+```
+
+### GET /api/v1/agent/metrics/{request_id}
+
+LangChain runtime의 model/tool/retrieval/approval 관측값을 반환한다.
+원문 prompt, 원문 응답, 개인정보는 저장하거나 반환하지 않는다.
+
+```http
+GET /api/v1/agent/metrics/request-id-string
+X-Company-Id: company-demo-001
+```
+
+```json
+{
+  "request_id": "request-id-string",
+  "summary": {
+    "retrieval_count": 4,
+    "blocked_count": 0,
+    "approval_pending_count": 1,
+    "provider_error_count": 0
+  },
+  "metrics": []
 }
 ```
 
@@ -792,13 +909,15 @@ agent_runtime_state_snapshot approval 승인
 → approvals.status=APPROVED
 → agent_runtime_state_snapshots.approval_json.status=APPROVED
 → structured_response.approval.status=APPROVED
-→ actual resume, 메시지 발송, 전문가 전달, 정부 제출은 하지 않음
+→ approval_actions / delivery_outbox / agent_checkpoints 생성
+→ 메시지 발송, 전문가 전달, 정부 제출은 하지 않음
 
 agent_runtime_state_snapshot approval 반려
 → approvals.status=REJECTED
 → agent_runtime_state_snapshots.approval_json.status=REJECTED
 → structured_response.approval.status=REJECTED
-→ actual resume, 메시지 발송, 전문가 전달, 정부 제출은 하지 않음
+→ resume/action/outbox 생성 없음
+→ 메시지 발송, 전문가 전달, 정부 제출은 하지 않음
 ```
 
 승인/반려는 `PENDING` approval에만 가능하다.

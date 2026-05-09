@@ -13,6 +13,7 @@ from backend.app.models.runtime_state import (
     RUNTIME_STATE_TARGET_TYPE,
     AgentRuntimeStateSnapshot,
 )
+from backend.app.services.runtime_metrics_service import save_runtime_metrics_from_state
 
 
 RUNTIME_STATE_APPROVAL_REASON = (
@@ -42,6 +43,7 @@ def save_runtime_state_snapshot(
     snapshot.input_json = _dumps(payload["input"])
     db.flush()
     _sync_runtime_state_approval(db, snapshot=snapshot, state=state)
+    save_runtime_metrics_from_state(db, state)
     db.flush()
     return snapshot
 
@@ -158,6 +160,7 @@ def _attach_limited_resume_marker(snapshot: AgentRuntimeStateSnapshot) -> None:
             "external_delivery",
             "government_submission",
             "auto_send_to_candidate",
+            "auto_send_to_sending_agency",
             "auto_send_to_admin_scrivener",
         ],
         "note": "승인 후에도 외부 발송/전달/제출은 실행하지 않고 내부 준비 상태만 갱신합니다.",
