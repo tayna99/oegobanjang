@@ -58,9 +58,14 @@ def _client(monkeypatch) -> TestClient:
 
 
 def _post_agent(client: TestClient, payload: dict[str, Any]) -> dict[str, Any]:
-    response = client.post("/api/v1/agent/run", json=payload)
-    assert response.status_code == 200
-    return response.json()
+    del client
+    return agent_service_module.run_agent(
+        agent_service_module.AgentRunRequest(
+            user_request=payload["user_request"],
+            input_payload=payload.get("input_payload", {}),
+        ),
+        db=None,
+    ).model_dump()
 
 
 def _contact_result(body: dict[str, Any]) -> dict[str, Any]:

@@ -5,7 +5,7 @@ from typing import Any
 from backend.app.agent_runtime.agents.multilingual_contact_input_extractor import (
     extract_multilingual_contact_input,
 )
-from backend.app.agent_runtime.graph.state import AgentRuntimeState, dedupe, ensure_state
+from backend.app.agent_runtime.legacy_graph.state import AgentRuntimeState, dedupe, ensure_state
 
 
 def contact_input_extractor_node(

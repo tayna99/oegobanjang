@@ -11,6 +11,7 @@ from backend.app.models.approval import Approval
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate
 from backend.app.models.evidence import EvidenceLog
 from backend.app.models.handoff import HandoffPackageDraft
+from backend.app.models.runtime_state import RUNTIME_STATE_TARGET_TYPE, AgentRuntimeStateSnapshot
 from backend.app.services.handoff_persistence_service import (
     HANDOFF_APPROVED_STATUS,
     HANDOFF_REJECTED_STATUS,
@@ -123,6 +124,11 @@ def resolve_approval_target_company_id(
         if draft is None:
             raise ValueError(f"Handoff package draft not found: {approval.target_id}")
         return draft.company_id
+    if approval.target_type == RUNTIME_STATE_TARGET_TYPE:
+        snapshot = db.get(AgentRuntimeStateSnapshot, approval.target_id)
+        if snapshot is None:
+            raise ValueError(f"Runtime state snapshot not found: {approval.target_id}")
+        return snapshot.company_id
     raise ValueError(f"Unsupported approval target_type: {approval.target_type}")
 
 

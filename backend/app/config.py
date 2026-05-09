@@ -67,11 +67,16 @@ class Settings(BaseSettings):
     chroma_host: str = "localhost"
     chroma_port: int = 8001
     chroma_collection_name: str = "oegobanjang_policy_docs"
+    chroma_persist_directory: str = "data-pipeline/index/chroma/workforce"
+    chroma_workforce_official_collection: str = "workforce_official"
+    chroma_workforce_templates_collection: str = "workforce_templates"
 
     # LLM Keys
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
     google_api_key: str | None = None
+    openai_model: str = "gpt-4o-mini"
+    langchain_runtime_enabled: bool = True
 
     # Security
     jwt_secret: str = "change-this-local-secret"

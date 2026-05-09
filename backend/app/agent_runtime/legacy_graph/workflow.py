@@ -3,7 +3,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.agent_runtime.schemas import ForeignHiringState
-from app.agent_runtime.graph.nodes import (
+from app.agent_runtime.legacy_graph.nodes import (
     intent_router_node,
     planner_node,
     state_loader_node,

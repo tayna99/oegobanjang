@@ -1,4 +1,4 @@
-from app.agent_runtime.graph.nodes.state_loader import (
+from app.agent_runtime.legacy_graph.nodes.state_loader import (
     InMemoryContextRepository,
     state_loader_node,
 )

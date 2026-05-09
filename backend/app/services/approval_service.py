@@ -11,10 +11,15 @@ from backend.app.models.approval import Approval
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate
 from backend.app.models.evidence import EvidenceLog
 from backend.app.models.handoff import HandoffPackageDraft
+from backend.app.models.runtime_state import RUNTIME_STATE_TARGET_TYPE, AgentRuntimeStateSnapshot
 from backend.app.services.contact_persistence_service import (
     resolve_approval_target_company_id,
 )
 from backend.app.services.handoff_persistence_service import HANDOFF_TARGET_TYPE
+from backend.app.services.runtime_state_persistence_service import (
+    mark_runtime_state_snapshot_reviewed,
+    runtime_state_target_status,
+)
 
 
 APPROVAL_PENDING_STATUS = "PENDING"
@@ -32,6 +37,7 @@ TARGET_TYPES = {
     CONTACT_MESSAGE_TARGET_TYPE,
     STATUS_UPDATE_TARGET_TYPE,
     HANDOFF_TARGET_TYPE,
+    RUNTIME_STATE_TARGET_TYPE,
 }
 _ALIEN_REGISTRATION_RE = re.compile(r"\b\d{6}-[1-4]\d{6}\b")
 _PHONE_RE = re.compile(r"\b(?:010-\d{4}-\d{4}|010\d{8})\b")
@@ -136,6 +142,7 @@ def _review_approval_for_company(
 
     _set_target_review_status(
         target,
+        approval=approval,
         target_type=approval.target_type,
         status=approval_status,
         reviewed_at=reviewed_at,
@@ -157,13 +164,15 @@ def _get_approval_or_not_found(db: Session, approval_id: str) -> Approval:
 def _get_target_or_conflict(
     db: Session,
     approval: Approval,
-) -> ContactMessage | StatusUpdateCandidate | HandoffPackageDraft:
+) -> ContactMessage | StatusUpdateCandidate | HandoffPackageDraft | AgentRuntimeStateSnapshot:
     if approval.target_type == CONTACT_MESSAGE_TARGET_TYPE:
         target = db.get(ContactMessage, approval.target_id)
     elif approval.target_type == STATUS_UPDATE_TARGET_TYPE:
         target = db.get(StatusUpdateCandidate, approval.target_id)
     elif approval.target_type == HANDOFF_TARGET_TYPE:
         target = db.get(HandoffPackageDraft, approval.target_id)
+    elif approval.target_type == RUNTIME_STATE_TARGET_TYPE:
+        target = db.get(AgentRuntimeStateSnapshot, approval.target_id)
     else:
         raise ApprovalConflictError("approval target conflict")
     if target is None:
@@ -188,12 +197,20 @@ def _validate_company_scope(
 
 def _validate_reviewable(
     approval: Approval,
-    target: ContactMessage | StatusUpdateCandidate | HandoffPackageDraft,
+    target: ContactMessage
+    | StatusUpdateCandidate
+    | HandoffPackageDraft
+    | AgentRuntimeStateSnapshot,
 ) -> None:
     if approval.status != APPROVAL_PENDING_STATUS:
         raise ApprovalConflictError("approval is not pending")
     expected_target_status = _pending_status_for_target_type(approval.target_type)
-    if target.status != expected_target_status:
+    target_status = (
+        runtime_state_target_status(target)
+        if approval.target_type == RUNTIME_STATE_TARGET_TYPE
+        else target.status
+    )
+    if target_status != expected_target_status:
         raise ApprovalConflictError("approval target is not pending")
 
 
@@ -204,23 +221,34 @@ def _pending_status_for_target_type(target_type: str) -> str:
         return STATUS_UPDATE_PENDING_STATUS
     if target_type == HANDOFF_TARGET_TYPE:
         return HANDOFF_PENDING_STATUS
+    if target_type == RUNTIME_STATE_TARGET_TYPE:
+        return APPROVAL_PENDING_STATUS
     raise ApprovalConflictError("approval target conflict")
 
 
 def _set_target_review_status(
-    target: ContactMessage | StatusUpdateCandidate | HandoffPackageDraft,
+    target: ContactMessage
+    | StatusUpdateCandidate
+    | HandoffPackageDraft
+    | AgentRuntimeStateSnapshot,
     *,
+    approval: Approval,
     target_type: str,
     status: str,
     reviewed_at: datetime,
 ) -> None:
-    target.status = status
     if target_type == CONTACT_MESSAGE_TARGET_TYPE:
+        target.status = status
         target.sent_at = None
     elif target_type == STATUS_UPDATE_TARGET_TYPE:
+        target.status = status
         target.reviewed_at = reviewed_at
     elif target_type == HANDOFF_TARGET_TYPE:
+        target.status = status
         target.transferred_at = None
+    elif target_type == RUNTIME_STATE_TARGET_TYPE:
+        mark_runtime_state_snapshot_reviewed(target, approval)
+        _mark_hot_runtime_state_reviewed(approval)
     else:
         raise ApprovalConflictError("approval target conflict")
 
@@ -233,6 +261,23 @@ def _validate_review_metadata(
     for value in (reviewed_by, reason):
         if value is not None:
             _validate_safe_text(value)
+
+
+def _mark_hot_runtime_state_reviewed(approval: Approval) -> None:
+    """Best-effort hot-store sync only. Never resumes or executes an agent."""
+
+    try:
+        from app.agent_runtime.langchain_v1.state_store import runtime_state_store
+
+        runtime_state_store.mark_approval_reviewed(
+            approval.target_id,
+            status=approval.status,
+            reason=approval.reason,
+        )
+    except Exception:
+        # DB snapshot is the durable source of truth; hot-store sync must not
+        # block the review decision.
+        return
 
 
 def _validate_safe_text(text: str) -> None:
@@ -251,7 +296,10 @@ def _save_review_evidence_log(
     db: Session,
     *,
     approval: Approval,
-    target: ContactMessage | StatusUpdateCandidate | HandoffPackageDraft,
+    target: ContactMessage
+    | StatusUpdateCandidate
+    | HandoffPackageDraft
+    | AgentRuntimeStateSnapshot,
 ) -> EvidenceLog:
     event_type, summary = _review_evidence_event(
         target_type=approval.target_type,
@@ -303,19 +351,37 @@ def _review_evidence_event(
             "handoff_package_draft_rejected",
             "전문가 검토용 handoff package 초안이 반려되었습니다.",
         )
+    if target_type == RUNTIME_STATE_TARGET_TYPE:
+        if approval_status == APPROVAL_APPROVED_STATUS:
+            return (
+                "agent_runtime_state_approved",
+                "Agent runtime 결과가 담당자 승인 상태로 표시되었습니다.",
+            )
+        return (
+            "agent_runtime_state_rejected",
+            "Agent runtime 결과가 담당자 반려 상태로 표시되었습니다.",
+        )
     raise ApprovalConflictError("approval target conflict")
 
 
 def _safe_response(
     approval: Approval,
-    target: ContactMessage | StatusUpdateCandidate | HandoffPackageDraft,
+    target: ContactMessage
+    | StatusUpdateCandidate
+    | HandoffPackageDraft
+    | AgentRuntimeStateSnapshot,
 ) -> dict[str, Any]:
+    target_status = (
+        runtime_state_target_status(target)
+        if approval.target_type == RUNTIME_STATE_TARGET_TYPE
+        else target.status
+    )
     return {
         "approval_id": approval.id,
         "target_type": approval.target_type,
         "target_id": approval.target_id,
         "approval_status": approval.status,
-        "target_status": target.status,
+        "target_status": target_status,
         "approval_required": bool(getattr(target, "approval_required", True)),
         "reviewed_by": approval.reviewed_by,
         "reviewed_at": _datetime_to_str(approval.reviewed_at),

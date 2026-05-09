@@ -1,6 +1,6 @@
 import pytest
 
-from app.agent_runtime.graph.nodes.aggregator import aggregator_node
+from app.agent_runtime.legacy_graph.nodes.aggregator import aggregator_node
 from app.agent_runtime.runner import run_workflow
 from app.agent_runtime.schemas import (
     Citation,
@@ -260,44 +260,24 @@ def test_handoff_blockers_populated() -> None:
 
 
 @pytest.mark.asyncio
-async def test_workflow_runs_aggregator_before_approval_for_three_agents(monkeypatch) -> None:
-    def fake_hiring_agent(state: ForeignHiringState) -> dict:
-        result = {"agent": "workforce_agent", "summary": "채용 요건 정리", "risk_flags": []}
-        state.agent_results.append(result)
-        return result
+async def test_workflow_exposes_langchain_v1_aggregated_compatibility_output(monkeypatch) -> None:
+    from app.agent_runtime.langchain_v1 import runtime as runtime_module
+    from app.agent_runtime.langchain_v1.tools import RuntimePreflightError
 
-    def fake_contact_agent(state: ForeignHiringState) -> dict:
-        result = {
-            "agent": "multilingual_contact_agent",
-            "summary": "메시지 초안 생성",
-            "approval_required": True,
-            "risk_flags": ["메시지 발송 전 승인 필요"],
-        }
-        state.agent_results.append(result)
-        return result
+    def fail_create_agent(*args, **kwargs):
+        raise RuntimePreflightError("test uses structured blocked response")
 
-    def fake_visa_agent(state: ForeignHiringState) -> dict:
-        result = {"agent": "visa_document_agent", "summary": "비자 서류 확인", "risk_flags": ["D-30 임박"]}
-        state.agent_results.append(result)
-        state.risk_flags.append("D-30 임박")
-        return result
-
-    monkeypatch.setattr("app.agent_runtime.graph.nodes.intent_router.ChatOpenAI", _IntentLLM)
-    monkeypatch.setattr("app.agent_runtime.graph.nodes.executor.RAGRetriever", _FakeRetriever)
-    monkeypatch.setattr("app.agent_runtime.graph.nodes.final_response.ChatOpenAI", _FinalLLM)
-    monkeypatch.setattr("app.agent_runtime.agents.hiring_agent.run_hiring_agent", fake_hiring_agent)
-    monkeypatch.setattr("app.agent_runtime.agents.contact_agent.run_contact_agent", fake_contact_agent)
-    monkeypatch.setattr("app.agent_runtime.agents.visa_agent.run_visa_agent", fake_visa_agent)
+    monkeypatch.setattr(runtime_module, "create_workbridge_agent", fail_create_agent)
 
     state = await run_workflow(
-        user_message="E-9 채용, 비자 서류 확인하고 베트남어로 메시지 보내줘",
+        user_message="E-9 채용과 비자 서류 확인해줘",
         user_id="user-1",
         company_id="company-1",
         thread_id="aggregator-three-agent-thread",
     )
 
-    assert state.aggregated_output["agent_count"] == 3
+    assert state.aggregated_output["agent_count"] == 1
     assert state.aggregated_output["approval_required"] is True
     assert state.approval.required is True
     assert state.approval.status == "PENDING"
-    assert "multilingual_contact_agent" in state.aggregated_output["agents"]
+    assert "langchain_v1" in state.aggregated_output["agents"]

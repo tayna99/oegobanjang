@@ -41,12 +41,17 @@ Agent 관련 코드는 아래 경로에서 관리한다.
 
 ```txt
 backend/app/agent_runtime/
-├─ graph/
+├─ langchain_v1/
+├─ legacy_graph/
 ├─ agents/
 ├─ rag/
 ├─ tools/
 └─ schemas/
 ```
+
+현재 production Agent Runtime은 LangChain 1.0 `create_agent(response_format=...)` 중심의
+`langchain_v1/` 경로를 우선한다. `legacy_graph/`는 legacy/custom LangGraph 경로이며,
+production import 대상이 아니다. LangGraph 패키지 의존성은 `create_agent` 내부 실행을 위해 유지한다.
 
 ---
 

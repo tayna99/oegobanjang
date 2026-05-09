@@ -11,7 +11,7 @@ from app.agent_runtime.tools.registry import (
     send_worker_message,
 )
 from app.agent_runtime.middleware.call_limiter import check_llm_limit
-from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
+from app.agent_runtime.evidence_events import make_event, log_event
 from app.config import get_settings
 
 _TOOLS = [

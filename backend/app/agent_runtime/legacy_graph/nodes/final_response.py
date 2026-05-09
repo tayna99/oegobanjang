@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agent_runtime.schemas import ForeignHiringState, Intent, EventType
 from app.agent_runtime.middleware.pii_filter import mask_pii
-from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
+from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event, log_event
 from app.config import get_settings
 
 _UNSUPPORTED_MESSAGES: dict[str, str] = {

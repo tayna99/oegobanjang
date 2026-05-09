@@ -1,5 +1,5 @@
-from app.agent_runtime.graph.nodes.approval_gate import approval_gate_node
-from app.agent_runtime.graph.nodes.planner import planner_node
+from app.agent_runtime.legacy_graph.nodes.approval_gate import approval_gate_node
+from app.agent_runtime.legacy_graph.nodes.planner import planner_node
 from app.agent_runtime.schemas import (
     ForeignHiringState,
     Intent,

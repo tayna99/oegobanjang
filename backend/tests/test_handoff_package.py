@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from app.agent_runtime.graph.nodes.handoff_package import handoff_package_node
+from app.agent_runtime.legacy_graph.nodes.handoff_package import handoff_package_node
 from app.agent_runtime.schemas import ForeignHiringState
 from app.agent_runtime.tools.safe_draft import (
     build_handoff_package_draft_from_aggregated_output,

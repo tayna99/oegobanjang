@@ -1,5 +1,5 @@
 from app.agent_runtime.schemas import ForeignHiringState, Intent, EventType, ExecutionPlan
-from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
+from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event, log_event
 
 _INTENT_TO_AGENTS: dict[str, list[str]] = {
     Intent.HIRING.value: ["workforce_agent"],

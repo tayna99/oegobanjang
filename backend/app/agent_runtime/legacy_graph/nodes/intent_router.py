@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.agent_runtime.schemas import ForeignHiringState, Intent, EventType
-from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
+from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event, log_event
 from app.config import get_settings
 
 _SUPPORTED_INTENTS = [i.value for i in Intent]

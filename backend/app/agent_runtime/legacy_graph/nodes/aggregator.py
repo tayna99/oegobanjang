@@ -1,7 +1,7 @@
 """Aggregator: 여러 agent 결과와 RAG/tool 근거를 하나의 case output으로 합칩니다."""
 from __future__ import annotations
 
-from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
+from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event, log_event
 from app.agent_runtime.schemas import EventType, ForeignHiringState, ToolStatus
 
 

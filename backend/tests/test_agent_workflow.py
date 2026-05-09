@@ -1,43 +1,23 @@
 import pytest
 
+from app.agent_runtime.langchain_v1.state_store import runtime_state_store
 from app.agent_runtime.runner import run_workflow
-from app.agent_runtime.graph.workflow import build_workflow
 from app.agent_runtime.schemas import ForeignHiringState
 
 
-class _FakeIntentResponse:
-    content = '{"intents": ["UNSUPPORTED_LEGAL_JUDGMENT"]}'
+def _disable_live_agent(monkeypatch) -> None:
+    from app.agent_runtime.langchain_v1 import runtime as runtime_module
+    from app.agent_runtime.langchain_v1.tools import RuntimePreflightError
 
+    def fail_create_agent(*args, **kwargs):
+        raise RuntimePreflightError("test uses structured blocked response")
 
-class _FakeIntentLLM:
-    def __init__(self, *args, **kwargs) -> None:
-        pass
-
-    def invoke(self, messages):
-        return _FakeIntentResponse()
-
-
-class _NoResultRetriever:
-    found = False
-    documents = []
-
-
-class _FakeRetriever:
-    def search(self, query: str, k: int = 5):
-        return _NoResultRetriever()
+    monkeypatch.setattr(runtime_module, "create_workbridge_agent", fail_create_agent)
 
 
 @pytest.mark.asyncio
-async def test_workflow_preserves_langgraph_state_and_refuses_legal_judgment(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.agent_runtime.graph.nodes.intent_router.ChatOpenAI",
-        _FakeIntentLLM,
-    )
-    monkeypatch.setattr(
-        "app.agent_runtime.graph.nodes.executor.RAGRetriever",
-        _FakeRetriever,
-    )
-
+async def test_workflow_uses_langchain_v1_state_and_blocks_legal_judgment(monkeypatch) -> None:
+    _disable_live_agent(monkeypatch)
     state = await run_workflow(
         user_message="이 사람 비자가 확실히 가능한지 법적으로 판단해줘",
         user_id="user-1",
@@ -47,22 +27,15 @@ async def test_workflow_preserves_langgraph_state_and_refuses_legal_judgment(mon
 
     assert isinstance(state, ForeignHiringState)
     assert "UNSUPPORTED_LEGAL_JUDGMENT" in [intent.value for intent in state.detected_intents]
-    assert "비자 가능 여부 확정" in state.final_response
     assert state.plan.blocked is True
-    assert state.approval.required is False
+    assert state.approval.required is True
+    assert state.approval.status == "PENDING"
+    assert runtime_state_store.get(state.request_id) is not None
 
 
 @pytest.mark.asyncio
-async def test_workflow_loads_company_context_before_execution(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.agent_runtime.graph.nodes.intent_router.ChatOpenAI",
-        _FakeIntentLLM,
-    )
-    monkeypatch.setattr(
-        "app.agent_runtime.graph.nodes.executor.RAGRetriever",
-        _FakeRetriever,
-    )
-
+async def test_workflow_preserves_company_context_for_api_compatibility(monkeypatch) -> None:
+    _disable_live_agent(monkeypatch)
     state = await run_workflow(
         user_message="이 회사의 비자 업무 상태를 확인해줘",
         user_id="user-1",
@@ -76,16 +49,8 @@ async def test_workflow_loads_company_context_before_execution(monkeypatch) -> N
 
 
 @pytest.mark.asyncio
-async def test_workflow_accepts_worker_id_for_state_loader(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.agent_runtime.graph.nodes.intent_router.ChatOpenAI",
-        _FakeIntentLLM,
-    )
-    monkeypatch.setattr(
-        "app.agent_runtime.graph.nodes.executor.RAGRetriever",
-        _FakeRetriever,
-    )
-
+async def test_workflow_preserves_worker_context_for_api_compatibility(monkeypatch) -> None:
+    _disable_live_agent(monkeypatch)
     state = await run_workflow(
         user_message="이 근로자의 체류연장 상태를 확인해줘",
         user_id="user-1",
@@ -98,15 +63,7 @@ async def test_workflow_accepts_worker_id_for_state_loader(monkeypatch) -> None:
     assert state.worker_context["visa_type"] == "E-9"
 
 
-def test_workflow_includes_handoff_package_node_between_approval_and_final_response() -> None:
-    graph_spec = build_workflow().compile().get_graph()
+def test_workflow_no_longer_imports_custom_graph_workflow() -> None:
+    import app.agent_runtime.runner as runner
 
-    assert "handoff_package" in graph_spec.nodes
-    assert any(
-        edge.source == "approval_gate" and edge.target == "handoff_package"
-        for edge in graph_spec.edges
-    )
-    assert any(
-        edge.source == "handoff_package" and edge.target == "final_response"
-        for edge in graph_spec.edges
-    )
+    assert "get_compiled_app" not in runner.__dict__

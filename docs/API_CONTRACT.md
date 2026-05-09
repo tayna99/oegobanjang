@@ -95,25 +95,29 @@ POST /api/v1/agent/run
 
 `/api/v1/agent/run`은 Agent Runtime의 공통 실행 endpoint다.
 
-다국어 Contact Agent 요청도 이 endpoint를 사용한다.
+다국어 Contact Agent 요청도 이 endpoint를 사용한다. `user_message`와 `user_request`는
+모두 LangChain v1 runtime의 `AgentRuntimeInput.user_message`로 정규화된다.
 
 처리 흐름:
 
 ```txt
 POST /api/v1/agent/run
-→ intent_router_node
-→ contact_input_extractor_node
-→ planner_node
-→ executor_node
-→ MultilingualContactAgent
-→ evidence_logger_node
-→ final_response_node
+→ langchain_v1 request normalizer
+→ create_agent(response_format=WorkBridgeAgentResponse)
+→ tools + middleware
+→ structured_response
+→ AgentRunResponse compatibility adapter
 ```
 
 요청은 자연어 `user_request`와 선택적인 `input_payload`를 받는다.
 
-자연어 `user_request`만으로도 `CONTACT` intent와 일부 `input_payload`가 추출될 수 있다.
-단, `input_payload`에 명시된 값이 있으면 자연어 추출값보다 우선한다.
+자연어 `user_request`는 더 이상 legacy contact bypass로 전달되지 않는다.
+LangChain v1 runtime이 structured response를 만들고, API는 공통 `AgentRunResponse`
+shape으로 변환한다. 기존 다국어 contact 세부 런타임은 service-level 경로와 테스트에서 유지한다.
+
+`/api/v1/agent/run`은 LangChain runtime state를 process-local store와
+`agent_runtime_state_snapshots` DB table에 저장한다. DB snapshot은 PII-redacted JSON만 저장하며,
+`/api/v1/agent/state/{request_id}`는 메모리 state가 없을 때 DB snapshot으로 fallback한다.
 
 요청 기본 형태:
 
@@ -128,21 +132,17 @@ POST /api/v1/agent/run
 
 ```json
 {
-  "intent": "CONTACT",
-  "task_type": "message_draft",
-  "plan": {},
-  "agent_results": {},
-  "approval": {
-    "required": true,
-    "status": "PENDING",
-    "reason": "다국어 메시지 발송 또는 상태 업데이트 확정 전 담당자 승인이 필요합니다."
-  },
-  "evidence_events": [],
+  "request_id": "request-id-string",
+  "final_response": "LangChain v1 structured response summary...",
+  "detected_intents": ["CONTACT"],
   "risk_flags": [],
-  "final_response": "다국어 메시지 초안을 생성했습니다...",
+  "approval_required": true,
+  "approval_status": "PENDING",
   "handoff": {
     "available": false
-  }
+  },
+  "evidence_event_count": 4,
+  "rag_context_count": 0
 }
 ```
 
@@ -182,8 +182,8 @@ Handoff response 정책:
 - `approval_status=PENDING`이면 담당자 승인 전 외부 전송 금지 상태다.
 - API response에는 전체 handoff draft 본문을 노출하지 않는다.
 - `worker_id`, `worker_reply` 원문, `translated_ko` 전문, 근로자-facing message body 전문, 개인정보 원문은 포함하지 않는다.
-- LangGraph `user_message` 경로는 top-level `persist_result=true`일 때 handoff draft를 저장한다.
-- Contact Runtime `user_request` 경로는 기존처럼 `input_payload.persist_result=true`를 사용한다.
+- LangChain v1 `user_message` 경로는 top-level `persist_result=true`일 때 handoff draft를 저장한다.
+- `user_request` 경로는 legacy bypass가 아니라 LangChain v1 request normalizer로 흡수된다.
 
 Handoff draft 없음:
 
@@ -787,6 +787,18 @@ handoff_package_draft approval 반려
 → handoff_package_drafts.status=REJECTED
 → 실제 전문가 전달, external export, 정부 제출은 하지 않음
 → transferred_at=null 유지
+
+agent_runtime_state_snapshot approval 승인
+→ approvals.status=APPROVED
+→ agent_runtime_state_snapshots.approval_json.status=APPROVED
+→ structured_response.approval.status=APPROVED
+→ actual resume, 메시지 발송, 전문가 전달, 정부 제출은 하지 않음
+
+agent_runtime_state_snapshot approval 반려
+→ approvals.status=REJECTED
+→ agent_runtime_state_snapshots.approval_json.status=REJECTED
+→ structured_response.approval.status=REJECTED
+→ actual resume, 메시지 발송, 전문가 전달, 정부 제출은 하지 않음
 ```
 
 승인/반려는 `PENDING` approval에만 가능하다.
@@ -799,6 +811,38 @@ handoff_package_draft approval 반려
 
 ```txt
 GET /api/v1/evidence?request_id={request_id}
+X-Company-Id: company-demo-001
 ```
 
 요청 단위 Evidence Log를 조회한다.
+MVP/demo 단계에서는 `X-Company-Id` header를 필수로 사용해 회사 범위를 제한한다.
+header가 없으면 `403 Forbidden`을 반환한다.
+
+응답:
+
+```json
+{
+  "request_id": "request-id-string",
+  "count": 2,
+  "items": [
+    {
+      "id": "evidence-log-id-string",
+      "event_type": "rag_retrieved",
+      "agent_name": "langchain_v1",
+      "tool_name": "retrieve_workforce_materials",
+      "summary": "RAG 근거 문서가 검색되었습니다.",
+      "source_ids": ["eps_employer_process"],
+      "approval_required": false,
+      "risk_flags": [],
+      "request_id": "request-id-string",
+      "company_id": "company-demo-001",
+      "approval_id": null,
+      "created_at": "2026-05-09T12:00:00+00:00"
+    }
+  ]
+}
+```
+
+Evidence API 응답에는 `worker_id`, `contact_message_id`, `status_update_candidate_id`,
+메시지 전문, worker reply 원문, handoff package 전문을 포함하지 않는다.
+저장된 로그에 전화번호, 여권번호 등 PII가 실수로 포함되어 있어도 응답 단계에서 다시 redaction한다.

@@ -7,7 +7,7 @@ from app.agent_runtime.schemas import (
     ToolContractLevel,
     ToolStatus,
 )
-from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
+from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event, log_event
 
 
 _APPROVAL_REQUIRED_ACTIONS = {

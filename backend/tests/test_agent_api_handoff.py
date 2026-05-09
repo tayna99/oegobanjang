@@ -58,6 +58,16 @@ def test_contact_runtime_response_includes_handoff_unavailable(monkeypatch) -> N
         "search_multilingual_contact_rag_tool",
         _mock_rag_tool,
     )
+
+    async def fake_run_workflow(*args, **kwargs) -> ForeignHiringState:
+        return ForeignHiringState(
+            request_id="contact-normalized-state",
+            final_response="다국어 메시지 초안은 담당자 승인 전 발송되지 않습니다.",
+            handoff_package_draft={},
+        )
+
+    monkeypatch.setattr("backend.app.api.v1.agent.run_workflow", fake_run_workflow)
+    monkeypatch.setattr("app.api.v1.agent.run_workflow", fake_run_workflow, raising=False)
     client = TestClient(app)
 
     response = client.post(

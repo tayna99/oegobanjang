@@ -1,5 +1,5 @@
-from app.agent_runtime.graph.nodes.evidence_logger import make_event
-from app.agent_runtime.graph.nodes.final_response import (
+from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event
+from app.agent_runtime.legacy_graph.nodes.final_response import (
     _HANDOFF_DRAFT_NOTICE,
     final_response_node,
 )
@@ -20,7 +20,7 @@ class _FakeFinalLLM:
 
 def test_final_response_masks_raw_pii(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.agent_runtime.graph.nodes.final_response.ChatOpenAI",
+        "app.agent_runtime.legacy_graph.nodes.final_response.ChatOpenAI",
         _FakeFinalLLM,
     )
     state = ForeignHiringState(
@@ -58,7 +58,7 @@ def test_evidence_event_summary_masks_raw_pii() -> None:
 
 def test_final_response_without_handoff_draft_keeps_existing_response(monkeypatch) -> None:
     monkeypatch.setattr(
-        "app.agent_runtime.graph.nodes.final_response.ChatOpenAI",
+        "app.agent_runtime.legacy_graph.nodes.final_response.ChatOpenAI",
         _FakeFinalLLM,
     )
     state = ForeignHiringState(

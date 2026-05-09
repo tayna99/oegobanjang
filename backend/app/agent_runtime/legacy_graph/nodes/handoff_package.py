@@ -1,7 +1,7 @@
 """Handoff Package node: 고위험/전문가 전달 케이스에 draft만 생성합니다."""
 from __future__ import annotations
 
-from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
+from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event, log_event
 from app.agent_runtime.schemas import EventType, ForeignHiringState
 from app.agent_runtime.tools.safe_draft import (
     build_handoff_package_draft_from_aggregated_output,

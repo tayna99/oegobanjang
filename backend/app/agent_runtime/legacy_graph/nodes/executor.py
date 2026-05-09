@@ -2,7 +2,7 @@
 from app.agent_runtime.schemas import ForeignHiringState, Intent, EventType
 from app.agent_runtime.rag_tayna.retriever import RAGRetriever
 from app.agent_runtime.middleware.summarizer import maybe_summarize_contexts
-from app.agent_runtime.graph.nodes.evidence_logger import make_event, log_event
+from app.agent_runtime.legacy_graph.nodes.evidence_logger import make_event, log_event
 
 _INTENT_QUERY_MAP: dict[str, str] = {
     Intent.VISA_CHECK.value: "비자 체류연장 갱신 절차 필요 서류",
