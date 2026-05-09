@@ -115,15 +115,37 @@ frontend/types/
 ## Verification Commands
 
 ```bash
-bash scripts/run_frontend_tests.sh
+npm run typecheck
+npm run build
+npm run test
 ```
 
 ---
 
 ## Human Review Checklist
 
-- [ ] 대시보드에서 주요 업무가 보이는가?
-- [ ] 승인 필요한 작업이 명확히 구분되는가?
-- [ ] 민감정보가 마스킹되는가?
-- [ ] Evidence Log 접근 경로가 있는가?
-- [ ] 실제 외부 발송/전송이 발생하지 않는가?
+- [x] 대시보드에서 주요 업무가 보이는가?
+- [x] 승인 필요한 작업이 명확히 구분되는가?
+- [x] 민감정보가 마스킹되는가?
+- [x] Evidence Log 접근 경로가 있는가?
+- [x] 실제 외부 발송/전송이 발생하지 않는가?
+
+---
+
+## 2026-05-10 Status
+
+상태: completed
+
+구현한 것:
+
+- `frontend/package.json`, `tsconfig.json`, `next.config.mjs`, `app/layout.tsx`, `app/page.tsx`를 추가해 Next App Router 프로젝트로 검증 가능하게 만들었다.
+- `dashboard`, `workers`, `hiring`, `visa`, `documents`, `contacts`, `approvals`, `evidence` route에 실제 `page.tsx`를 추가했다.
+- `frontend/features/dashboard/mockData.ts`에 이번 달 업무, 비자 만료, 서류 누락, 신규 채용, 승인 대기, Evidence Log mock 데이터를 추가했다.
+- `frontend/lib/masking.ts`로 여권번호, 외국인등록번호, 전화번호 마스킹을 추가하고 mock Evidence/서류 표시에서 원문 노출을 막았다.
+- 외부 발송, 행정사 전달, 정부 제출은 화면에서 직접 실행하지 않고 승인 필요/차단 상태로만 표시했다.
+
+검증:
+
+- `npm run typecheck` 통과
+- `npm run build` 통과
+- `npm run test` 통과
