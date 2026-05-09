@@ -501,6 +501,16 @@ document_requirements
 worker_documents
 ```
 
+아래 테이블은 approval resume/send를 바로 열지 않기 위한 안전한 중간층이다.
+승인 후에도 실제 발송, 행정사 전달, 정부 제출은 실행하지 않고 내부 action/outbox/checkpoint/metrics만 기록한다.
+
+```txt
+approval_actions
+delivery_outbox
+agent_checkpoints
+runtime_metrics
+```
+
 구현 파일:
 
 ```txt
@@ -509,8 +519,12 @@ backend/app/models/worker.py
 backend/app/models/document.py
 backend/app/models/user.py
 backend/app/models/hiring.py
+backend/app/models/runtime_execution.py
 backend/app/services/context_data_service.py
+backend/app/services/runtime_resume_service.py
+backend/app/services/runtime_metrics_service.py
 backend/migrations/versions/20260509_0006_context_tables.py
+backend/migrations/versions/20260509_0007_runtime_resume_outbox_metrics.py
 ```
 
 아래 테이블은 계속 planned 상태다.
@@ -546,6 +560,10 @@ Context table 역할:
 | `candidates` | 신규 채용 후보 준비 상태 |
 | `document_requirements` | 케이스별 필수 서류 기준 |
 | `worker_documents` | 근로자별 제출 서류 상태 |
+| `approval_actions` | 승인 후 허용/차단 action 기록. 외부 실행 금지 action은 `BLOCKED` |
+| `delivery_outbox` | 외부 전달 준비용 outbox. PENDING 상태만 만들고 실제 발송하지 않음 |
+| `agent_checkpoints` | 승인 후 제한 resume을 위한 token/idempotency checkpoint |
+| `runtime_metrics` | model/tool/retrieval/approval runtime 관측값. 원문 PII 저장 금지 |
 | `worker_sensitive_profiles` | planned: 여권번호, 외국인등록번호, 전화번호 등 암호화 민감정보 |
 | `hiring_requests` | planned: 신규 인력 요청 |
 | `visas` | planned: 체류/비자 상태 |
@@ -583,4 +601,6 @@ backend/tests/test_handoff_persistence_service.py
 backend/tests/test_handoff_api.py
 backend/tests/test_approval_api.py
 backend/tests/test_multilingual_contact_persistence_runtime.py
+backend/tests/test_runtime_followup_operationalization.py
+backend/tests/test_runtime_resume_outbox_metrics.py
 ```

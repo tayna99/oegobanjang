@@ -21,6 +21,12 @@ from backend.app.models.document import DocumentRequirement, WorkerDocument  # n
 from backend.app.models.evidence import EvidenceLog  # noqa: F401
 from backend.app.models.handoff import HandoffPackageDraft  # noqa: F401
 from backend.app.models.hiring import Candidate  # noqa: F401
+from backend.app.models.runtime_execution import (  # noqa: F401
+    AgentCheckpoint,
+    ApprovalAction,
+    DeliveryOutbox,
+    RuntimeMetric,
+)
 from backend.app.models.runtime_state import AgentRuntimeStateSnapshot  # noqa: F401
 from backend.app.models.user import User  # noqa: F401
 from backend.app.models.worker import Worker  # noqa: F401

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.agent_runtime.langchain_v1.middleware import redact_pii
@@ -12,6 +12,19 @@ from backend.app.models.evidence import EvidenceLog
 
 class EvidenceForbiddenError(ValueError):
     pass
+
+
+def _event_order_case():
+    event_order = {
+        "intent_classified": 10,
+        "plan_created": 20,
+        "tool_executed": 30,
+        "rag_retrieved": 40,
+        "risk_flagged": 50,
+        "approval_requested": 60,
+        "final_response_generated": 70,
+    }
+    return case(event_order, value=EvidenceLog.event_type, else_=999)
 
 
 def list_evidence_logs_for_request(
@@ -29,7 +42,11 @@ def list_evidence_logs_for_request(
             EvidenceLog.request_id == request_id,
             EvidenceLog.company_id == company_id,
         )
-        .order_by(EvidenceLog.created_at.asc(), EvidenceLog.id.asc())
+        .order_by(
+            EvidenceLog.created_at.asc(),
+            _event_order_case(),
+            EvidenceLog.id.asc(),
+        )
     ).all()
 
     items = [_safe_log_item(log) for log in logs]

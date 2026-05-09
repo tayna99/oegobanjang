@@ -20,6 +20,7 @@ from backend.app.services.runtime_state_persistence_service import (
     mark_runtime_state_snapshot_reviewed,
     runtime_state_target_status,
 )
+from backend.app.services.runtime_resume_service import create_runtime_resume_plan
 
 
 APPROVAL_PENDING_STATUS = "PENDING"
@@ -149,6 +150,8 @@ def _review_approval_for_company(
     )
     _save_review_evidence_log(db, approval=approval, target=target)
     if approval.target_type == RUNTIME_STATE_TARGET_TYPE:
+        if approval.status == APPROVAL_APPROVED_STATUS:
+            create_runtime_resume_plan(db, snapshot=target, approval=approval)
         _save_runtime_resume_evidence_logs(db, approval=approval, target=target)
     db.flush()
     return _safe_response(approval, target)

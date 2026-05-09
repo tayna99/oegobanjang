@@ -296,3 +296,55 @@ Planned Context Tables
 - `docs/DB_SCHEMA.md`의 planned table은 실제 migration이 아니다.
 - Context tables를 구현할 때는 Alembic migration, SQLAlchemy model, service/API, State Loader repository, tests를 함께 추가해야 한다.
 - 운영 DB 전환을 결정하면 별도 migration 전략과 scope 정책을 다시 설계해야 한다.
+
+---
+
+## Decision 009: Approval 이후 실행은 outbox/checkpoint를 먼저 기록하고 외부 실행은 열지 않는다
+
+### Date
+
+2026-05-09
+
+### Context
+
+LangChain v1 runtime은 `approval_required=true`, `approval.status=PENDING`으로 안전하게 멈출 수 있다.
+하지만 승인 이후 바로 메시지 발송, 행정사 전달, 정부 제출을 실행하면 제품/법무 리스크가 커진다.
+따라서 approval resume/send를 열기 전에 승인된 실행 단위, outbox, checkpoint, idempotency key, Evidence Log를 먼저 둬야 한다.
+
+### Decision
+
+- `approval_actions`, `delivery_outbox`, `agent_checkpoints`, `runtime_metrics` 테이블을 추가한다.
+- 승인 후 허용 action은 아래로 제한한다.
+
+```txt
+finalize_internal_draft
+mark_handoff_package_ready
+prepare_external_delivery
+```
+
+- 아래 action은 계속 차단한다.
+
+```txt
+auto_send_to_candidate
+auto_send_to_sending_agency
+auto_send_to_admin_scrivener
+auto_submit_to_government_portal
+```
+
+- `prepare_external_delivery`는 outbox `PENDING`까지만 만들고 실제 발송하지 않는다.
+- `agent_checkpoints`는 `request_id`, `approval_id`, `resume_token`, `allowed_actions`, `blocked_actions`, `status`, `idempotency_key`, `last_error`를 저장한다.
+- `POST /api/v1/agent/resume/{request_id}`는 내부 action만 허용하고 외부 action은 `403`으로 차단한다.
+- `runtime_metrics`는 model/tool/retrieval/approval 관측값만 저장하고 원문 PII는 저장하지 않는다.
+
+### Consequence
+
+장점:
+
+- 승인 후에도 외부 발송/전달/제출이 자동 실행되지 않는다.
+- 내부 상태 전환, outbox 준비, checkpoint 생성은 idempotency key로 중복을 줄일 수 있다.
+- 나중에 진짜 resume/send를 열 때도 이미 durable record와 Evidence Log가 있다.
+
+주의:
+
+- durable agent checkpoint는 아직 LangChain/LangGraph 실행 재개용 checkpoint가 아니라 제품 상태 전이용 checkpoint다.
+- 승인 이후 실제 발송, 행정사 전달, 정부 제출은 별도 mission에서 outbox worker, idempotency, audit, 권한 정책을 설계한 뒤에만 열 수 있다.
