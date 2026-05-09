@@ -147,6 +147,9 @@ translated_ko 전문
 
 외부 전문가 전달은 `send_expert_package` 같은 approval-required tool이 담당하며, 해당 tool은 항상 `NEEDS_APPROVAL`을 반환해야 한다.
 승인 이후에도 바로 전달하지 않고 `delivery_outbox.status=PENDING` 준비 기록까지만 생성한다.
+담당자가 승인한 뒤에도 `/api/v1/agent/outbox/{request_id}/prepare`는 outbox를
+`READY_FOR_INTERNAL_REVIEW`로만 전환한다. 이는 내부 검토 준비 완료 표시이며,
+전문가 전달, 후보자 메시지 발송, 정부 제출을 의미하지 않는다.
 실제 행정사/노무사 전달, 후보자 메시지 발송, 정부 제출은 별도 outbox worker와 추가 approval action이 생기기 전까지 금지한다.
 
 `handoff_package_draft`가 생성되면 `final_response`에는 초안 생성 및 승인 전 미전달 안내만 표시한다.

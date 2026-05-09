@@ -332,6 +332,9 @@ auto_submit_to_government_portal
 ```
 
 - `prepare_external_delivery`는 outbox `PENDING`까지만 만들고 실제 발송하지 않는다.
+- 승인된 outbox는 `/api/v1/agent/outbox/{request_id}/prepare`로
+  `READY_FOR_INTERNAL_REVIEW` 상태까지만 전환할 수 있다.
+  이때 `delivery_outbox_prepared` Evidence Log를 남기고, 메시지 발송/전문가 전달/정부 제출은 계속 실행하지 않는다.
 - `agent_checkpoints`는 `request_id`, `approval_id`, `resume_token`, `allowed_actions`, `blocked_actions`, `status`, `idempotency_key`, `last_error`를 저장한다.
 - `POST /api/v1/agent/resume/{request_id}`는 내부 action만 허용하고 외부 action은 `403`으로 차단한다.
 - `runtime_metrics`는 model/tool/retrieval/approval 관측값만 저장하고 원문 PII는 저장하지 않는다.

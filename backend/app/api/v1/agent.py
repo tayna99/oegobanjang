@@ -25,6 +25,12 @@ from backend.app.services.runtime_resume_service import (
     get_runtime_resume_summary_for_company,
     resume_runtime_action_for_company,
 )
+from backend.app.services.runtime_outbox_service import (
+    RuntimeOutboxConflictError,
+    RuntimeOutboxForbiddenError,
+    RuntimeOutboxNotFoundError,
+    prepare_runtime_delivery_outbox_for_company,
+)
 from backend.app.services.agent_service import HandoffResponse, build_handoff_response
 from backend.app.services.handoff_persistence_service import save_handoff_package_draft
 
@@ -200,3 +206,28 @@ async def get_agent_runtime_metrics(
         raise HTTPException(status_code=404, detail="runtime metrics not found") from exc
     except RuntimeMetricsForbiddenError as exc:
         raise HTTPException(status_code=403, detail="runtime metrics access forbidden") from exc
+
+
+@router.post("/outbox/{request_id}/prepare")
+async def prepare_agent_runtime_outbox(
+    request_id: str,
+    db: Session = Depends(get_sync_db),
+    company_id: str = Header(default="", alias="X-Company-Id"),
+) -> dict[str, Any]:
+    try:
+        result = prepare_runtime_delivery_outbox_for_company(
+            db,
+            request_id=request_id,
+            company_id=company_id,
+        )
+        db.commit()
+        return result
+    except RuntimeOutboxNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="runtime outbox not found") from exc
+    except RuntimeOutboxForbiddenError as exc:
+        db.rollback()
+        raise HTTPException(status_code=403, detail="runtime outbox access forbidden") from exc
+    except RuntimeOutboxConflictError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="runtime outbox conflict") from exc

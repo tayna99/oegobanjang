@@ -119,6 +119,7 @@ shape으로 변환한다. 기존 다국어 contact 세부 런타임은 service-l
 `agent_runtime_state_snapshots` DB table에 저장한다. DB snapshot은 PII-redacted JSON만 저장하며,
 `/api/v1/agent/state/{request_id}`는 메모리 state가 없을 때 DB snapshot으로 fallback한다.
 승인 이후 제한 실행은 `/api/v1/agent/resume/{request_id}`에서 내부 action만 허용한다.
+승인된 전달 준비 outbox는 `/api/v1/agent/outbox/{request_id}/prepare`에서 내부 검토 준비 상태로만 전환한다.
 runtime 관측값은 `/api/v1/agent/metrics/{request_id}`에서 조회한다.
 
 요청 기본 형태:
@@ -180,6 +181,38 @@ Content-Type: application/json
 ```
 
 외부 실행 action은 `403 Forbidden`으로 차단한다.
+
+### POST /api/v1/agent/outbox/{request_id}/prepare
+
+승인 후 생성된 `delivery_outbox`를 내부 검토 준비 상태로 전환한다.
+이 API는 발송 실행 API가 아니다. 후보자 메시지 발송, 송출회사/행정사 전달, 정부 포털 제출은 모두 실행하지 않는다.
+
+요청:
+
+```http
+POST /api/v1/agent/outbox/request-id-string/prepare
+X-Company-Id: company-demo-001
+```
+
+응답:
+
+```json
+{
+  "request_id": "request-id-string",
+  "outbox_id": "outbox-id-string",
+  "outbox_type": "external_delivery_preparation",
+  "target_channel": "internal_review",
+  "status": "READY_FOR_INTERNAL_REVIEW",
+  "action_type": "prepare_external_delivery",
+  "action_status": "COMPLETED",
+  "checkpoint_status": "OUTBOX_READY_FOR_INTERNAL_REVIEW",
+  "message_sent": false,
+  "external_delivery_executed": false,
+  "government_submission_executed": false
+}
+```
+
+같은 요청을 반복해도 같은 outbox를 `READY_FOR_INTERNAL_REVIEW`로 유지하며, `delivery_outbox_prepared` Evidence Log는 중복 생성하지 않는다.
 
 ### GET /api/v1/agent/resume/{request_id}
 
