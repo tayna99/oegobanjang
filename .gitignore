@@ -45,6 +45,7 @@ Thumbs.db
 data-pipeline/cache/
 data-pipeline/index/
 .chroma/
+.pycache-ci*/
 evals/reports/*.json
 frontend/.next/
 frontend/node_modules/

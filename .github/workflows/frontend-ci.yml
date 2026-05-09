@@ -1,0 +1,64 @@
+name: Frontend CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  frontend-checks:
+    name: Frontend checks when package manifest exists
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run available frontend scripts
+        shell: bash
+        run: |
+          if [ ! -f frontend/package.json ]; then
+            echo "frontend/package.json not found. Skipping frontend CI."
+            exit 0
+          fi
+
+          cd frontend
+
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+          node - <<'NODE'
+          const { spawnSync } = require("node:child_process");
+          const pkg = require("./package.json");
+          const scripts = pkg.scripts || {};
+          const commands = ["lint", "test", "build"];
+
+          for (const command of commands) {
+            if (!scripts[command]) {
+              console.log(`No ${command} script found. Skipping.`);
+              continue;
+            }
+            const result = spawnSync("npm", ["run", command], { stdio: "inherit", shell: true });
+            if (result.status !== 0) {
+              process.exit(result.status ?? 1);
+            }
+          }
+          NODE

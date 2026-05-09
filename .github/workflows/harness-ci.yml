@@ -1,0 +1,58 @@
+name: Harness CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "tests/**"
+      - "scripts/execute_codex.py"
+      - "phases/**"
+      - ".github/workflows/harness-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "tests/**"
+      - "scripts/execute_codex.py"
+      - "phases/**"
+      - ".github/workflows/harness-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  harness-sanity:
+    name: Harness sanity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile harness scripts
+        run: |
+          if [ -f scripts/execute_codex.py ]; then
+            python - <<'PY'
+            import ast
+            from pathlib import Path
+
+            path = Path("scripts/execute_codex.py")
+            ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            print(f"Syntax-checked {path}.")
+            PY
+          else
+            echo "scripts/execute_codex.py not found. Skipping."
+          fi
+
+      - name: Run root harness tests when present
+        shell: bash
+        run: |
+          if find tests -type f -name "test_*.py" | grep -q .; then
+            python -m pip install --upgrade pip pytest
+            python -m pytest tests -q
+          else
+            echo "No root harness test_*.py files found. Skipping pytest."
+          fi
