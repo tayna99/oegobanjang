@@ -46,6 +46,10 @@ from backend.app.services.runtime_resume_service import (  # noqa: E402
     create_runtime_resume_plan,
     resume_runtime_action_for_company,
 )
+from backend.app.services.runtime_outbox_service import (  # noqa: E402
+    RuntimeOutboxForbiddenError,
+    prepare_runtime_delivery_outbox_for_company,
+)
 from backend.app.services.runtime_state_persistence_service import (  # noqa: E402
     save_runtime_state_snapshot,
 )
@@ -371,3 +375,136 @@ def test_internal_resume_action_writes_evidence_and_updates_checkpoint_without_s
     assert checkpoint.status == "INTERNAL_ACTION_COMPLETED"
     assert outbox.status == "PENDING"
     assert "resume_action_completed" in event_types
+
+
+def test_prepare_delivery_outbox_marks_internal_review_ready_without_sending() -> None:
+    db = _db()
+    save_runtime_state_snapshot(db, _runtime_state("runtime-outbox-prepare-001"))
+    approval = _runtime_approval(db)
+    db.commit()
+    approve_approval_for_company(
+        db,
+        approval_id=approval.id,
+        company_id="company-001",
+        reviewed_by="manager-001",
+    )
+    db.commit()
+
+    result = prepare_runtime_delivery_outbox_for_company(
+        db,
+        request_id="runtime-outbox-prepare-001",
+        company_id="company-001",
+    )
+    db.commit()
+
+    outbox = db.scalar(select(DeliveryOutbox))
+    prepare_action = db.scalar(
+        select(ApprovalAction).where(ApprovalAction.action_type == "prepare_external_delivery")
+    )
+    checkpoint = db.scalar(select(AgentCheckpoint))
+    event_types = [
+        row.event_type
+        for row in db.scalars(
+            select(EvidenceLog).where(EvidenceLog.approval_id == approval.id)
+        )
+    ]
+
+    assert result["status"] == "READY_FOR_INTERNAL_REVIEW"
+    assert result["message_sent"] is False
+    assert result["external_delivery_executed"] is False
+    assert result["government_submission_executed"] is False
+    assert outbox.status == "READY_FOR_INTERNAL_REVIEW"
+    assert prepare_action.status == "COMPLETED"
+    assert checkpoint.status == "OUTBOX_READY_FOR_INTERNAL_REVIEW"
+    assert "delivery_outbox_prepared" in event_types
+
+
+def test_prepare_delivery_outbox_is_idempotent_and_does_not_duplicate_evidence() -> None:
+    db = _db()
+    save_runtime_state_snapshot(db, _runtime_state("runtime-outbox-idempotent-001"))
+    approval = _runtime_approval(db)
+    db.commit()
+    approve_approval_for_company(
+        db,
+        approval_id=approval.id,
+        company_id="company-001",
+        reviewed_by="manager-001",
+    )
+    db.commit()
+
+    first = prepare_runtime_delivery_outbox_for_company(
+        db,
+        request_id="runtime-outbox-idempotent-001",
+        company_id="company-001",
+    )
+    second = prepare_runtime_delivery_outbox_for_company(
+        db,
+        request_id="runtime-outbox-idempotent-001",
+        company_id="company-001",
+    )
+    db.commit()
+
+    prepared_events = db.scalar(
+        select(func.count())
+        .select_from(EvidenceLog)
+        .where(
+            EvidenceLog.approval_id == approval.id,
+            EvidenceLog.event_type == "delivery_outbox_prepared",
+        )
+    )
+    assert first["outbox_id"] == second["outbox_id"]
+    assert first["status"] == "READY_FOR_INTERNAL_REVIEW"
+    assert second["status"] == "READY_FOR_INTERNAL_REVIEW"
+    assert prepared_events == 1
+
+
+def test_prepare_delivery_outbox_rejects_wrong_company() -> None:
+    db = _db()
+    save_runtime_state_snapshot(db, _runtime_state("runtime-outbox-forbidden-001"))
+    approval = _runtime_approval(db)
+    db.commit()
+    approve_approval_for_company(
+        db,
+        approval_id=approval.id,
+        company_id="company-001",
+        reviewed_by="manager-001",
+    )
+    db.commit()
+
+    with pytest.raises(RuntimeOutboxForbiddenError):
+        prepare_runtime_delivery_outbox_for_company(
+            db,
+            request_id="runtime-outbox-forbidden-001",
+            company_id="company-999",
+        )
+
+
+def test_agent_outbox_prepare_api_returns_safe_internal_review_payload() -> None:
+    db = _db()
+    save_runtime_state_snapshot(db, _runtime_state("runtime-outbox-api-001"))
+    approval = _runtime_approval(db)
+    db.commit()
+    approve_approval_for_company(
+        db,
+        approval_id=approval.id,
+        company_id="company-001",
+        reviewed_by="manager-001",
+    )
+    db.commit()
+
+    client = _client_with_db(db)
+    try:
+        response = client.post(
+            "/api/v1/agent/outbox/runtime-outbox-api-001/prepare",
+            headers={"X-Company-Id": "company-001"},
+        )
+    finally:
+        _clear_client_override()
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "READY_FOR_INTERNAL_REVIEW"
+    assert body["message_sent"] is False
+    assert body["external_delivery_executed"] is False
+    assert body["government_submission_executed"] is False
+    assert "resume_token" not in body
