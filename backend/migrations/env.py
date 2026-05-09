@@ -18,6 +18,25 @@ from backend.app.models.approval import Approval  # noqa: F401
 from backend.app.models.company import Company  # noqa: F401
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate  # noqa: F401
 from backend.app.models.document import DocumentRequirement, WorkerDocument  # noqa: F401
+from backend.app.models.daily_briefing import (  # noqa: F401
+    DailyBriefingAction,
+    DailyBriefingApproval,
+    DailyBriefingCandidateDocumentSource,
+    DailyBriefingCandidateSource,
+    DailyBriefingCase,
+    DailyBriefingCitationSource,
+    DailyBriefingCompanySource,
+    DailyBriefingDocumentRequestDraft,
+    DailyBriefingDocumentSource,
+    DailyBriefingEvidenceEvent,
+    DailyBriefingExternalDeliveryJob,
+    DailyBriefingHandoffExportArtifact,
+    DailyBriefingHandoffPreview,
+    DailyBriefingReportingEventSource,
+    DailyBriefingResultRow,
+    DailyBriefingUserCompanyAccess,
+    DailyBriefingWorkerSource,
+)
 from backend.app.models.evidence import EvidenceLog  # noqa: F401
 from backend.app.models.handoff import HandoffPackageDraft  # noqa: F401
 from backend.app.models.hiring import Candidate  # noqa: F401

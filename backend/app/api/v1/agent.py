@@ -41,7 +41,12 @@ from backend.app.services.runtime_outbox_service import (
     RuntimeOutboxNotFoundError,
     prepare_runtime_delivery_outbox_for_company,
 )
-from backend.app.services.agent_service import HandoffResponse, build_handoff_response
+from backend.app.services.agent_service import (
+    AgentRunRequest as ContactAgentRunRequest,
+    HandoffResponse,
+    build_handoff_response,
+    run_agent as run_contact_agent,
+)
 from backend.app.agent_runtime.langchain_v1.contact_artifact_store import (
     pop_contact_artifacts,
 )
@@ -58,6 +63,8 @@ from backend.app.services.contact_persistence_service import (
     save_worker_reply_summary_result,
 )
 from backend.app.services.handoff_persistence_service import save_handoff_package_draft
+from app.services.daily_briefing_planner import plan_daily_briefing_from_message
+from app.services.daily_briefing_service import build_sqlalchemy_daily_briefing_service
 
 
 router = APIRouter(prefix="/agent", tags=["agent"])
@@ -98,6 +105,8 @@ class AgentRunResponse(BaseModel):
     persistence: dict[str, Any] = Field(default_factory=dict)
     evidence_event_count: int
     rag_context_count: int
+    daily_briefing: dict[str, Any] | None = None
+    structured_plan: dict[str, Any] | None = None
 
 
 class AgentResumeRequest(BaseModel):
@@ -112,8 +121,21 @@ class AgentCheckpointResumeRequest(BaseModel):
 @router.post("/run")
 async def run_agent(
     body: dict[str, Any] = Body(...),
+    x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_role: str = Header(default="viewer", alias="X-User-Role"),
     db: Session = Depends(get_sync_db),
 ) -> dict[str, Any]:
+    if "user_request" in body and "user_message" not in body:
+        contact_payload = dict(body.get("input_payload") or {})
+        for key in ("worker_id", "company_id", "persist_result", "created_by", "user_id"):
+            if key in body and key not in contact_payload:
+                contact_payload[key] = body[key]
+        contact_request = ContactAgentRunRequest(
+            user_request=str(body["user_request"]),
+            input_payload=contact_payload,
+        )
+        return run_contact_agent(contact_request, db=db).model_dump()
+
     try:
         request = AgentRunRequest.model_validate(body)
         normalized_payload, resolved_worker_id = _normalize_worker_lookup(
@@ -122,6 +144,41 @@ async def run_agent(
             worker_id=request.worker_id or "",
             input_payload=request.input_payload,
         )
+        daily_briefing_plan = plan_daily_briefing_from_message(request.normalized_message)
+        if daily_briefing_plan.should_run:
+            service = build_sqlalchemy_daily_briefing_service(db)
+            result = service.run_daily_briefing(
+                company_id=request.company_id,
+                date=None,
+                user_role=x_user_role,
+                allowed_company_ids=[x_company_id] if x_company_id else None,
+            )
+            db.commit()
+            return AgentRunResponse(
+                request_id=result.briefing_run_id,
+                final_response=(
+                    "오늘 기준 외국인 고용 운영 리스크 브리핑을 생성했습니다. "
+                    "추천 액션은 모두 담당자 승인 대기 상태입니다."
+                ),
+                detected_intents=[daily_briefing_plan.intent or "daily_briefing"],
+                risk_flags=[
+                    item.risk_type
+                    for item in result.items
+                    if item.severity in {"CRITICAL", "HIGH"}
+                ],
+                approval_required=result.approval_required,
+                approval_status="pending" if result.approval_required else "not_required",
+                evidence_event_count=len(result.evidence_event_ids),
+                rag_context_count=len(
+                    [
+                        summary
+                        for summary in result.citation_summaries
+                        if summary.validation_status == "validated"
+                    ]
+                ),
+                daily_briefing=result.model_dump(),
+                structured_plan=daily_briefing_plan.model_dump(),
+            ).model_dump()
         state: ForeignHiringState = await run_workflow(
             user_message=request.normalized_message,
             user_id=request.user_id,
@@ -130,6 +187,33 @@ async def run_agent(
             thread_id=request.thread_id,
             input_payload=normalized_payload,
         )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error_code": str(e.args[0]) if e.args else "TENANT_SCOPE_VIOLATION",
+                "message": "Requested company is outside the allowed company scope.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from e
+    except LookupError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": str(e.args[0]) if e.args else "MISSING_REQUIRED_CONTEXT",
+                "message": "Required company or worker context is missing.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from e
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_code": str(e.args[0]) if e.args else "STATE_SAVE_FAILED",
+                "message": "Agent request failed safely.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 

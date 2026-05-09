@@ -83,6 +83,21 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
 
+    # Daily Briefing Scheduler
+    daily_briefing_scheduler_enabled: bool = False
+    daily_briefing_scheduler_run_on_startup: bool = False
+    daily_briefing_scheduler_interval_seconds: int = 86400
+    daily_briefing_scheduler_timezone: str = "Asia/Seoul"
+    daily_briefing_scheduler_company_ids: str = ""
+    daily_briefing_allow_seed_source_fallback: bool = True
+    daily_briefing_citation_official_fetch_enabled: bool = False
+    daily_briefing_official_fetch_timeout_seconds: int = 20
+    daily_briefing_official_fetch_max_bytes: int = 5_000_000
+    daily_briefing_rag_refresh_chunks_path: str = "data-pipeline/processed/chunks/daily_briefing_official_chunks.jsonl"
+    daily_briefing_rag_refresh_chroma_records_path: str = "data-pipeline/processed/chunks/daily_briefing_official_chroma_records.jsonl"
+    daily_briefing_rag_refresh_chroma_persist_dir: str = "data-pipeline/index/chroma/daily_briefing_official"
+    daily_briefing_rag_refresh_chroma_collection: str = "daily_briefing_official"
+
     # Chroma
     chroma_host: str = "localhost"
     chroma_port: int = 8001
@@ -133,6 +148,15 @@ class Settings(BaseSettings):
     @property
     def is_local(self) -> bool:
         return self.app_env.lower() in {"local", "dev", "development", "test"}
+
+    @property
+    def daily_briefing_scheduler_company_id_list(self) -> list[str] | None:
+        company_ids = [
+            company_id.strip()
+            for company_id in self.daily_briefing_scheduler_company_ids.split(",")
+            if company_id.strip()
+        ]
+        return company_ids or None
 
 
 @lru_cache

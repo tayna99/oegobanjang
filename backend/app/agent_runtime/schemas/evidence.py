@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any
 from pydantic import BaseModel, Field
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 class EventType(str, Enum):
@@ -28,4 +28,4 @@ class EvidenceEvent(BaseModel):
     risk_level: str = "LOW"
     approval_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
