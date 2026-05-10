@@ -1,0 +1,21 @@
+id,company_id,name,nationality,desired_role,available_from,language,passport,photo,health_check,understood_housing,understood_shift,status,created_at,updated_at
+candidate-001,550e8400-e29b-41d4-a716-446655440001,Candidate A,VN,assembly,2026-06-01,vi,true,false,false,true,false,READY_CHECK,2026-05-09,2026-05-09
+candidate-002,550e8400-e29b-41d4-a716-446655440001,Candidate B,NP,welding_assist,2026-07-01,ne,true,true,false,false,true,READY_CHECK,2026-05-09,2026-05-09
+candidate-003,550e8400-e29b-41d4-a716-446655440003,Candidate C,VN,assembly,2026-06-20,vi,true,true,true,true,true,READY_CHECK,2026-05-09,2026-05-09
+candidate-004,550e8400-e29b-41d4-a716-446655440002,Candidate D,ID,shipyard_support,,id,true,true,false,true,true,MISSING_CONTEXT,2026-05-09,2026-05-09
+candidate-005,550e8400-e29b-41d4-a716-446655440004,Candidate E,TH,production_support,2026-07-15,th,false,true,false,true,false,MISSING_CONTEXT,2026-05-09,2026-05-09
+candidate-006,550e8400-e29b-41d4-a716-446655440005,Candidate F,KH,facility_support,2026-08-01,km,true,false,false,false,false,READY_CHECK,2026-05-09,2026-05-09
+candidate-007,550e8400-e29b-41d4-a716-446655440006,Candidate G,VN,assembly,2026-06-10,vi,true,true,false,true,true,READY_CHECK,2026-05-09,2026-05-09
+candidate-008,550e8400-e29b-41d4-a716-446655440007,Candidate H,MM,welding_assist,2026-07-05,my,true,false,false,true,false,READY_CHECK,2026-05-09,2026-05-09
+candidate-009,550e8400-e29b-41d4-a716-446655440008,Candidate I,UZ,livestock_support,2026-06-25,uz,true,true,true,true,false,READY_CHECK,2026-05-09,2026-05-09
+candidate-010,550e8400-e29b-41d4-a716-446655440009,Candidate J,LK,fishery_support,2026-07-15,si,false,true,false,true,true,MISSING_CONTEXT,2026-05-09,2026-05-09
+candidate-011,550e8400-e29b-41d4-a716-446655440010,Candidate K,MN,construction_support,2026-08-05,mn,true,true,false,false,true,READY_CHECK,2026-05-09,2026-05-09
+candidate-012,550e8400-e29b-41d4-a716-446655440011,Candidate L,CN,inspection,2026-06-18,zh,true,true,true,true,true,READY_CHECK,2026-05-09,2026-05-09
+candidate-013,550e8400-e29b-41d4-a716-446655440012,Candidate M,PH,molding_support,,en,true,false,false,true,false,MISSING_CONTEXT,2026-05-09,2026-05-09
+candidate-014,550e8400-e29b-41d4-a716-446655440013,Candidate N,BD,food_processing,2026-06-30,bn,true,true,false,false,false,READY_CHECK,2026-05-09,2026-05-09
+candidate-015,550e8400-e29b-41d4-a716-446655440014,Candidate O,PK,packaging_support,2026-08-10,ur,false,false,false,true,true,MISSING_CONTEXT,2026-05-09,2026-05-09
+candidate-016,550e8400-e29b-41d4-a716-446655440015,Candidate P,KG,metal_processing,2026-07-25,ky,true,true,false,true,false,READY_CHECK,2026-05-09,2026-05-09
+candidate-017,550e8400-e29b-41d4-a716-446655440016,Candidate Q,VN,harvest_support,2026-06-12,vi,true,false,true,true,true,READY_CHECK,2026-05-09,2026-05-09
+candidate-018,550e8400-e29b-41d4-a716-446655440017,Candidate R,ID,aquaculture_support,2026-07-08,id,true,true,false,true,true,READY_CHECK,2026-05-09,2026-05-09
+candidate-019,550e8400-e29b-41d4-a716-446655440018,Candidate S,NP,warehouse_support,2026-08-15,ne,true,true,false,false,false,READY_CHECK,2026-05-09,2026-05-09
+candidate-020,550e8400-e29b-41d4-a716-446655440020,Candidate T,KH,ship_parts_assembly,2026-07-30,km,true,false,false,true,true,READY_CHECK,2026-05-09,2026-05-09

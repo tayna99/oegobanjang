@@ -1,0 +1,12 @@
+{
+  "workforce_metadata_coverage": {
+    "allowed_industry": 5,
+    "candidate_readiness_checklist": 8,
+    "candidate_readiness_template": 5,
+    "employer_requirement": 7,
+    "internal_template": 61,
+    "official_procedure": 46
+  },
+  "workforce_metadata_gap_count": 0,
+  "workforce_source_gaps": []
+}

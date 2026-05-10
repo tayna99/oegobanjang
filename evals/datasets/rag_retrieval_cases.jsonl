@@ -1,5 +1,20 @@
-{"id":"rag-001","input":"여권 사본 요청 메시지 템플릿 찾아줘","expected_source_ids":["message_template_passport_request_ko"],"answer_evidence_only":true}
-{"id":"rag-002","input":"체류기간 만료 안내 메시지 초안 근거 찾아줘","expected_source_ids":["message_template_visa_extension_notice_ko"],"answer_evidence_only":true}
-{"id":"rag-003","input":"안전교육 안내 메시지 템플릿 필요해","expected_source_ids":["message_template_safety_notice_ko"],"answer_evidence_only":true}
-{"id":"rag-004","input":"E-9 신규 채용 고용허가 절차 데모 문서 찾아줘","expected_source_ids":["seed_eps_procedure_demo_001"],"answer_evidence_only":false}
-{"id":"rag-005","input":"E-9 체류기간 연장 준비 데모 문서 찾아줘","expected_source_ids":["seed_visa_extension_demo_001"],"answer_evidence_only":false}
+{"id":"rag-001","input":"E-9 체류연장 절차 — 1단계: 신청 가능 기간 확인","expected_source_ids":["E9_STAY_EXT_STEP1"],"answer_evidence_only":true}
+{"id":"rag-002","input":"E-9 체류연장 절차 — 2단계: 고용허가기간 연장 신청 (사업주)","expected_source_ids":["E9_STAY_EXT_STEP2"],"answer_evidence_only":true}
+{"id":"rag-003","input":"E-9 체류연장 절차 — 3단계: 체류기간 연장 필요 서류 준비","expected_source_ids":["E9_STAY_EXT_STEP3"],"answer_evidence_only":true}
+{"id":"rag-004","input":"E-9 체류연장 절차 — 4단계: 출입국·외국인청 신청","expected_source_ids":["E9_STAY_EXT_STEP4"],"answer_evidence_only":true}
+{"id":"rag-005","input":"E-9 체류연장 — 주의사항 및 제한","expected_source_ids":["E9_STAY_EXT_NOTE"],"answer_evidence_only":true}
+{"id":"rag-006","input":"E-9 사업장변경 절차 — 1단계: 변경 사유 확인","expected_source_ids":["E9_WPC_STEP1"],"answer_evidence_only":true}
+{"id":"rag-007","input":"E-9 사업장변경 절차 — 2단계: 사업장변경 신청","expected_source_ids":["E9_WPC_STEP2"],"answer_evidence_only":true}
+{"id":"rag-008","input":"E-9 사업장변경 절차 — 3단계: 새 사업장 구직 및 계약 체결","expected_source_ids":["E9_WPC_STEP3"],"answer_evidence_only":true}
+{"id":"rag-009","input":"E-9 사업장변경 — 제한 및 주의사항","expected_source_ids":["E9_WPC_NOTE"],"answer_evidence_only":true}
+{"id":"rag-010","input":"고용허가서 — 개요 및 발급 절차","expected_source_ids":["FORM_EMP_PERMIT_OVERVIEW"],"answer_evidence_only":true}
+{"id":"rag-011","input":"고용허가서 — 기재 항목 및 유효 기간","expected_source_ids":["FORM_EMP_PERMIT_FIELDS"],"answer_evidence_only":true}
+{"id":"rag-012","input":"체류기간 연장허가신청서 (별지 제34호) — 기재 항목","expected_source_ids":["FORM_STAY_EXT_34_FIELDS"],"answer_evidence_only":true}
+{"id":"rag-013","input":"체류기간 연장허가 — 개요 및 신청 자격","expected_source_ids":["HIKOREA_STAY_EXT_OVERVIEW"],"answer_evidence_only":true}
+{"id":"rag-014","input":"체류기간 연장허가 — 공통 제출 서류","expected_source_ids":["HIKOREA_STAY_EXT_DOCS"],"answer_evidence_only":true}
+{"id":"rag-015","input":"체류기간 연장허가 — 처리 절차 및 소요 기간","expected_source_ids":["HIKOREA_STAY_EXT_PROCESS"],"answer_evidence_only":true}
+{"id":"rag-016","input":"외국인 근로자 표준근로계약서 — 필수 기재 항목 (국문)","expected_source_ids":["CONTRACT_STANDARD_FIELDS_KO"],"answer_evidence_only":true}
+{"id":"rag-017","input":"외국인 근로자 표준근로계약서 — 주의사항 및 법적 기준","expected_source_ids":["CONTRACT_STANDARD_CAUTION"],"answer_evidence_only":true}
+{"id":"rag-018","input":"외국인 근로자 표준근로계약서 — 베트남어 버전 주요 용어","expected_source_ids":["CONTRACT_MULTILANG_VI"],"answer_evidence_only":true}
+{"id":"rag-019","input":"외국인 근로자 표준근로계약서 — 인도네시아어 버전 주요 용어","expected_source_ids":["CONTRACT_MULTILANG_ID"],"answer_evidence_only":true}
+{"id":"rag-020","input":"H-2 방문취업 취업 절차 안내","expected_source_ids":["H2_EMP_PROCESS"],"answer_evidence_only":true}

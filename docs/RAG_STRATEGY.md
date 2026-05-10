@@ -111,7 +111,13 @@ data-pipeline/
   "country": ["ALL"],
   "industry": ["manufacturing"],
   "risk_level": "medium",
-  "evidence_grade": "B"
+  "evidence_grade": "B",
+  "source_unit_type": "procedure_step",
+  "domain_unit_id": "eps_employer_process_001::procedure_step::0001",
+  "unit_heading": "내국인 구인노력",
+  "unit_index": 1,
+  "splitter_version": "domain_splitters_v1",
+  "unit_confidence": "high"
 }
 ```
 
@@ -131,6 +137,20 @@ data-pipeline/
 ---
 
 ## 7. Chunking 전략
+
+### 구현 책임 분리
+
+도메인 의미 단위는 `chunking.py`가 추론하지 않는다.
+
+```txt
+raw domain splitter = 법령/절차/서식/안전/템플릿을 의미 단위 record로 분리
+chunking.py = 이미 정리된 JSONL의 14필드 metadata 검증, paragraph split, stable chunk_id 생성
+```
+
+따라서 “법령은 조문, 절차는 단계, 서식은 필드 단위”라는 기준은 raw 수집/정규화 단계의 계약이다.
+`chunking.py`는 이 경계를 다시 AI처럼 추론하지 않고, 입력 record의 schema와 citation 재현성을 안정화한다.
+
+인력확보 Agent는 후보 추천기가 아니라 신규 고용 준비상태 점검 Agent이므로, RAG는 `신규 고용 절차`, `내국인 구인노력`, `고용허가 신청`, `표준근로계약`, `사증발급인정서`, `취업교육`, `서식 항목`을 바로 인용 가능한 단위로 제공해야 한다.
 
 ### 법령
 
@@ -177,6 +197,47 @@ MVP에서는 다음 구조를 사용한다.
 2차 필터: visa_type, doc_type, mission_agent, country, industry
 3차 재정렬: MVP에서는 생략 가능
 ```
+
+### 인력확보 Agent Vector DB
+
+인력확보 Agent의 Vector DB는 후보자 검색용이 아니다.
+신규 채용 준비에 필요한 공식 절차와 내부 템플릿을 찾는 근거 저장소다.
+
+```txt
+workforce_official = EPS/고용24/HRDK/법령 기반 공식 절차와 허용업종 근거
+workforce_templates = 신규 인력 요청서, 후보 준비도 체크리스트, 송출회사/행정사 질문 템플릿
+case_examples = 합성/상담 사례 참고자료, 공식 근거나 template collection에 섞지 않음
+```
+
+`workforce_templates`에는 `evidence_grade=E` 내부 템플릿만 들어간다.
+`doc_type=case`, `source_unit_type=case_record`, `evidence_grade=D/F` 자료는 공식 판단 근거나 템플릿 검색 재료로 노출하지 않는다.
+
+운영 임베딩은 아래처럼 구분한다.
+
+```txt
+local/dev = deterministic embedding
+production = WORKFORCE_RAG_EMBEDDING_PROVIDER=openai + OPENAI_API_KEY + text-embedding-3-small
+```
+
+색인과 runtime query는 같은 embedding provider를 사용해야 한다. 서로 다른 provider로 색인/검색하면 벡터 차원이 맞지 않거나 검색 품질이 깨진다.
+
+### Runtime Retrieval Boundary
+
+인력확보 Agent의 제품 runtime 검색 경로는 `workforce_runtime_retriever` 하나로 고정한다. 이 경로는 Chroma collection인 `workforce_official`, `workforce_templates`만 조회한다.
+
+`PolicyRetriever`와 JSONL 기반 `workforce_jsonl_retrieval`은 eval, unit test, 로컬 debugging 전용이다. Chroma collection이 없거나 검색 결과가 0건이어도 runtime에서 JSONL로 조용히 fallback하지 않는다.
+
+검색 결과가 0건이면 `rag_retrieved` 이벤트에 `retrieved_count=0`, `jsonl_fallback_used=false`를 남기고, `MISSING_EVIDENCE` risk와 `risk_flagged` 이벤트를 생성한다. 이 상태는 “근거 없음”으로 보고 담당자/행정사 검토가 필요하다고 표시한다.
+
+검색 품질 검증 계획과 통과 기준은 `docs/WORKFORCE_RETRIEVAL_QUALITY_EVAL.md`에 고정한다.
+현재 canonical dataset은 `evals/datasets/workforce_retrieval_quality_cases.csv`이며, 결과는 `evals/reports/workforce_retrieval_quality_latest.csv`와 `.json`에 기록한다.
+
+### 고용24 본문 추출 경계
+
+고용24 일부 상세 URL은 서버 응답만으로 의미 있는 본문이 비어 있는 shell HTML을 반환할 수 있다.
+현재 MVP는 정확한 상세 URL을 manifest에 고정하고, 직접 fetch 본문이 비어 있을 때 `fallback_text`로 수동 검토된 curated source를 사용한다.
+
+브라우저 렌더링 기반 수집은 운영 crawler/importer hardening 단계에서 붙인다. 그 전까지는 “빈 본문을 그대로 chunk로 넣기”보다 “수동 curated fallback + source_fetch_method 기록”을 우선한다.
 
 ---
 
