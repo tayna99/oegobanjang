@@ -13,6 +13,8 @@ from app.agent_runtime.schemas.tool import (
 )
 from app.services.context_data_service import (
     calculate_candidate_readiness,
+    get_candidate_profile_data,
+    get_company_data,
     get_document_requirements_data,
     get_visa_status_data,
     get_worker_documents_data,
@@ -58,6 +60,74 @@ def get_worker_profile(worker_id: str) -> dict[str, Any]:
             "contract_starts_at": worker.get("contract_starts_at"),
             "contract_ends_at": worker.get("contract_ends_at"),
             "status": worker.get("status"),
+        },
+    ).model_dump()
+
+
+@tool
+def get_company_profile(company_id: str) -> dict[str, Any]:
+    """Read a company profile from the DB-backed context repository."""
+
+    company = get_company_data(company_id)
+    if company is None:
+        return ToolResult(
+            tool_name="get_company_profile",
+            tool_grade=ToolContractLevel.SAFE_READ,
+            status=ToolStatus.FAILED,
+            input_snapshot={"company_id": company_id},
+            error="사업장 정보를 찾을 수 없습니다.",
+        ).model_dump()
+    return ToolResult(
+        tool_name="get_company_profile",
+        tool_grade=ToolContractLevel.SAFE_READ,
+        status=ToolStatus.SUCCESS,
+        input_snapshot={"company_id": company_id},
+        output={
+            "id": company.get("id"),
+            "name": company.get("name"),
+            "industry": company.get("industry"),
+            "region": company.get("region"),
+            "current_foreign_workers": company.get("current_foreign_workers"),
+            "housing_available": company.get("housing_available"),
+            "shift_type": company.get("shift_type"),
+            "requested_role": company.get("requested_role"),
+            "preferred_start_date": company.get("preferred_start_date"),
+        },
+    ).model_dump()
+
+
+@tool
+def get_candidate_profile(candidate_id: str) -> dict[str, Any]:
+    """Read a candidate profile without scoring, ranking, or preference judgment."""
+
+    candidate = get_candidate_profile_data(candidate_id)
+    if candidate is None:
+        return ToolResult(
+            tool_name="get_candidate_profile",
+            tool_grade=ToolContractLevel.SAFE_READ,
+            status=ToolStatus.FAILED,
+            input_snapshot={"candidate_id": candidate_id},
+            error="후보자 정보를 찾을 수 없습니다.",
+        ).model_dump()
+    return ToolResult(
+        tool_name="get_candidate_profile",
+        tool_grade=ToolContractLevel.SAFE_READ,
+        status=ToolStatus.SUCCESS,
+        input_snapshot={"candidate_id": candidate_id},
+        output={
+            "id": candidate.get("id"),
+            "company_id": candidate.get("company_id"),
+            "nationality": candidate.get("nationality"),
+            "desired_role": candidate.get("desired_role"),
+            "available_from": candidate.get("available_from"),
+            "language": candidate.get("language"),
+            "passport": candidate.get("passport"),
+            "photo": candidate.get("photo"),
+            "health_check": candidate.get("health_check"),
+            "understood_housing": candidate.get("understood_housing"),
+            "understood_shift": candidate.get("understood_shift"),
+            "status": candidate.get("status"),
+            "policy": "후보자 정보는 제출 준비도와 추가 확인 항목에만 사용합니다.",
         },
     ).model_dump()
 

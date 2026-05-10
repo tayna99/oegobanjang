@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 
 from app.agent_runtime.schemas.tool import ToolContractLevel, ToolResult, ToolStatus
 from app.services.context_data_service import (
+    calculate_candidate_readiness as calculate_candidate_readiness_rows,
     calculate_missing_documents_for_worker,
     get_worker_profile_data,
 )
@@ -108,6 +109,42 @@ def calculate_missing_documents(worker_id: str, case_type: str) -> dict[str, Any
         input_snapshot={"worker_id": worker_id, "case_type": case_type},
         output=result,
         risk_flags=risk_flags,
+    ).model_dump()
+
+
+@tool
+def calculate_candidate_readiness(
+    candidate_id: str | None = None,
+    company_id: str | None = None,
+    requested_role: str | None = None,
+) -> dict[str, Any]:
+    """Calculate candidate requirement readiness without scoring or ranking."""
+
+    rows = calculate_candidate_readiness_rows(
+        candidate_id=candidate_id,
+        company_id=company_id,
+        requested_role=requested_role,
+    )
+    missing_count = sum(
+        1 for row in rows if not bool(row.get("requirements_satisfied"))
+    )
+    return ToolResult(
+        tool_name="calculate_candidate_readiness",
+        tool_grade=ToolContractLevel.SAFE_CALCULATE,
+        status=ToolStatus.SUCCESS,
+        input_snapshot={
+            "candidate_id": candidate_id,
+            "company_id": company_id,
+            "requested_role": requested_role,
+        },
+        output={
+            "candidate_readiness_table": rows,
+            "total": len(rows),
+            "ready_count": len(rows) - missing_count,
+            "needs_more_info_count": missing_count,
+            "policy": "결과는 제출 준비도와 추가 확인 항목만 표시합니다.",
+        },
+        risk_flags=["CANDIDATE_INFO_MISSING"] if missing_count else [],
     ).model_dump()
 
 

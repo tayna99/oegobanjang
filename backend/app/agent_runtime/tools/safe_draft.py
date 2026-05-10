@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 from app.agent_runtime.schemas.tool import ToolContractLevel, ToolResult, ToolStatus
 from app.services.context_data_service import (
     calculate_missing_documents_for_worker,
+    get_company_data,
     get_message_template,
     get_worker_documents_data,
     get_worker_profile_data,
@@ -22,6 +23,44 @@ SUPPORTED_LANGUAGES = {
     "id": "인도네시아어",
 }
 
+WORKFORCE_CHECKS = [
+    {
+        "check_id": "industry_role_check",
+        "label": "업종과 요청 직무 확인",
+        "status": "needs_review",
+        "source_id": "workforce_company_requirements",
+        "evidence_grade": "E",
+    },
+    {
+        "check_id": "local_recruitment_effort",
+        "label": "내국인 구인노력 진행 여부 확인",
+        "status": "needs_input",
+        "source_id": "eps_employer_process",
+        "evidence_grade": "B",
+    },
+    {
+        "check_id": "employment_permit_application",
+        "label": "고용허가 신청 전 구비서류 확인",
+        "status": "needs_review",
+        "source_id": "work24_employment_permit_application",
+        "evidence_grade": "B",
+    },
+    {
+        "check_id": "standard_contract_preparation",
+        "label": "표준근로계약서 준비 여부 확인",
+        "status": "needs_input",
+        "source_id": "eps_employer_process",
+        "evidence_grade": "B",
+    },
+    {
+        "check_id": "housing_shift_notice",
+        "label": "숙소와 근무조건 사전 안내 준비",
+        "status": "needs_input",
+        "source_id": "workforce_company_requirements",
+        "evidence_grade": "E",
+    },
+]
+
 
 def _masked_worker_id(worker_id: str | None) -> str:
     return "worker_***" if worker_id else "worker_***"
@@ -33,6 +72,110 @@ def _approval_object(reason: str = "외부 전달 전 담당자 승인이 필요
         "status": "PENDING",
         "reason": reason,
     }
+
+
+def build_hiring_request_draft_payload(
+    *,
+    company_id: str,
+    needed_headcount: int | None = None,
+    preferred_language: str | None = None,
+    requested_role: str | None = None,
+    desired_start_date: str | None = None,
+    user_request: str = "",
+) -> dict[str, Any]:
+    company = get_company_data(company_id)
+    if company is None:
+        return {
+            "status": "FAILED",
+            "input_snapshot": {"company_id": company_id},
+            "error": "사업장 정보를 찾을 수 없습니다.",
+            "risk_flags": ["COMPANY_CONTEXT_MISSING"],
+        }
+
+    request = {
+        "company_id": company.get("id"),
+        "company_name": company.get("name"),
+        "industry": company.get("industry"),
+        "region": company.get("region"),
+        "visa_type": "E-9",
+        "needed_headcount": needed_headcount,
+        "preferred_language": preferred_language,
+        "requested_role": requested_role or company.get("requested_role"),
+        "housing_provided": _boolish(company.get("housing_available")),
+        "shift_type": company.get("shift_type"),
+        "current_foreign_workers": _int_or_none(company.get("current_foreign_workers")),
+        "desired_start_date": desired_start_date or company.get("preferred_start_date"),
+    }
+    missing_fields = [
+        field
+        for field in (
+            "industry",
+            "region",
+            "needed_headcount",
+            "requested_role",
+            "shift_type",
+            "desired_start_date",
+        )
+        if request.get(field) in (None, "")
+    ]
+    handoff_questions = [
+        "위 사업장 조건으로 후보군 확인이 가능한가요?",
+        "후보별 여권, 증명사진, 건강검진 준비 상태는 어떻게 되나요?",
+        "후보별 근무 가능 시점은 언제인가요?",
+        "숙소 제공 및 근무조건을 사전 안내했나요?",
+        "고용허가 신청 전 추가로 확인해야 할 서류가 있나요?",
+    ]
+    risk_flags = []
+    if missing_fields:
+        risk_flags.append("MISSING_WORKFORCE_REQUEST_INPUT")
+    return {
+        "status": "SUCCESS",
+        "hiring_request_draft": request,
+        "institutional_checklist": WORKFORCE_CHECKS,
+        "handoff_questions": handoff_questions,
+        "missing_inputs": missing_fields,
+        "approval_required": True,
+        "approval": _approval_object(
+            "신규 인력 요청서 또는 외부 확인 질문 전달 전 담당자 승인이 필요합니다."
+        ),
+        "risk_flags": risk_flags,
+        "citations": [
+            {
+                "source_id": "eps_employer_process",
+                "title": "EPS 사업주 고용절차",
+                "evidence_grade": "B",
+                "used_for": "institutional_checklist",
+            },
+            {
+                "source_id": "workforce_request_template",
+                "title": "신규 인력 요청서 템플릿",
+                "evidence_grade": "E",
+                "used_for": "hiring_request_draft",
+            },
+        ],
+        "note": (
+            "이 초안은 현재 사업장 상태와 내부 템플릿으로 만든 검토용 초안이며 "
+            "고용 가능 여부를 확정하지 않습니다."
+        ),
+        "user_request": user_request,
+    }
+
+
+def _boolish(value: Any) -> bool | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"true", "1", "yes", "y", "있음", "완료"}
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _base_handoff_package(
@@ -164,6 +307,44 @@ def generate_multilingual_message_draft(
             "approval_required": True,
             "note": "이 초안은 담당자 검토와 발송 승인이 필요합니다.",
         },
+    ).model_dump()
+
+
+@tool
+def generate_hiring_request_draft(
+    company_id: str,
+    needed_headcount: int | None = None,
+    preferred_language: str | None = None,
+    requested_role: str | None = None,
+    desired_start_date: str | None = None,
+    user_request: str = "",
+) -> dict[str, Any]:
+    """Generate a workforce request draft. External delivery requires approval."""
+
+    payload = build_hiring_request_draft_payload(
+        company_id=company_id,
+        needed_headcount=needed_headcount,
+        preferred_language=preferred_language,
+        requested_role=requested_role,
+        desired_start_date=desired_start_date,
+        user_request=user_request,
+    )
+    status = ToolStatus.SUCCESS if payload.get("status") == "SUCCESS" else ToolStatus.FAILED
+    return ToolResult(
+        tool_name="generate_hiring_request_draft",
+        tool_grade=ToolContractLevel.SAFE_DRAFT,
+        status=status,
+        input_snapshot={
+            "company_id": company_id,
+            "needed_headcount": needed_headcount,
+            "preferred_language": preferred_language,
+            "requested_role": requested_role,
+            "desired_start_date": desired_start_date,
+        },
+        output=payload if status == ToolStatus.SUCCESS else None,
+        risk_flags=payload.get("risk_flags", []),
+        approval_required=bool(payload.get("approval_required", False)),
+        error=payload.get("error"),
     ).model_dump()
 
 

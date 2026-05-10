@@ -111,6 +111,32 @@ def get_company_data(company_id: str, *, db: Session | None = None) -> dict[str,
     return next((row for row in _seed_rows("companies.csv") if row.get("id") == company_id), None)
 
 
+def get_candidate_profile_data(candidate_id: str, *, db: Session | None = None) -> dict[str, Any] | None:
+    fields = [
+        "id",
+        "company_id",
+        "nationality",
+        "desired_role",
+        "available_from",
+        "language",
+        "passport",
+        "photo",
+        "health_check",
+        "understood_housing",
+        "understood_shift",
+        "status",
+    ]
+    with _session_scope(db) as session:
+        try:
+            candidate = session.get(Candidate, candidate_id)
+            if candidate is not None:
+                return _model_dict(candidate, fields)
+        except SQLAlchemyError:
+            pass
+
+    return next((row for row in _seed_rows("candidates.csv") if row.get("id") == candidate_id), None)
+
+
 def get_worker_profile_data(worker_id: str, *, db: Session | None = None) -> dict[str, Any] | None:
     fields = [
         "id",
@@ -290,25 +316,31 @@ def calculate_candidate_readiness(
         except SQLAlchemyError:
             candidates = []
 
+    if not candidates:
+        candidates = [
+            row
+            for row in _seed_rows("candidates.csv")
+            if (not candidate_id or row.get("id") == candidate_id)
+            and (not company_id or row.get("company_id") == company_id)
+        ]
+
     return [_candidate_readiness(row, requested_role=requested_role) for row in candidates]
 
 
 def _candidate_readiness(row: dict[str, Any], *, requested_role: str | None) -> dict[str, Any]:
-    checks = {
-        "passport": _bool(row.get("passport")),
-        "photo": _bool(row.get("photo")),
-        "health_check": _bool(row.get("health_check")),
-        "available_from": bool(row.get("available_from")),
-        "desired_role": bool(row.get("desired_role")),
-        "understood_housing": _bool(row.get("understood_housing")),
-        "understood_shift": _bool(row.get("understood_shift")),
-    }
-    if requested_role:
-        checks["desired_role_match"] = str(row.get("desired_role") or "") == requested_role
-
-    ready_items = [key for key, ready in checks.items() if ready]
-    missing = [key for key, ready in checks.items() if not ready]
-    readiness_status = "ready" if not missing else "missing_required_info"
+    requirements = _candidate_requirement_results(row, requested_role=requested_role)
+    ready_items = [
+        key for key, result in requirements.items() if result["satisfied"]
+    ]
+    missing = [
+        key for key, result in requirements.items() if not result["satisfied"]
+    ]
+    required_missing = [
+        key
+        for key, result in requirements.items()
+        if result["required"] and not result["satisfied"]
+    ]
+    readiness_status = "ready" if not required_missing else "missing_required_info"
     return {
         "candidate_id": row.get("id"),
         "company_id": row.get("company_id"),
@@ -319,8 +351,52 @@ def _candidate_readiness(row: dict[str, Any], *, requested_role: str | None) -> 
         "readiness_status": readiness_status,
         "ready_items": ready_items,
         "missing_or_unconfirmed_items": missing,
+        "required_missing_items": required_missing,
+        "requirements": requirements,
+        "requirements_satisfied": not required_missing,
         "safe_description": _safe_candidate_description(row, missing),
     }
+
+
+def _candidate_requirement_results(
+    row: dict[str, Any],
+    *,
+    requested_role: str | None,
+) -> dict[str, dict[str, Any]]:
+    checklist = _candidate_checklist()
+    checks = {
+        "passport": _bool(row.get("passport")),
+        "photo": _bool(row.get("photo")),
+        "health_check": _bool(row.get("health_check")),
+        "available_from": bool(row.get("available_from")),
+        "desired_role_match": (
+            bool(row.get("desired_role"))
+            if not requested_role
+            else str(row.get("desired_role") or "") == requested_role
+        ),
+        "understood_housing": _bool(row.get("understood_housing")),
+        "understood_shift": _bool(row.get("understood_shift")),
+    }
+    output: dict[str, dict[str, Any]] = {}
+    for field, satisfied in checks.items():
+        spec = checklist.get(field, {})
+        output[field] = {
+            "label": spec.get("notes") or READY_CANDIDATE_FIELDS.get(field, field),
+            "required": _bool(spec.get("required", True)),
+            "satisfied": bool(satisfied),
+            "source_id": spec.get("source_id", "internal_candidate_readiness_template"),
+            "check_method": spec.get("check_method", "boolean"),
+        }
+    return output
+
+
+def _candidate_checklist() -> dict[str, dict[str, str]]:
+    rows = [
+        row
+        for row in _seed_rows("candidate_readiness_checklist.csv")
+        if row.get("case_type") == "candidate_review"
+    ]
+    return {row.get("field", ""): row for row in rows}
 
 
 def _safe_candidate_description(row: dict[str, Any], missing: list[str]) -> str:

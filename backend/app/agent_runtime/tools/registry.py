@@ -1,7 +1,9 @@
 from langchain_core.tools import BaseTool
 from app.agent_runtime.schemas.tool import ToolContractLevel
 from .safe_read import (
+    get_candidate_profile,
     get_candidate_readiness,
+    get_company_profile,
     get_worker_profile,
     get_visa_status,
     get_document_status,
@@ -9,11 +11,13 @@ from .safe_read import (
     get_document_requirements,
 )
 from .safe_calculate import (
+    calculate_candidate_readiness,
     calculate_visa_d_day,
     calculate_missing_documents,
     calculate_contract_gap,
 )
 from .safe_draft import (
+    generate_hiring_request_draft,
     generate_multilingual_message_draft,
     generate_expert_handoff_package_draft,
 )
@@ -24,9 +28,11 @@ from .approval_required import (
 )
 
 SAFE_READ_TOOLS: list[BaseTool] = [
+    get_company_profile,
     get_worker_profile,
     get_visa_status,
     get_document_status,
+    get_candidate_profile,
     get_candidate_readiness,
     search_policy_documents,
     get_document_requirements,
@@ -36,9 +42,11 @@ SAFE_CALCULATE_TOOLS: list[BaseTool] = [
     calculate_visa_d_day,
     calculate_missing_documents,
     calculate_contract_gap,
+    calculate_candidate_readiness,
 ]
 
 SAFE_DRAFT_TOOLS: list[BaseTool] = [
+    generate_hiring_request_draft,
     generate_multilingual_message_draft,
     generate_expert_handoff_package_draft,
 ]

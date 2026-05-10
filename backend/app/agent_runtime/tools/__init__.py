@@ -1,5 +1,7 @@
 from .safe_read import (
+    get_candidate_profile,
     get_candidate_readiness,
+    get_company_profile,
     get_worker_profile,
     get_visa_status,
     get_document_status,
@@ -7,11 +9,13 @@ from .safe_read import (
     get_document_requirements,
 )
 from .safe_calculate import (
+    calculate_candidate_readiness,
     calculate_visa_d_day,
     calculate_missing_documents,
     calculate_contract_gap,
 )
 from .safe_draft import (
+    generate_hiring_request_draft,
     generate_multilingual_message_draft,
     generate_expert_handoff_package_draft,
 )
@@ -31,11 +35,12 @@ from .registry import (
 )
 
 __all__ = [
-    "get_worker_profile", "get_visa_status", "get_document_status",
-    "get_candidate_readiness",
+    "get_company_profile", "get_worker_profile", "get_visa_status", "get_document_status",
+    "get_candidate_profile", "get_candidate_readiness",
     "search_policy_documents", "get_document_requirements",
     "calculate_visa_d_day", "calculate_missing_documents", "calculate_contract_gap",
-    "generate_multilingual_message_draft", "generate_expert_handoff_package_draft",
+    "calculate_candidate_readiness",
+    "generate_hiring_request_draft", "generate_multilingual_message_draft", "generate_expert_handoff_package_draft",
     "send_worker_message", "send_expert_package", "update_case_status_completed",
     "SAFE_READ_TOOLS", "SAFE_CALCULATE_TOOLS", "SAFE_DRAFT_TOOLS",
     "APPROVAL_REQUIRED_TOOLS", "TOOL_REGISTRY",
