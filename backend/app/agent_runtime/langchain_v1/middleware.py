@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import ast
 import json
 import re
 import time
@@ -58,6 +59,11 @@ FORBIDDEN_INPUT_TERMS = FORBIDDEN_TERMS + (
     "비자 발급 가능",
     "가능 여부 확정",
 )
+from .contact_subagents import CONTACT_ONBOARDING_SUB_AGENT
+from .contact_subagents import WORKER_REPLY_INTERPRETER_SUB_AGENT
+
+DISALLOWED_RAG_EVIDENCE_GRADES = {"D", "F"}
+DISALLOWED_RAG_DOC_TYPES = {"case", "case_record"}
 
 PII_PATTERNS = (
     ("passport_or_registration", re.compile(r"(?<![A-Za-z0-9])[A-Z]{1,2}[0-9]{7,9}(?![A-Za-z0-9])")),
@@ -167,13 +173,30 @@ def _context_from_runtime(runtime: Any) -> RuntimeContext | None:
 
 
 def _json_payload(content: Any) -> Any:
-    if isinstance(content, (dict, list)):
+    if isinstance(content, dict):
+        if "text" in content and set(content).issubset({"type", "text"}):
+            parsed = _json_payload(content.get("text"))
+            if parsed is not None:
+                return parsed
+        if "content" in content and set(content).issubset({"type", "content"}):
+            parsed = _json_payload(content.get("content"))
+            if parsed is not None:
+                return parsed
+        return content
+    if isinstance(content, list):
+        for item in content:
+            payload = _json_payload(item)
+            if payload is not None:
+                return payload
         return content
     if isinstance(content, str):
         try:
             return json.loads(content)
         except json.JSONDecodeError:
-            return None
+            try:
+                return ast.literal_eval(content)
+            except (ValueError, SyntaxError):
+                return None
     return None
 
 
@@ -263,6 +286,8 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
         result = await handler(request)
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
         payload = _json_payload(getattr(result, "content", None))
+        if payload is None:
+            payload = _json_payload(getattr(result, "artifact", None))
 
         if context is not None:
             context.evidence_events.append(
@@ -277,6 +302,12 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
 
             if tool_name == "retrieve_workforce_materials" and isinstance(payload, dict):
                 records = payload.get("records") or []
+                context.rag_contexts = _dedupe_rag_contexts(
+                    [
+                        *context.rag_contexts,
+                        *_safe_rag_contexts_from_records(records),
+                    ]
+                )
                 context.evidence_events.append(
                     _event(
                         event_type=EventType.RAG_RETRIEVED,
@@ -292,6 +323,14 @@ class EvidenceCaptureMiddleware(AgentMiddleware):
                         },
                     )
                 )
+            if tool_name == "run_contact_onboarding" and isinstance(payload, dict):
+                artifact = _contact_onboarding_artifact(payload)
+                if artifact:
+                    context.contact_artifacts[CONTACT_ONBOARDING_SUB_AGENT] = artifact
+            if tool_name == "run_worker_reply_interpreter" and isinstance(payload, dict):
+                artifact = _worker_reply_interpreter_artifact(payload)
+                if artifact:
+                    context.contact_artifacts[WORKER_REPLY_INTERPRETER_SUB_AGENT] = artifact
 
             if isinstance(payload, dict) and (
                 payload.get("status") == "NEEDS_APPROVAL" or payload.get("approval_required")
@@ -342,6 +381,123 @@ def _extract_token_usage(messages: list[Any]) -> dict[str, Any]:
         ):
             return response_metadata["token_usage"]
     return {}
+
+
+def _safe_rag_contexts_from_records(records: Any) -> list[dict[str, Any]]:
+    if not isinstance(records, list):
+        return []
+    safe_records: list[dict[str, Any]] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        metadata = record.get("metadata") if isinstance(record.get("metadata"), dict) else {}
+        doc_type = str(record.get("doc_type") or metadata.get("doc_type") or "")
+        evidence_grade = str(
+            record.get("evidence_grade") or metadata.get("evidence_grade") or ""
+        )
+        if (
+            evidence_grade in DISALLOWED_RAG_EVIDENCE_GRADES
+            or doc_type in DISALLOWED_RAG_DOC_TYPES
+        ):
+            continue
+        safe_records.append(
+            {
+                "source_id": _safe_optional_text(
+                    record.get("source_id") or metadata.get("source_id")
+                ),
+                "title": _safe_optional_text(record.get("title") or metadata.get("title")),
+                "doc_type": _safe_optional_text(doc_type),
+                "evidence_grade": _safe_optional_text(evidence_grade),
+                "collection": _safe_optional_text(record.get("collection")),
+                "chunk_id": _safe_optional_text(record.get("chunk_id")),
+                "distance": _safe_distance(record.get("distance")),
+                "case_type": _safe_optional_text(metadata.get("case_type")),
+                "visa_type": _safe_optional_text(metadata.get("visa_type")),
+            }
+        )
+    return _dedupe_rag_contexts(safe_records)
+
+
+def _dedupe_rag_contexts(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for record in records:
+        key = (str(record.get("source_id") or ""), str(record.get("chunk_id") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(record)
+    return deduped
+
+
+def _safe_optional_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return redact_pii(str(value))
+
+
+def _safe_distance(value: Any) -> float | None:
+    if value is None:
+        return None
+
+
+def _contact_onboarding_artifact(payload: dict[str, Any]) -> dict[str, Any]:
+    if str(payload.get("status") or "").upper() != "SUCCESS":
+        return {}
+    if str(payload.get("approval_required")).lower() in {"false", "0", "none"}:
+        return {}
+    if str(payload.get("sent") or "").lower() in {"true", "sent", "1"}:
+        return {}
+    return {
+        "status": "SUCCESS",
+        "worker_id": payload.get("worker_id"),
+        "message_purpose": payload.get("message_purpose"),
+        "language_code": payload.get("language_code"),
+        "korean_text": payload.get("korean_text"),
+        "translated_text": payload.get("translated_text"),
+        "approval_required": True,
+        "sent": False,
+        "sent_at": None,
+        "citations": payload.get("citations") or [],
+        "risk_flags": payload.get("risk_flags") or [],
+        "evidence_events": payload.get("evidence_events") or [],
+    }
+
+
+def _worker_reply_interpreter_artifact(payload: dict[str, Any]) -> dict[str, Any]:
+    if str(payload.get("status") or "").upper() != "SUCCESS":
+        return {}
+    if str(payload.get("approval_required")).lower() in {"false", "0", "none"}:
+        return {}
+    if str(payload.get("manager_review_required")).lower() in {"false", "0", "none"}:
+        return {}
+    if str(payload.get("status_applied") or "").lower() in {"true", "applied", "1"}:
+        return {}
+    candidates = [
+        {**candidate, "is_final": False}
+        for candidate in payload.get("status_update_candidates", [])
+        if isinstance(candidate, dict)
+    ]
+    if not candidates:
+        return {}
+    return {
+        "status": "SUCCESS",
+        "worker_id": payload.get("worker_id"),
+        "language_code": payload.get("language_code"),
+        "translated_ko": payload.get("translated_ko"),
+        "summary_ko": payload.get("summary_ko"),
+        "translation_provider": payload.get("translation_provider"),
+        "status_update_candidates": candidates,
+        "approval_required": True,
+        "manager_review_required": True,
+        "status_applied": False,
+        "risk_flags": payload.get("risk_flags") or [],
+        "evidence_events": payload.get("evidence_events") or [],
+    }
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def build_langchain_v1_middleware() -> Sequence[Any]:

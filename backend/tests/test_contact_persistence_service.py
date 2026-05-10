@@ -17,9 +17,14 @@ from backend.app.models.approval import Approval
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate
 from backend.app.models.evidence import EvidenceLog
 from backend.app.services.contact_persistence_service import (
+    SOURCE_MESSAGE_COMPANY_MISMATCH,
+    SOURCE_MESSAGE_NOT_FOUND,
+    SOURCE_MESSAGE_WORKER_MISMATCH,
+    SourceMessageValidationError,
     approve_approval,
     reject_approval,
     resolve_approval_target_company_id,
+    resolve_source_message_for_status_update,
     save_evidence_events,
     save_message_draft_result,
     save_worker_reply_summary_result,
@@ -205,6 +210,100 @@ def test_save_worker_reply_summary_creates_candidate_level_approvals() -> None:
         assert approval.target_id == candidate.id
         assert approval.status == "PENDING"
         assert resolve_approval_target_company_id(db, approval) == "company-demo-001"
+
+
+def test_save_worker_reply_summary_links_valid_source_message_id() -> None:
+    db = _session()
+    message = save_message_draft_result(
+        db,
+        agent_result=_message_result(),
+        worker_id="worker-demo-001",
+        company_id="company-demo-001",
+    )
+
+    candidates = save_worker_reply_summary_result(
+        db,
+        agent_result=_worker_reply_result(),
+        worker_id="worker-demo-001",
+        company_id="company-demo-001",
+        source_message_id=message.id,
+    )
+    db.commit()
+
+    assert candidates
+    assert all(candidate.source_message_id == message.id for candidate in candidates)
+
+
+def test_resolve_source_message_for_status_update_allows_unsent_message() -> None:
+    db = _session()
+    message = save_message_draft_result(
+        db,
+        agent_result=_message_result(),
+        worker_id="worker-demo-001",
+        company_id="company-demo-001",
+    )
+    db.commit()
+
+    resolved = resolve_source_message_for_status_update(
+        db,
+        source_message_id=message.id,
+        company_id="company-demo-001",
+        worker_id="worker-demo-001",
+    )
+
+    assert resolved.id == message.id
+    assert resolved.sent_at is None
+
+
+@pytest.mark.parametrize(
+    ("source_message_id", "company_id", "worker_id", "expected_reason"),
+    [
+        (
+            "missing-message",
+            "company-demo-001",
+            "worker-demo-001",
+            SOURCE_MESSAGE_NOT_FOUND,
+        ),
+        (
+            "valid-message",
+            "other-company",
+            "worker-demo-001",
+            SOURCE_MESSAGE_COMPANY_MISMATCH,
+        ),
+        (
+            "valid-message",
+            "company-demo-001",
+            "other-worker",
+            SOURCE_MESSAGE_WORKER_MISMATCH,
+        ),
+    ],
+)
+def test_resolve_source_message_for_status_update_rejects_invalid_scope(
+    source_message_id: str,
+    company_id: str,
+    worker_id: str,
+    expected_reason: str,
+) -> None:
+    db = _session()
+    message = save_message_draft_result(
+        db,
+        agent_result=_message_result(),
+        worker_id="worker-demo-001",
+        company_id="company-demo-001",
+    )
+    db.commit()
+    if source_message_id == "valid-message":
+        source_message_id = message.id
+
+    with pytest.raises(SourceMessageValidationError) as exc_info:
+        resolve_source_message_for_status_update(
+            db,
+            source_message_id=source_message_id,
+            company_id=company_id,
+            worker_id=worker_id,
+        )
+
+    assert exc_info.value.reason == expected_reason
 
 
 def test_worker_reply_evidence_logs_do_not_store_raw_reply_or_finalize_status() -> None:

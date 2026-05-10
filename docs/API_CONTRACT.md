@@ -896,6 +896,7 @@ language_code=id 유지
 ## 6. 승인 API
 
 ```txt
+GET /api/v1/approvals
 GET /api/v1/approvals/{approval_id}
 POST /api/v1/approvals/{approval_id}/approve
 POST /api/v1/approvals/{approval_id}/reject
@@ -905,6 +906,54 @@ POST /api/v1/approvals/{approval_id}/reject
 
 공용 approval API는 MVP/demo 단계에서 `X-Company-Id` header를 필수로 사용한다.
 운영 전에는 인증 토큰 기반 company membership/role 검증으로 교체해야 한다.
+
+```http
+GET /api/v1/approvals?status=PENDING&target_type=contact_message&limit=20&offset=0
+X-Company-Id: company-demo-001
+```
+
+목록 조회 query:
+
+| query | default | allowed |
+|---|---|---|
+| `status` | `PENDING` | `PENDING`, `APPROVED`, `REJECTED` |
+| `target_type` | 없음 | `contact_message`, `status_update_candidate`, `handoff_package_draft` |
+| `limit` | `20` | 최대 `100`으로 clamp |
+| `offset` | `0` | 음수면 `0`으로 보정 |
+
+목록 조회 응답:
+
+```json
+{
+  "items": [
+    {
+      "approval_id": "approval-id-string",
+      "target_type": "contact_message",
+      "target_id": "target-id-string",
+      "approval_status": "PENDING",
+      "target_status": "PENDING_APPROVAL",
+      "summary": "다국어 메시지 초안 승인 대기",
+      "created_at": "2026-05-08T12:00:00+00:00",
+      "reviewed_at": null,
+      "target": {
+        "message_purpose": "passport_request",
+        "language_code": "vi",
+        "status": "PENDING_APPROVAL",
+        "approval_status": "PENDING",
+        "created_at": "2026-05-08T12:00:00+00:00"
+      }
+    }
+  ],
+  "total": 1,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+목록 조회는 승인 대기함 화면을 위한 safe summary API다.
+`status`를 생략하면 `PENDING`만 반환한다.
+`approvals` 자체에는 `company_id`가 없으므로 target resolver로 company scope를 확인하고, 다른 회사 approval은 목록에 포함하지 않는다.
+목록 응답에는 메시지 본문, worker reply 원문, `translated_ko` 전문, `package_json` 전문, `worker_id` 원문, PII 원문을 포함하지 않는다.
 
 ```http
 GET /api/v1/approvals/{approval_id}

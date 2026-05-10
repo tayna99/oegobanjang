@@ -116,9 +116,24 @@ CANCELLED (planned/documented)
 backend/app/services/approval_service.py
 backend/app/services/contact_persistence_service.py
 backend/app/services/handoff_persistence_service.py
+GET /api/v1/approvals
 backend/app/api/v1/approvals.py
 backend/app/api/v1/handoff.py
 ```
+
+목록 조회:
+
+```txt
+GET /api/v1/approvals
+X-Company-Id: required
+default status: PENDING
+supported status: PENDING, APPROVED, REJECTED
+supported list target_type: contact_message, status_update_candidate, handoff_package_draft
+```
+
+`approvals`에는 `company_id`가 없으므로 목록 조회도 target resolver로 company scope를 확인한다.
+응답은 승인 대기함 목적의 safe summary만 포함한다.
+`contact_messages.korean_text`, `contact_messages.translated_text`, `status_update_candidates.worker_id`, `handoff_package_drafts.package_json`, worker_id 원문, PII 원문은 목록 응답에 포함하지 않는다.
 
 민감정보 저장 정책:
 

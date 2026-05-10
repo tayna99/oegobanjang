@@ -13,11 +13,14 @@ from app.agent_runtime.schemas import (
 
 from .agent_factory import create_workbridge_agent
 from .checkpointing import get_async_langchain_checkpointer, runtime_checkpoint_config
+from .contact_artifact_store import save_contact_artifacts
+from .contact_subagents import normalize_contact_subagents_payload
 from .events import event_to_reference, make_event
 from .middleware import (
     SafetyValidationError,
     build_blocked_response,
     redact_pii,
+    _safe_rag_contexts_from_records,
     validate_response_safety,
 )
 from .schemas import (
@@ -30,7 +33,7 @@ from .schemas import (
     WorkBridgeAgentResponse,
 )
 from .state_store import runtime_state_store
-from .tools import RuntimePreflightError
+from .tools import RuntimePreflightError, retrieve_workforce_materials
 
 
 def normalize_runtime_input(
@@ -99,6 +102,13 @@ async def run_langchain_v1_agent(
             )
         else:
             response = _extract_structured_response(result)
+            response.domain_payload = normalize_contact_subagents_payload(
+                response.domain_payload
+            )
+            if not response.rag_contexts and context.rag_contexts:
+                response.rag_contexts = context.rag_contexts
+            if not response.rag_contexts:
+                response.rag_contexts = _retrieve_safe_rag_contexts(runtime_input, response)
             validate_response_safety(response)
     except (RuntimePreflightError, SafetyValidationError, ValueError) as exc:
         response = _blocked_response(runtime_input, str(exc))
@@ -173,10 +183,13 @@ async def run_langchain_v1_agent(
         *response.evidence_events,
         *[EvidenceReference.model_validate(event_to_reference(event)) for event in events],
     ]
+    if context.contact_artifacts:
+        save_contact_artifacts(runtime_input.request_id, context.contact_artifacts)
 
     state = LangChainRuntimeState(
         request_id=runtime_input.request_id,
-        input=runtime_input,
+        input=_snapshot_safe_runtime_input(runtime_input),
+        raw_input_payload=dict(runtime_input.input_payload),
         structured_response=response,
         evidence_events=[event.model_dump() for event in events],
         approval=response.approval,
@@ -194,9 +207,18 @@ async def run_langchain_v1_agent(
     return state
 
 
+def _snapshot_safe_runtime_input(runtime_input: AgentRuntimeInput) -> AgentRuntimeInput:
+    payload = dict(runtime_input.input_payload)
+    for key in ("worker_reply", "translated_ko", "korean_text", "translated_text", "message_body"):
+        if key in payload:
+            payload[key] = "[REDACTED]"
+    return runtime_input.model_copy(update={"input_payload": payload})
+
+
 def to_foreign_hiring_state(runtime_state: LangChainRuntimeState) -> ForeignHiringState:
     response = runtime_state.structured_response
     runtime_input = runtime_state.input
+    raw_payload = runtime_state.raw_input_payload or runtime_input.input_payload
     intents = []
     for value in response.detected_intents:
         try:
@@ -213,9 +235,9 @@ def to_foreign_hiring_state(runtime_state: LangChainRuntimeState) -> ForeignHiri
 
     return ForeignHiringState(
         request_id=runtime_state.request_id,
-        user_id=runtime_input.user_id,
-        company_id=runtime_input.company_id,
-        worker_id=runtime_input.worker_id,
+        user_id=runtime_state.input.user_id,
+        company_id=runtime_state.input.company_id,
+        worker_id=runtime_state.input.worker_id,
         candidate_id=runtime_input.candidate_id,
         user_message=runtime_input.user_message,
         detected_intents=intents,
@@ -229,7 +251,7 @@ def to_foreign_hiring_state(runtime_state: LangChainRuntimeState) -> ForeignHiri
         rag_contexts=response.rag_contexts,
         company_context={"id": runtime_input.company_id} if runtime_input.company_id else {},
         worker_context=(
-            {"id": runtime_input.worker_id, "visa_type": "E-9"}
+            {"id": runtime_input.worker_id, "visa_type": str(raw_payload.get("visa_type") or "E-9")}
             if runtime_input.worker_id
             else {}
         ),
@@ -397,20 +419,163 @@ def _event_from_context(request_id: str, raw: dict[str, Any]) -> Any | None:
         return None
 
 
+def _retrieve_safe_rag_contexts(
+    runtime_input: AgentRuntimeInput,
+    response: WorkBridgeAgentResponse,
+) -> list[dict[str, Any]]:
+    if not _should_backfill_rag_contexts(response):
+        return []
+    visa_type = str(runtime_input.input_payload.get("visa_type") or "E-9")
+    for case_type in _rag_case_types(runtime_input, response):
+        try:
+            payload = retrieve_workforce_materials.invoke(
+                {
+                    "query": runtime_input.user_message,
+                    "case_type": case_type,
+                    "visa_type": visa_type,
+                    "top_k": 5,
+                }
+            )
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        contexts = _safe_rag_contexts_from_records(payload.get("records") or [])
+        if contexts:
+            return contexts
+    return []
+
+
+def _should_backfill_rag_contexts(response: WorkBridgeAgentResponse) -> bool:
+    if response.blocked_reason:
+        return False
+    intents = set(response.detected_intents)
+    return bool(
+        intents.intersection({"HIRING", "VISA_CHECK", "DOCUMENT_CHECK"})
+        or response.handoff.available
+    )
+
+
+def _rag_case_types(
+    runtime_input: AgentRuntimeInput,
+    response: WorkBridgeAgentResponse,
+) -> list[str]:
+    explicit = runtime_input.input_payload.get("case_type")
+    if explicit:
+        return [str(explicit), ""]
+    candidates: list[str] = []
+    if "HIRING" in response.detected_intents:
+        candidates.append("new_hiring")
+    if response.handoff.available or "VISA_CHECK" in response.detected_intents:
+        candidates.append("stay_extension")
+    candidates.append("")
+    deduped: list[str] = []
+    for candidate in candidates:
+        if candidate not in deduped:
+            deduped.append(candidate)
+    return deduped
+
+
 def _handoff_payload(handoff: HandoffDraft) -> dict[str, Any]:
     if not handoff.available:
         return {}
-    payload: dict[str, Any] = {}
-    payload.setdefault("package_type", handoff.package_type or "expert_handoff_draft")
-    payload.setdefault("approval_required", handoff.approval_required)
-    payload.setdefault("approval", {"status": handoff.approval_status or "PENDING"})
-    payload.setdefault("not_for_legal_judgment", handoff.not_for_legal_judgment)
-    payload.setdefault("handoff_ready", handoff.handoff_ready)
-    payload.setdefault("handoff_blockers", handoff.handoff_blockers)
-    payload.setdefault("raw_worker_reply_included", handoff.raw_worker_reply_included)
-    payload.setdefault("full_translation_included", handoff.full_translation_included)
-    payload.setdefault("message_body_included", handoff.message_body_included)
+    source = handoff.payload if isinstance(handoff.payload, dict) else {}
+    payload: dict[str, Any] = {
+        "package_type": "expert_handoff_draft",
+        "approval_required": True,
+        "approval": {"status": "PENDING"},
+        "not_for_legal_judgment": True,
+        "handoff_ready": bool(handoff.handoff_ready or source.get("handoff_ready")),
+        "handoff_blockers": _safe_list(
+            handoff.handoff_blockers or source.get("handoff_blockers")
+        ),
+        "raw_worker_reply_included": False,
+        "full_translation_included": False,
+        "message_body_included": False,
+    }
+    for key in (
+        "case_type",
+        "case_summary",
+        "worker_summary",
+        "document_summary",
+        "contact_summary",
+        "evidence",
+        "risk_flags",
+    ):
+        if key in source:
+            payload[key] = _safe_handoff_payload_value(key, source[key])
     return payload
+
+
+def _safe_handoff_payload_value(key: str, value: Any) -> Any:
+    if key == "worker_summary" and isinstance(value, dict):
+        return {
+            "masked_worker_id": _safe_handoff_text(value.get("masked_worker_id")),
+            "visa_type": _safe_handoff_text(value.get("visa_type")),
+            "stay_expires_at": _safe_handoff_text(value.get("stay_expires_at")),
+            "contract_ends_at": _safe_handoff_text(value.get("contract_ends_at")),
+        }
+    if key == "contact_summary" and isinstance(value, dict):
+        return {
+            "last_contact_summary": _safe_handoff_text(value.get("last_contact_summary")),
+            "message_draft_exists": value.get("message_draft_exists"),
+            "raw_worker_reply_included": False,
+            "full_translation_included": False,
+            "message_body_included": False,
+        }
+    if key == "evidence" and isinstance(value, dict):
+        return {
+            "citation_ids": _safe_list(value.get("citation_ids")),
+            "evidence_log_ids": _safe_list(value.get("evidence_log_ids")),
+            "not_for_legal_judgment": True,
+        }
+    if key == "case_summary" and isinstance(value, dict):
+        return {
+            "summary": _safe_handoff_text(value.get("summary")),
+            "risk_level": _safe_handoff_text(value.get("risk_level")),
+            "risk_reasons": _safe_list(value.get("risk_reasons")),
+        }
+    if key == "document_summary" and isinstance(value, dict):
+        return {
+            "submitted_documents": _safe_list(value.get("submitted_documents")),
+            "missing_documents": _safe_list(value.get("missing_documents")),
+        }
+    if key == "risk_flags":
+        return _safe_list(value)
+    if key == "case_type" and value is not None:
+        return _safe_handoff_text(value)
+    return {} if isinstance(value, dict) else _safe_list(value) if isinstance(value, list) else value
+
+
+def _safe_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [_safe_handoff_text(item) for item in value if item is not None]
+
+
+_HANDOFF_FORBIDDEN_TEXT_MARKERS = (
+    "worker_reply 원문",
+    "translated_ko 전문",
+    "메시지 전문",
+    "여권번호",
+    "외국인등록번호",
+    "전화번호 전체",
+    "주소 전체",
+    "OCR 원문",
+    "비자 가능 여부 확정",
+    "비자 승인 확정",
+    "법률 판단 확정",
+    "노무 판단 확정",
+)
+
+
+def _safe_handoff_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = redact_pii(str(value))
+    if any(marker in text for marker in _HANDOFF_FORBIDDEN_TEXT_MARKERS):
+        return "담당자 검토가 필요한 항목입니다."
+    return text
 
 
 def _agent_for_intents(intents: list[Intent]) -> str:

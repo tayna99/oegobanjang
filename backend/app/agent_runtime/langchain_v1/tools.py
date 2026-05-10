@@ -7,6 +7,10 @@ import chromadb
 from langchain_core.tools import BaseTool, tool
 
 from app.agent_runtime.rag.embeddings import deterministic_embedding
+from app.agent_runtime.langchain_v1.contact_subagents import (
+    run_contact_onboarding,
+    run_worker_reply_interpreter,
+)
 from app.agent_runtime.tools.registry import (
     APPROVAL_REQUIRED_TOOLS,
     SAFE_CALCULATE_TOOLS,
@@ -30,7 +34,7 @@ def _collection_names() -> tuple[str, str]:
 
 def _persistent_client() -> chromadb.PersistentClient:
     settings = get_settings()
-    return chromadb.PersistentClient(path=settings.chroma_persist_directory)
+    return chromadb.PersistentClient(path=settings.normalized_chroma_persist_directory)
 
 
 def preflight_chroma() -> None:
@@ -107,6 +111,8 @@ def get_langchain_v1_tools() -> list[BaseTool]:
         *SAFE_READ_TOOLS,
         *SAFE_CALCULATE_TOOLS,
         *SAFE_DRAFT_TOOLS,
+        run_contact_onboarding,
+        run_worker_reply_interpreter,
         *APPROVAL_REQUIRED_TOOLS,
         retrieve_workforce_materials,
     ]
@@ -116,4 +122,4 @@ def get_langchain_v1_tools() -> list[BaseTool]:
 
 
 def chroma_persist_path() -> Path:
-    return Path(get_settings().chroma_persist_directory)
+    return Path(get_settings().normalized_chroma_persist_directory)

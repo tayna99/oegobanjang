@@ -42,6 +42,15 @@ FORBIDDEN_EVIDENCE_MARKERS = (
 _ALIEN_REGISTRATION_RE = re.compile(r"\b\d{6}-[1-4]\d{6}\b")
 _PHONE_RE = re.compile(r"\b(?:010-\d{4}-\d{4}|010\d{8})\b")
 _PASSPORT_RE = re.compile(r"\b[A-Z]{1,2}\d{7,8}\b")
+SOURCE_MESSAGE_NOT_FOUND = "source_message_id not found"
+SOURCE_MESSAGE_COMPANY_MISMATCH = "source_message_id company mismatch"
+SOURCE_MESSAGE_WORKER_MISMATCH = "source_message_id worker mismatch"
+
+
+class SourceMessageValidationError(ValueError):
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 def approve_approval(
@@ -130,6 +139,23 @@ def resolve_approval_target_company_id(
             raise ValueError(f"Runtime state snapshot not found: {approval.target_id}")
         return snapshot.company_id
     raise ValueError(f"Unsupported approval target_type: {approval.target_type}")
+
+
+def resolve_source_message_for_status_update(
+    db: Session,
+    *,
+    source_message_id: str,
+    company_id: str,
+    worker_id: str,
+) -> ContactMessage:
+    message = db.get(ContactMessage, source_message_id)
+    if message is None:
+        raise SourceMessageValidationError(SOURCE_MESSAGE_NOT_FOUND)
+    if message.company_id != company_id:
+        raise SourceMessageValidationError(SOURCE_MESSAGE_COMPANY_MISMATCH)
+    if message.worker_id != worker_id:
+        raise SourceMessageValidationError(SOURCE_MESSAGE_WORKER_MISMATCH)
+    return message
 
 
 def save_message_draft_result(

@@ -218,6 +218,26 @@ translation_review
 legal_or_visa_judgment_blocked
 ```
 
+## 5.1 다국어 컨택 LangChain v1 sub-agent wrappers
+
+다국어 컨택 Agent는 LangChain v1 통합 Agent 안에서 호출 가능한 2개 내부
+sub-agent tool로 구성된다. 이는 독립 실행 서버나 별도 LangGraph subgraph가 아니라
+`LangChain tool-callable sub-agent wrappers`다.
+
+| Wrapper | Tool | 책임 | Tool 등급 |
+|---|---|---|---|
+| Contact Onboarding Sub-Agent | `run_contact_onboarding` | 다국어 메시지 초안 생성, RAG 근거 검색, `message_templates.csv` 기반 번역문 사용, translation quality check | `SAFE_DRAFT` |
+| Worker Reply Interpreter Sub-Agent | `run_worker_reply_interpreter` | `worker_reply` 번역/요약, `translated_ko`, 상태 업데이트 후보, next action 후보 생성 | `SAFE_DRAFT` |
+
+공통 안전 규칙:
+
+- `run_contact_onboarding`은 메시지 초안만 생성하고 발송하지 않는다.
+- `run_worker_reply_interpreter`는 상태 업데이트 후보만 생성하고 실제 상태를 반영하지 않는다.
+- 두 wrapper 모두 외부 실행 전 `approval_required=true`를 반환한다.
+- Worker Reply Interpreter는 `manager_review_required=true`를 반환한다.
+- `status_update_candidates[*].is_final=false`를 유지한다.
+- Evidence Log 후보에는 `worker_reply` 원문, `translated_ko` 전문, 메시지 전문을 저장하지 않는다.
+
 ## 6. Handoff Package 초안 Schema
 
 Handoff Package는 전문가 검토용 초안이다. 자동 전달물이 아니며, 실제 전달은 담당자 승인 이후에만 가능하다.

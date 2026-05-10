@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from backend.app.models.approval import Approval
 from backend.app.models.contact import ContactMessage, StatusUpdateCandidate
@@ -39,6 +40,16 @@ TARGET_TYPES = {
     STATUS_UPDATE_TARGET_TYPE,
     HANDOFF_TARGET_TYPE,
     RUNTIME_STATE_TARGET_TYPE,
+}
+LIST_APPROVAL_TARGET_TYPES = {
+    CONTACT_MESSAGE_TARGET_TYPE,
+    STATUS_UPDATE_TARGET_TYPE,
+    HANDOFF_TARGET_TYPE,
+}
+LIST_APPROVAL_STATUSES = {
+    APPROVAL_PENDING_STATUS,
+    APPROVAL_APPROVED_STATUS,
+    APPROVAL_REJECTED_STATUS,
 }
 _ALIEN_REGISTRATION_RE = re.compile(r"\b\d{6}-[1-4]\d{6}\b")
 _PHONE_RE = re.compile(r"\b(?:010-\d{4}-\d{4}|010\d{8})\b")
@@ -81,6 +92,50 @@ def get_approval_detail_for_company(
     target = _get_target_or_conflict(db, approval)
     _validate_company_scope(db, approval, company_id)
     return _safe_response(approval, target)
+
+
+def list_approvals_for_company(
+    db: Session,
+    *,
+    company_id: str,
+    status: str = APPROVAL_PENDING_STATUS,
+    target_type: str | None = None,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict[str, Any]:
+    if not company_id:
+        raise ApprovalForbiddenError("approval access forbidden")
+    normalized_status = str(status or APPROVAL_PENDING_STATUS).upper()
+    if normalized_status not in LIST_APPROVAL_STATUSES:
+        raise ApprovalValidationError("unsupported approval status")
+    if target_type is not None and target_type not in LIST_APPROVAL_TARGET_TYPES:
+        raise ApprovalValidationError("unsupported approval target_type")
+
+    safe_limit = min(max(int(limit), 0), 100)
+    safe_offset = max(int(offset), 0)
+    query = select(Approval).where(Approval.status == normalized_status)
+    if target_type is not None:
+        query = query.where(Approval.target_type == target_type)
+    else:
+        query = query.where(Approval.target_type.in_(LIST_APPROVAL_TARGET_TYPES))
+    query = query.order_by(Approval.created_at.desc(), Approval.id.desc())
+
+    scoped_items: list[dict[str, Any]] = []
+    for approval in db.scalars(query).all():
+        try:
+            target = _get_target_or_conflict(db, approval)
+            _validate_company_scope(db, approval, company_id)
+        except (ApprovalConflictError, ApprovalForbiddenError):
+            continue
+        scoped_items.append(_safe_list_item(approval, target))
+
+    total = len(scoped_items)
+    return {
+        "items": scoped_items[safe_offset : safe_offset + safe_limit],
+        "total": total,
+        "limit": safe_limit,
+        "offset": safe_offset,
+    }
 
 
 def approve_approval_for_company(
@@ -435,6 +490,70 @@ def _safe_response(
         "reviewed_at": _datetime_to_str(approval.reviewed_at),
         "reason": approval.reason,
     }
+
+
+def _safe_list_item(
+    approval: Approval,
+    target: ContactMessage | StatusUpdateCandidate | HandoffPackageDraft,
+) -> dict[str, Any]:
+    target_status = target.status
+    return {
+        "approval_id": approval.id,
+        "target_type": approval.target_type,
+        "target_id": approval.target_id,
+        "approval_status": approval.status,
+        "target_status": target_status,
+        "summary": _approval_list_summary(approval.target_type),
+        "created_at": _datetime_to_str(approval.created_at),
+        "reviewed_at": _datetime_to_str(approval.reviewed_at),
+        "target": _safe_target_summary(approval, target),
+    }
+
+
+def _approval_list_summary(target_type: str) -> str:
+    if target_type == CONTACT_MESSAGE_TARGET_TYPE:
+        return "다국어 메시지 초안 승인 대기"
+    if target_type == STATUS_UPDATE_TARGET_TYPE:
+        return "상태 업데이트 후보 승인 대기"
+    if target_type == HANDOFF_TARGET_TYPE:
+        return "전문가 검토용 handoff package 초안 승인 대기"
+    raise ApprovalConflictError("approval target conflict")
+
+
+def _safe_target_summary(
+    approval: Approval,
+    target: ContactMessage | StatusUpdateCandidate | HandoffPackageDraft,
+) -> dict[str, Any]:
+    target_type = approval.target_type
+    if target_type == CONTACT_MESSAGE_TARGET_TYPE:
+        return {
+            "message_purpose": target.message_purpose,
+            "language_code": target.language_code,
+            "status": target.status,
+            "approval_status": approval.status,
+            "created_at": _datetime_to_str(target.created_at),
+        }
+    if target_type == STATUS_UPDATE_TARGET_TYPE:
+        return {
+            "target_type": target.target_type,
+            "target_key": target.target_key,
+            "candidate_status": target.candidate_status,
+            "confidence": target.confidence,
+            "status": target.status,
+            "approval_status": approval.status,
+            "created_at": _datetime_to_str(target.created_at),
+        }
+    if target_type == HANDOFF_TARGET_TYPE:
+        return {
+            "package_type": target.package_type,
+            "case_type": target.case_type,
+            "risk_level": target.risk_level,
+            "handoff_ready": target.handoff_ready,
+            "status": target.status,
+            "approval_status": approval.status,
+            "created_at": _datetime_to_str(target.created_at),
+        }
+    raise ApprovalConflictError("approval target conflict")
 
 
 def _datetime_to_str(value: Any) -> str | None:
