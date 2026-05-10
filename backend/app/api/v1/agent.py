@@ -2,13 +2,21 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.agent_runtime.runner import run_workflow
 from app.agent_runtime.schemas import ForeignHiringState
 from backend.app.db.session import get_sync_db
+from backend.app.models.worker import Worker
+from backend.app.services.langchain_checkpoint_service import (
+    LangChainCheckpointConflictError,
+    LangChainCheckpointForbiddenError,
+    LangChainCheckpointNotFoundError,
+    resume_langchain_checkpoint_for_company,
+)
 from app.agent_runtime.langchain_v1.state_store import runtime_state_store
 from backend.app.services.runtime_state_persistence_service import (
     get_runtime_state_snapshot,
@@ -17,6 +25,7 @@ from backend.app.services.runtime_state_persistence_service import (
 from backend.app.services.runtime_metrics_service import (
     RuntimeMetricsForbiddenError,
     RuntimeMetricsNotFoundError,
+    get_runtime_metrics_summary_for_company,
     get_runtime_metrics_for_company,
 )
 from backend.app.services.runtime_resume_service import (
@@ -78,6 +87,11 @@ class AgentResumeRequest(BaseModel):
     action_type: str
 
 
+class AgentCheckpointResumeRequest(BaseModel):
+    action_type: str
+    resume_value: Any | None = None
+
+
 @router.post("/run")
 async def run_agent(
     body: dict[str, Any] = Body(...),
@@ -85,13 +99,19 @@ async def run_agent(
 ) -> dict[str, Any]:
     try:
         request = AgentRunRequest.model_validate(body)
+        normalized_payload, resolved_worker_id = _normalize_worker_lookup(
+            db,
+            company_id=request.company_id,
+            worker_id=request.worker_id or "",
+            input_payload=request.input_payload,
+        )
         state: ForeignHiringState = await run_workflow(
             user_message=request.normalized_message,
             user_id=request.user_id,
             company_id=request.company_id,
-            worker_id=request.worker_id or "",
+            worker_id=resolved_worker_id,
             thread_id=request.thread_id,
-            input_payload=request.input_payload,
+            input_payload=normalized_payload,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -208,6 +228,52 @@ async def get_agent_runtime_metrics(
         raise HTTPException(status_code=403, detail="runtime metrics access forbidden") from exc
 
 
+@router.get("/metrics")
+async def get_agent_runtime_metrics_summary(
+    db: Session = Depends(get_sync_db),
+    company_id: str = Header(default="", alias="X-Company-Id"),
+    from_at: str | None = Query(default=None, alias="from"),
+    to_at: str | None = Query(default=None, alias="to"),
+) -> dict[str, Any]:
+    try:
+        return get_runtime_metrics_summary_for_company(
+            db,
+            company_id=company_id,
+            from_at=from_at,
+            to_at=to_at,
+        )
+    except RuntimeMetricsForbiddenError as exc:
+        raise HTTPException(status_code=403, detail="runtime metrics access forbidden") from exc
+
+
+@router.post("/checkpoints/{request_id}/resume")
+async def resume_agent_langchain_checkpoint(
+    request_id: str,
+    body: AgentCheckpointResumeRequest,
+    db: Session = Depends(get_sync_db),
+    company_id: str = Header(default="", alias="X-Company-Id"),
+) -> dict[str, Any]:
+    try:
+        result = await resume_langchain_checkpoint_for_company(
+            db,
+            request_id=request_id,
+            action_type=body.action_type,
+            company_id=company_id,
+            resume_value=body.resume_value,
+        )
+        db.commit()
+        return result
+    except LangChainCheckpointNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="langchain checkpoint not found") from exc
+    except LangChainCheckpointForbiddenError as exc:
+        db.rollback()
+        raise HTTPException(status_code=403, detail="langchain checkpoint resume forbidden") from exc
+    except LangChainCheckpointConflictError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="langchain checkpoint resume conflict") from exc
+
+
 @router.post("/outbox/{request_id}/prepare")
 async def prepare_agent_runtime_outbox(
     request_id: str,
@@ -231,3 +297,35 @@ async def prepare_agent_runtime_outbox(
     except RuntimeOutboxConflictError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="runtime outbox conflict") from exc
+
+
+def _normalize_worker_lookup(
+    db: Session,
+    *,
+    company_id: str,
+    worker_id: str,
+    input_payload: dict[str, Any],
+) -> tuple[dict[str, Any], str]:
+    payload = dict(input_payload or {})
+    worker_name = str(payload.pop("worker_name", "") or "").strip()
+    if worker_id or not worker_name:
+        return payload, worker_id
+    if not company_id:
+        payload["worker_lookup_status"] = "not_found"
+        return payload, ""
+
+    rows = db.scalars(
+        select(Worker).where(
+            Worker.company_id == company_id,
+            Worker.name == worker_name,
+            Worker.status == "ACTIVE",
+        )
+    ).all()
+    if len(rows) == 1:
+        payload["worker_lookup_status"] = "matched"
+        return payload, rows[0].id
+    if len(rows) > 1:
+        payload["worker_lookup_status"] = "ambiguous"
+        return payload, ""
+    payload["worker_lookup_status"] = "not_found"
+    return payload, ""

@@ -8,6 +8,7 @@ from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
 
+from .checkpointing import get_langchain_checkpointer
 from .middleware import build_langchain_v1_middleware
 from .schemas import RuntimeContext, WorkBridgeAgentResponse
 from .tools import RuntimePreflightError, get_langchain_v1_tools, preflight_chroma
@@ -51,6 +52,7 @@ def create_workbridge_agent(
     model: str | BaseChatModel | None = None,
     tools: list[Any] | None = None,
     middleware: list[Any] | None = None,
+    checkpointer: Any | None = None,
 ):
     """Create the LangChain v1 agent.
 
@@ -71,4 +73,5 @@ def create_workbridge_agent(
         middleware=selected_middleware,
         response_format=WorkBridgeAgentResponse,
         context_schema=RuntimeContext,
+        checkpointer=checkpointer if checkpointer is not None else get_langchain_checkpointer(),
     )

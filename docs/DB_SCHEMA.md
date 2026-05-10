@@ -508,6 +508,7 @@ worker_documents
 approval_actions
 delivery_outbox
 agent_checkpoints
+langchain_agent_checkpoints
 runtime_metrics
 ```
 
@@ -523,8 +524,10 @@ backend/app/models/runtime_execution.py
 backend/app/services/context_data_service.py
 backend/app/services/runtime_resume_service.py
 backend/app/services/runtime_metrics_service.py
+backend/app/services/langchain_checkpoint_service.py
 backend/migrations/versions/20260509_0006_context_tables.py
 backend/migrations/versions/20260509_0007_runtime_resume_outbox_metrics.py
+backend/migrations/versions/20260509_0008_langchain_agent_checkpoints.py
 ```
 
 아래 테이블은 계속 planned 상태다.
@@ -563,6 +566,7 @@ Context table 역할:
 | `approval_actions` | 승인 후 허용/차단 action 기록. 외부 실행 금지 action은 `BLOCKED` |
 | `delivery_outbox` | 외부 전달 준비용 outbox. PENDING 상태만 만들고 실제 발송하지 않음 |
 | `agent_checkpoints` | 승인 후 제한 resume을 위한 token/idempotency checkpoint |
+| `langchain_agent_checkpoints` | LangGraph/LangChain execution checkpoint metadata. 실제 checkpoint payload는 별도 SQLite 파일에 저장 |
 | `runtime_metrics` | model/tool/retrieval/approval runtime 관측값. 원문 PII 저장 금지 |
 | `worker_sensitive_profiles` | planned: 여권번호, 외국인등록번호, 전화번호 등 암호화 민감정보 |
 | `hiring_requests` | planned: 신규 인력 요청 |

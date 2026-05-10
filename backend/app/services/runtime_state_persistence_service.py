@@ -13,6 +13,9 @@ from backend.app.models.runtime_state import (
     RUNTIME_STATE_TARGET_TYPE,
     AgentRuntimeStateSnapshot,
 )
+from backend.app.services.langchain_checkpoint_service import (
+    save_langchain_checkpoint_metadata,
+)
 from backend.app.services.runtime_metrics_service import save_runtime_metrics_from_state
 
 
@@ -43,6 +46,7 @@ def save_runtime_state_snapshot(
     snapshot.input_json = _dumps(payload["input"])
     db.flush()
     _sync_runtime_state_approval(db, snapshot=snapshot, state=state)
+    save_langchain_checkpoint_metadata(db, state)
     save_runtime_metrics_from_state(db, state)
     db.flush()
     return snapshot

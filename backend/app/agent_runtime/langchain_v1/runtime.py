@@ -12,6 +12,7 @@ from app.agent_runtime.schemas import (
 )
 
 from .agent_factory import create_workbridge_agent
+from .checkpointing import get_async_langchain_checkpointer, runtime_checkpoint_config
 from .events import event_to_reference, make_event
 from .middleware import (
     SafetyValidationError,
@@ -84,8 +85,12 @@ async def run_langchain_v1_agent(
     ]
 
     try:
-        selected_agent = agent or create_workbridge_agent(model=model)
-        result = await _ainvoke_agent(selected_agent, runtime_input, context)
+        selected_agent = agent or create_workbridge_agent(
+            model=model,
+            checkpointer=await get_async_langchain_checkpointer(),
+        )
+        checkpoint_config = runtime_checkpoint_config(thread_id=runtime_input.thread_id)
+        result = await _ainvoke_agent(selected_agent, runtime_input, context, checkpoint_config)
         if isinstance(result, dict) and "__interrupt__" in result:
             context.interrupt_metadata = _extract_interrupt_metadata(result)
             response = build_blocked_response(
@@ -176,6 +181,14 @@ async def run_langchain_v1_agent(
         evidence_events=[event.model_dump() for event in events],
         approval=response.approval,
         interrupt_metadata=context.interrupt_metadata,
+        checkpoint_metadata=_checkpoint_metadata_from_agent(
+            selected_agent if "selected_agent" in locals() else None,
+            runtime_input=runtime_input,
+            checkpoint_config=checkpoint_config
+            if "checkpoint_config" in locals()
+            else runtime_checkpoint_config(thread_id=runtime_input.thread_id),
+            interrupt_metadata=context.interrupt_metadata,
+        ),
     )
     runtime_state_store.save(state)
     return state
@@ -300,6 +313,7 @@ async def _ainvoke_agent(
     selected_agent: Any,
     runtime_input: AgentRuntimeInput,
     context: RuntimeContext,
+    config: dict[str, Any],
 ) -> Any:
     payload = {
         "messages": [
@@ -309,21 +323,64 @@ async def _ainvoke_agent(
             }
         ]
     }
-    try:
-        return await selected_agent.ainvoke(payload, context=context)
-    except TypeError as exc:
-        if "context" not in str(exc):
-            raise
-        return await selected_agent.ainvoke(payload)
+    fallback_kwargs = (
+        {"context": context, "config": config},
+        {"config": config},
+        {"context": context},
+        {},
+    )
+    last_type_error: TypeError | None = None
+    for kwargs in fallback_kwargs:
+        try:
+            return await selected_agent.ainvoke(payload, **kwargs)
+        except TypeError as exc:
+            if "context" not in str(exc) and "config" not in str(exc):
+                raise
+            last_type_error = exc
+    if last_type_error is not None:
+        raise last_type_error
+    raise RuntimeError("LangChain agent invocation failed")
 
 
 def _extract_interrupt_metadata(result: dict[str, Any]) -> dict[str, Any]:
     interrupt = result.get("__interrupt__")
+    interrupt_id = ""
+    if isinstance(interrupt, (list, tuple)) and interrupt:
+        interrupt_id = str(getattr(interrupt[0], "id", "") or "")
     return {
         "action": "human_in_the_loop_interrupt",
         "reason": redact_pii(str(interrupt)),
         "blocked_actions": ["external_delivery_or_submission"],
+        "interrupt_id": interrupt_id,
     }
+
+
+def _checkpoint_metadata_from_agent(
+    selected_agent: Any | None,
+    *,
+    runtime_input: AgentRuntimeInput,
+    checkpoint_config: dict[str, Any],
+    interrupt_metadata: dict[str, Any],
+) -> dict[str, Any]:
+    configurable = dict(checkpoint_config.get("configurable") or {})
+    metadata: dict[str, Any] = {
+        "thread_id": configurable.get("thread_id") or runtime_input.thread_id,
+        "checkpoint_ns": configurable.get("checkpoint_ns") or "",
+        "latest_checkpoint_id": None,
+        "interrupt_id": interrupt_metadata.get("interrupt_id"),
+        "status": "INTERRUPTED" if interrupt_metadata else "RECORDED",
+        "resume_blocked_reason": None,
+    }
+    get_state = getattr(selected_agent, "get_state", None)
+    if callable(get_state):
+        try:
+            state = get_state(checkpoint_config)
+            state_config = dict(getattr(state, "config", {}) or {})
+            state_configurable = dict(state_config.get("configurable") or {})
+            metadata["latest_checkpoint_id"] = state_configurable.get("checkpoint_id")
+        except Exception as exc:
+            metadata["resume_blocked_reason"] = redact_pii(str(exc))
+    return metadata
 
 
 def _event_from_context(request_id: str, raw: dict[str, Any]) -> Any | None:
@@ -343,7 +400,7 @@ def _event_from_context(request_id: str, raw: dict[str, Any]) -> Any | None:
 def _handoff_payload(handoff: HandoffDraft) -> dict[str, Any]:
     if not handoff.available:
         return {}
-    payload = dict(handoff.payload)
+    payload: dict[str, Any] = {}
     payload.setdefault("package_type", handoff.package_type or "expert_handoff_draft")
     payload.setdefault("approval_required", handoff.approval_required)
     payload.setdefault("approval", {"status": handoff.approval_status or "PENDING"})

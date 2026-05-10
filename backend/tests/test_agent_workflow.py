@@ -9,9 +9,13 @@ def _disable_live_agent(monkeypatch) -> None:
     from app.agent_runtime.langchain_v1 import runtime as runtime_module
     from app.agent_runtime.langchain_v1.tools import RuntimePreflightError
 
+    async def no_checkpointer():
+        return None
+
     def fail_create_agent(*args, **kwargs):
         raise RuntimePreflightError("test uses structured blocked response")
 
+    monkeypatch.setattr(runtime_module, "get_async_langchain_checkpointer", no_checkpointer)
     monkeypatch.setattr(runtime_module, "create_workbridge_agent", fail_create_agent)
 
 

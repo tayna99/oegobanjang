@@ -29,6 +29,15 @@ def normalize_database_url(database_url: str) -> str:
     return f"{sqlite_prefix}{db_path.resolve().as_posix()}"
 
 
+def normalize_backend_path(path_value: str) -> str:
+    """Resolve backend-relative file paths consistently from any cwd."""
+
+    path = Path(path_value).expanduser()
+    if not path.is_absolute():
+        path = BACKEND_DIR / path
+    return path.resolve().as_posix()
+
+
 class Settings(BaseSettings):
     """
     외고반장 backend 공통 설정.
@@ -77,6 +86,13 @@ class Settings(BaseSettings):
     google_api_key: str | None = None
     openai_model: str = "gpt-4o-mini"
     langchain_runtime_enabled: bool = True
+    langchain_checkpoint_enabled: bool = True
+    langchain_checkpoint_path: str = "data/langchain_checkpoints.sqlite3"
+    langchain_checkpoint_namespace: str = "workbridge_langchain_v1"
+
+    @property
+    def normalized_langchain_checkpoint_path(self) -> str:
+        return normalize_backend_path(self.langchain_checkpoint_path)
 
     # Security
     jwt_secret: str = "change-this-local-secret"

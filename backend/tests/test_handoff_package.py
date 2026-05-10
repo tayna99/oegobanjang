@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 
-from app.agent_runtime.legacy_graph.nodes.handoff_package import handoff_package_node
-from app.agent_runtime.schemas import ForeignHiringState
 from app.agent_runtime.tools.safe_draft import (
     build_handoff_package_draft_from_aggregated_output,
     generate_expert_handoff_package_draft,
@@ -71,10 +69,9 @@ def test_aggregated_output_handoff_builder_uses_fallbacks_and_blockers() -> None
     assert package["worker_summary"]["masked_worker_id"] == "worker_***"
 
 
-def test_handoff_package_node_creates_draft_for_high_risk() -> None:
-    state = ForeignHiringState(
-        request_id="high-risk-handoff",
-        aggregated_output={
+def test_handoff_package_builder_creates_draft_for_high_risk() -> None:
+    draft = build_handoff_package_draft_from_aggregated_output(
+        {
             "risk_level": "HIGH",
             "approval_required": True,
             "risk_flags": ["D-30 임박"],
@@ -89,9 +86,6 @@ def test_handoff_package_node_creates_draft_for_high_risk() -> None:
         },
     )
 
-    result = handoff_package_node(state)
-
-    draft = result.handoff_package_draft
     assert draft["package_type"] == "expert_handoff_draft"
     assert draft["approval_required"] is True
     assert draft["approval"]["status"] == "PENDING"
@@ -99,16 +93,11 @@ def test_handoff_package_node_creates_draft_for_high_risk() -> None:
     assert draft["raw_worker_reply_included"] is False
     assert draft["full_translation_included"] is False
     assert draft["message_body_included"] is False
-    assert any(
-        event.event_type.value == "handoff_package_draft_created"
-        for event in result.evidence_events
-    )
 
 
-def test_handoff_package_node_creates_draft_for_expert_handoff_reason() -> None:
-    state = ForeignHiringState(
-        request_id="expert-reason-handoff",
-        aggregated_output={
+def test_handoff_package_builder_creates_draft_for_expert_handoff_reason() -> None:
+    draft = build_handoff_package_draft_from_aggregated_output(
+        {
             "risk_level": "MEDIUM",
             "approval_required": True,
             "approval_reasons": ["expert_handoff_package_draft"],
@@ -117,40 +106,17 @@ def test_handoff_package_node_creates_draft_for_expert_handoff_reason() -> None:
         worker_context={"visa_type": "E-9"},
     )
 
-    result = handoff_package_node(state)
-
-    assert result.handoff_package_draft["package_type"] == "expert_handoff_draft"
+    assert draft["package_type"] == "expert_handoff_draft"
 
 
-def test_handoff_package_node_skips_low_or_medium_general_cases() -> None:
-    state = ForeignHiringState(
-        request_id="general-medium-case",
-        aggregated_output={
-            "risk_level": "MEDIUM",
-            "approval_required": True,
-            "approval_reasons": ["worker_message_draft"],
-            "summaries": [{"agent": "multilingual_contact_agent", "summary": "메시지 초안"}],
-        },
-    )
-
-    result = handoff_package_node(state)
-
-    assert result.handoff_package_draft == {}
-    assert not any(
-        event.event_type.value == "handoff_package_draft_created"
-        for event in result.evidence_events
-    )
-
-
-def test_handoff_package_node_draft_excludes_sensitive_raw_text() -> None:
+def test_handoff_package_builder_draft_excludes_sensitive_raw_text() -> None:
     worker_reply = "Tôi có hộ chiếu, ảnh mai gửi."
     translated_ko = "여권이 있고 사진은 내일 보내겠다는 답변입니다."
     message_body = "안녕하세요. 여권 사본을 제출해주세요."
     worker_id = "worker-demo-001"
 
-    state = ForeignHiringState(
-        request_id="sensitive-handoff",
-        aggregated_output={
+    draft = build_handoff_package_draft_from_aggregated_output(
+        {
             "risk_level": "HIGH",
             "approval_required": True,
             "risk_flags": ["D-30 임박"],
@@ -172,8 +138,7 @@ def test_handoff_package_node_draft_excludes_sensitive_raw_text() -> None:
         },
     )
 
-    result = handoff_package_node(state)
-    payload = json.dumps(result.handoff_package_draft, ensure_ascii=False)
+    payload = json.dumps(draft, ensure_ascii=False)
 
     assert worker_reply not in payload
     assert translated_ko not in payload

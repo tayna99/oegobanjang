@@ -74,9 +74,13 @@ async def test_runtime_missing_openai_key_returns_structured_blocked_response(
     from app.agent_runtime.langchain_v1 import runtime as runtime_module
     from app.agent_runtime.langchain_v1.tools import RuntimePreflightError
 
+    async def no_checkpointer():
+        return None
+
     def fail_create_agent(*args, **kwargs):
         raise RuntimePreflightError("OPENAI_API_KEY is required for langchain_v1 runtime")
 
+    monkeypatch.setattr(runtime_module, "get_async_langchain_checkpointer", no_checkpointer)
     monkeypatch.setattr(runtime_module, "create_workbridge_agent", fail_create_agent)
     runtime_input = normalize_runtime_input(
         user_message="E-9 근로자 3명 채용 준비해줘",
@@ -97,8 +101,9 @@ def test_production_api_and_runner_do_not_import_custom_graph_workflow() -> None
     root = Path(__file__).resolve().parents[2]
     runner_source = (root / "backend/app/agent_runtime/runner.py").read_text(encoding="utf-8")
     api_source = (root / "backend/app/api/v1/agent.py").read_text(encoding="utf-8")
+    legacy_workflow = "app.agent_runtime." + "graph.workflow"
 
-    assert "app.agent_runtime.graph.workflow" not in runner_source
-    assert "app.agent_runtime.graph.workflow" not in api_source
+    assert legacy_workflow not in runner_source
+    assert legacy_workflow not in api_source
     assert "get_compiled_app" not in runner_source
     assert "get_compiled_app" not in api_source

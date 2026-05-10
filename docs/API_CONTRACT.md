@@ -120,7 +120,8 @@ shape으로 변환한다. 기존 다국어 contact 세부 런타임은 service-l
 `/api/v1/agent/state/{request_id}`는 메모리 state가 없을 때 DB snapshot으로 fallback한다.
 승인 이후 제한 실행은 `/api/v1/agent/resume/{request_id}`에서 내부 action만 허용한다.
 승인된 전달 준비 outbox는 `/api/v1/agent/outbox/{request_id}/prepare`에서 내부 검토 준비 상태로만 전환한다.
-runtime 관측값은 `/api/v1/agent/metrics/{request_id}`에서 조회한다.
+runtime 관측값은 `/api/v1/agent/metrics/{request_id}`와 `/api/v1/agent/metrics`에서 조회한다.
+LangGraph/LangChain checkpoint 재개는 `/api/v1/agent/checkpoints/{request_id}/resume`에서 내부 action만 허용한다.
 
 요청 기본 형태:
 
@@ -278,6 +279,61 @@ X-Company-Id: company-demo-001
 }
 ```
 
+### GET /api/v1/agent/metrics
+
+회사 단위 runtime metrics summary를 반환한다. 원문 prompt, 원문 응답, 개인정보는 반환하지 않는다.
+
+```http
+GET /api/v1/agent/metrics?from=2026-05-09T00:00:00%2B09:00&to=2026-05-10T00:00:00%2B09:00
+X-Company-Id: company-demo-001
+```
+
+```json
+{
+  "company_id": "company-demo-001",
+  "summary": {
+    "run_count": 2,
+    "blocked_count": 1,
+    "approval_pending_count": 1,
+    "provider_error_count": 0,
+    "retrieval_count": 8,
+    "avg_model_duration_ms": 100.0,
+    "avg_tool_duration_ms": 20.0
+  }
+}
+```
+
+### POST /api/v1/agent/checkpoints/{request_id}/resume
+
+LangGraph/LangChain durable checkpoint를 내부 action에 한해 재개한다.
+approval이 `APPROVED`가 아니면 `409`, 회사 scope가 다르면 `403`, 외부 action이면 `403`이다.
+후보자 자동 발송, 송출회사/행정사 자동 전달, 정부 제출은 계속 실행하지 않는다.
+
+```http
+POST /api/v1/agent/checkpoints/request-id-string/resume
+X-Company-Id: company-demo-001
+```
+
+```json
+{
+  "action_type": "finalize_internal_draft",
+  "resume_value": "approved"
+}
+```
+
+```json
+{
+  "request_id": "request-id-string",
+  "action_type": "finalize_internal_draft",
+  "status": "RESUMED",
+  "checkpoint_id": "checkpoint-id",
+  "thread_id": "thread-id",
+  "result_present": true,
+  "external_delivery_executed": false,
+  "government_submission_executed": false
+}
+```
+
 응답 주요 형태:
 
 ```json
@@ -317,11 +373,14 @@ DB 저장 opt-in 정책:
 - 메시지 초안 생성 성공 결과는 `contact_messages`, `approvals`, `evidence_logs`를 생성한다.
 - 근로자 답변 요약 성공 결과는 `status_update_candidates`, `approvals`, `evidence_logs`를 생성한다.
 - 자연어 extractor는 `worker_name`을 추출할 수 있지만, DB 저장에는 `worker_id`가 필요하다.
+- `/api/v1/agent/run`은 `worker_id`가 없고 `input_payload.worker_name`이 있으면 같은 `company_id`의 ACTIVE worker를 조회한다.
+- 정확히 1명만 매칭되면 `worker_id`를 runtime에 전달하고 `worker_lookup_status=matched`를 내부 payload에 남긴다.
+- 0명 또는 2명 이상이면 request를 깨지 않고 `worker_lookup_status=not_found|ambiguous`를 내부 payload에 남긴다.
+- 응답과 Evidence Log에는 `worker_name` 원문을 반환하지 않는다.
 - `persist_result=true` 요청에서는 `input_payload.worker_id`를 명시해야 한다.
 - `persist_result=true` 요청에서는 `input_payload.company_id`도 명시해야 한다.
 - `worker_id`가 없으면 Agent 응답은 유지하되 `persistence.saved=false`, `reason="worker_id is required for persistence"`를 반환한다.
 - `company_id`가 없으면 Agent 응답은 유지하되 `persistence.saved=false`, `reason="company_id is required for persistence"`를 반환한다.
-- `worker_name` 기반 `worker_id` lookup은 workers 테이블/조회 기능이 생긴 뒤 후속 작업으로 구현한다.
 - DB 저장 시에도 메시지는 초안 상태이며 `approval_required=true`, `approval.status=PENDING`을 유지한다.
 
 Handoff response 정책:
