@@ -35,14 +35,8 @@ jobs:
       - name: Compile harness scripts
         run: |
           if [ -f scripts/execute_codex.py ]; then
-            python - <<'PY'
-            import ast
-            from pathlib import Path
-
-            path = Path("scripts/execute_codex.py")
-            ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            print(f"Syntax-checked {path}.")
-            PY
+            python -m py_compile scripts/execute_codex.py
+            echo "Syntax-checked scripts/execute_codex.py."
           else
             echo "scripts/execute_codex.py not found. Skipping."
           fi
