@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>외고반장 — 일일 브리핑</title>
+  <link rel="stylesheet" href="colors_and_type.css"/>
+  <style>
+    :root {
+      --font-mono: 'SF Mono', 'Fira Mono', 'Courier New', monospace;
+      --header-bg: rgba(255,255,255,0.94);
+    }
+    :root[data-theme="dark"] { --header-bg: rgba(27,28,30,0.92); }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; }
+    body { font-family: 'Pretendard Variable', 'Pretendard', -apple-system, sans-serif;
+           background: var(--semantic-background-normal-normal);
+           color: var(--semantic-label-normal); -webkit-font-smoothing: antialiased; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--semantic-line-normal-normal); border-radius: 3px; }
+    @keyframes slideUp   { from { transform: translateY(32px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes slideIn   { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes fadeIn    { from { opacity: 0; } to { opacity: 1; } }
+    .panel-enter { animation: slideIn .22s ease; }
+    .fade-in     { animation: fadeIn .2s ease; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="components.jsx"></script>
+<script type="text/babel" src="pc-dashboard.jsx"></script>
+<script type="text/babel" src="detail-panel.jsx"></script>
+<script type="text/babel" src="live-agent.jsx"></script>
+<script type="text/babel" src="mobile-chat.jsx"></script>
+<script type="text/babel" src="handoff-evidence.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="workers-cases.jsx"></script>
+<script type="text/babel" src="recruitment.jsx"></script>
+<script type="text/babel" src="contact.jsx"></script>
+<script type="text/babel" src="ai-chat-panel.jsx"></script>
+
+<script type="text/babel">
+/* ─── TWEAK DEFAULTS ────────────────────────────────────── */
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "role": "pc",
+  "density": "compact",
+  "darkMode": false
+}/*EDITMODE-END*/;
+
+/* ─── APP TOP BAR (stateful nav) ────────────────────────── */
+function AppTopBar({ activeTab, onTabChange, company, search, onSearch, pendingCount, onOpenAIChat }) {
+  const tabs = [
+    { id: 'today',       label: '오늘 할 일' },
+    { id: 'workers',     label: '근로자' },
+    { id: 'cases',       label: '케이스' },
+    { id: 'recruitment', label: '채용 준비' },
+    { id: 'contact',     label: '메시지 관리' },
+    { id: 'handoff',     label: '행정사 검토' },
+    { id: 'evidence',    label: '판단 기록' },
+  ];
+  return (
+    <header style={{
+      height: 60, padding: '0 28px', flexShrink: 0,
+      display: 'flex', alignItems: 'center', gap: 20,
+      background: 'var(--header-bg)',
+      backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)',
+      borderBottom: '1px solid var(--semantic-line-normal-neutral)',
+      position: 'sticky', top: 0, zIndex: 100,
+    }}>
+      <BrandMark size={20}/>
+      <div style={{ width: 1, height: 20, background: 'var(--semantic-line-normal-neutral)', flexShrink: 0 }}/>
+
+      {/* Company chip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px 6px 8px',
+        background: 'var(--semantic-fill-alternative)', borderRadius: 8, cursor: 'pointer', flexShrink: 0 }}>
+        <div style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--semantic-primary-normal)',
+          color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 700 }}>{company.name[0]}</div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{company.name}</div>
+          <div style={{ fontSize: 11, color: 'var(--semantic-label-alternative)', lineHeight: 1.2 }}>{company.sub}</div>
+        </div>
+        <Icon name="chevronDown" size={13} color="var(--semantic-label-alternative)"/>
+      </div>
+
+      {/* Nav tabs */}
+      <nav style={{ display: 'flex', gap: 2 }}>
+        {tabs.map(tab => (
+          <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{
+            padding: '7px 14px', borderRadius: 8, border: 0, cursor: 'pointer',
+            fontSize: 13.5, fontWeight: 500, fontFamily: 'inherit',
+            color: activeTab === tab.id ? 'var(--semantic-label-normal)' : 'var(--semantic-label-alternative)',
+            background: activeTab === tab.id ? 'var(--semantic-fill-normal)' : 'transparent',
+            transition: 'background .15s, color .15s',
+          }}>{tab.label}</button>
+        ))}
+      </nav>
+
+      <div style={{ flex: 1 }}/>
+
+      {/* Search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
+        background: 'var(--semantic-fill-alternative)', borderRadius: 10, width: 280, flexShrink: 0 }}>
+        <Icon name="search" size={15} color="var(--semantic-label-alternative)"/>
+        <input value={search} onChange={e => onSearch(e.target.value)}
+          placeholder="근로자, 케이스, 사업장 검색"
+          style={{ flex: 1, border: 0, background: 'transparent', outline: 'none',
+            fontFamily: 'inherit', fontSize: 13, color: 'var(--semantic-label-normal)' }}/>
+        <span style={{ fontSize: 11, color: 'var(--semantic-label-alternative)', padding: '1px 5px',
+          background: 'var(--semantic-background-elevated-normal)', borderRadius: 4 }}>⌘K</span>
+      </div>
+
+      {/* AI ask */}
+      <button onClick={onOpenAIChat} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
+        background: 'transparent', border: '1px solid var(--semantic-line-normal-normal)',
+        borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+        fontSize: 13, color: 'var(--semantic-label-neutral)', whiteSpace: 'nowrap' }}>
+        <Icon name="sparkle" size={14} color="var(--semantic-primary-normal)"/>
+        AI 반장에게 물어보기
+      </button>
+
+      {/* Bell */}
+      <div style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
+        <Icon name="bell" size={20} color="var(--semantic-label-neutral)"/>
+        {pendingCount > 0 && (
+          <span style={{ position: 'absolute', top: -3, right: -5, minWidth: 16, height: 16, padding: '0 4px',
+            borderRadius: 999, background: 'var(--semantic-status-negative)', color: '#fff',
+            fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+            {pendingCount}
+          </span>
+        )}
+      </div>
+
+      {/* Avatar */}
+      <div style={{ width: 32, height: 32, borderRadius: 999, flexShrink: 0,
+        background: 'linear-gradient(135deg,#0066FF,#6541F2)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>김</div>
+    </header>
+  );
+}
+
+/* ─── ROLE SWITCHER BAR ──────────────────────────────────── */
+function RoleBar({ role, onSetRole }) {
+  const opts = [
+    { id: 'pc',     label: 'PC · 인력 담당자',   icon: 'desktop' },
+    { id: 'mobile', label: '모바일 · 사장님',     icon: 'mobile' },
+    { id: 'split',  label: '나란히 보기',          icon: 'eye' },
+  ];
+  return (
+    <div style={{
+      background: 'var(--semantic-background-normal-alternative)',
+      borderBottom: '1px solid var(--semantic-line-normal-alternative)',
+      padding: '8px 28px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+    }}>
+      <span style={{ fontSize: 12, color: 'var(--semantic-label-alternative)', fontWeight: 500, marginRight: 4 }}>
+        화면
+      </span>
+      {opts.map(o => (
+        <button key={o.id} onClick={() => onSetRole(o.id)} style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '5px 12px', borderRadius: 6, border: 0, cursor: 'pointer',
+          fontFamily: 'inherit', fontSize: 12.5, fontWeight: 500,
+          background: role === o.id ? 'var(--semantic-primary-normal)' : 'var(--semantic-fill-alternative)',
+          color: role === o.id ? '#fff' : 'var(--semantic-label-neutral)',
+          transition: 'background .15s, color .15s',
+        }}>
+          <Icon name={o.icon} size={13} color={role === o.id ? '#fff' : 'var(--semantic-label-neutral)'}/>
+          {o.label}
+        </button>
+      ))}
+      <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--semantic-label-alternative)' }}>
+        · 오늘 2026.05.08 (금) · 한별제조 24명
+      </span>
+    </div>
+  );
+}
+
+/* ─── PHONE BEZEL ────────────────────────────────────────── */
+function PhoneBezel({ children, compact }) {
+  const scale = compact ? 0.73 : 1;
+  const W = 393, H = 852;
+  return (
+    <div style={{
+      width: compact ? W * scale : W,
+      height: compact ? H * scale : H,
+      position: 'relative', flexShrink: 0,
+    }}>
+      <div style={{
+        width: W, height: H,
+        transform: compact ? `scale(${scale})` : 'none',
+        transformOrigin: 'top left',
+        borderRadius: 55, background: '#141414',
+        padding: 13,
+        boxShadow: '0 32px 80px rgba(0,0,0,0.45), inset 0 0 0 1.5px rgba(255,255,255,0.11)',
+        position: 'relative',
+      }}>
+        {/* Dynamic island */}
+        <div style={{ position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
+          width: 126, height: 36, borderRadius: 24, background: '#000', zIndex: 20 }}/>
+        {/* Screen */}
+        <div style={{ width: '100%', height: '100%', borderRadius: 44,
+          overflow: 'hidden', position: 'relative',
+          background: 'var(--semantic-background-normal-alternative)' }}>
+          {children}
+        </div>
+        {/* Home indicator */}
+        <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)',
+          width: 134, height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.3)', zIndex: 30 }}/>
+      </div>
+    </div>
+  );
+}
+
+/* ─── DOC REQUEST MODAL ─────────────────────────────────── */
+function DocRequestModal({ actionId, onClose, onApprove }) {
+  const [tab, setTab] = React.useState('ko');
+  const d = window.DOC_REQUEST_DRAFT;
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--semantic-material-dimmer)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 }}
+      onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        width: 560, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        background: 'var(--semantic-background-elevated-normal)',
+        borderRadius: 20, overflow: 'hidden',
+        boxShadow: 'var(--shadow-xlarge)',
+        border: '1px solid var(--semantic-line-normal-neutral)',
+        animation: 'slideUp .22s ease',
+      }}>
+        <div style={{ padding: '22px 28px 16px', borderBottom: '1px solid var(--semantic-line-normal-alternative)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--semantic-label-alternative)',
+                letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>서류 요청 초안 · 검토용</div>
+              <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.018em' }}>{d.workerName} 서류 요청</div>
+            </div>
+            <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer',
+              color: 'var(--semantic-label-alternative)', padding: 4, borderRadius: 6 }}>
+              <Icon name="close" size={18}/>
+            </button>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--semantic-label-neutral)' }}>
+            {d.reason} · 제출 기한 {fmtDate(d.dueDate)}
+          </div>
+          <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8,
+            background: 'rgba(255,146,0,0.08)', border: '1px solid rgba(255,146,0,0.24)',
+            fontSize: 12.5, color: '#9C5800', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="shield" size={13}/>
+            승인 전에는 외부로 발송되지 않습니다. 담당자 검토용 초안입니다.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 4, padding: '0 24px',
+          borderBottom: '1px solid var(--semantic-line-normal-alternative)' }}>
+          {[['ko','한국어'],['vi','Tiếng Việt']].map(([id, label]) => (
+            <button key={id} onClick={() => setTab(id)} style={{
+              padding: '10px 14px', border: 0, background: 'transparent', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+              color: tab === id ? 'var(--semantic-primary-normal)' : 'var(--semantic-label-alternative)',
+              borderBottom: `2px solid ${tab === id ? 'var(--semantic-primary-normal)' : 'transparent'}`,
+            }}>{label}</button>
+          ))}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+          <pre style={{ fontFamily: 'inherit', fontSize: 14, lineHeight: 1.8,
+            whiteSpace: 'pre-wrap', margin: 0, color: 'var(--semantic-label-normal)' }}>
+            {tab === 'ko' ? d.korean : d.vietnamese}
+          </pre>
+        </div>
+        <div style={{ padding: '14px 24px 20px', borderTop: '1px solid var(--semantic-line-normal-alternative)',
+          display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Button variant="ghost" size="medium" onClick={onClose}>나중에 보기</Button>
+          <Button variant="outlined" size="medium">수정 요청</Button>
+          <Button variant="solid" size="medium" leadingIcon={<Icon name="check" size={14}/>}
+            onClick={() => onApprove(actionId)}>
+            승인하기
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── EMPTY STATE ────────────────────────────────────────── */
+function ComingSoon({ label }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: 80, color: 'var(--semantic-label-alternative)' }}>
+      <div style={{ width: 48, height: 48, borderRadius: 14, background: 'var(--semantic-fill-alternative)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+        <Icon name="file" size={22} color="var(--semantic-line-normal-normal)"/>
+      </div>
+      <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 13 }}>다음 버전에서 제공될 예정입니다.</div>
+    </div>
+  );
+}
+
+/* ─── PC CONTENT ─────────────────────────────────────────── */
+function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
+                     onSelectWorker, severityFilter, onSetFilter, density, onSetDensity,
+                     onOpenDocReq, onApprove, approvedIds, onOpenAIChat }) {
+  const company = COMPANIES[0];
+  const counts = { visa: 2, docs: 2, contract: 1, approval: 5, handoff: 1 };
+  const selectedWorker = selectedWorkerId ? WORKERS.find(w => w.id === selectedWorkerId) : null;
+  const effectiveActions = Object.fromEntries(
+    Object.entries(ACTIONS).map(([id, a]) => [
+      id, approvedIds.has(id) ? { ...a, status: 'approved' } : a
+    ])
+  );
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      <AppTopBar activeTab={activeTab} onTabChange={onTabChange}
+        company={company} search={search} onSearch={onSearch} pendingCount={3}
+        onOpenAIChat={onOpenAIChat}/>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+        <main style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minWidth: 0 }}>
+          {activeTab === 'today' && (
+            <div className="fade-in">
+              <div style={{ marginBottom: 16 }}>
+                <BriefingBanner generatedAt="오늘 08:00" onRegenerate={() => {}}/>
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <TodaySummary counts={counts}
+                  onFilter={f => onSetFilter(f === severityFilter ? null : f)}
+                  activeFilter={severityFilter}/>
+              </div>
+              <FilterBar severityFilter={severityFilter}
+                onClear={() => onSetFilter(null)}
+                onSetDensity={onSetDensity} density={density}/>
+              <WorkerRiskTable workers={WORKERS} cases={CASES}
+                selectedId={selectedWorkerId} onSelect={onSelectWorker}
+                severityFilter={severityFilter} density={density}/>
+            </div>
+          )}
+          {activeTab === 'workers' && (
+            <div className="fade-in">
+              <WorkersView workers={WORKERS} cases={CASES}
+                selectedId={selectedWorkerId} onSelect={onSelectWorker} search={search}/>
+            </div>
+          )}
+          {activeTab === 'cases' && (
+            <div className="fade-in">
+              <CasesView cases={CASES} workers={WORKERS}
+                citations={CITATIONS} actions={effectiveActions}/>
+            </div>
+          )}
+          {activeTab === 'recruitment' && (
+            <div className="fade-in"><RecruitmentReadinessView/></div>
+          )}
+          {activeTab === 'contact' && (
+            <div className="fade-in"><MultilingualContactView/></div>
+          )}
+          {activeTab === 'handoff'  && <div className="fade-in"><HandoffPreview/></div>}
+          {activeTab === 'evidence' && <div className="fade-in"><EvidenceLogView/></div>}
+        </main>
+        {selectedWorker && (
+          <div className="panel-enter">
+            <DetailPanel worker={selectedWorker} cases={CASES} citations={CITATIONS}
+              actions={effectiveActions} onClose={() => onSelectWorker(null)}
+              onApprove={onApprove} onOpenDocReq={onOpenDocReq}/>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── MAIN APP ───────────────────────────────────────────── */
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [role, setRole]             = React.useState('pc');
+  const [activeTab, setActiveTab]   = React.useState('today');
+  const [selectedId, setSelectedId] = React.useState(null);
+  const [sevFilter, setSevFilter]   = React.useState(null);
+  const [density, setDensity]       = React.useState('compact');
+  const [search, setSearch]         = React.useState('');
+  const [darkMode, setDarkMode]     = React.useState(false);
+  const [docReqOpen, setDocReqOpen]         = React.useState(false);
+  const [docReqActionId, setDocReqActionId] = React.useState(null);
+  const [approvedIds, setApprovedIds]       = React.useState(new Set());
+  const [aiChatOpen, setAiChatOpen]         = React.useState(false);
+
+  React.useEffect(() => { setRole(t.role || 'pc'); }, [t.role]);
+  React.useEffect(() => { setDensity(t.density || 'compact'); }, [t.density]);
+  React.useEffect(() => {
+    const dm = !!t.darkMode;
+    setDarkMode(dm);
+    document.documentElement.setAttribute('data-theme', dm ? 'dark' : 'light');
+  }, [t.darkMode]);
+
+  const handleRoleChange    = (r) => { setRole(r); setTweak('role', r); };
+  const handleDensityChange = (d) => { setDensity(d); setTweak('density', d); };
+  const handleDarkMode      = (v) => { setTweak('darkMode', v); };
+  const handleSelectWorker  = (id) => setSelectedId(prev => prev === id ? null : id);
+  const handleApprove       = (actionId) => {
+    setApprovedIds(prev => new Set([...prev, actionId]));
+    setDocReqOpen(false);
+  };
+  const handleOpenDocReq = (actionId) => { setDocReqActionId(actionId); setDocReqOpen(true); };
+
+  const sharedPCProps = {
+    activeTab, onTabChange: (tab) => { setActiveTab(tab); setSelectedId(null); },
+    search, onSearch: setSearch,
+    selectedWorkerId: selectedId, onSelectWorker: handleSelectWorker,
+    severityFilter: sevFilter, onSetFilter: setSevFilter,
+    density, onSetDensity: handleDensityChange,
+    onOpenDocReq: handleOpenDocReq,
+    onApprove: handleApprove,
+    approvedIds,
+    onOpenAIChat: () => setAiChatOpen(true),
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+      <RoleBar role={role} onSetRole={handleRoleChange}/>
+
+      {/* PC VIEW */}
+      {role === 'pc' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <PCContent {...sharedPCProps}/>
+        </div>
+      )}
+
+      {/* MOBILE VIEW */}
+      {role === 'mobile' && (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'var(--semantic-background-normal-alternative)', overflow: 'hidden' }}>
+          <PhoneBezel>
+            <MobileChat onApprove={() => {}}/>
+          </PhoneBezel>
+        </div>
+      )}
+
+      {/* SPLIT VIEW */}
+      {role === 'split' && (
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+          {/* Left: PC (shrinks to fill remaining space) */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+            <PCContent {...sharedPCProps}/>
+          </div>
+          {/* Right: Phone sidebar */}
+          <div style={{
+            width: 310, flexShrink: 0,
+            background: 'var(--semantic-fill-alternative)',
+            borderLeft: '1px solid var(--semantic-line-normal-neutral)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            padding: '24px 16px', overflow: 'hidden',
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.05em',
+              color: 'var(--semantic-label-alternative)', textTransform: 'uppercase',
+              marginBottom: 16, alignSelf: 'flex-start' }}>
+              사장님 모바일
+            </div>
+            <PhoneBezel compact>
+              <MobileChat onApprove={() => {}}/>
+            </PhoneBezel>
+          </div>
+        </div>
+      )}
+
+      {/* DOC REQUEST MODAL */}
+      {docReqOpen && docReqActionId && (
+        <DocRequestModal actionId={docReqActionId}
+          onClose={() => setDocReqOpen(false)}
+          onApprove={handleApprove}/>
+      )}
+
+      {/* AI 반장 챗봇 사이드 패널 */}
+      <AIChatPanel open={aiChatOpen} onClose={() => setAiChatOpen(false)}/>
+
+      {/* TWEAKS PANEL */}
+      <TweaksPanel>
+        <TweakSection label="화면 전환"/>
+        <TweakRadio label="역할"
+          value={role}
+          options={['pc', 'mobile', 'split']}
+          onChange={handleRoleChange}/>
+        <TweakSection label="PC 설정"/>
+        <TweakRadio label="테이블 밀도"
+          value={density}
+          options={['compact', 'comfortable']}
+          onChange={handleDensityChange}/>
+        <TweakSection label="외관"/>
+        <TweakToggle label="다크 모드"
+          value={darkMode}
+          onChange={handleDarkMode}/>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
