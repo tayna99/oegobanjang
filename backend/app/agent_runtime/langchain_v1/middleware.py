@@ -514,7 +514,7 @@ def build_langchain_v1_middleware() -> Sequence[Any]:
             apply_to_input=True,
             apply_to_output=True,
         ),
-        ModelCallLimitMiddleware(run_limit=8),
+        ModelCallLimitMiddleware(run_limit=12),
         ToolCallLimitMiddleware(run_limit=12),
         HumanInTheLoopMiddleware(
             interrupt_on={
