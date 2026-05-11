@@ -58,97 +58,138 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "darkMode": false
 }/*EDITMODE-END*/;
 
+/* ─── TAB 아이콘 SVG ────────────────────────────────────── */
+const TAB_ICONS = {
+  today:       <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M6 2v2M14 2v2M3 8h14M5 4h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><path d="M7 12l2 2 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  recruitment: <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3" stroke="currentColor" strokeWidth="1.6"/><path d="M4 17c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><path d="M14 4l1.5 1.5L18 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  workers:     <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="8" cy="7" r="3" stroke="currentColor" strokeWidth="1.6"/><path d="M2 17c0-3.314 2.686-5 6-5s6 1.686 6 5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><circle cx="15" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.4"/><path d="M18 17c0-2.5-1.5-4-3-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
+  contact:     <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M3 4h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5l-3 3V5a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>,
+  cases:       <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M6 2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="1.6"/><path d="M8 7h4M8 11h4M8 15h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  handoff:     <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M9 3H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/><path d="M13 3l4 4-7 7H6v-4l7-7z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/></svg>,
+  evidence:    <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.6"/><path d="M10 7v3l2 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>,
+};
+
 /* ─── APP TOP BAR (stateful nav) ────────────────────────── */
 function AppTopBar({ activeTab, onTabChange, company, search, onSearch, pendingCount, onOpenAIChat }) {
   const tabs = [
-    { id: 'today',      label: '오늘 할 일' },
-    { id: 'workers',    label: '근로자' },
-    { id: 'cases',      label: '케이스' },
-    { id: 'approvals',  label: '승인 센터' },
-    { id: 'recruitment',label: '채용 준비' },
-    { id: 'contact',    label: '메시지 관리' },
-    { id: 'handoff',    label: '행정사 검토' },
-    { id: 'evidence',   label: '판단 기록' },
+    { id: 'today',       label: '오늘 할 일',  icon: 'today' },
+    { id: 'recruitment', label: '채용 준비',   icon: 'recruitment' },
+    { id: 'workers',     label: '근로자',      icon: 'workers' },
+    { id: 'contact',     label: '컨택',        icon: 'contact' },
+    { id: 'cases',       label: '케이스',      icon: 'cases' },
+    { id: 'handoff',     label: '행정사 검토', icon: 'handoff' },
+    { id: 'evidence',    label: '판단 기록',   icon: 'evidence' },
   ];
+
   return (
-    <header style={{
-      height: 60, padding: '0 28px', flexShrink: 0,
-      display: 'flex', alignItems: 'center', gap: 20,
-      background: 'var(--header-bg)',
-      backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)',
-      borderBottom: '1px solid var(--semantic-line-normal-neutral)',
-      position: 'sticky', top: 0, zIndex: 100,
-    }}>
-      <BrandMark size={20}/>
-      <div style={{ width: 1, height: 20, background: 'var(--semantic-line-normal-neutral)', flexShrink: 0 }}/>
+    <div style={{ flexShrink: 0, position: 'sticky', top: 0, zIndex: 100 }}>
+      {/* 상단 헤더 바 */}
+      <header style={{
+        height: 60, padding: '0 28px',
+        display: 'flex', alignItems: 'center', gap: 16,
+        background: 'var(--header-bg)',
+        backdropFilter: 'blur(32px)', WebkitBackdropFilter: 'blur(32px)',
+        borderBottom: '1px solid var(--semantic-line-normal-alternative)',
+      }}>
+        {/* 로고 */}
+        <BrandMark size={20}/>
+        <div style={{ width: 1, height: 20, background: 'var(--semantic-line-normal-neutral)', flexShrink: 0 }}/>
 
-      {/* Company chip */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px 6px 8px',
-        background: 'var(--semantic-fill-alternative)', borderRadius: 8, cursor: 'pointer', flexShrink: 0 }}>
-        <div style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--semantic-primary-normal)',
-          color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 700 }}>{company.name[0]}</div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{company.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--semantic-label-alternative)', lineHeight: 1.2 }}>{company.sub}</div>
-        </div>
-        <Icon name="chevronDown" size={13} color="var(--semantic-label-alternative)"/>
-      </div>
-
-      {/* Nav tabs */}
-      <nav style={{ display: 'flex', gap: 2 }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{
-            padding: '7px 14px', borderRadius: 8, border: 0, cursor: 'pointer',
-            fontSize: 13.5, fontWeight: 500, fontFamily: 'inherit',
-            color: activeTab === tab.id ? 'var(--semantic-label-normal)' : 'var(--semantic-label-alternative)',
-            background: activeTab === tab.id ? 'var(--semantic-fill-normal)' : 'transparent',
-            transition: 'background .15s, color .15s',
-          }}>{tab.label}</button>
-        ))}
-      </nav>
-
-      <div style={{ flex: 1 }}/>
-
-      {/* Search */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
-        background: 'var(--semantic-fill-alternative)', borderRadius: 10, width: 280, flexShrink: 0 }}>
-        <Icon name="search" size={15} color="var(--semantic-label-alternative)"/>
-        <input value={search} onChange={e => onSearch(e.target.value)}
-          placeholder="근로자, 케이스, 사업장 검색"
-          style={{ flex: 1, border: 0, background: 'transparent', outline: 'none',
-            fontFamily: 'inherit', fontSize: 13, color: 'var(--semantic-label-normal)' }}/>
-        <span style={{ fontSize: 11, color: 'var(--semantic-label-alternative)', padding: '1px 5px',
-          background: 'var(--semantic-background-elevated-normal)', borderRadius: 4 }}>⌘K</span>
-      </div>
-
-      {/* AI ask */}
-      <button onClick={onOpenAIChat} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px',
-        background: 'transparent', border: '1px solid var(--semantic-line-normal-normal)',
-        borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
-        fontSize: 13, color: 'var(--semantic-label-neutral)', whiteSpace: 'nowrap' }}>
-        <Icon name="sparkle" size={14} color="var(--semantic-primary-normal)"/>
-        AI 반장에게 물어보기
-      </button>
-
-      {/* Bell */}
-      <div style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
-        <Icon name="bell" size={20} color="var(--semantic-label-neutral)"/>
-        {pendingCount > 0 && (
-          <span style={{ position: 'absolute', top: -3, right: -5, minWidth: 16, height: 16, padding: '0 4px',
-            borderRadius: 999, background: 'var(--semantic-status-negative)', color: '#fff',
-            fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-            {pendingCount}
+        {/* Company chip */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px 6px 8px',
+          background: 'var(--semantic-fill-alternative)', borderRadius: 8, cursor: 'pointer', flexShrink: 0 }}>
+          <div style={{ width: 20, height: 20, borderRadius: 5,
+            background: 'var(--semantic-primary-normal)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700, color: '#fff' }}>{company.name[0]}</div>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--semantic-label-normal)' }}>
+            {company.name}
           </span>
-        )}
-      </div>
+          <span style={{ fontSize: 12, color: 'var(--semantic-label-alternative)' }}>·</span>
+          <span style={{ fontSize: 12, color: 'var(--semantic-label-alternative)' }}>{company.sub.split('·')[0].trim()}</span>
+          <Icon name="chevronDown" size={13} color="var(--semantic-label-alternative)"/>
+        </div>
 
-      {/* Avatar */}
-      <div style={{ width: 32, height: 32, borderRadius: 999, flexShrink: 0,
-        background: 'linear-gradient(135deg,#0066FF,#6541F2)',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>김</div>
-    </header>
+        <div style={{ flex: 1 }}/>
+
+        {/* Search */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px',
+          background: 'var(--semantic-fill-alternative)', borderRadius: 24, width: 340, flexShrink: 0 }}>
+          <Icon name="search" size={15} color="var(--semantic-label-alternative)"/>
+          <input value={search} onChange={e => onSearch(e.target.value)}
+            placeholder="근로자, 케이스, 서류, 메시지 검색"
+            style={{ flex: 1, border: 0, background: 'transparent', outline: 'none',
+              fontFamily: 'inherit', fontSize: 13, color: 'var(--semantic-label-normal)' }}/>
+        </div>
+
+        {/* AI ask */}
+        <button onClick={onOpenAIChat} style={{
+          display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px',
+          background: '#fff', border: '1.5px solid #1B3FA0',
+          borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+          fontSize: 13.5, fontWeight: 600, color: '#1B3FA0', whiteSpace: 'nowrap',
+        }}>
+          <Icon name="sparkle" size={15} color="#1B3FA0"/>
+          AI 반장에게 물어보기
+        </button>
+
+        {/* Bell */}
+        <div style={{ position: 'relative', cursor: 'pointer', flexShrink: 0, padding: 4 }}>
+          <Icon name="bell" size={22} color="var(--semantic-label-neutral)"/>
+          {pendingCount > 0 && (
+            <span style={{ position: 'absolute', top: 0, right: 0, minWidth: 17, height: 17, padding: '0 4px',
+              borderRadius: 999, background: '#EF4444', color: '#fff',
+              fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              {pendingCount}
+            </span>
+          )}
+        </div>
+
+        {/* 사용자 정보 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 999,
+            background: 'linear-gradient(135deg,#0066FF,#6541F2)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 12, fontWeight: 700 }}>김</div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>김대리</div>
+            <div style={{ fontSize: 11, color: 'var(--semantic-label-alternative)', lineHeight: 1.2 }}>인사팀</div>
+          </div>
+          <Icon name="chevronDown" size={13} color="var(--semantic-label-alternative)"/>
+        </div>
+      </header>
+
+      {/* 탭 네비게이션 바 (헤더 아래 별도 줄) */}
+      <nav style={{
+        background: '#fff',
+        borderBottom: '1px solid var(--semantic-line-normal-alternative)',
+        padding: '0 28px',
+        display: 'flex', gap: 0,
+      }}>
+        {tabs.map(tab => {
+          const active = activeTab === tab.id;
+          return (
+            <button key={tab.id} onClick={() => onTabChange(tab.id)} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '12px 16px', border: 0, background: 'transparent',
+              cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 13.5, fontWeight: active ? 600 : 500,
+              color: active ? '#1B3FA0' : 'var(--semantic-label-alternative)',
+              borderBottom: active ? '2px solid #1B3FA0' : '2px solid transparent',
+              marginBottom: -1,
+              transition: 'color .15s',
+              whiteSpace: 'nowrap',
+            }}>
+              <span style={{ color: active ? '#1B3FA0' : 'var(--semantic-label-alternative)',
+                display: 'flex', alignItems: 'center' }}>
+                {TAB_ICONS[tab.icon]}
+              </span>
+              {tab.label}
+            </button>
+          );
+        })}
+      </nav>
+    </div>
   );
 }
 
@@ -313,36 +354,56 @@ function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
                      onSelectWorker, severityFilter, onSetFilter, density, onSetDensity,
                      onOpenDocReq, onApprove, approvedIds, onOpenAIChat }) {
   const company = COMPANIES[0];
-  const counts = { visa: 2, docs: 2, contract: 1, approval: 5, handoff: 1 };
+  const counts = { visa: 4, docs: 7, contract: 1, approval: 5, handoff: 2, recruitment: 1, contact: 4, reply: 2 };
   const selectedWorker = selectedWorkerId ? WORKERS.find(w => w.id === selectedWorkerId) : null;
+  const [selectedTask, setSelectedTask] = React.useState(null);
   const effectiveActions = Object.fromEntries(
     Object.entries(ACTIONS).map(([id, a]) => [
       id, approvedIds.has(id) ? { ...a, status: 'approved' } : a
     ])
   );
+  const taskWorker = selectedTask?.workerId ? WORKERS.find(w => w.id === selectedTask.workerId) : null;
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
       <AppTopBar activeTab={activeTab} onTabChange={onTabChange}
-        company={company} search={search} onSearch={onSearch} pendingCount={3}
+        company={company} search={search} onSearch={onSearch} pendingCount={12}
         onOpenAIChat={onOpenAIChat}/>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
         <main style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', minWidth: 0 }}>
           {activeTab === 'today' && (
             <div className="fade-in">
-              <div style={{ marginBottom: 16 }}>
-                <BriefingBanner generatedAt="오늘 08:00" onRegenerate={() => {}}/>
+              <BriefingBanner generatedAt="오늘 08:00" onRegenerate={() => {}}/>
+              <TodaySummaryNew counts={counts}/>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--semantic-label-normal)' }}>
+                  오늘의 업무 큐
+                  <span style={{ marginLeft: 8, fontSize: 13, fontWeight: 600, color: '#1B3FA0',
+                    background: '#EFF6FF', padding: '2px 8px', borderRadius: 99 }}>4건</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--semantic-line-normal-normal)',
+                    background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
+                    color: 'var(--semantic-label-neutral)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                      <path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    필터
+                  </button>
+                  <button style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--semantic-line-normal-normal)',
+                    background: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600,
+                    color: 'var(--semantic-label-neutral)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    기한 임박 순
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
-              <div style={{ marginBottom: 20 }}>
-                <TodaySummary counts={counts}
-                  onFilter={f => onSetFilter(f === severityFilter ? null : f)}
-                  activeFilter={severityFilter}/>
-              </div>
-              <FilterBar severityFilter={severityFilter}
-                onClear={() => onSetFilter(null)}
-                onSetDensity={onSetDensity} density={density}/>
-              <WorkerRiskTable workers={WORKERS} cases={CASES}
-                selectedId={selectedWorkerId} onSelect={onSelectWorker}
-                severityFilter={severityFilter} density={density}/>
+              <TodayTaskQueue
+                onSelectTask={task => setSelectedTask(prev => prev?.id === task.id ? null : task)}
+                selectedTaskId={selectedTask?.id}
+              />
             </div>
           )}
           {activeTab === 'workers' && (
@@ -357,19 +418,29 @@ function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
                 citations={CITATIONS} actions={effectiveActions}/>
             </div>
           )}
-          {activeTab === 'approvals' && (
-            <div className="fade-in"><ApprovalCenterView/></div>
-          )}
           {activeTab === 'recruitment' && (
             <div className="fade-in"><RecruitmentReadinessView/></div>
           )}
           {activeTab === 'contact' && (
             <div className="fade-in"><MultilingualContactView/></div>
           )}
-          {activeTab === 'handoff'    && <div className="fade-in"><HandoffPreview/></div>}
-          {activeTab === 'evidence'   && <div className="fade-in"><EvidenceLogView/></div>}
+          {activeTab === 'handoff'  && <div className="fade-in"><HandoffPreview/></div>}
+          {activeTab === 'evidence' && <div className="fade-in"><EvidenceLogView/></div>}
         </main>
-        {selectedWorker && (
+        {/* 오늘 할 일 탭: 업무 상세 패널 */}
+        {activeTab === 'today' && selectedTask && (
+          <div className="panel-enter">
+            <TaskDetailPanel
+              task={selectedTask}
+              worker={taskWorker}
+              onClose={() => setSelectedTask(null)}
+              onOpenDocReq={onOpenDocReq}
+              onApprove={onApprove}
+            />
+          </div>
+        )}
+        {/* 근로자/케이스 탭: 기존 DetailPanel */}
+        {activeTab !== 'today' && selectedWorker && (
           <div className="panel-enter">
             <DetailPanel worker={selectedWorker} cases={CASES} citations={CITATIONS}
               actions={effectiveActions} onClose={() => onSelectWorker(null)}
