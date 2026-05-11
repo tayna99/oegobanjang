@@ -3,9 +3,11 @@
 
 const DetailPanel = ({ worker, cases, citations, actions, onClose, onApprove, onOpenDocReq }) => {
   if (!worker) return null;
+  const [piiVisible, setPiiVisible] = React.useState(false);
   const workerCases = cases.filter(c => c.workerId === worker.id);
   const workerActions = workerCases.flatMap(c => c.actions.map(id => ({ ...actions[id], caseId: c.id, severity: c.severity })));
   const cited = [...new Set(workerCases.flatMap(c => c.citationIds))].map(id => citations[id]);
+  const maskPii = (v) => piiVisible ? v : v.replace(/\d/g, '*');
 
   return (
     <aside style={{
@@ -21,9 +23,26 @@ const DetailPanel = ({ worker, cases, citations, actions, onClose, onApprove, on
           <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--semantic-label-alternative)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             근로자 상세
           </span>
-          <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: 'var(--semantic-label-alternative)', padding: 4 }}>
-            <Icon name="close" size={16}/>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {/* PII 마스킹 토글 */}
+            <button
+              onClick={() => setPiiVisible(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '3px 9px', borderRadius: 6, fontSize: 11.5, fontWeight: 600,
+                border: `1px solid ${piiVisible ? '#EF4444' : 'var(--semantic-line-normal-normal)'}`,
+                background: piiVisible ? '#FEE2E2' : 'var(--semantic-fill-alternative)',
+                color: piiVisible ? '#7F1D1D' : 'var(--semantic-label-alternative)',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <Icon name="eye" size={12} color={piiVisible ? '#7F1D1D' : 'var(--semantic-label-alternative)'}/>
+              {piiVisible ? 'PII 표시 중' : 'PII 마스킹'}
+            </button>
+            <button onClick={onClose} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: 'var(--semantic-label-alternative)', padding: 4 }}>
+              <Icon name="close" size={16}/>
+            </button>
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <Avatar name={worker.name} initial={worker.avatar} size={56} hue={3}/>
@@ -32,8 +51,20 @@ const DetailPanel = ({ worker, cases, citations, actions, onClose, onApprove, on
             <div style={{ fontSize: 13, color: 'var(--semantic-label-neutral)', marginTop: 2 }}>
               {worker.flag} {worker.nationality} · {worker.visaType} · 근속 {worker.tenure}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--semantic-label-alternative)', marginTop: 1 }}>
-              {worker.line} · 외등 {worker.arn}
+            <div style={{ fontSize: 12, color: 'var(--semantic-label-alternative)', marginTop: 1,
+              display: 'flex', alignItems: 'center', gap: 4 }}>
+              {worker.line} · 외등{' '}
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5,
+                background: piiVisible ? 'transparent' : '#F3F4F6',
+                padding: piiVisible ? 0 : '1px 5px', borderRadius: 4 }}>
+                {piiVisible ? worker.arn : worker.arn.replace(/\d/g, '●')}
+              </span>
+              {!piiVisible && (
+                <span style={{ fontSize: 10, color: 'var(--semantic-label-alternative)',
+                  background: '#FEF9C3', padding: '1px 5px', borderRadius: 4, fontWeight: 600 }}>
+                  마스킹
+                </span>
+              )}
             </div>
           </div>
         </div>

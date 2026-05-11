@@ -45,6 +45,9 @@
 <script type="text/babel" src="workers-cases.jsx"></script>
 <script type="text/babel" src="recruitment.jsx"></script>
 <script type="text/babel" src="contact.jsx"></script>
+<script type="text/babel" src="approval-center.jsx"></script>
+<script type="text/babel" src="evidence-viewer.jsx"></script>
+<script type="text/babel" src="metrics-trace.jsx"></script>
 <script type="text/babel" src="ai-chat-panel.jsx"></script>
 
 <script type="text/babel">
@@ -58,13 +61,17 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 /* ─── APP TOP BAR (stateful nav) ────────────────────────── */
 function AppTopBar({ activeTab, onTabChange, company, search, onSearch, pendingCount, onOpenAIChat }) {
   const tabs = [
-    { id: 'today',       label: '오늘 할 일' },
-    { id: 'workers',     label: '근로자' },
-    { id: 'cases',       label: '케이스' },
-    { id: 'recruitment', label: '채용 준비' },
-    { id: 'contact',     label: '메시지 관리' },
-    { id: 'handoff',     label: '행정사 검토' },
-    { id: 'evidence',    label: '판단 기록' },
+    { id: 'today',      label: '오늘 할 일' },
+    { id: 'workers',    label: '근로자' },
+    { id: 'cases',      label: '케이스' },
+    { id: 'approvals',  label: '승인 센터' },
+    { id: 'recruitment',label: '채용 준비' },
+    { id: 'contact',    label: '메시지 관리' },
+    { id: 'handoff',    label: '행정사 검토' },
+    { id: 'evidence',   label: '판단 기록' },
+    { id: 'evi-viewer', label: 'Evidence' },
+    { id: 'metrics',    label: '메트릭' },
+    { id: 'trace',      label: '에이전트 추적' },
   ];
   return (
     <header style={{
@@ -353,14 +360,24 @@ function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
                 citations={CITATIONS} actions={effectiveActions}/>
             </div>
           )}
+          {activeTab === 'approvals' && (
+            <div className="fade-in"><ApprovalCenterView/></div>
+          )}
           {activeTab === 'recruitment' && (
             <div className="fade-in"><RecruitmentReadinessView/></div>
           )}
           {activeTab === 'contact' && (
             <div className="fade-in"><MultilingualContactView/></div>
           )}
-          {activeTab === 'handoff'  && <div className="fade-in"><HandoffPreview/></div>}
-          {activeTab === 'evidence' && <div className="fade-in"><EvidenceLogView/></div>}
+          {activeTab === 'handoff'    && <div className="fade-in"><HandoffPreview/></div>}
+          {activeTab === 'evidence'   && <div className="fade-in"><EvidenceLogView/></div>}
+          {activeTab === 'evi-viewer' && <div className="fade-in"><EvidenceViewerView/></div>}
+          {activeTab === 'metrics'    && <div className="fade-in"><RuntimeMetricsView/></div>}
+          {activeTab === 'trace'      && (
+            <div className="fade-in">
+              <AgentTraceView onGoToEvidence={() => {}}/>
+            </div>
+          )}
         </main>
         {selectedWorker && (
           <div className="panel-enter">
