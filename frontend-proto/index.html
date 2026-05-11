@@ -69,9 +69,6 @@ function AppTopBar({ activeTab, onTabChange, company, search, onSearch, pendingC
     { id: 'contact',    label: '메시지 관리' },
     { id: 'handoff',    label: '행정사 검토' },
     { id: 'evidence',   label: '판단 기록' },
-    { id: 'evi-viewer', label: 'Evidence' },
-    { id: 'metrics',    label: '메트릭' },
-    { id: 'trace',      label: '에이전트 추적' },
   ];
   return (
     <header style={{
@@ -371,13 +368,6 @@ function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
           )}
           {activeTab === 'handoff'    && <div className="fade-in"><HandoffPreview/></div>}
           {activeTab === 'evidence'   && <div className="fade-in"><EvidenceLogView/></div>}
-          {activeTab === 'evi-viewer' && <div className="fade-in"><EvidenceViewerView/></div>}
-          {activeTab === 'metrics'    && <div className="fade-in"><RuntimeMetricsView/></div>}
-          {activeTab === 'trace'      && (
-            <div className="fade-in">
-              <AgentTraceView onGoToEvidence={() => {}}/>
-            </div>
-          )}
         </main>
         {selectedWorker && (
           <div className="panel-enter">
