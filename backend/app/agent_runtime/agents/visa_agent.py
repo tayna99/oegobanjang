@@ -23,6 +23,20 @@ from app.agent_runtime.middleware.call_limiter import check_llm_limit
 from app.agent_runtime.evidence_events import make_event, log_event
 from app.config import get_settings
 
+_GRADE_MAX_CHARS: dict[str, int] = {"A": 600, "B": 500, "C": 400, "E": 300}
+
+
+def _truncate_to_sentence(text: str, max_chars: int) -> str:
+    if len(text) <= max_chars:
+        return text
+    cut = text[:max_chars]
+    for sep in (".\n", ". ", "\n"):
+        idx = cut.rfind(sep)
+        if idx > max_chars // 2:
+            return cut[: idx + len(sep)].rstrip() + "..."
+    return cut + "..."
+
+
 # 서브에이전트 1: 비자 위험도 전담
 _VISA_RISK_TOOLS = [
     get_worker_profile,
@@ -163,9 +177,10 @@ def _run_document_priority_sub_agent(
     context_parts.append(f"케이스 유형: {case_type}")
     if state.rag_contexts:
         for ctx in state.rag_contexts[:3]:
-            context_parts.append(
-                f"[{ctx.get('title', '')} / Grade {ctx.get('evidence_grade', '')}]\n{ctx.get('content', '')[:300]}"
-            )
+            grade = ctx.get("evidence_grade", "F")
+            max_chars = _GRADE_MAX_CHARS.get(grade, 300)
+            content = _truncate_to_sentence(ctx.get("content", ""), max_chars)
+            context_parts.append(f"[{ctx.get('title', '')} / Grade {grade}]\n{content}")
 
     messages = [
         SystemMessage(content=_DOC_PRIORITY_SYSTEM_PROMPT),

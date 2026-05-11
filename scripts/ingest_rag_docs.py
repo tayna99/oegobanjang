@@ -33,6 +33,7 @@ from app.agent_runtime.rag.workforce_metadata import (
     is_workforce_relevant_record,
     normalize_workforce_metadata,
 )
+from app.agent_runtime.rag_hyunwook.chunking import chunk_document
 
 
 DEFAULT_MAX_CHARS = 1200
@@ -254,7 +255,8 @@ def make_chunks_from_record(record: dict[str, Any], source_path: str | None = No
     if not text:
         return []
 
-    chunks = split_text(text)
+    doc_type = metadata.get("doc_type", "general")
+    chunks = chunk_document(text, doc_type, metadata) or split_text(text)
 
     output: list[dict[str, Any]] = []
 
