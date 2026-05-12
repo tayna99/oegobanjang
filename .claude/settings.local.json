@@ -39,7 +39,23 @@
       "Bash(git rebase *)",
       "Bash(git rm *)",
       "Bash(GIT_EDITOR=true git rebase --continue)",
-      "PowerShell(grep *)"
+      "PowerShell(grep *)",
+      "Bash(powershell -NoProfile -Command '$data = [Console]::In.ReadToEnd\\(\\) | ConvertFrom-Json; $folder = Split-Path -Leaf $data.workspace.current_dir; $model = $data.model.display_name; Write-Host -NoNewline \"$folder | $model\"')",
+      "Bash(powershell -NoProfile -Command *)",
+      "Bash(claude --version)",
+      "Bash(npm show *)",
+      "Bash(claude config *)",
+      "PowerShell(claude config *)",
+      "PowerShell(claude *)",
+      "PowerShell(echo '{}' | powershell -NoProfile -File C:\\\\Users\\\\user\\\\statusline.ps1)",
+      "PowerShell($py = \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\.venv\\\\Scripts\\\\python.exe\"; Set-Location \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\backend\"; & $py -m pytest tests/test_visa_sub_agents.py -v --no-header 2>&1 | Select-Object -Last 60)",
+      "PowerShell($py = \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\.venv\\\\Scripts\\\\python.exe\"; Set-Location \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\backend\"; & $py -m pytest tests/test_visa_sub_agents.py -v --no-header 2>&1)",
+      "Bash(git stash *)",
+      "Bash(uv run *)"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "powershell -NoProfile -File C:\\Users\\user\\statusline.ps1"
   }
 }

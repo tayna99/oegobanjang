@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -173,6 +174,180 @@ def _save_handoff(db: Session) -> dict:
         company_id="company-demo-001",
         created_by="manager-demo",
     )
+
+
+def test_list_approvals_defaults_to_pending_for_same_company() -> None:
+    db = _db()
+    message = _save_message(db)
+    other_message = save_message_draft_result(
+        db,
+        agent_result=_message_result(),
+        company_id="company-other-001",
+        created_by="manager-demo",
+        request_id="request-other",
+    )
+    db.commit()
+    client = _client_with_db(db)
+
+    try:
+        response = client.get(
+            "/api/v1/approvals",
+            headers={"X-Company-Id": "company-demo-001"},
+        )
+    finally:
+        _clear_client_override()
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 1
+    assert body["limit"] == 20
+    assert body["offset"] == 0
+    assert [item["approval_id"] for item in body["items"]] == [message.approval_id]
+    assert other_message.approval_id not in json.dumps(body)
+    assert body["items"][0]["approval_status"] == "PENDING"
+    assert body["items"][0]["target_type"] == "contact_message"
+    assert body["items"][0]["target"]["message_purpose"] == "safety_training_notice"
+    _assert_safe_payload(body)
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_status"),
+    [
+        ("PENDING", "PENDING"),
+        ("APPROVED", "APPROVED"),
+        ("REJECTED", "REJECTED"),
+    ],
+)
+def test_list_approvals_filters_by_status(
+    status: str,
+    expected_status: str,
+) -> None:
+    db = _db()
+    pending_message = _save_message(db)
+    approved_message = _save_message(db)
+    rejected_message = _save_message(db)
+    db.get(Approval, approved_message.approval_id).status = "APPROVED"
+    approved_message.status = "APPROVED"
+    db.get(Approval, rejected_message.approval_id).status = "REJECTED"
+    rejected_message.status = "REJECTED"
+    db.commit()
+    client = _client_with_db(db)
+
+    try:
+        response = client.get(
+            f"/api/v1/approvals?status={status}",
+            headers={"X-Company-Id": "company-demo-001"},
+        )
+    finally:
+        _clear_client_override()
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 1
+    item = body["items"][0]
+    assert item["approval_status"] == expected_status
+    if status == "PENDING":
+        assert item["approval_id"] == pending_message.approval_id
+    elif status == "APPROVED":
+        assert item["approval_id"] == approved_message.approval_id
+    else:
+        assert item["approval_id"] == rejected_message.approval_id
+    _assert_safe_payload(body)
+
+
+@pytest.mark.parametrize(
+    ("target_type", "expected_field"),
+    [
+        ("contact_message", "message_purpose"),
+        ("status_update_candidate", "target_key"),
+        ("handoff_package_draft", "package_type"),
+    ],
+)
+def test_list_approvals_filters_by_target_type(
+    target_type: str,
+    expected_field: str,
+) -> None:
+    db = _db()
+    _save_message(db)
+    _save_candidate(db)
+    _save_handoff(db)
+    db.commit()
+    client = _client_with_db(db)
+
+    try:
+        response = client.get(
+            f"/api/v1/approvals?target_type={target_type}",
+            headers={"X-Company-Id": "company-demo-001"},
+        )
+    finally:
+        _clear_client_override()
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 1
+    assert body["items"][0]["target_type"] == target_type
+    assert expected_field in body["items"][0]["target"]
+    _assert_safe_payload(body)
+
+
+def test_list_approvals_without_company_header_returns_403() -> None:
+    db = _db()
+    _save_message(db)
+    db.commit()
+    client = _client_with_db(db)
+
+    try:
+        response = client.get("/api/v1/approvals")
+    finally:
+        _clear_client_override()
+
+    assert response.status_code == 403
+    _assert_safe_payload(response.json())
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "status=UNKNOWN",
+        "target_type=unsupported_target",
+    ],
+)
+def test_list_approvals_rejects_unknown_filters(query: str) -> None:
+    db = _db()
+    client = _client_with_db(db)
+
+    try:
+        response = client.get(
+            f"/api/v1/approvals?{query}",
+            headers={"X-Company-Id": "company-demo-001"},
+        )
+    finally:
+        _clear_client_override()
+
+    assert response.status_code == 400
+    _assert_safe_payload(response.json())
+
+
+def test_list_approvals_clamps_limit_and_offset() -> None:
+    db = _db()
+    _save_message(db)
+    db.commit()
+    client = _client_with_db(db)
+
+    try:
+        response = client.get(
+            "/api/v1/approvals?limit=200&offset=-10",
+            headers={"X-Company-Id": "company-demo-001"},
+        )
+    finally:
+        _clear_client_override()
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["limit"] == 100
+    assert body["offset"] == 0
+    assert body["total"] == 1
+    _assert_safe_payload(body)
 
 
 def test_get_contact_message_approval_success_for_same_company() -> None:

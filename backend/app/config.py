@@ -1,10 +1,12 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = BACKEND_DIR.parent
 
 
 def normalize_database_url(database_url: str) -> str:
@@ -35,6 +37,15 @@ def normalize_backend_path(path_value: str) -> str:
     path = Path(path_value).expanduser()
     if not path.is_absolute():
         path = BACKEND_DIR / path
+    return path.resolve().as_posix()
+
+
+def normalize_project_path(path_value: str) -> str:
+    """Resolve project-root-relative paths consistently from any cwd."""
+
+    path = Path(path_value).expanduser()
+    if not path.is_absolute():
+        path = ROOT_DIR / path
     return path.resolve().as_posix()
 
 
@@ -76,15 +87,25 @@ class Settings(BaseSettings):
     chroma_host: str = "localhost"
     chroma_port: int = 8001
     chroma_collection_name: str = "oegobanjang_policy_docs"
-    chroma_persist_directory: str = "data-pipeline/index/chroma/workforce"
+    chroma_persist_directory: str = Field(
+        default="data-pipeline/index/chroma/workforce",
+        validation_alias=AliasChoices(
+            "CHROMA_WORKFORCE_PERSIST_DIRECTORY",
+            "CHROMA_PERSIST_DIRECTORY",
+        ),
+    )
     chroma_workforce_official_collection: str = "workforce_official"
     chroma_workforce_templates_collection: str = "workforce_templates"
+
+    @property
+    def normalized_chroma_persist_directory(self) -> str:
+        return normalize_project_path(self.chroma_persist_directory)
 
     # LLM Keys
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
     google_api_key: str | None = None
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-4.1-nano"
     langchain_runtime_enabled: bool = True
     langchain_checkpoint_enabled: bool = True
     langchain_checkpoint_path: str = "data/langchain_checkpoints.sqlite3"

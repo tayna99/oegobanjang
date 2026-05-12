@@ -24,7 +24,7 @@ def maybe_summarize_contexts(rag_contexts: list[dict]) -> list[dict]:
         ]
 
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model=settings.openai_model,
         temperature=0,
         openai_api_key=settings.openai_api_key,
         max_tokens=300,

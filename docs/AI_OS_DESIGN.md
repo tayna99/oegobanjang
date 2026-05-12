@@ -118,6 +118,23 @@ Human Approval = 발송·제출·전달 전 최종 승인 지점
 - 상태 업데이트 후보 생성
 - 담당자 승인 필요 여부 표시
 
+### LangChain v1 실행 형태
+
+현재 다국어 컨택 Agent는 LangChain v1 통합 Agent 안에서 호출 가능한 2개
+`LangChain tool-callable sub-agent wrappers`로 노출한다. 독립 실행 서버나 별도
+LangGraph subgraph가 아니다.
+
+| Sub-Agent Wrapper | LangChain tool | 책임 |
+|---|---|---|
+| Contact Onboarding Sub-Agent | `run_contact_onboarding` | 다국어 메시지 초안 생성, RAG 근거 검색, `message_templates.csv` 기반 초안 생성, translation quality check |
+| Worker Reply Interpreter Sub-Agent | `run_worker_reply_interpreter` | 근로자 답변 번역/요약, `translated_ko`, 상태 업데이트 후보, 담당자 next action 후보 생성 |
+
+두 wrapper 모두 외부 발송, 상태 확정, 정부 제출, 전문가 자동 전달을 수행하지 않는다.
+메시지 초안은 `approval_required=true`, 근로자 답변 해석은
+`approval_required=true` 및 `manager_review_required=true`를 반환한다.
+상태 업데이트는 후보만 생성하며 `candidate.is_final=false`를 유지한다.
+Evidence Log 후보에는 메시지 전문, `worker_reply` 원문, `translated_ko` 전문을 저장하지 않는다.
+
 ### MVP 언어 범위
 
 - 1순위: 베트남어(`vi`)는 메시지 생성, 한국어 원문 표시, 개인정보 사용 목적/제출 기한 포함, 담당자 승인 대기, 베트남어 답변 요약, 서류 상태 업데이트 후보, Evidence Log 후보 생성까지 end-to-end로 검증한다.

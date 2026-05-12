@@ -163,6 +163,8 @@ class RuntimeContext(StrictModel):
     request_id: str
     user_message: str
     evidence_events: list[dict[str, Any]] = Field(default_factory=list)
+    rag_contexts: list[dict[str, Any]] = Field(default_factory=list)
+    contact_artifacts: dict[str, dict[str, Any]] = Field(default_factory=dict)
     interrupt_metadata: dict[str, Any] = Field(default_factory=dict)
     model_metadata: dict[str, Any] = Field(default_factory=dict)
     approval_metadata: dict[str, Any] = Field(default_factory=dict)
@@ -171,6 +173,7 @@ class RuntimeContext(StrictModel):
 class LangChainRuntimeState(StrictModel):
     request_id: str
     input: AgentRuntimeInput
+    raw_input_payload: dict[str, Any] = Field(default_factory=dict, exclude=True)
     structured_response: WorkBridgeAgentResponse
     evidence_events: list[dict[str, Any]] = Field(default_factory=list)
     approval: ApprovalBlock = Field(default_factory=ApprovalBlock)

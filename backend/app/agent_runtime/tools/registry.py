@@ -16,6 +16,8 @@ from .safe_calculate import (
     calculate_missing_documents,
     calculate_contract_gap,
 )
+from .visa_risk_tool import assess_visa_risk
+from .document_check_tool import assess_document_priority
 from .safe_draft import (
     generate_hiring_request_draft,
     generate_multilingual_message_draft,
@@ -43,6 +45,8 @@ SAFE_CALCULATE_TOOLS: list[BaseTool] = [
     calculate_missing_documents,
     calculate_contract_gap,
     calculate_candidate_readiness,
+    assess_visa_risk,
+    assess_document_priority,
 ]
 
 SAFE_DRAFT_TOOLS: list[BaseTool] = [

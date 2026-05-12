@@ -44,7 +44,7 @@ def run_contact_agent(state: ForeignHiringState, worker_id: str | None = None) -
 
     settings = get_settings()
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model=settings.openai_model,
         temperature=0,
         openai_api_key=settings.openai_api_key,
     ).bind_tools(_TOOLS)
