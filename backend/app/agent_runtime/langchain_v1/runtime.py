@@ -105,6 +105,9 @@ async def run_langchain_v1_agent(
             response.domain_payload = normalize_contact_subagents_payload(
                 response.domain_payload
             )
+            response.domain_payload = _normalize_visa_subagents_payload(
+                response.domain_payload
+            )
             if not response.rag_contexts and context.rag_contexts:
                 response.rag_contexts = context.rag_contexts
             if not response.rag_contexts:
@@ -466,7 +469,11 @@ def _rag_case_types(
     candidates: list[str] = []
     if "HIRING" in response.detected_intents:
         candidates.append("new_hiring")
-    if response.handoff.available or "VISA_CHECK" in response.detected_intents:
+    if (
+        response.handoff.available
+        or "VISA_CHECK" in response.detected_intents
+        or "DOCUMENT_CHECK" in response.detected_intents
+    ):
         candidates.append("stay_extension")
     candidates.append("")
     deduped: list[str] = []
@@ -576,6 +583,25 @@ def _safe_handoff_text(value: Any) -> str | None:
     if any(marker in text for marker in _HANDOFF_FORBIDDEN_TEXT_MARKERS):
         return "담당자 검토가 필요한 항목입니다."
     return text
+
+
+def _normalize_visa_subagents_payload(domain_payload: dict[str, Any]) -> dict[str, Any]:
+    """LLM이 채운 visa_subagents를 민감정보 마스킹 후 유지. 없으면 그대로 반환."""
+    visa = domain_payload.get("visa_subagents")
+    if not isinstance(visa, dict):
+        return domain_payload
+
+    _VISA_FORBIDDEN_KEYS = {"worker_id", "passport_number", "alien_registration_number", "phone"}
+    sanitized: dict[str, Any] = {}
+    for agent_key, agent_val in visa.items():
+        if not isinstance(agent_val, dict):
+            sanitized[agent_key] = agent_val
+            continue
+        sanitized[agent_key] = {
+            k: v for k, v in agent_val.items() if k not in _VISA_FORBIDDEN_KEYS
+        }
+
+    return {**domain_payload, "visa_subagents": sanitized}
 
 
 def _agent_for_intents(intents: list[Intent]) -> str:
