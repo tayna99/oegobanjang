@@ -148,7 +148,7 @@ def test_case_audit_review_api_returns_reproducible_bundle() -> None:
     assert body["evidence_events"]
     assert body["approval_history"]
     assert body["citation_details"]
-    assert "Nguyen" not in str(body)
+    assert "Nguyen Van A" not in str(body)
 
 
 def test_case_audit_review_api_respects_tenant_scope() -> None:
@@ -852,7 +852,7 @@ def test_handoff_preview_api_returns_redacted_internal_preview() -> None:
     assert preview.status_code == 200
     body = preview.json()
     assert body["action_id"] == handoff_action["action_id"]
-    assert "Nguyen" not in str(body)
+    assert "Nguyen Van A" not in str(body)
     assert body["citation_ids"]
 
 
@@ -1016,7 +1016,7 @@ def test_approved_external_delivery_job_creates_manual_outbox_without_sending() 
     assert body["external_send_performed"] is False
     assert body["channel"] == "admin_scrivener"
     assert body["provider"] == "manual"
-    assert "Nguyen" not in str(body)
+    assert "Nguyen Van A" not in str(body)
     evidence = client.get(
         f"/api/v1/cases/{handoff_action['case_id']}/evidence-events",
         headers={"X-Company-Id": "company_001"},
@@ -1104,7 +1104,7 @@ def test_document_request_draft_api_returns_preview_only_message() -> None:
     assert body["status"] == "preview_only"
     assert body["external_send_performed"] is False
     assert body["translated_text"]
-    assert "Nguyen" not in str(body)
+    assert "Nguyen Van A" not in str(body)
 
 
 def test_reject_and_revision_approval_apis_update_state() -> None:

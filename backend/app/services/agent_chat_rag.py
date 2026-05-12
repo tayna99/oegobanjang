@@ -295,6 +295,11 @@ class RAGFirstChatContext:
     company_id: str
     user_role: str
     fallback_plan: dict[str, Any]
+    date: str | None = None
+    workspace_id: str | None = None
+    active_tab: str | None = None
+    selected_case_id: str | None = None
+    selected_action_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -510,8 +515,17 @@ def run_agent_chat_rag_first(
         blocked_actions=preflight.blocked_actions or [],
     )
     intent = normalized_plan.intent
-    selected_items = _select_daily_briefing_items(daily_briefing.items, intent)
-    actions = _selected_actions(daily_briefing.recommended_actions, selected_items)
+    selected_items = _select_daily_briefing_items(
+        daily_briefing.items,
+        intent,
+        selected_case_id=context.selected_case_id,
+        selected_action_id=context.selected_action_id,
+    )
+    actions = _selected_actions(
+        daily_briefing.recommended_actions,
+        selected_items,
+        selected_action_id=context.selected_action_id,
+    )
     sources = _selected_sources(daily_briefing.citation_summaries, selected_items, results)
     executed_tools = _executed_tools_for_intent(
         intent=intent,
@@ -534,6 +548,7 @@ def run_agent_chat_rag_first(
         rag_results=results,
         executed_tools=executed_tools,
     )
+    display_context = _display_context(selected_items, actions, sources)
     structured_plan = AgentChatStructuredPlan(
         intent=intent,
         plan_steps=[
@@ -601,6 +616,7 @@ def run_agent_chat_rag_first(
         ],
         "actions": [action.model_dump() for action in actions],
         "sources": [source.model_dump() for source in sources],
+        **display_context,
         "detected_intents": [intent],
         "approval_required": daily_briefing.approval_required,
         "approval_status": "pending" if daily_briefing.approval_required else "not_required",
@@ -643,7 +659,9 @@ def _build_operational_chunks(daily_briefing: Any) -> list[dict[str, Any]]:
                 INTENT_LABELS.get(intent, intent),
                 RISK_LABELS.get(item.risk_type, item.risk_type),
                 _domain_terms(intent),
-                item.subject_id,
+                _subject_label(item),
+                getattr(item, "case_title", "") or "",
+                getattr(item, "case_summary", "") or "",
                 _risk_timing(item),
                 _document_list(item.missing_documents),
                 " ".join(action_labels),
@@ -721,7 +739,7 @@ def _build_operational_chunks(daily_briefing: Any) -> list[dict[str, Any]]:
                     text=(
                         "다국어 서류 요청 메시지 베트남어 요청 문구 초안 서류 보완 "
                         "여권 사본 표준근로계약서 외국인등록증 근로자에게 보내기 전 승인 필요 "
-                        f"{action.label} {item.subject_id if item else action.subject_id}"
+                        f"{action.label} {_subject_label(item) if item else action.subject_id}"
                     ),
                     source_type="action_draft",
                     intent="document_request_message",
@@ -740,7 +758,7 @@ def _build_operational_chunks(daily_briefing: Any) -> list[dict[str, Any]]:
                     text=(
                         "행정사 노무사 전문가 검토 자료 패키지 handoff 전달할 패키지 넘길 자료 "
                         "검토용 자료 묶음 갱신 건 담당자 승인 필요 "
-                        f"{action.label} {item.subject_id if item else action.subject_id}"
+                        f"{action.label} {_subject_label(item) if item else action.subject_id}"
                     ),
                     source_type="action_draft",
                     intent="handoff_preview",
@@ -1058,7 +1076,7 @@ def _rag_answer(
             action_labels.append("담당자 확인")
         lines.append(
             "- "
-            f"{item.subject_id}: "
+            f"{_subject_label(item)}: "
             f"{RISK_LABELS.get(item.risk_type, item.risk_type)} "
             f"({_risk_timing(item)}, {item.severity})"
         )
@@ -1230,20 +1248,77 @@ def _intent_for_citation(citation: Any) -> str:
     return "visa_expiry"
 
 
-def _select_daily_briefing_items(items: list[Any], intent: str) -> list[Any]:
+def _select_daily_briefing_items(
+    items: list[Any],
+    intent: str,
+    *,
+    selected_case_id: str | None = None,
+    selected_action_id: str | None = None,
+) -> list[Any]:
+    if selected_action_id:
+        action_matches = [
+            item for item in items if selected_action_id in getattr(item, "next_action_ids", [])
+        ]
+        if action_matches:
+            return action_matches[:5]
+    if selected_case_id:
+        case_matches = [item for item in items if item.case_id == selected_case_id]
+        if case_matches:
+            return case_matches[:5]
     risk_types = RISK_TYPES_BY_INTENT.get(intent)
     if not risk_types:
         return items[:5]
     return [item for item in items if item.risk_type in risk_types][:5]
 
 
-def _selected_actions(actions: list[Any], items: list[Any]) -> list[Any]:
+def _selected_actions(
+    actions: list[Any],
+    items: list[Any],
+    *,
+    selected_action_id: str | None = None,
+) -> list[Any]:
+    if selected_action_id:
+        selected = [action for action in actions if action.action_id == selected_action_id]
+        if selected:
+            return selected
     action_ids = {
         action_id
         for item in items
         for action_id in item.next_action_ids
     }
     return [action for action in actions if action.action_id in action_ids]
+
+
+def _display_context(
+    selected_items: list[Any],
+    actions: list[Any],
+    sources: list[Any],
+) -> dict[str, Any]:
+    item = selected_items[0] if selected_items else None
+    primary_action = actions[0].model_dump() if actions else None
+    if item is None:
+        return {
+            "subject_display_name": None,
+            "subject_display_id": None,
+            "risk_timing_label": None,
+            "case_title": None,
+            "case_summary": None,
+            "primary_action": primary_action,
+            "source_labels": [source.title for source in sources],
+        }
+    return {
+        "subject_display_name": getattr(item, "subject_display_name", item.subject_id),
+        "subject_display_id": getattr(item, "subject_display_id", item.subject_id),
+        "risk_timing_label": getattr(item, "risk_timing_label", _risk_timing(item)),
+        "case_title": getattr(item, "case_title", None),
+        "case_summary": getattr(item, "case_summary", None),
+        "primary_action": primary_action or getattr(item, "primary_action", None),
+        "source_labels": getattr(item, "source_labels", None) or [source.title for source in sources],
+    }
+
+
+def _subject_label(item: Any) -> str:
+    return str(getattr(item, "subject_display_name", None) or item.subject_id)
 
 
 def _selected_sources(
@@ -1293,6 +1368,8 @@ def _required_context(intent: str) -> list[str]:
 
 
 def _risk_timing(item: Any) -> str:
+    if getattr(item, "risk_timing_label", None):
+        return str(item.risk_timing_label)
     if item.expired:
         if item.days_overdue is not None:
             return f"만료 후 {item.days_overdue}일 경과"

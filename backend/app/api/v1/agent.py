@@ -162,7 +162,9 @@ class AgentChatRequest(BaseModel):
     user_id: str = Field(default="manager_001", alias="userId")
     workspace_id: str | None = Field(default=None, alias="workspaceId")
     active_tab: str | None = Field(default=None, alias="activeTab")
+    date: str | None = None
     selected_case_id: str | None = Field(default=None, alias="selectedCaseId")
+    selected_action_id: str | None = Field(default=None, alias="selectedActionId")
     session_id: str | None = Field(default=None, alias="sessionId")
 
 
@@ -230,7 +232,7 @@ async def chat_agent(
         service = build_sqlalchemy_daily_briefing_service(db)
         result = service.run_daily_briefing(
             company_id=request.company_id,
-            date=None,
+            date=request.date,
             user_role=x_user_role,
             allowed_company_ids=[x_company_id] if x_company_id else None,
         )
@@ -262,6 +264,11 @@ async def chat_agent(
                 company_id=request.company_id,
                 user_role=x_user_role,
                 fallback_plan=daily_briefing_plan.model_dump(),
+                date=request.date,
+                workspace_id=request.workspace_id,
+                active_tab=request.active_tab,
+                selected_case_id=request.selected_case_id,
+                selected_action_id=request.selected_action_id,
             ),
             preflight=preflight,
         )
@@ -307,6 +314,7 @@ def _daily_briefing_chat_response(
         selected_items=selected_items,
         selected_actions=actions,
     )
+    display_context = _display_context(selected_items, actions, sources)
     return {
         "answer": answer,
         "final_response": answer,
@@ -329,6 +337,7 @@ def _daily_briefing_chat_response(
         "fallback_reason": fallback_reason,
         "actions": [action.model_dump() for action in actions],
         "sources": [source.model_dump() for source in sources],
+        **display_context,
         "detected_intents": [intent or "daily_briefing"],
         "approval_required": result.approval_required,
         "approval_status": "pending" if result.approval_required else "not_required",
@@ -661,6 +670,34 @@ def _tool_trace(
         "result_count": len(items),
         "action_count": len(actions),
         "source_count": len(sources),
+    }
+
+
+def _display_context(
+    selected_items: list[Any],
+    actions: list[Any],
+    sources: list[Any],
+) -> dict[str, Any]:
+    item = selected_items[0] if selected_items else None
+    primary_action = actions[0].model_dump() if actions else None
+    if item is None:
+        return {
+            "subject_display_name": None,
+            "subject_display_id": None,
+            "risk_timing_label": None,
+            "case_title": None,
+            "case_summary": None,
+            "primary_action": primary_action,
+            "source_labels": [source.title for source in sources],
+        }
+    return {
+        "subject_display_name": getattr(item, "subject_display_name", item.subject_id),
+        "subject_display_id": getattr(item, "subject_display_id", item.subject_id),
+        "risk_timing_label": getattr(item, "risk_timing_label", _risk_timing(item)),
+        "case_title": getattr(item, "case_title", None),
+        "case_summary": getattr(item, "case_summary", None),
+        "primary_action": primary_action or getattr(item, "primary_action", None),
+        "source_labels": getattr(item, "source_labels", None) or [source.title for source in sources],
     }
 
 

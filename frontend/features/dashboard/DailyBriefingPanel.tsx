@@ -38,17 +38,21 @@ const severityTone = {
 };
 
 const riskTypeLabel = {
-  contract_visa_conflict: "Contract / visa conflict",
-  candidate_readiness: "Candidate document readiness",
-  missing_document: "Missing document",
-  quota_review: "Quota review",
-  reporting_deadline: "Reporting deadline",
-  visa_expiry: "Visa expiry",
+  contract_visa_conflict: "계약-체류 충돌",
+  candidate_readiness: "후보자 서류 준비상태",
+  missing_document: "누락 서류",
+  quota_review: "신규 고용/쿼터 검토",
+  reporting_deadline: "고용변동 신고기한",
+  visa_expiry: "체류만료",
 };
+
+function todayInputValue() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+}
 
 export function DailyBriefingPanel() {
   const [companyId, setCompanyId] = useState("company_001");
-  const [date, setDate] = useState("2026-05-08");
+  const [date, setDate] = useState(todayInputValue);
   const [briefing, setBriefing] = useState<DailyBriefingResult | null>(null);
   const [preview, setPreview] = useState<HandoffPreview | null>(null);
   const [documentDraft, setDocumentDraft] = useState<DocumentRequestDraft | null>(null);
@@ -191,19 +195,19 @@ export function DailyBriefingPanel() {
           E-9 operations risk MVP
         </p>
         <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-950">
-          Daily Briefing: deadlines, documents, approvals, and evidence.
+          데일리 브리핑: 기한, 서류, 승인, 근거를 한 번에 확인합니다.
         </h1>
         <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-          The system prepares approval-ready drafts only. It does not send messages,
-          submit government forms, or deliver handoff packages externally.
+          시스템은 승인 가능한 초안과 검토 패키지만 준비합니다. 메시지 발송, 정부 제출,
+          외부 전달은 담당자 승인 없이 실행하지 않습니다.
         </p>
         <p className="mt-3 max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-          MVP safety mode: approvals create internal records only. Mock dispatch verifies the
-          delivery boundary and audit trail, but no Kakao, email, or admin-office transfer is performed.
+          MVP 안전 모드: 승인은 내부 기록만 생성합니다. 카카오톡, 문자, 이메일, 행정사 전달은
+          실제로 수행하지 않습니다.
         </p>
         <div className="mt-6 grid gap-3 md:grid-cols-[1fr_180px_auto]">
           <label className="flex flex-col gap-2 text-sm font-bold text-slate-700">
-            Company ID
+            사업장 ID
             <input
               className="rounded-2xl border border-slate-200 px-4 py-3 text-slate-950"
               onChange={(event) => setCompanyId(event.target.value)}
@@ -211,7 +215,7 @@ export function DailyBriefingPanel() {
             />
           </label>
           <label className="flex flex-col gap-2 text-sm font-bold text-slate-700">
-            Date
+            기준일
             <input
               className="rounded-2xl border border-slate-200 px-4 py-3 text-slate-950"
               onChange={(event) => setDate(event.target.value)}
@@ -224,13 +228,19 @@ export function DailyBriefingPanel() {
             disabled={loading}
             onClick={handleRunBriefing}
           >
-            {loading ? "Generating..." : "Generate briefing"}
+            {loading ? "생성 중..." : "브리핑 생성"}
           </button>
         </div>
         {error ? <p className="mt-4 text-sm font-semibold text-red-700">{error}</p> : null}
       </div>
 
-      <DailyBriefingChatPanel companyId={companyId} />
+      <DailyBriefingChatPanel
+        companyId={companyId}
+        date={date}
+        onOpenCitation={handleOpenCitation}
+        onOpenDocumentDraft={handleOpenDocumentDraft}
+        onOpenHandoffPreview={handleOpenPreview}
+      />
 
       {briefing ? (
         <>
@@ -257,7 +267,7 @@ export function DailyBriefingPanel() {
 
           {briefing.items.length === 0 ? (
             <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-900">
-              No approval-ready risk items were found for this date.
+              이 날짜에는 승인 대기 위험 업무가 없습니다.
             </div>
           ) : null}
 
@@ -276,25 +286,31 @@ export function DailyBriefingPanel() {
                       <p className="text-xs font-bold uppercase tracking-[0.25em]">
                         {item.severity} / {riskTypeLabel[item.risk_type] ?? item.risk_type}
                       </p>
-                      <h2 className="mt-2 text-2xl font-black">{item.subject_id}</h2>
+                      <h2 className="mt-2 text-2xl font-black">
+                        {item.case_title ?? item.subject_display_name ?? item.subject_id}
+                      </h2>
+                      {item.case_summary ? (
+                        <p className="mt-2 text-sm font-semibold">{item.case_summary}</p>
+                      ) : null}
                       <p className="mt-2 text-sm">
-                        {item.expired
-                          ? `Overdue D+${item.days_overdue}`
-                          : item.d_day !== null
-                            ? `D-${item.d_day}`
-                            : "No D-day"}
+                        {item.risk_timing_label ??
+                          (item.expired
+                            ? `D+${item.days_overdue}`
+                            : item.d_day !== null
+                              ? `D-${item.d_day}`
+                              : "기한 확인 필요")}
                       </p>
                     </div>
                     <a
                       className="rounded-full border border-current px-4 py-2 text-xs font-bold"
                       href={`/evidence?case_id=${item.case_id}&company_id=${briefing.company_id}`}
                     >
-                      Evidence Log
+                      판단 기록
                     </a>
                   </div>
                   {item.missing_documents.length ? (
                     <p className="mt-4 text-sm font-semibold">
-                      Missing documents: {item.missing_documents.join(", ")}
+                      누락 서류: {item.missing_documents.join(", ")}
                     </p>
                   ) : null}
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -308,7 +324,7 @@ export function DailyBriefingPanel() {
                           key={citationId}
                           onClick={() => handleOpenCitation(citationId)}
                         >
-                          Evidence: {citation?.title ?? citationId}
+                          근거: {citation?.title ?? citationId}
                           {citation?.chunk_version ? ` (${citation.chunk_version})` : ""}
                         </button>
                       );
@@ -323,19 +339,19 @@ export function DailyBriefingPanel() {
                               className="rounded-full border border-white/70 px-4 py-2 text-xs font-black"
                               onClick={() => handleOpenPreview(action)}
                             >
-                              Handoff preview
+                              행정사 패키지
                             </button>
                             <button
                               className="rounded-full border border-white/70 px-4 py-2 text-xs font-black"
                               onClick={() => handleDownloadExport(action)}
                             >
-                              PDF export draft
+                              PDF 초안
                             </button>
                             <button
                               className="rounded-full border border-white/70 px-4 py-2 text-xs font-black"
                               onClick={() => handleCreateDeliveryJob(action)}
                             >
-                              Create mock outbox record
+                              전달 기록 초안
                             </button>
                           </>
                         ) : null}
@@ -344,7 +360,7 @@ export function DailyBriefingPanel() {
                             className="rounded-full border border-white/70 px-4 py-2 text-xs font-black"
                             onClick={() => handleOpenDocumentDraft(action)}
                           >
-                            Document request draft
+                            서류 요청 초안
                           </button>
                         ) : null}
                         <button
@@ -352,21 +368,21 @@ export function DailyBriefingPanel() {
                           disabled={action.status !== "pending_approval"}
                           onClick={() => handleApprove(action)}
                         >
-                          {action.status === "approved" ? "Approved" : `Approve ${action.label}`}
+                          {action.status === "approved" ? "승인됨" : `승인 ${action.label}`}
                         </button>
                         <button
                           className="rounded-full bg-white/70 px-4 py-2 text-xs font-black text-slate-950 disabled:opacity-60"
                           disabled={action.status !== "pending_approval"}
                           onClick={() => handleRevision(action)}
                         >
-                          Request revision
+                          수정 요청
                         </button>
                         <button
                           className="rounded-full bg-red-900 px-4 py-2 text-xs font-black text-white disabled:opacity-60"
                           disabled={action.status !== "pending_approval"}
                           onClick={() => handleReject(action)}
                         >
-                          Reject
+                          반려
                         </button>
                       </span>
                     ))}

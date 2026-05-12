@@ -1,4 +1,4 @@
-// Live Agent 처리 화면, 모바일 초안 보기, 승인 완료 화면
+﻿// Live Agent 처리 화면, 모바일 초안 보기, 승인 완료 화면
 // 레퍼런스 기준으로 전면 업데이트
 
 /* ─── 예상 응답 아이콘 팔레트 ────────────────────────────────── */
@@ -86,7 +86,7 @@ const MobileDraftView = ({ task, thread, onBack, onApprove }) => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {[
-              'Nguyen Van A · 베트남 · E-9',
+              'Nguyen V. · 베트남 · E-9',
               '3일 전 서류 요청 이력 있음',
               '표준근로계약서 사본 누락',
               '여권 사본 누락',
@@ -122,7 +122,7 @@ const MobileDraftView = ({ task, thread, onBack, onApprove }) => {
                 background: 'rgba(99,102,241,0.10)', color: '#4F46E5', marginBottom: 8 }}>VN</div>
               <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--semantic-label-normal)' }}>
                 {thread?.draftMessage?.vi ||
-                  'Xin chào Nguyen Van A,\nĐể gia hạn thời gian lưu trú (E-9), vui lòng bổ sung các giấy tờ còn thiếu và gửi lại cho chúng tôi.\n\n• Bản sao hợp đồng lao động theo mẫu chuẩn\n• Bản sao hộ chiếu\n\nVui lòng gửi trước ngày 2024-06-10.\nCảm ơn anh.'}
+                  'Xin chào Nguyen V.,\nĐể gia hạn thời gian lưu trú (E-9), vui lòng bổ sung các giấy tờ còn thiếu và gửi lại cho chúng tôi.\n\n• Bản sao hợp đồng lao động theo mẫu chuẩn\n• Bản sao hộ chiếu\n\nVui lòng gửi trước ngày 2024-06-10.\nCảm ơn anh.'}
               </div>
             </div>
             {/* 구분선 + 화살표 */}
@@ -139,7 +139,7 @@ const MobileDraftView = ({ task, thread, onBack, onApprove }) => {
                 background: 'rgba(59,130,246,0.10)', color: '#2563EB', marginBottom: 8 }}>KR</div>
               <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--semantic-label-normal)' }}>
                 {thread?.draftMessage?.ko ||
-                  '안녕하세요, Nguyen Van A님.\n체류기간 연장(E-9)을 위해 아래 서류를 보완하여 보내주시기 바랍니다.\n\n• 표준근로계약서 사본\n• 여권 사본\n\n2024-06-10까지 제출 부탁드립니다.\n감사합니다.'}
+                  '안녕하세요, Nguyen V.님.\n체류기간 연장(E-9)을 위해 아래 서류를 보완하여 보내주시기 바랍니다.\n\n• 표준근로계약서 사본\n• 여권 사본\n\n2024-06-10까지 제출 부탁드립니다.\n감사합니다.'}
               </div>
             </div>
           </div>
@@ -487,14 +487,14 @@ const LiveAgentProgressScreen = ({ taskId, onBack, onApprove }) => {
             border: '1px solid rgba(99,102,241,0.15)' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#4F46E5', marginBottom: 4 }}>VN</div>
             <div style={{ fontSize: 11.5, color: 'var(--semantic-label-neutral)', lineHeight: 1.5 }}>
-              Xin chào Nguyen Van A, đây là Workforce Agent từ ngoại고반장...
+              Xin chào Nguyen V., đây là Workforce Agent từ ngoại고반장...
             </div>
           </div>
           <div style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(27,63,160,0.04)',
             border: '1px solid rgba(27,63,160,0.12)' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: '#1B3FA0', marginBottom: 4 }}>KR</div>
             <div style={{ fontSize: 11.5, color: 'var(--semantic-label-neutral)', lineHeight: 1.5 }}>
-              안녕하세요 Nguyen Van A님, 외고반장 WorkForce Agent입니다...
+              안녕하세요 Nguyen V.님, 외고반장 WorkForce Agent입니다...
             </div>
           </div>
         </div>

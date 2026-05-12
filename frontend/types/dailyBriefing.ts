@@ -12,8 +12,10 @@ export type RiskSummary = {
 export type DailyBriefingItem = {
   item_id: string;
   case_id: string;
-  subject_type: "worker" | "company" | "case";
+  subject_type: "worker" | "company" | "case" | "candidate";
   subject_id: string;
+  subject_display_name: string | null;
+  subject_display_id: string | null;
   risk_type:
     | "visa_expiry"
     | "missing_document"
@@ -25,6 +27,11 @@ export type DailyBriefingItem = {
   d_day: number | null;
   expired: boolean;
   days_overdue: number | null;
+  risk_timing_label: string | null;
+  case_title: string | null;
+  case_summary: string | null;
+  primary_action: NextAction | null;
+  source_labels: string[];
   missing_documents: string[];
   citation_ids: string[];
   next_action_ids: string[];
@@ -154,6 +161,13 @@ export type AgentChatResponse = {
   tool_calls: AgentChatToolCall[];
   actions: NextAction[];
   sources: CitationSummary[];
+  subject_display_name?: string | null;
+  subject_display_id?: string | null;
+  risk_timing_label?: string | null;
+  case_title?: string | null;
+  case_summary?: string | null;
+  primary_action?: NextAction | null;
+  source_labels?: string[];
   detected_intents: string[];
   approval_required: boolean;
   approval_status: string;

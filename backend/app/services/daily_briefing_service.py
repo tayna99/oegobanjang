@@ -47,6 +47,22 @@ RISK_TYPE_ORDER = {
     "candidate_readiness": 5,
 }
 
+RISK_TYPE_DISPLAY_LABELS = {
+    "visa_expiry": "체류기간 연장 준비",
+    "missing_document": "누락 서류 점검",
+    "contract_visa_conflict": "계약-체류 충돌 점검",
+    "reporting_deadline": "고용변동 신고기한 점검",
+    "quota_review": "신규 고용 준비/쿼터 검토",
+    "candidate_readiness": "후보자 서류 준비상태 점검",
+}
+
+DOCUMENT_DISPLAY_LABELS = {
+    "passport_copy": "여권 사본",
+    "alien_registration_copy": "외국인등록증 사본",
+    "alien_registration": "외국인등록증 사본",
+    "standard_labor_contract": "표준근로계약서 사본",
+}
+
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -74,6 +90,40 @@ def _today_for_timezone(timezone_name: str) -> str:
     return datetime.now(ZoneInfo(timezone_name)).date().isoformat()
 
 
+def _risk_timing_label_from_risk(risk: "RiskEvaluation") -> str:
+    if risk.expired:
+        if risk.days_overdue is not None:
+            return f"만료 후 {risk.days_overdue}일 경과"
+        return "기한 경과"
+    if risk.d_day is not None:
+        return f"D-{risk.d_day}"
+    return "기한 확인 필요"
+
+
+def _document_display_list(documents: list[str]) -> str:
+    if not documents:
+        return "현재 확인된 누락 없음"
+    return ", ".join(DOCUMENT_DISPLAY_LABELS.get(document, document) for document in documents)
+
+
+def _case_title_for_item(risk_type: str, subject_display_name: str) -> str:
+    risk_label = RISK_TYPE_DISPLAY_LABELS.get(risk_type, risk_type)
+    return f"{subject_display_name} {risk_label}"
+
+
+def _case_summary_for_item(
+    *,
+    risk_type: str,
+    subject_display_name: str,
+    risk: "RiskEvaluation",
+    missing_documents: list[str],
+) -> str:
+    risk_label = RISK_TYPE_DISPLAY_LABELS.get(risk_type, risk_type)
+    timing = _risk_timing_label_from_risk(risk)
+    documents = _document_display_list(missing_documents)
+    return f"{subject_display_name}: {risk_label} ({timing}). 누락 서류: {documents}."
+
+
 class RiskEvaluation(BaseModel):
     severity: str
     d_day: int | None = None
@@ -95,11 +145,18 @@ class DailyBriefingItem(BaseModel):
     case_id: str
     subject_type: str
     subject_id: str
+    subject_display_name: str | None = None
+    subject_display_id: str | None = None
     risk_type: str
     severity: str
     d_day: int | None = None
     expired: bool = False
     days_overdue: int | None = None
+    risk_timing_label: str | None = None
+    case_title: str | None = None
+    case_summary: str | None = None
+    primary_action: dict[str, Any] | None = None
+    source_labels: list[str] = Field(default_factory=list)
     missing_documents: list[str] = Field(default_factory=list)
     citation_ids: list[str] = Field(default_factory=list)
     next_action_ids: list[str] = Field(default_factory=list)
@@ -979,6 +1036,7 @@ class DailyBriefingService:
                     "last_refreshed_at": _now_iso(),
                 }
             )
+            updated = self._with_display_fields(updated)
             self.repository.briefings[briefing_run_id] = updated
             return updated
 
@@ -1176,7 +1234,7 @@ class DailyBriefingService:
             quota_worker = WorkerRecord(
                 worker_id=f"{company_id}:quota",
                 company_id=company_id,
-                display_name_masked="[COMPANY_QUOTA]",
+                display_name_masked=company.company_name,
                 raw_name="[COMPANY_QUOTA]",
                 visa_expiry_date=None,
             )
@@ -1238,6 +1296,7 @@ class DailyBriefingService:
             evidence_event_ids=[event.event_id for event in events],
             approval_required=bool(actions),
         )
+        result = self._with_display_fields(result)
         try:
             self.repository.save_bundle(
                 briefing=result,
@@ -1790,6 +1849,94 @@ class DailyBriefingService:
                 return briefing
         return None
 
+    def _with_display_fields(self, briefing: DailyBriefingResult) -> DailyBriefingResult:
+        workers_by_id = {worker.worker_id: worker for worker in self.repository.workers}
+        candidates_by_id = {
+            candidate.candidate_id: candidate for candidate in self.repository.candidates
+        }
+        actions_by_id = {action.action_id: action for action in briefing.recommended_actions}
+        citations_by_id = {
+            citation.citation_id: citation for citation in briefing.citation_summaries
+        }
+        companies_by_id = self.repository.companies
+        items: list[DailyBriefingItem] = []
+
+        for item in briefing.items:
+            subject_display_name = item.subject_display_name or item.subject_id
+            if item.subject_type == "worker" and item.subject_id in workers_by_id:
+                subject_display_name = workers_by_id[item.subject_id].display_name_masked
+            elif item.subject_type == "candidate" and item.subject_id in candidates_by_id:
+                subject_display_name = candidates_by_id[item.subject_id].display_name_masked
+            elif item.subject_type == "company" and item.subject_id in companies_by_id:
+                subject_display_name = companies_by_id[item.subject_id].company_name
+            elif item.subject_type == "case":
+                case = self.repository.cases.get(item.case_id)
+                worker_id = case.worker_id if case is not None else None
+                if worker_id and worker_id in workers_by_id:
+                    subject_display_name = workers_by_id[worker_id].display_name_masked
+
+            risk = RiskEvaluation(
+                severity=item.severity,
+                d_day=item.d_day,
+                expired=item.expired,
+                days_overdue=item.days_overdue,
+            )
+            primary_action = item.primary_action
+            if primary_action is None:
+                primary_action_record = next(
+                    (
+                        actions_by_id[action_id]
+                        for action_id in item.next_action_ids
+                        if action_id in actions_by_id
+                    ),
+                    None,
+                )
+                primary_action = (
+                    primary_action_record.model_dump()
+                    if primary_action_record is not None
+                    else None
+                )
+            source_labels = item.source_labels or [
+                citations_by_id[citation_id].title
+                for citation_id in item.citation_ids
+                if citation_id in citations_by_id
+            ]
+            case_title = item.case_title
+            if (
+                not case_title
+                or case_title.startswith("[COMPANY_QUOTA]")
+                or case_title.startswith(f"{item.subject_id} ")
+            ):
+                case_title = _case_title_for_item(item.risk_type, subject_display_name)
+            case_summary = item.case_summary
+            if (
+                not case_summary
+                or case_summary.startswith("[COMPANY_QUOTA]")
+                or case_summary.startswith(f"{item.subject_id}:")
+            ):
+                case_summary = _case_summary_for_item(
+                    risk_type=item.risk_type,
+                    subject_display_name=subject_display_name,
+                    risk=risk,
+                    missing_documents=item.missing_documents,
+                )
+            items.append(
+                item.model_copy(
+                    update={
+                        "subject_display_name": subject_display_name,
+                        "subject_display_id": item.subject_display_id or item.subject_id,
+                        "risk_timing_label": item.risk_timing_label
+                        or _risk_timing_label_from_risk(risk),
+                        "case_title": case_title,
+                        "case_summary": case_summary,
+                        "primary_action": primary_action,
+                        "source_labels": source_labels,
+                    }
+                )
+            )
+
+        return briefing.model_copy(update={"items": items})
+
     def _source_snapshot_hash(self, company_id: str, target_date: str) -> str:
         worker_rows = [
             {
@@ -1909,16 +2056,32 @@ class DailyBriefingService:
             case_id=case_id,
             subject_type=subject_type,
             subject_id=item_subject_id,
+            subject_display_name=worker.display_name_masked,
+            subject_display_id=item_subject_id,
             risk_type=risk_type,
             severity=risk.severity,
             d_day=risk.d_day,
             expired=risk.expired,
             days_overdue=risk.days_overdue,
+            risk_timing_label=_risk_timing_label_from_risk(risk),
+            case_title=_case_title_for_item(risk_type, worker.display_name_masked),
+            case_summary=_case_summary_for_item(
+                risk_type=risk_type,
+                subject_display_name=worker.display_name_masked,
+                risk=risk,
+                missing_documents=missing_documents,
+            ),
+            source_labels=[
+                self.repository.citations[citation_id].title
+                for citation_id in citation_ids
+                if citation_id in self.repository.citations
+            ],
             missing_documents=missing_documents,
             citation_ids=citation_ids,
         )
         actions = self._actions_for_item(item, worker, citation_ids)
         item.next_action_ids = [action.action_id for action in actions]
+        item.primary_action = actions[0].model_dump() if actions else None
         approvals = [
             self.repository.approvals.get(
                 action.approval_id,
@@ -2523,7 +2686,7 @@ def build_seed_repository() -> InMemoryDailyBriefingRepository:
             WorkerRecord(
                 worker_id="worker_001",
                 company_id="company_001",
-                display_name_masked="[WORKER_NAME_001]",
+                display_name_masked="Nguyen V.",
                 raw_name="Nguyen Van A",
                 visa_expiry_date="2026-06-07",
                 contract_end_date="2026-07-31",
@@ -2531,21 +2694,21 @@ def build_seed_repository() -> InMemoryDailyBriefingRepository:
             WorkerRecord(
                 worker_id="worker_002",
                 company_id="company_001",
-                display_name_masked="[WORKER_NAME_002]",
+                display_name_masked="Tran T.",
                 raw_name="Tran Thi B",
                 visa_expiry_date="2026-05-05",
             ),
             WorkerRecord(
                 worker_id="worker_003",
                 company_id="company_001",
-                display_name_masked="[WORKER_NAME_003]",
+                display_name_masked="Pham V.",
                 raw_name="Pham Van C",
                 visa_expiry_date="2026-12-31",
             ),
             WorkerRecord(
                 worker_id="worker_safe_001",
                 company_id="company_no_risks",
-                display_name_masked="[WORKER_NAME_SAFE]",
+                display_name_masked="Safe W.",
                 raw_name="Safe Worker",
                 visa_expiry_date="2026-12-31",
             ),
@@ -2792,6 +2955,14 @@ def seed_daily_briefing_source_tables_if_empty(
                 source_url=citation.source_url or f"mock://daily-briefing/{citation.citation_id}",
             )
         )
+    for worker in source_repository.workers:
+        row = db.get(DailyBriefingWorkerSource, worker.worker_id)
+        if (
+            row is not None
+            and row.raw_name == worker.raw_name
+            and row.display_name_masked.startswith("[WORKER_NAME")
+        ):
+            row.display_name_masked = worker.display_name_masked
     db.flush()
 
 

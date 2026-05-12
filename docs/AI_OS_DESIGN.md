@@ -171,3 +171,25 @@ backend/app/agent_runtime/
 - 모든 Agent는 Evidence Log 후보 이벤트를 생성해야 한다.
 - Agent는 외부 발송, 제출, 전달을 직접 실행하지 않는다.
 - 최종 저장은 backend service 계층에서 처리한다.
+---
+
+## Agent Chat 현재 구현 기준
+
+`/api/v1/agent/chat`은 Daily Briefing 화면과 같은 운영 snapshot을 사용한다.
+
+```txt
+사용자 질문
+→ RAG/semantic retrieval로 업무 후보 검색
+→ LLM 또는 strict normalizer가 intent/entity/action 정규화
+→ intent에 맞는 DB/Rule/RAG tool 결과 실행
+→ retrieved chunk와 tool result 안에서 답변 생성
+```
+
+- RAG는 공식 정책 문서와 마스킹된 운영 snapshot을 함께 검색한다.
+- DB는 현재 직원, 후보자, 서류, action, citation 상태의 source of truth다.
+- Rule Base는 D-day, 누락 여부, 계약-체류 충돌, 신고기한을 계산한다.
+- LLM은 자연어 정규화와 요약만 담당하며 실행 권한을 갖지 않는다.
+- 발송, 제출, 전달, 완료 처리는 `approval_required=true`로 막고 담당자 승인 후 별도 단계에서만 처리한다.
+- 화면 표시명은 backend의 `subject_display_name` / `subject_display_id`를 사용한다. raw PII는 API 응답, evidence log, frontend fixture에 노출하지 않는다.
+
+`frontend-proto`는 더 이상 순수 mock 화면이 아니라 API-backed demo shell이다. backend 연결 실패 시에만 demo fixture를 fallback으로 보여주며, 이때 UI에 `데모 데이터` 배지를 표시한다.

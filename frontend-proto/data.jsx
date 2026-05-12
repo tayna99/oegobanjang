@@ -1,8 +1,9 @@
-// Sample data for 외고반장 Daily Briefing MVP prototype
+﻿// Sample data for 외고반장 Daily Briefing MVP prototype
 // Reference date: 2026-05-08 (Asia/Seoul)
 // All risk severities computed off this date per PRD §9.
 
-const TODAY = new Date('2026-05-08T08:00:00+09:00');
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
 const fmtDate = (s) => {
   const d = new Date(s);
   return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
@@ -367,7 +368,7 @@ const MOBILE_APPROVAL_TASKS = [
 
 // ---- Live Agent 처리 단계 ----
 const LIVE_AGENT_STEPS = [
-  { step: 1, label: '근로자 프로필 확인',   detail: 'Nguyen Van A · 베트남 · E-9 · Zalo', status: 'done' },
+  { step: 1, label: '근로자 프로필 확인',   detail: 'Nguyen V. · 베트남 · E-9 · Zalo', status: 'done' },
   { step: 2, label: '이전 대화 기록 확인', detail: '3일 전 서류 요청 이력 있음',           status: 'in_progress' },
   { step: 3, label: '메시지 초안 생성',    detail: '베트남어 원문 + 한국어 번역',          status: 'waiting' },
   { step: 4, label: '발송 전 승인 대기',   detail: '대표님 승인 후 발송됩니다',           status: 'waiting' },

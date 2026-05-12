@@ -332,8 +332,35 @@ const TaskDetailPanel = ({ task, worker, onClose, onOpenDocReq, onApprove }) => 
 };
 
 // 오늘의 업무 큐 메인 테이블
-const TodayTaskQueue = ({ onSelectTask, selectedTaskId }) => {
-  const tasks = [
+const taskTypeForRisk = (riskType) => ({
+  visa_expiry: 'visa_document_request',
+  missing_document: 'visa_document_request',
+  contract_visa_conflict: 'contract_termination',
+  reporting_deadline: 'contract_termination',
+  quota_review: 'recruitment',
+  candidate_readiness: 'recruitment',
+}[riskType] || 'contact');
+
+const taskFromBriefingItem = (item, actionsById) => {
+  const primaryAction = item.primary_action || item.next_action_ids?.map(id => actionsById[id]).find(Boolean);
+  return {
+    id: item.item_id,
+    caseId: item.case_id,
+    actionId: primaryAction?.action_id,
+    type: taskTypeForRisk(item.risk_type),
+    title: item.case_title || item.risk_type,
+    worker: item.subject_display_name || item.subject_display_id || item.subject_id,
+    workerId: item.subject_display_id,
+    status: primaryAction?.status || 'in_progress',
+    dDay: item.risk_timing_label || (item.d_day !== null && item.d_day !== undefined ? `D-${item.d_day}` : '확인 필요'),
+    nextAction: primaryAction?.label || '확인',
+  };
+};
+
+const TodayTaskQueue = ({ onSelectTask, selectedTaskId, apiBriefing }) => {
+  const actionsById = Object.fromEntries((apiBriefing?.recommended_actions || []).map(action => [action.action_id, action]));
+  const apiTasks = (apiBriefing?.items || []).map(item => taskFromBriefingItem(item, actionsById));
+  const tasks = apiTasks.length ? apiTasks : [
     {
       id: 'q_001', type: 'visa_document_request',
       title: '체류기간 연장 서류 요청',

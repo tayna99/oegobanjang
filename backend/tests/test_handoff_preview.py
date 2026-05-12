@@ -13,7 +13,8 @@ def test_create_handoff_action_has_redacted_preview() -> None:
     assert handoff_actions
     preview = service.get_handoff_preview(handoff_actions[0].action_id)
     assert preview.case_id == handoff_actions[0].case_id
-    assert "Nguyen" not in str(preview.content_redacted)
+    assert "Nguyen V." in str(preview.content_redacted)
+    assert "Nguyen Van A" not in str(preview.content_redacted)
     assert preview.citation_ids
 
 
@@ -42,6 +43,6 @@ def test_request_document_action_returns_real_message_draft_without_external_sen
     assert draft.approval_required is True
     assert draft.external_send_performed is False
     assert "passport_copy" in draft.missing_documents
-    assert "[WORKER_NAME" in draft.korean_text
-    assert "Nguyen" not in draft.model_dump_json()
+    assert "Tran T." in draft.korean_text
+    assert "Tran Thi B" not in draft.model_dump_json()
     assert draft.translated_text

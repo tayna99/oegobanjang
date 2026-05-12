@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8"/>
@@ -213,7 +213,7 @@ function RoleBar({ role, onSetRole }) {
         </button>
       ))}
       <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--semantic-label-alternative)' }}>
-        · 오늘 2026.05.08 (금) · 한별제조 24명
+        · 오늘 {fmtDate(TODAY)} · 한별제조 24명
       </span>
     </div>
   );
@@ -342,7 +342,8 @@ function ComingSoon({ label }) {
 /* ─── PC CONTENT ─────────────────────────────────────────── */
 function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
                      onSelectWorker, severityFilter, onSetFilter, density, onSetDensity,
-                     onOpenDocReq, onApprove, approvedIds, onOpenAIChat }) {
+                     onOpenDocReq, onApprove, approvedIds, onOpenAIChat,
+                     apiBriefing, apiBriefingStatus, apiBriefingError }) {
   const company = COMPANIES[0];
   const counts = { visa: 4, docs: 7, contract: 1, approval: 5, handoff: 2, recruitment: 1, contact: 4, reply: 2 };
   const selectedWorker = selectedWorkerId ? WORKERS.find(w => w.id === selectedWorkerId) : null;
@@ -364,6 +365,17 @@ function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
           {activeTab === 'today' && (
             <div className="fade-in">
               <BriefingBanner generatedAt="오늘 08:00" onRegenerate={() => {}}/>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                margin: '0 0 12px', padding: '5px 10px', borderRadius: 999,
+                background: apiBriefingStatus === 'ready' ? '#ECFDF5' : '#FFF7ED',
+                color: apiBriefingStatus === 'ready' ? '#047857' : '#B45309',
+                fontSize: 12, fontWeight: 700,
+              }}>
+                {apiBriefingStatus === 'ready'
+                  ? `API 데이터 · ${apiBriefing?.date || ''}`
+                  : `데모 데이터${apiBriefingError ? ` · ${apiBriefingError}` : ''}`}
+              </div>
               <TodaySummaryNew counts={counts}/>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--semantic-label-normal)' }}>
@@ -391,6 +403,7 @@ function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
                 </div>
               </div>
               <TodayTaskQueue
+                apiBriefing={apiBriefing}
                 onSelectTask={task => setSelectedTask(prev => prev?.id === task.id ? null : task)}
                 selectedTaskId={selectedTask?.id}
               />
@@ -456,6 +469,12 @@ function App() {
   const [docReqActionId, setDocReqActionId] = React.useState(null);
   const [approvedIds, setApprovedIds]       = React.useState(new Set());
   const [aiChatOpen, setAiChatOpen]         = React.useState(false);
+  const [apiBriefing, setApiBriefing]       = React.useState(null);
+  const [apiBriefingStatus, setApiBriefingStatus] = React.useState('loading');
+  const [apiBriefingError, setApiBriefingError] = React.useState(null);
+  const [briefingDate, setBriefingDate] = React.useState(
+    () => window.getAgentToday?.() || new Date().toISOString().slice(0, 10)
+  );
 
   React.useEffect(() => { setRole(t.role || 'pc'); }, [t.role]);
   React.useEffect(() => { setDensity(t.density || 'compact'); }, [t.density]);
@@ -464,6 +483,32 @@ function App() {
     setDarkMode(dm);
     document.documentElement.setAttribute('data-theme', dm ? 'dark' : 'light');
   }, [t.darkMode]);
+  React.useEffect(() => {
+    let alive = true;
+    const loadBriefing = async () => {
+      if (!window.fetchAgentDailyBriefing) {
+        setApiBriefingStatus('demo');
+        setApiBriefingError('API helper unavailable');
+        return;
+      }
+      try {
+        setApiBriefingStatus('loading');
+        const briefing = await window.fetchAgentDailyBriefing({ date: briefingDate });
+        if (!alive) return;
+        setApiBriefing(briefing);
+        setBriefingDate(briefing.date || briefingDate);
+        setApiBriefingStatus('ready');
+        setApiBriefingError(null);
+      } catch (error) {
+        if (!alive) return;
+        setApiBriefing(null);
+        setApiBriefingStatus('demo');
+        setApiBriefingError(error instanceof Error ? error.message : String(error));
+      }
+    };
+    loadBriefing();
+    return () => { alive = false; };
+  }, []);
 
   const handleRoleChange    = (r) => { setRole(r); setTweak('role', r); };
   const handleDensityChange = (d) => { setDensity(d); setTweak('density', d); };
@@ -485,6 +530,9 @@ function App() {
     onApprove: handleApprove,
     approvedIds,
     onOpenAIChat: () => setAiChatOpen(true),
+    apiBriefing,
+    apiBriefingStatus,
+    apiBriefingError,
   };
 
   return (
@@ -543,7 +591,14 @@ function App() {
       )}
 
       {/* AI 반장 채팅 팝업 */}
-      <AIChatPanel open={aiChatOpen} onClose={() => setAiChatOpen(false)}/>
+      <AIChatPanel
+        briefingDate={briefingDate}
+        onClose={() => setAiChatOpen(false)}
+        onOpenDocReq={(actionId) => handleOpenDocReq(actionId)}
+        onOpenEvidence={() => setActiveTab('evidence')}
+        onOpenHandoff={() => setActiveTab('handoff')}
+        open={aiChatOpen}
+      />
 
       {/* 플로팅 AI 반장 버튼 — 우측 하단 고정 */}
       {!aiChatOpen && (

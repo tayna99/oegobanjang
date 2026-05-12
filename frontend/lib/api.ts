@@ -83,14 +83,18 @@ export async function sendAgentChatMessage({
   companyId = "company_001",
   workspaceId,
   activeTab = "today",
+  date,
   selectedCaseId,
+  selectedActionId,
   sessionId,
 }: {
   message: string;
   companyId?: string;
   workspaceId?: string;
   activeTab?: string;
+  date?: string;
   selectedCaseId?: string;
+  selectedActionId?: string;
   sessionId?: string;
 }): Promise<AgentChatResponse> {
   const response = await fetch(`${API_BASE_URL}/agent/chat`, {
@@ -106,7 +110,9 @@ export async function sendAgentChatMessage({
       companyId,
       workspaceId,
       activeTab,
+      date,
       selectedCaseId,
+      selectedActionId,
       sessionId,
     }),
   });

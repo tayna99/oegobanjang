@@ -248,3 +248,22 @@ production = WORKFORCE_RAG_EMBEDDING_PROVIDER=openai + OPENAI_API_KEY + text-emb
 ```txt
 공식 근거를 찾지 못했습니다. 이 케이스는 행정사 또는 노무사 검토가 필요합니다.
 ```
+---
+
+## Agent Chat RAG 운영 snapshot
+
+`/api/v1/agent/chat`의 RAG는 공식 정책 corpus만 보지 않는다. Daily Briefing이 생성한 `items`, `recommended_actions`, `citation_summaries`, `evidence_event_ids`를 마스킹된 `operational_case` snapshot으로 변환해 함께 검색한다.
+
+검색 순서는 다음을 기준으로 한다.
+
+```txt
+사용자 자연어
+→ official_policy + operational_case semantic retrieval
+→ canonical intent/entity/action normalization
+→ DB/Rule/RAG tool execution
+→ grounded answer
+```
+
+운영 snapshot에는 화면용 표시명(`subject_display_name`), 화면용 ID(`subject_display_id`), 기한 라벨(`risk_timing_label`), 케이스 제목/요약, 다음 action, source label만 포함한다. raw PII와 자동 실행 결과는 포함하지 않는다.
+
+공식 정책 RAG는 절차와 근거를 제공하고, 현재 대상자 상태는 DB/Rule에서 보강한다. 따라서 “갱신해야 되는 사람 누구야?”, “사람 더 써야 할 것 같은데 뭐부터 봐?”, “행정사한테 넘기려면 뭐 묶어야 돼?” 같은 질문은 검색된 운영 snapshot 후보를 canonical intent로 정규화한 뒤 tool 결과로 답한다.

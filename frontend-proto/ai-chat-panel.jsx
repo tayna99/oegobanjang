@@ -52,7 +52,45 @@ const getAgentApiBaseUrl = () => {
 const AGENT_COMPANY_ID = 'company_001';
 const AGENT_USER_ID = 'manager_001';
 
-const postAgentChatMessage = async ({ message, sessionId }) => {
+const getAgentToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+
+const fetchAgentDailyBriefing = async ({ date = getAgentToday() } = {}) => {
+  const response = await fetch(`${getAgentApiBaseUrl()}/daily-briefings/run`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Company-Id': AGENT_COMPANY_ID,
+      'X-User-Role': 'manager',
+      'X-User-Id': AGENT_USER_ID,
+    },
+    body: JSON.stringify({
+      company_id: AGENT_COMPANY_ID,
+      date,
+    }),
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const detail = payload?.detail?.message || payload?.detail || response.statusText || 'unknown error';
+    throw new Error(`HTTP ${response.status}: ${detail}`);
+  }
+
+  return payload;
+};
+
+const postAgentChatMessage = async ({
+  message,
+  sessionId,
+  date = getAgentToday(),
+  selectedCaseId,
+  selectedActionId,
+}) => {
   const response = await fetch(`${getAgentApiBaseUrl()}/agent/chat`, {
     method: 'POST',
     headers: {
@@ -64,7 +102,11 @@ const postAgentChatMessage = async ({ message, sessionId }) => {
     body: JSON.stringify({
       message,
       companyId: AGENT_COMPANY_ID,
+      date,
+      workspaceId: 'frontend_proto',
       activeTab: 'today',
+      selectedCaseId,
+      selectedActionId,
       sessionId,
     }),
   });
@@ -106,7 +148,7 @@ const AIAvatar = ({ size = 34 }) => (
   }}>반</div>
 );
 
-const AIChatMessage = ({ msg }) => {
+const AIChatMessage = ({ msg, onOpenDocReq, onOpenHandoff, onOpenEvidence }) => {
   if (msg.role === 'user') {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', gap: 6, marginBottom: 8 }}>
@@ -216,12 +258,49 @@ const AIChatMessage = ({ msg }) => {
       intent,
       tool?.name,
     ].filter(Boolean).join(' · ');
-    const hasActions = Array.isArray(payload.actions) && payload.actions.length > 0;
+    const actions = Array.isArray(payload.actions) ? payload.actions : [];
+    const hasActions = actions.length > 0;
     return (
       <BubbleWrapper>
         <div style={{ fontSize: 13.5, color: '#303647', lineHeight: 1.58, whiteSpace: 'pre-wrap' }}>
           {r.text}
         </div>
+        {hasActions ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+            {actions.map(action => {
+              const isDoc = action.action_type === 'request_document';
+              const label = isDoc ? '서류 요청 초안' : '행정사 패키지';
+              const handler = isDoc ? onOpenDocReq : onOpenHandoff;
+              return (
+                <button
+                  key={action.action_id}
+                  onClick={() => handler?.(action.action_id, action)}
+                  style={{
+                    border: 0, borderRadius: 999, padding: '6px 10px',
+                    background: '#1B3FA0', color: '#fff',
+                    fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {payload.sources?.[0] ? (
+              <button
+                onClick={() => onOpenEvidence?.(payload.sources[0].citation_id, payload.sources[0])}
+                style={{
+                  border: '1px solid #d7deeb', borderRadius: 999, padding: '6px 10px',
+                  background: '#fff', color: '#1B3FA0',
+                  fontSize: 11.5, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                근거 보기
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div style={{
           marginTop: 10, paddingTop: 8, borderTop: '1px solid #edf0f6',
           display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
@@ -289,7 +368,16 @@ const AIReflexButton = ({ onClick }) => (
 );
 
 // 중앙 팝업 모달 (워크톡 스타일)
-const AIChatPanel = ({ open, onClose }) => {
+const AIChatPanel = ({
+  open,
+  onClose,
+  briefingDate,
+  selectedCaseId,
+  selectedActionId,
+  onOpenDocReq,
+  onOpenHandoff,
+  onOpenEvidence,
+}) => {
   const [messages, setMessages] = React.useState([
     {
       id: 0, role: 'ai',
@@ -320,6 +408,9 @@ const AIChatPanel = ({ open, onClose }) => {
       const payload = await postAgentChatMessage({
         message: trimmed,
         sessionId: sessionIdRef.current,
+        date: briefingDate || getAgentToday(),
+        selectedCaseId,
+        selectedActionId,
       });
       setMessages(prev => [...prev, {
         id: `${now}_agent`,
@@ -408,7 +499,15 @@ const AIChatPanel = ({ open, onClose }) => {
           flex: 1, overflowY: 'auto', padding: '14px 14px 6px',
           display: 'flex', flexDirection: 'column',
         }}>
-          {messages.map(msg => <AIChatMessage key={msg.id} msg={msg}/>)}
+          {messages.map(msg => (
+            <AIChatMessage
+              key={msg.id}
+              msg={msg}
+              onOpenDocReq={onOpenDocReq}
+              onOpenEvidence={onOpenEvidence}
+              onOpenHandoff={onOpenHandoff}
+            />
+          ))}
           <div ref={messagesEndRef}/>
         </div>
 
@@ -502,4 +601,10 @@ const FloatingChatButton = ({ onClick }) => (
   </button>
 );
 
-Object.assign(window, { AIChatPanel, FloatingChatButton, AIReflexButton });
+Object.assign(window, {
+  AIChatPanel,
+  FloatingChatButton,
+  AIReflexButton,
+  fetchAgentDailyBriefing,
+  getAgentToday,
+});
