@@ -64,3 +64,6 @@ explicit = true
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
 pythonpath = ["backend"]
+markers = [
+    "openai_smoke: real OpenAI API smoke tests disabled unless explicitly enabled",
+]

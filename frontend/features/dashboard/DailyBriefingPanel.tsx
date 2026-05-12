@@ -28,6 +28,7 @@ import type {
   HandoffPreview,
   NextAction,
 } from "../../types/dailyBriefing";
+import { DailyBriefingChatPanel } from "./DailyBriefingChatPanel";
 
 const severityTone = {
   CRITICAL: "border-red-500 bg-red-50 text-red-900",
@@ -228,6 +229,8 @@ export function DailyBriefingPanel() {
         </div>
         {error ? <p className="mt-4 text-sm font-semibold text-red-700">{error}</p> : null}
       </div>
+
+      <DailyBriefingChatPanel companyId={companyId} />
 
       {briefing ? (
         <>

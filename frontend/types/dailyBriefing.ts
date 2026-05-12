@@ -98,6 +98,61 @@ export type DailyBriefingResult = {
   approval_required: boolean;
 };
 
+export type AgentChatToolCall = {
+  name: string;
+  route: string;
+  intent: string;
+  result_count: number;
+  action_count: number;
+  source_count: number;
+};
+
+export type AgentChatStructuredPlan = {
+  should_run: boolean;
+  intent: string | null;
+  plan_steps: string[];
+  required_context: string[];
+  entities: Record<string, string>;
+  blocked_actions: string[];
+  approval_required: boolean;
+  execution_allowed: boolean;
+  target_service: string | null;
+};
+
+export type AgentChatRagHit = {
+  chunk_id: string | null;
+  source_id: string | null;
+  title: string | null;
+  source_type: "official_policy" | "operational_case" | "action_draft" | "evidence_event" | string;
+  intent: string | null;
+  risk_type: string | null;
+  case_id: string | null;
+  citation_ids: string[];
+  action_ids: string[];
+  score: number | null;
+};
+
+export type AgentChatResponse = {
+  answer: string;
+  final_response: string;
+  route: string;
+  llm_used: boolean;
+  latency_mode: string;
+  tool_calls: AgentChatToolCall[];
+  actions: NextAction[];
+  sources: CitationSummary[];
+  detected_intents: string[];
+  approval_required: boolean;
+  approval_status: string;
+  daily_briefing?: DailyBriefingResult;
+  structured_plan: AgentChatStructuredPlan;
+  rag_hits?: AgentChatRagHit[];
+  retrieval_source_types?: string[];
+  llm_provider?: string | null;
+  fallback_used?: boolean;
+  fallback_reason?: string | null;
+};
+
 export type HandoffPreview = {
   preview_id: string;
   case_id: string;

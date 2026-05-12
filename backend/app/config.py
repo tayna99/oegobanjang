@@ -129,6 +129,8 @@ class Settings(BaseSettings):
     @property
     def normalized_langchain_checkpoint_path(self) -> str:
         return normalize_backend_path(self.langchain_checkpoint_path)
+    agent_chat_openai_smoke_enabled: bool = False
+    agent_chat_openai_model: str = "gpt-4o-mini"
 
     # Security
     jwt_secret: str = "change-this-local-secret"

@@ -1,5 +1,6 @@
 import type {
   DailyBriefingResult,
+  AgentChatResponse,
   CaseAuditReview,
   CitationChunkView,
   CitationDetail,
@@ -72,6 +73,46 @@ export async function runDailyBriefing(
 
   if (!response.ok) {
     throw new Error(`Daily briefing failed with ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function sendAgentChatMessage({
+  message,
+  companyId = "company_001",
+  workspaceId,
+  activeTab = "today",
+  selectedCaseId,
+  sessionId,
+}: {
+  message: string;
+  companyId?: string;
+  workspaceId?: string;
+  activeTab?: string;
+  selectedCaseId?: string;
+  sessionId?: string;
+}): Promise<AgentChatResponse> {
+  const response = await fetch(`${API_BASE_URL}/agent/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Company-Id": companyId,
+      "X-User-Role": "manager",
+      "X-User-Id": "manager_001",
+    },
+    body: JSON.stringify({
+      message,
+      companyId,
+      workspaceId,
+      activeTab,
+      selectedCaseId,
+      sessionId,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Agent chat failed with ${response.status}`);
   }
 
   return response.json();

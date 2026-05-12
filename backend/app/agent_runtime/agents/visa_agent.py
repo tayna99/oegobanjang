@@ -107,6 +107,38 @@ def _invoke_tools_with_messages(
     return tool_results, risk_flags, citations, tool_messages
 
 
+def _tool_call_key(tool_call: dict[str, Any]) -> tuple[str, str]:
+    return (
+        str(tool_call.get("name", "")),
+        repr(sorted((tool_call.get("args") or {}).items())),
+    )
+
+
+def _new_tool_calls(response: Any, seen_tool_calls: set[tuple[str, str]]) -> list[dict[str, Any]]:
+    tool_calls = getattr(response, "tool_calls", None) or []
+    new_calls: list[dict[str, Any]] = []
+    for tool_call in tool_calls:
+        key = _tool_call_key(tool_call)
+        if key in seen_tool_calls:
+            continue
+        seen_tool_calls.add(key)
+        new_calls.append(tool_call)
+    return new_calls
+
+
+def _format_rag_contexts(state: ForeignHiringState) -> str:
+    contexts = getattr(state, "rag_contexts", None) or []
+    lines: list[str] = []
+    for context in contexts:
+        if not isinstance(context, dict):
+            continue
+        title = context.get("title") or context.get("source_id") or "source"
+        grade = context.get("evidence_grade") or context.get("grade") or "unknown"
+        content = context.get("content") or context.get("text") or ""
+        lines.append(f"- {title} ({grade}): {content}")
+    return "\n".join(lines)
+
+
 def _run_visa_risk_sub_agent(
     state: ForeignHiringState,
     worker_id: str,
@@ -122,12 +154,16 @@ def _run_visa_risk_sub_agent(
     risk_flags: list[str] = []
     citations: list[Citation] = []
 
+    seen_tool_calls: set[tuple[str, str]] = set()
+
     try:
         for _ in range(4):  # 최대 4회 판단 루프
             response = llm.invoke(messages)
             messages.append(response)
-            if not (hasattr(response, "tool_calls") and response.tool_calls):
+            new_tool_calls = _new_tool_calls(response, seen_tool_calls)
+            if not new_tool_calls:
                 break
+            response.tool_calls = new_tool_calls
             results, flags, cits, tool_msgs = _invoke_tools_with_messages(response, _VISA_RISK_TOOLS)
             tool_results.extend(results)
             risk_flags.extend(flags)
@@ -174,6 +210,10 @@ def _run_document_priority_sub_agent(
 ) -> dict[str, Any]:
     """서류 우선순위 전담 서브에이전트. LLM이 상황을 보고 tool 호출 여부를 판단한다."""
     llm = llm_base.bind_tools(_DOC_PRIORITY_TOOLS)
+    user_parts = [f"worker_id: {worker_id}, case_type: {case_type}"]
+    rag_context = _format_rag_contexts(state)
+    if rag_context:
+        user_parts.append(f"RAG context:\n{rag_context}")
     messages: list[Any] = [
         SystemMessage(content=_DOC_PRIORITY_SYSTEM_PROMPT),
         HumanMessage(content=f"근로자 ID: {worker_id}, 케이스 유형: {case_type}"),
@@ -182,12 +222,17 @@ def _run_document_priority_sub_agent(
     risk_flags: list[str] = []
     citations: list[Citation] = []
 
+    messages[1] = HumanMessage(content="\n\n".join(user_parts))
+    seen_tool_calls: set[tuple[str, str]] = set()
+
     try:
         for _ in range(4):  # 최대 4회 판단 루프
             response = llm.invoke(messages)
             messages.append(response)
-            if not (hasattr(response, "tool_calls") and response.tool_calls):
+            new_tool_calls = _new_tool_calls(response, seen_tool_calls)
+            if not new_tool_calls:
                 break
+            response.tool_calls = new_tool_calls
             results, flags, cits, tool_msgs = _invoke_tools_with_messages(response, _DOC_PRIORITY_TOOLS)
             tool_results.extend(results)
             risk_flags.extend(flags)
