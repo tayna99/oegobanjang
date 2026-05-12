@@ -5,7 +5,7 @@ from .vector_store import get_chroma_store
 from .citation import build_citations
 from app.agent_runtime.schemas.tool import Citation
 
-CONFIDENCE_THRESHOLD = 0.5
+CONFIDENCE_THRESHOLD = 0.4
 
 
 @dataclass
