@@ -17,6 +17,10 @@ from backend.app.services.approval_service import (
     list_approvals_for_company,
     reject_approval_for_company,
 )
+from app.services.daily_briefing_service import (
+    build_sqlalchemy_daily_briefing_service,
+    resolve_daily_briefing_allowed_company_ids,
+)
 
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
@@ -63,12 +67,22 @@ def list_approvals(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _daily_error(error_code: str, message: str, trace_id: str = "trace_unavailable") -> dict[str, str]:
+    return {"error_code": error_code, "message": message, "trace_id": trace_id}
+
+
+def _is_daily_briefing_approval_id(approval_id: str) -> bool:
+    return approval_id.startswith("approval_")
+
+
 @router.get("/{approval_id}", response_model=ApprovalResponse)
 def get_approval(
     approval_id: str,
     x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
     db: Session = Depends(get_sync_db),
 ) -> dict[str, Any]:
+    if _is_daily_briefing_approval_id(approval_id):
+        raise HTTPException(status_code=404, detail="approval not found")
     try:
         return get_approval_detail_for_company(
             db,
@@ -83,14 +97,24 @@ def get_approval(
         raise HTTPException(status_code=409, detail="approval conflict") from exc
 
 
-@router.post("/{approval_id}/approve", response_model=ApprovalResponse)
+@router.post("/{approval_id}/approve")
 def approve_approval(
     approval_id: str,
     body: ApprovalReviewRequest | None = None,
     x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_role: str = Header(default="viewer", alias="X-User-Role"),
+    x_user_id: str = Header(default="user_unknown", alias="X-User-Id"),
     db: Session = Depends(get_sync_db),
 ) -> dict[str, Any]:
     request = body or ApprovalReviewRequest()
+    if _is_daily_briefing_approval_id(approval_id):
+        return _approve_daily_briefing_action(
+            db,
+            approval_id=approval_id,
+            x_company_id=x_company_id,
+            x_user_role=x_user_role,
+            x_user_id=x_user_id,
+        )
     try:
         result = approve_approval_for_company(
             db,
@@ -101,9 +125,8 @@ def approve_approval(
         )
         db.commit()
         return result
-    except ApprovalNotFoundError as exc:
+    except ApprovalNotFoundError:
         db.rollback()
-        raise HTTPException(status_code=404, detail="approval not found") from exc
     except ApprovalForbiddenError as exc:
         db.rollback()
         raise HTTPException(status_code=403, detail="approval access forbidden") from exc
@@ -112,20 +135,36 @@ def approve_approval(
         raise HTTPException(status_code=409, detail="approval conflict") from exc
     except ApprovalValidationError as exc:
         db.rollback()
-        raise HTTPException(
-            status_code=422,
-            detail="approval review input invalid",
-        ) from exc
+        raise HTTPException(status_code=422, detail="approval review input invalid") from exc
+
+    return _approve_daily_briefing_action(
+        db,
+        approval_id=approval_id,
+        x_company_id=x_company_id,
+        x_user_role=x_user_role,
+        x_user_id=x_user_id,
+    )
 
 
-@router.post("/{approval_id}/reject", response_model=ApprovalResponse)
+@router.post("/{approval_id}/reject")
 def reject_approval(
     approval_id: str,
     body: ApprovalReviewRequest | None = None,
     x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_role: str = Header(default="viewer", alias="X-User-Role"),
+    x_user_id: str = Header(default="user_unknown", alias="X-User-Id"),
     db: Session = Depends(get_sync_db),
 ) -> dict[str, Any]:
     request = body or ApprovalReviewRequest()
+    if _is_daily_briefing_approval_id(approval_id):
+        return _reject_daily_briefing_action(
+            db,
+            approval_id=approval_id,
+            reason=request.reason or "",
+            x_company_id=x_company_id,
+            x_user_role=x_user_role,
+            x_user_id=x_user_id,
+        )
     try:
         result = reject_approval_for_company(
             db,
@@ -136,9 +175,8 @@ def reject_approval(
         )
         db.commit()
         return result
-    except ApprovalNotFoundError as exc:
+    except ApprovalNotFoundError:
         db.rollback()
-        raise HTTPException(status_code=404, detail="approval not found") from exc
     except ApprovalForbiddenError as exc:
         db.rollback()
         raise HTTPException(status_code=403, detail="approval access forbidden") from exc
@@ -147,7 +185,128 @@ def reject_approval(
         raise HTTPException(status_code=409, detail="approval conflict") from exc
     except ApprovalValidationError as exc:
         db.rollback()
+        raise HTTPException(status_code=422, detail="approval review input invalid") from exc
+
+    return _reject_daily_briefing_action(
+        db,
+        approval_id=approval_id,
+        reason=request.reason or "",
+        x_company_id=x_company_id,
+        x_user_role=x_user_role,
+        x_user_id=x_user_id,
+    )
+
+
+@router.post("/{approval_id}/request-revision")
+def request_revision(
+    approval_id: str,
+    body: ApprovalReviewRequest,
+    x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_role: str = Header(default="viewer", alias="X-User-Role"),
+    x_user_id: str = Header(default="user_unknown", alias="X-User-Id"),
+    db: Session = Depends(get_sync_db),
+) -> dict[str, Any]:
+    service = build_sqlalchemy_daily_briefing_service(db)
+    allowed_company_ids = resolve_daily_briefing_allowed_company_ids(
+        db,
+        user_id=x_user_id,
+        header_company_id=x_company_id,
+    )
+    try:
+        response = service.request_revision(
+            approval_id,
+            approver_id=x_user_id,
+            user_role=x_user_role,
+            reason=body.reason or "",
+            allowed_company_ids=allowed_company_ids,
+        )
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
         raise HTTPException(
-            status_code=422,
-            detail="approval review input invalid",
+            status_code=403,
+            detail=_daily_error(str(exc.args[0]), "Only manager or admin can request a revision."),
         ) from exc
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=404,
+            detail=_daily_error(str(exc.args[0]), "Approval target was not found."),
+        ) from exc
+    return response.model_dump()
+
+
+def _approve_daily_briefing_action(
+    db: Session,
+    *,
+    approval_id: str,
+    x_company_id: str | None,
+    x_user_role: str,
+    x_user_id: str,
+) -> dict[str, Any]:
+    service = build_sqlalchemy_daily_briefing_service(db)
+    allowed_company_ids = resolve_daily_briefing_allowed_company_ids(
+        db,
+        user_id=x_user_id,
+        header_company_id=x_company_id,
+    )
+    try:
+        response = service.approve_action(
+            approval_id,
+            approver_id=x_user_id,
+            user_role=x_user_role,
+            allowed_company_ids=allowed_company_ids,
+        )
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=403,
+            detail=_daily_error(str(exc.args[0]), "Only manager or admin can approve this action."),
+        ) from exc
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=404,
+            detail=_daily_error(str(exc.args[0]), "Approval target was not found."),
+        ) from exc
+    return response.model_dump()
+
+
+def _reject_daily_briefing_action(
+    db: Session,
+    *,
+    approval_id: str,
+    reason: str,
+    x_company_id: str | None,
+    x_user_role: str,
+    x_user_id: str,
+) -> dict[str, Any]:
+    service = build_sqlalchemy_daily_briefing_service(db)
+    allowed_company_ids = resolve_daily_briefing_allowed_company_ids(
+        db,
+        user_id=x_user_id,
+        header_company_id=x_company_id,
+    )
+    try:
+        response = service.reject_action(
+            approval_id,
+            approver_id=x_user_id,
+            user_role=x_user_role,
+            reason=reason,
+            allowed_company_ids=allowed_company_ids,
+        )
+        db.commit()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=403,
+            detail=_daily_error(str(exc.args[0]), "Only manager or admin can reject this action."),
+        ) from exc
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=404,
+            detail=_daily_error(str(exc.args[0]), "Approval target was not found."),
+        ) from exc
+    return response.model_dump()

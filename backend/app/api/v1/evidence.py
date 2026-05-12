@@ -6,6 +6,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.services.daily_briefing_service import (
+    build_sqlalchemy_daily_briefing_service,
+    resolve_daily_briefing_allowed_company_ids,
+)
 from backend.app.db.session import get_sync_db
 from backend.app.services.evidence_service import (
     EvidenceForbiddenError,
@@ -13,7 +17,7 @@ from backend.app.services.evidence_service import (
 )
 
 
-router = APIRouter(prefix="/evidence", tags=["evidence"])
+router = APIRouter(tags=["evidence"])
 
 
 class EvidenceLogResponse(BaseModel):
@@ -37,7 +41,7 @@ class EvidenceListResponse(BaseModel):
     items: list[EvidenceLogResponse] = Field(default_factory=list)
 
 
-@router.get("", response_model=EvidenceListResponse)
+@router.get("/evidence", response_model=EvidenceListResponse)
 def list_evidence(
     request_id: str = Query(..., min_length=1),
     x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
@@ -51,3 +55,80 @@ def list_evidence(
         )
     except EvidenceForbiddenError as exc:
         raise HTTPException(status_code=403, detail="evidence access forbidden") from exc
+
+
+@router.get("/cases/{case_id}/evidence-events")
+def get_case_evidence_events(
+    case_id: str,
+    x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+    db: Session = Depends(get_sync_db),
+) -> list[dict]:
+    service = build_sqlalchemy_daily_briefing_service(db)
+    allowed_company_ids = resolve_daily_briefing_allowed_company_ids(
+        db,
+        user_id=x_user_id,
+        header_company_id=x_company_id,
+    )
+    try:
+        events = service.get_case_evidence_events(
+            case_id,
+            allowed_company_ids=allowed_company_ids,
+        )
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error_code": str(exc.args[0]),
+                "message": "Requested case is outside the allowed company scope.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": str(exc.args[0]),
+                "message": "Case evidence events were not found.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from exc
+    return [event.model_dump() for event in events]
+
+
+@router.get("/cases/{case_id}/audit-review")
+def get_case_audit_review(
+    case_id: str,
+    x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+    db: Session = Depends(get_sync_db),
+) -> dict:
+    service = build_sqlalchemy_daily_briefing_service(db)
+    allowed_company_ids = resolve_daily_briefing_allowed_company_ids(
+        db,
+        user_id=x_user_id,
+        header_company_id=x_company_id,
+    )
+    try:
+        return service.get_case_audit_review(
+            case_id,
+            allowed_company_ids=allowed_company_ids,
+        )
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error_code": str(exc.args[0]),
+                "message": "Requested case is outside the allowed company scope.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error_code": str(exc.args[0]),
+                "message": "Case audit review was not found.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from exc

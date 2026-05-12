@@ -44,6 +44,57 @@ const getMockResponse = (text) => {
   return { type: 'generic', text: '담당자 확인이 필요한 내용입니다. 판단 기록을 확인하세요.' };
 };
 
+const getAgentApiBaseUrl = () => {
+  const configured = window.AGENT_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
+  return configured.replace(/\/$/, '');
+};
+
+const AGENT_COMPANY_ID = 'company_001';
+const AGENT_USER_ID = 'manager_001';
+
+const postAgentChatMessage = async ({ message, sessionId }) => {
+  const response = await fetch(`${getAgentApiBaseUrl()}/agent/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Company-Id': AGENT_COMPANY_ID,
+      'X-User-Role': 'manager',
+      'X-User-Id': AGENT_USER_ID,
+    },
+    body: JSON.stringify({
+      message,
+      companyId: AGENT_COMPANY_ID,
+      activeTab: 'today',
+      sessionId,
+    }),
+  });
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const detail = payload?.detail?.message || payload?.detail || response.statusText || 'unknown error';
+    throw new Error(`HTTP ${response.status}: ${detail}`);
+  }
+
+  return payload;
+};
+
+const createAgentResponse = (payload) => ({
+  type: 'agent-response',
+  text: payload?.answer || payload?.final_response || '응답 본문이 비어 있습니다.',
+  payload,
+});
+
+const createAgentErrorResponse = (error) => ({
+  type: 'agent-error',
+  text: `API 연결 실패: ${error instanceof Error ? error.message : String(error)}`,
+});
+
 // AI 아바타 (그라디언트 원형)
 const AIAvatar = ({ size = 34 }) => (
   <div style={{
@@ -156,6 +207,49 @@ const AIChatMessage = ({ msg }) => {
     );
   }
 
+  if (r?.type === 'agent-response') {
+    const payload = r.payload || {};
+    const tool = payload.tool_calls?.[0];
+    const intent = payload.normalized_intent || payload.structured_plan?.intent || payload.detected_intents?.[0] || 'unknown';
+    const meta = [
+      payload.route,
+      intent,
+      tool?.name,
+    ].filter(Boolean).join(' · ');
+    const hasActions = Array.isArray(payload.actions) && payload.actions.length > 0;
+    return (
+      <BubbleWrapper>
+        <div style={{ fontSize: 13.5, color: '#303647', lineHeight: 1.58, whiteSpace: 'pre-wrap' }}>
+          {r.text}
+        </div>
+        <div style={{
+          marginTop: 10, paddingTop: 8, borderTop: '1px solid #edf0f6',
+          display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
+          fontSize: 11.5, color: '#6b7280', fontWeight: 600,
+        }}>
+          {meta ? <span>{meta}</span> : null}
+          {tool ? <span>{tool.result_count ?? 0}건</span> : null}
+          {payload.approval_required || hasActions ? (
+            <span style={{
+              padding: '2px 7px', borderRadius: 999,
+              background: '#fff7ed', color: '#b45309',
+            }}>승인 필요</span>
+          ) : null}
+        </div>
+      </BubbleWrapper>
+    );
+  }
+
+  if (r?.type === 'agent-error') {
+    return (
+      <BubbleWrapper>
+        <div style={{ fontSize: 13.5, color: '#b42318', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+          {r.text}
+        </div>
+      </BubbleWrapper>
+    );
+  }
+
   return (
     <BubbleWrapper>
       <div style={{ fontSize: 13.5, color: '#444', lineHeight: 1.55 }}>
@@ -203,8 +297,10 @@ const AIChatPanel = ({ open, onClose }) => {
     }
   ]);
   const [input, setInput] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
   const messagesEndRef = React.useRef(null);
-  const suggestions = ['Nguyen 현황 알려줘', '이번 주 기한 임박 건?', '서류 누락 목록 보여줘'];
+  const sessionIdRef = React.useRef(`frontend_proto_ai_chat_${Date.now()}`);
+  const suggestions = ['비자 관련해서 어떤 걸 해야돼?', '갱신해야 되는 사람 누구야?', '서류 누락 목록 보여줘'];
 
   React.useEffect(() => {
     if (open) {
@@ -212,15 +308,33 @@ const AIChatPanel = ({ open, onClose }) => {
     }
   }, [messages, open]);
 
-  const send = (text) => {
-    if (!text.trim()) return;
-    const userMsg = { id: Date.now(), role: 'user', text };
+  const send = async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+    const now = Date.now();
+    const userMsg = { id: now, role: 'user', text: trimmed };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    setTimeout(() => {
-      const response = getMockResponse(text);
-      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'ai', response }]);
-    }, 600);
+    setLoading(true);
+    try {
+      const payload = await postAgentChatMessage({
+        message: trimmed,
+        sessionId: sessionIdRef.current,
+      });
+      setMessages(prev => [...prev, {
+        id: `${now}_agent`,
+        role: 'ai',
+        response: createAgentResponse(payload),
+      }]);
+    } catch (error) {
+      setMessages(prev => [...prev, {
+        id: `${now}_error`,
+        role: 'ai',
+        response: createAgentErrorResponse(error),
+      }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!open) return null;
@@ -301,12 +415,13 @@ const AIChatPanel = ({ open, onClose }) => {
         {/* 빠른 질문 칩 */}
         <div style={{ padding: '6px 14px 4px', display: 'flex', gap: 6, flexWrap: 'wrap', flexShrink: 0 }}>
           {suggestions.map(s => (
-            <button key={s} onClick={() => send(s)} style={{
+            <button key={s} onClick={() => send(s)} disabled={loading} style={{
               padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 500,
               background: '#fff', color: '#1B3FA0',
               border: '1.5px solid rgba(27,63,160,0.22)', cursor: 'pointer',
               fontFamily: 'inherit', whiteSpace: 'nowrap',
               boxShadow: '0 1px 4px rgba(27,63,160,0.08)',
+              opacity: loading ? 0.55 : 1,
             }}>{s}</button>
           ))}
         </div>
@@ -331,29 +446,38 @@ const AIChatPanel = ({ open, onClose }) => {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') send(input); }}
               placeholder="외고 업무 관련 질문..."
+              disabled={loading}
               style={{
                 flex: 1, border: 0, outline: 'none', background: 'transparent',
                 fontFamily: 'inherit', fontSize: 14,
                 color: '#1a1a2e', padding: '11px 0',
+                opacity: loading ? 0.65 : 1,
               }}
             />
             {/* 전송 버튼 (파란 원형 화살표) */}
             <button
               onClick={() => send(input)}
+              disabled={loading || !input.trim()}
+              aria-label={loading ? '확인 중' : '전송'}
               style={{
                 margin: '5px 8px',
-                width: 34, height: 34, borderRadius: 999, border: 0, cursor: 'pointer',
-                background: input.trim()
+                minWidth: 34, height: 34, borderRadius: 999, border: 0,
+                cursor: loading || !input.trim() ? 'default' : 'pointer',
+                padding: loading ? '0 10px' : 0,
+                background: input.trim() && !loading
                   ? 'linear-gradient(135deg, #1B3FA0, #00BFA5)'
                   : '#c8d4e8',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 flexShrink: 0, transition: 'background 0.15s',
+                color: '#fff', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M5 12h14M12 5l7 7-7 7" stroke="#fff" strokeWidth="2.5"
-                  strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              {loading ? '확인 중' : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h14M12 5l7 7-7 7" stroke="#fff" strokeWidth="2.5"
+                    strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
             </button>
           </div>
         </div>
