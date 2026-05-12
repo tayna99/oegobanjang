@@ -239,8 +239,327 @@ const ApprovalTaskCard = ({ task, onViewDraft, onApprove, approved, completed })
   );
 };
 
+const getMobileBriefingDate = (briefingDate) => (
+  briefingDate || window.getAgentToday?.() || new Date().toISOString().slice(0, 10)
+);
+
+const formatMobileBriefingDate = (date) => {
+  try {
+    return new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      weekday: 'short',
+    }).format(new Date(`${date}T00:00:00+09:00`));
+  } catch (error) {
+    return date;
+  }
+};
+
+const resolveThreadForAgentAction = (action, payload) => {
+  const haystack = [
+    action?.label,
+    action?.subject_display_name,
+    action?.case_title,
+    payload?.answer,
+    payload?.final_response,
+  ].filter(Boolean).join(' ').toLowerCase();
+  const threads = window.CONTACT_THREADS || [];
+  if (haystack.includes('tran') || haystack.includes('쩐')) {
+    return threads.find(t => t.workerName?.toLowerCase().includes('tran')) || null;
+  }
+  if (haystack.includes('nguyen') || haystack.includes('응우옌')) {
+    return threads.find(t => t.workerName?.toLowerCase().includes('nguyen')) || null;
+  }
+  return threads.find(t => t.language === 'vi') || threads[0] || null;
+};
+
+const createMobileTaskFromAgentAction = (action, payload) => {
+  const thread = resolveThreadForAgentAction(action, payload);
+  return {
+    id: action?.action_id || `agent_action_${Date.now()}`,
+    type: action?.action_type || 'agent_action',
+    title: action?.label || payload?.case_title || 'AI 반장 초안',
+    workerName: action?.subject_display_name || thread?.workerName || payload?.subject_display_name || '대상자',
+    flag: thread?.flag || '•',
+    dDay: null,
+    status: action?.approval_required || payload?.approval_required ? 'approval_required' : 'review_required',
+    highlight: action?.approval_required || payload?.approval_required ? '승인 필요' : '검토 필요',
+    body: action?.description || payload?.case_summary || 'AI 반장이 만든 검토용 초안입니다. 승인 전에는 외부로 발송되지 않습니다.',
+    threadId: thread?.id,
+  };
+};
+
+const MobileAgentActionPreview = ({ preview, onBack }) => {
+  const payload = preview?.payload || {};
+  const action = preview?.action || {};
+  const sources = Array.isArray(payload.sources) ? payload.sources : [];
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column',
+      background: '#F8FAFC', fontFamily: 'inherit' }}>
+      <div style={{
+        padding: '52px 20px 14px',
+        background: '#fff',
+        borderBottom: '1px solid var(--semantic-line-normal-alternative)',
+        flexShrink: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          <button onClick={onBack} style={{ background: 'transparent', border: 0,
+            cursor: 'pointer', padding: 4, color: 'var(--semantic-label-normal)', borderRadius: 6 }}>
+            <Icon name="chevronLeft" size={22}/>
+          </button>
+          <span style={{ fontSize: 17, fontWeight: 700 }}>
+            {preview?.kind === 'evidence' ? '판단 기록' : '검토 패키지'}
+          </span>
+        </div>
+        <div style={{ fontSize: 21, fontWeight: 800, letterSpacing: '-0.02em',
+          color: 'var(--semantic-label-normal)', lineHeight: 1.3 }}>
+          {action.label || payload.case_title || 'AI 반장 검토 자료'}
+        </div>
+        <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8,
+          background: 'rgba(255,146,0,0.08)', border: '1px solid rgba(255,146,0,0.24)',
+          fontSize: 12.5, color: '#9C5800', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icon name="shield" size={13}/>
+          승인 전에는 외부 전달이나 상태 완료 처리를 하지 않습니다.
+        </div>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 110px' }}>
+        <div style={{ background: '#fff', borderRadius: 16,
+          border: '1px solid var(--semantic-line-normal-alternative)',
+          padding: '14px 16px', marginBottom: 14,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--semantic-label-normal)', marginBottom: 8 }}>
+            AI 응답 요약
+          </div>
+          <div style={{ fontSize: 13.5, lineHeight: 1.65, color: 'var(--semantic-label-neutral)', whiteSpace: 'pre-wrap' }}>
+            {payload.answer || payload.final_response || action.description || '표시할 검토 내용이 없습니다.'}
+          </div>
+        </div>
+        <div style={{ background: '#fff', borderRadius: 16,
+          border: '1px solid var(--semantic-line-normal-alternative)',
+          padding: '14px 16px',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--semantic-label-normal)', marginBottom: 8 }}>
+            근거
+          </div>
+          {sources.length > 0 ? sources.slice(0, 4).map((source, i) => (
+            <div key={source.citation_id || source.source_id || i} style={{
+              padding: '9px 0',
+              borderTop: i === 0 ? 0 : '1px solid var(--semantic-line-normal-alternative)',
+              fontSize: 12.5,
+              color: 'var(--semantic-label-neutral)',
+              lineHeight: 1.5,
+            }}>
+              {source.label || source.title || source.source_type || source.citation_id || 'source'}
+            </div>
+          )) : (
+            <div style={{ fontSize: 12.5, color: 'var(--semantic-label-alternative)' }}>
+              이 응답에는 표시할 source가 없습니다.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MobileAgentChatMessage = ({ message, onAction, onShowEvidence }) => {
+  if (message.role === 'user') {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <div style={{
+          maxWidth: '82%',
+          padding: '9px 12px',
+          borderRadius: '16px 16px 4px 16px',
+          background: '#1B3FA0',
+          color: '#fff',
+          fontSize: 13,
+          lineHeight: 1.5,
+          whiteSpace: 'pre-wrap',
+        }}>
+          {message.text}
+        </div>
+      </div>
+    );
+  }
+
+  const payload = message.payload || {};
+  const firstTool = payload.tool_calls?.[0];
+  const intent = payload.normalized_intent || payload.structured_plan?.intent || payload.detected_intents?.[0] || '';
+  const meta = [payload.route, intent, firstTool?.name].filter(Boolean).join(' · ');
+  const actions = Array.isArray(payload.actions) ? payload.actions : [];
+  const sources = Array.isArray(payload.sources) ? payload.sources : [];
+  const isError = message.type === 'error';
+
+  return (
+    <div style={{ display: 'flex', gap: 7, alignItems: 'flex-end', marginBottom: 10 }}>
+      <div style={{
+        width: 24, height: 24, borderRadius: 8,
+        background: isError ? '#FEE2E2' : 'linear-gradient(135deg, #1B3FA0, #00BFA5)',
+        color: isError ? '#B42318' : '#fff',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, fontWeight: 800, flexShrink: 0,
+      }}>
+        반
+      </div>
+      <div style={{
+        maxWidth: '86%',
+        padding: '10px 12px',
+        borderRadius: '4px 16px 16px 16px',
+        background: '#fff',
+        border: '1px solid var(--semantic-line-normal-alternative)',
+        boxShadow: '0 1px 5px rgba(0,0,0,0.05)',
+      }}>
+        <div style={{
+          fontSize: 13,
+          lineHeight: 1.6,
+          color: isError ? '#B42318' : 'var(--semantic-label-normal)',
+          whiteSpace: 'pre-wrap',
+        }}>
+          {message.text}
+        </div>
+        {actions.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+            {actions.map(action => (
+              <button
+                key={action.action_id || action.label}
+                onClick={() => onAction(action, payload)}
+                style={{
+                  border: 0,
+                  borderRadius: 999,
+                  padding: '6px 9px',
+                  background: '#1B3FA0',
+                  color: '#fff',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {action.action_type === 'request_document' ? '초안 보기' : '패키지 보기'}
+              </button>
+            ))}
+          </div>
+        )}
+        {sources.length > 0 && (
+          <button
+            onClick={() => onShowEvidence(payload)}
+            style={{
+              marginTop: actions.length > 0 ? 6 : 9,
+              border: '1px solid rgba(27,63,160,0.24)',
+              borderRadius: 999,
+              padding: '5px 9px',
+              background: '#fff',
+              color: '#1B3FA0',
+              fontSize: 11.5,
+              fontWeight: 700,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            근거 보기
+          </button>
+        )}
+        {(meta || payload.approval_required || actions.length > 0) && (
+          <div style={{
+            marginTop: 9,
+            paddingTop: 7,
+            borderTop: '1px solid var(--semantic-line-normal-alternative)',
+            display: 'flex',
+            gap: 6,
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            fontSize: 10.5,
+            fontWeight: 700,
+            color: 'var(--semantic-label-alternative)',
+          }}>
+            {meta && <span>{meta}</span>}
+            {(payload.approval_required || actions.length > 0) && (
+              <span style={{
+                padding: '2px 7px',
+                borderRadius: 999,
+                background: '#FFF7ED',
+                color: '#B45309',
+              }}>
+                승인 필요
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const MobileAgentChatComposer = ({ value, onChange, onSend, loading }) => (
+  <div style={{
+    flexShrink: 0,
+    padding: '8px 12px 10px',
+    background: 'rgba(248,250,252,0.96)',
+    borderTop: '1px solid var(--semantic-line-normal-alternative)',
+    backdropFilter: 'blur(18px)',
+  }}>
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      background: '#fff',
+      border: '1.5px solid #1B3FA0',
+      borderRadius: 14,
+      boxShadow: '0 2px 8px rgba(27,63,160,0.08)',
+      padding: '5px 6px 5px 12px',
+    }}>
+      <input
+        value={value}
+        disabled={loading}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            onSend(value);
+          }
+        }}
+        placeholder="외국인 고용 업무 관련 질문..."
+        style={{
+          flex: 1,
+          minWidth: 0,
+          border: 0,
+          outline: 'none',
+          background: 'transparent',
+          fontFamily: 'inherit',
+          fontSize: 13.5,
+          color: 'var(--semantic-label-normal)',
+          padding: '9px 0',
+          opacity: loading ? 0.6 : 1,
+        }}
+      />
+      <button
+        onClick={() => onSend(value)}
+        disabled={loading || !value.trim()}
+        aria-label={loading ? '확인 중' : '전송'}
+        style={{
+          width: loading ? 64 : 34,
+          height: 34,
+          borderRadius: 999,
+          border: 0,
+          background: value.trim() && !loading ? 'linear-gradient(135deg, #1B3FA0, #00BFA5)' : '#c8d4e8',
+          color: '#fff',
+          fontSize: 11.5,
+          fontWeight: 800,
+          cursor: loading || !value.trim() ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+          flexShrink: 0,
+        }}
+      >
+        {loading ? '확인 중' : '→'}
+      </button>
+    </div>
+  </div>
+);
+
 /* ─── 모바일 브리핑 홈 ────────────────────────────────────────── */
-const MobileBriefingHome = ({ onOpenDraft }) => {
+const MobileBriefingHome = ({ onOpenDraft, briefingDate, onOpenDocReq, onOpenEvidence, onOpenHandoff }) => {
   const tasks = window.MOBILE_APPROVAL_TASKS || [];
   const [activeBottomTab, setActiveBottomTab] = React.useState('home');
   const [approvedIds, setApprovedIds] = React.useState(new Set());
@@ -248,6 +567,17 @@ const MobileBriefingHome = ({ onOpenDraft }) => {
   const [liveAgentTask, setLiveAgentTask] = React.useState(null);
   const [draftTask, setDraftTask] = React.useState(null);      // 초안 보기 화면
   const [completeTask, setCompleteTask] = React.useState(null); // 승인 완료 화면
+  const [agentActionPreview, setAgentActionPreview] = React.useState(null);
+  const [chatMessages, setChatMessages] = React.useState([]);
+  const [chatInput, setChatInput] = React.useState('');
+  const [chatLoading, setChatLoading] = React.useState(false);
+  const chatEndRef = React.useRef(null);
+  const chatSessionIdRef = React.useRef(`frontend_proto_mobile_chat_${Date.now()}`);
+  const currentBriefingDate = getMobileBriefingDate(briefingDate);
+
+  React.useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [chatMessages, chatLoading]);
 
   const handleViewDraft = (task) => {
     // 초안 보기 화면으로 전환
@@ -281,6 +611,59 @@ const MobileBriefingHome = ({ onOpenDraft }) => {
     }
   };
 
+  const handleChatAction = (action, payload) => {
+    const task = createMobileTaskFromAgentAction(action, payload);
+    if (action?.action_type === 'request_document') {
+      const thread = (window.CONTACT_THREADS || []).find(t => t.id === task.threadId);
+      setDraftTask({ task, thread });
+      onOpenDraft?.(task);
+      return;
+    }
+    setAgentActionPreview({ kind: action?.action_type === 'create_handoff' ? 'handoff' : 'action', action, payload });
+  };
+
+  const handleShowEvidence = (payload) => {
+    setAgentActionPreview({ kind: 'evidence', action: null, payload });
+  };
+
+  const sendMobileChat = async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed || chatLoading) return;
+    const now = Date.now();
+    setChatMessages(prev => [...prev, { id: now, role: 'user', text: trimmed }]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      if (!window.postAgentChatMessage) {
+        throw new Error('postAgentChatMessage helper unavailable');
+      }
+      const payload = await window.postAgentChatMessage({
+        message: trimmed,
+        sessionId: chatSessionIdRef.current,
+        date: currentBriefingDate,
+        workspaceId: 'frontend_proto_mobile',
+        activeTab: 'mobile_daily_briefing',
+      });
+      setChatMessages(prev => [...prev, {
+        id: `${now}_agent`,
+        role: 'assistant',
+        text: payload?.answer || payload?.final_response || '응답 본문이 비어 있습니다.',
+        payload,
+      }]);
+    } catch (error) {
+      setChatMessages(prev => [...prev, {
+        id: `${now}_error`,
+        role: 'assistant',
+        type: 'error',
+        text: `API 연결 실패: ${error instanceof Error ? error.message : String(error)}`,
+        payload: {},
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   /* 승인 완료 화면 */
   if (completeTask) {
     return (
@@ -289,6 +672,17 @@ const MobileBriefingHome = ({ onOpenDraft }) => {
           task={completeTask}
           onBack={() => setCompleteTask(null)}
           onViewLog={() => setCompleteTask(null)}
+        />
+      </div>
+    );
+  }
+
+  if (agentActionPreview) {
+    return (
+      <div style={{ height: '100%', position: 'relative' }}>
+        <MobileAgentActionPreview
+          preview={agentActionPreview}
+          onBack={() => setAgentActionPreview(null)}
         />
       </div>
     );
@@ -414,6 +808,50 @@ const MobileBriefingHome = ({ onOpenDraft }) => {
               {completeIds.size}건 처리 완료 · 판단 기록에 저장되었습니다
             </div>
           )}
+          {(chatMessages.length > 0 || chatLoading) && (
+            <div style={{ paddingTop: 6 }}>
+              <div style={{
+                fontSize: 12.5,
+                fontWeight: 800,
+                color: 'var(--semantic-label-normal)',
+                margin: '0 0 8px 2px',
+              }}>
+                AI 반장 대화
+              </div>
+              {chatMessages.map(message => (
+                <MobileAgentChatMessage
+                  key={message.id}
+                  message={message}
+                  onAction={handleChatAction}
+                  onShowEvidence={handleShowEvidence}
+                />
+              ))}
+              {chatLoading && (
+                <div style={{ display: 'flex', gap: 7, alignItems: 'center', marginBottom: 10 }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: 8,
+                    background: 'linear-gradient(135deg, #1B3FA0, #00BFA5)',
+                    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 11, fontWeight: 800, flexShrink: 0,
+                  }}>
+                    반
+                  </div>
+                  <div style={{
+                    padding: '9px 12px',
+                    borderRadius: '4px 16px 16px 16px',
+                    background: '#fff',
+                    border: '1px solid var(--semantic-line-normal-alternative)',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: 'var(--semantic-label-alternative)',
+                  }}>
+                    확인 중...
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef}/>
+            </div>
+          )}
         </div>
       </>
     );
@@ -468,7 +906,7 @@ const MobileBriefingHome = ({ onOpenDraft }) => {
               오늘 브리핑
             </div>
             <div style={{ fontSize: 12, color: 'var(--semantic-label-alternative)', marginTop: 2 }}>
-              2026년 5월 11일 (월)
+              {formatMobileBriefingDate(currentBriefingDate)}
             </div>
           </div>
           {/* 사업장 선택 칩 */}
@@ -495,6 +933,15 @@ const MobileBriefingHome = ({ onOpenDraft }) => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {renderTabContent()}
       </div>
+
+      {activeBottomTab === 'home' && (
+        <MobileAgentChatComposer
+          value={chatInput}
+          onChange={setChatInput}
+          onSend={sendMobileChat}
+          loading={chatLoading}
+        />
+      )}
 
       {/* 하단 탭바 */}
       <BottomTabBar activeTab={activeBottomTab} onTabChange={setActiveBottomTab}/>
