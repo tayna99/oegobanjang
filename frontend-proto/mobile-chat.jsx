@@ -246,23 +246,67 @@ const MobileBriefingHome = ({ onOpenDraft }) => {
   const [approvedIds, setApprovedIds] = React.useState(new Set());
   const [completeIds, setCompleteIds] = React.useState(new Set());
   const [liveAgentTask, setLiveAgentTask] = React.useState(null);
+  const [draftTask, setDraftTask] = React.useState(null);      // 초안 보기 화면
+  const [completeTask, setCompleteTask] = React.useState(null); // 승인 완료 화면
 
   const handleViewDraft = (task) => {
-    if (task.threadId) setLiveAgentTask(task);
-    else onOpenDraft?.(task);
+    // 초안 보기 화면으로 전환
+    const thread = (window.CONTACT_THREADS || []).find(t => t.id === task.threadId);
+    setDraftTask({ task, thread });
   };
 
   const handleApprove = (task) => {
     setApprovedIds(prev => new Set([...prev, task.id]));
-    if (task.threadId) setLiveAgentTask(task);
+    // 승인하기 → 초안 보기로 이동 (컨택 스레드가 있을 때)
+    if (task.threadId) {
+      const thread = (window.CONTACT_THREADS || []).find(t => t.id === task.threadId);
+      setDraftTask({ task, thread });
+    }
+  };
+
+  const handleDraftApprove = () => {
+    // 초안 승인 → 승인 완료 화면
+    if (draftTask) {
+      setCompleteTask(draftTask.task);
+      setCompleteIds(prev => new Set([...prev, draftTask.task.id]));
+      setDraftTask(null);
+    }
   };
 
   const handleAgentApprove = () => {
     if (liveAgentTask) {
+      setCompleteTask(liveAgentTask);
       setCompleteIds(prev => new Set([...prev, liveAgentTask.id]));
       setLiveAgentTask(null);
     }
   };
+
+  /* 승인 완료 화면 */
+  if (completeTask) {
+    return (
+      <div style={{ height: '100%', position: 'relative' }}>
+        <ApprovalCompleteScreen
+          task={completeTask}
+          onBack={() => setCompleteTask(null)}
+          onViewLog={() => setCompleteTask(null)}
+        />
+      </div>
+    );
+  }
+
+  /* 초안 보기 화면 */
+  if (draftTask) {
+    return (
+      <div style={{ height: '100%', position: 'relative' }}>
+        <MobileDraftView
+          task={draftTask.task}
+          thread={draftTask.thread}
+          onBack={() => setDraftTask(null)}
+          onApprove={handleDraftApprove}
+        />
+      </div>
+    );
+  }
 
   /* Live Agent 화면 */
   if (liveAgentTask) {
