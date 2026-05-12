@@ -51,7 +51,9 @@
       "PowerShell($py = \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\.venv\\\\Scripts\\\\python.exe\"; Set-Location \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\backend\"; & $py -m pytest tests/test_visa_sub_agents.py -v --no-header 2>&1 | Select-Object -Last 60)",
       "PowerShell($py = \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\.venv\\\\Scripts\\\\python.exe\"; Set-Location \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\backend\"; & $py -m pytest tests/test_visa_sub_agents.py -v --no-header 2>&1)",
       "Bash(git stash *)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Bash(dir \"C:/WorkBridge\")",
+      "Bash(dir *)"
     ]
   },
   "statusLine": {

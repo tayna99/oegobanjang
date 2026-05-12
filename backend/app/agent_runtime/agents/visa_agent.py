@@ -174,9 +174,20 @@ def _run_document_priority_sub_agent(
 ) -> dict[str, Any]:
     """서류 우선순위 전담 서브에이전트. LLM이 상황을 보고 tool 호출 여부를 판단한다."""
     llm = llm_base.bind_tools(_DOC_PRIORITY_TOOLS)
+
+    rag_context_text = ""
+    if state.rag_contexts:
+        rag_lines = []
+        for ctx in state.rag_contexts:
+            title = ctx.get("title", "")
+            content = ctx.get("content", "")
+            grade = ctx.get("evidence_grade", "")
+            rag_lines.append(f"[{grade}] {title}: {content}")
+        rag_context_text = "\n\n참고 공식 문서:\n" + "\n".join(rag_lines)
+
     messages: list[Any] = [
         SystemMessage(content=_DOC_PRIORITY_SYSTEM_PROMPT),
-        HumanMessage(content=f"근로자 ID: {worker_id}, 케이스 유형: {case_type}"),
+        HumanMessage(content=f"근로자 ID: {worker_id}, 케이스 유형: {case_type}{rag_context_text}"),
     ]
     tool_results: list[dict] = []
     risk_flags: list[str] = []

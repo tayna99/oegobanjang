@@ -86,7 +86,7 @@ class TestVisaRiskSubAgent:
         fake_tool.invoke.return_value = fake_tool_output
 
         llm_mock = MagicMock()
-        llm_mock.bind_tools.return_value.invoke.return_value = ai_msg
+        llm_mock.bind_tools.return_value.invoke.side_effect = [ai_msg, _ai_no_tool()]
 
         original_tools = visa_agent_module._VISA_RISK_TOOLS
         try:
@@ -165,7 +165,7 @@ class TestDocumentPrioritySubAgent:
         fake_tool.invoke.return_value = fake_tool_output
 
         llm_mock = MagicMock()
-        llm_mock.bind_tools.return_value.invoke.return_value = ai_msg
+        llm_mock.bind_tools.return_value.invoke.side_effect = [ai_msg, _ai_no_tool()]
 
         original_tools = visa_agent_module._DOC_PRIORITY_TOOLS
         try:
