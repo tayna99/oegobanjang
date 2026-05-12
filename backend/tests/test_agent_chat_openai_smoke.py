@@ -10,7 +10,10 @@ def test_agent_chat_openai_smoke_routes_rag_first_with_strict_schema():
     settings = get_settings()
     if not settings.agent_chat_openai_smoke_enabled:
         pytest.skip("Set AGENT_CHAT_OPENAI_SMOKE_ENABLED=true to run real OpenAI smoke test.")
-    if not settings.openai_api_key:
+    provider = (settings.agent_chat_llm_provider or "openai").strip().lower()
+    if provider not in {"openai", "ollama"}:
+        provider = "openai"
+    if provider == "openai" and not settings.openai_api_key:
         pytest.skip("OPENAI_API_KEY/openai_api_key is not configured.")
 
     client = TestClient(app)
@@ -41,12 +44,20 @@ def test_agent_chat_openai_smoke_routes_rag_first_with_strict_schema():
         body = response.json()
         assert body["route"] == "rag_first_chat", message
         assert body["llm_used"] is True, message
-        assert body["llm_provider"] == "openai", message
+        assert body["llm_provider"] == provider, message
         assert body["fallback_used"] is False, message
+        assert body["orchestration_version"] == "semantic_rag_llm_tools_v2", message
+        assert body["normalized_intent"] == expected_intent, message
         assert body["structured_plan"]["intent"] == expected_intent, message
         assert body["rag_hits"], message
         assert body["sources"], message
-        assert body["tool_calls"][0]["name"] == "agent_chat_rag_search", message
+        assert [call["name"] for call in body["tool_calls"][:4]] == [
+            "agent_chat_semantic_retrieve",
+            "agent_chat_llm_normalize",
+            "agent_chat_tool_execute",
+            "agent_chat_llm_grounded_answer",
+        ], message
+        assert body["executed_tools"], message
         assert "Nguyen Van A" not in body["answer"]
         assert "매칭 점수" not in body["answer"]
         assert "추천 점수" not in body["answer"]

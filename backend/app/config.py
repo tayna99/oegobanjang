@@ -130,14 +130,20 @@ class Settings(BaseSettings):
     def normalized_langchain_checkpoint_path(self) -> str:
         return normalize_backend_path(self.langchain_checkpoint_path)
     agent_chat_openai_smoke_enabled: bool = False
+    agent_chat_llm_provider: str = "openai"
     agent_chat_openai_model: str = "gpt-4o-mini"
+    agent_chat_ollama_model: str = "gemma4:26b"
+    agent_chat_ollama_base_url: str = "http://localhost:11434/v1"
 
     # Security
     jwt_secret: str = "change-this-local-secret"
     jwt_algorithm: str = "HS256"
 
     # CORS
-    cors_allow_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    cors_allow_origins: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:3131,http://127.0.0.1:3131"
+    )
 
     @property
     def cors_origins(self) -> list[str]:

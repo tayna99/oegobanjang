@@ -259,7 +259,7 @@ def test_agent_chat_exposes_fast_operational_route_and_tool_trace():
     assert body["llm_used"] is False
     assert body["latency_mode"] == "rag_first_fast"
     assert body["tool_calls"]
-    assert body["tool_calls"][0]["name"] == "agent_chat_rag_search"
+    assert body["tool_calls"][0]["name"] == "agent_chat_semantic_retrieve"
     assert body["tool_calls"][0]["result_count"] >= 1
     assert body["rag_hits"]
     assert "operational_case" in body["retrieval_source_types"]
@@ -296,7 +296,7 @@ def test_agent_chat_uses_rag_first_route_for_daily_briefing_questions():
         "evidence_event",
     }
     assert "operational_case" in body["retrieval_source_types"]
-    assert body["tool_calls"][0]["name"] == "agent_chat_rag_search"
+    assert body["tool_calls"][0]["name"] == "agent_chat_semantic_retrieve"
     assert body["sources"]
 
 
@@ -323,14 +323,14 @@ def test_agent_chat_tool_trace_uses_rag_then_llm_then_rule_lookup_order():
     assert body["route"] == "rag_first_chat"
     assert body["structured_plan"]["intent"] == "visa_expiry"
     assert [call["name"] for call in body["tool_calls"][:3]] == [
-        "agent_chat_rag_search",
-        "agent_chat_llm_plan",
-        "daily_briefing_lookup",
+        "agent_chat_semantic_retrieve",
+        "agent_chat_llm_normalize",
+        "agent_chat_tool_execute",
     ]
     assert body["structured_plan"]["plan_steps"][:3] == [
-        "retrieve_rag_intent_chunks",
-        "plan_with_llm_from_rag_context",
-        "load_rule_db_state_for_selected_intent",
+        "agent_chat_semantic_retrieve",
+        "agent_chat_llm_normalize",
+        "agent_chat_tool_execute",
     ]
 
 
@@ -807,7 +807,7 @@ def test_agent_chat_rag_first_handles_broad_paraphrases_without_keyword_planner(
         assert body["structured_plan"]["intent"] == expected_intent, message
         assert body["rag_hits"], message
         assert body["fallback_used"] is False, message
-        assert body["tool_calls"][0]["name"] == "agent_chat_rag_search", message
+        assert body["tool_calls"][0]["name"] == "agent_chat_semantic_retrieve", message
         assert "담당자 확인이 필요한 내용입니다" not in body["answer"]
         assert "매칭 점수" not in body["answer"]
         assert "추천 점수" not in body["answer"]
@@ -929,3 +929,190 @@ def test_agent_chat_blocks_discriminatory_nationality_recommendation_requests():
     assert body["structured_plan"]["execution_allowed"] is False
     assert body["tool_calls"] == []
     assert body["rag_hits"] == []
+
+
+def test_agent_chat_semantic_orchestrator_v2_handles_real_user_questions_without_keyword_planner(monkeypatch):
+    def unknown_planner(message: str) -> DailyBriefingPlan:
+        return DailyBriefingPlan(
+            should_run=False,
+            intent="unknown",
+            approval_required=True,
+            execution_allowed=False,
+        )
+
+    monkeypatch.setattr("app.api.v1.agent.plan_daily_briefing_from_message", unknown_planner)
+    monkeypatch.setattr(
+        "app.services.agent_chat_rag.OpenAIAgentChatQueryPlanner.enabled",
+        lambda self: False,
+    )
+    client = TestClient(app)
+    variants = {
+        "오늘 외국인 직원 쪽에서 먼저 볼 거 있어?": "daily_briefing",
+        "이번 주 안에 놓치면 안 되는 거만 알려줘": "daily_briefing",
+        "비자 끝나는 사람 있으면 먼저 알려줘": "visa_expiry",
+        "갱신해야 되는 사람 누구야?": "visa_expiry",
+        "외국인등록증이나 여권 사본 안 받은 사람 있어?": "document_gap",
+        "서류 아직 덜 된 사람만 골라줘": "document_gap",
+        "계약서는 끝났는데 비자는 남아있는 사람 있어?": "contract_visa_conflict",
+        "퇴사 처리된 사람 신고할 거 남았어?": "reporting_deadline",
+        "요즘 일이 밀려서 사람 더 써야 할 것 같은데 뭐부터 봐?": "quota_review",
+        "새로 뽑으려면 회사 쪽에서 준비할 거 있어?": "quota_review",
+        "입국 예정인 사람들 서류 문제 없는지만 봐줘": "candidate_readiness",
+        "새로 오는 사람 중에 서류 안 된 사람 있어?": "candidate_readiness",
+        "Tran한테 서류 다시 보내달라고 정중하게 써줘": "document_request_message",
+        "베트남 직원한테 여권 사진 다시 달라고 말해줘": "document_request_message",
+        "이 건 행정사한테 넘기려면 뭐 묶어야 돼?": "handoff_preview",
+        "전문가한테 보여줄 자료만 정리해줘": "handoff_preview",
+        "이 판단 왜 나온 건지 다시 볼 수 있어?": "evidence_audit_review",
+        "방금 말한 근거가 어디서 온 거야?": "evidence_audit_review",
+    }
+
+    for message, expected_intent in variants.items():
+        response = client.post(
+            "/api/v1/agent/chat",
+            json={
+                "message": message,
+                "companyId": "company_001",
+                "activeTab": "today",
+                "sessionId": f"semantic_v2_{expected_intent}",
+            },
+            headers={
+                "X-Company-Id": "company_001",
+                "X-User-Role": "manager",
+                "X-User-Id": "manager_001",
+            },
+        )
+
+        assert response.status_code == 200, message
+        body = response.json()
+        assert body["route"] == "rag_first_chat", message
+        assert body["orchestration_version"] == "semantic_rag_llm_tools_v2", message
+        assert body["normalized_intent"] == expected_intent, message
+        assert body["structured_plan"]["intent"] == expected_intent, message
+        assert body["rag_hits"], message
+        assert body["sources"], message
+        assert body["executed_tools"], message
+        assert [call["name"] for call in body["tool_calls"][:4]] == [
+            "agent_chat_semantic_retrieve",
+            "agent_chat_llm_normalize",
+            "agent_chat_tool_execute",
+            "agent_chat_llm_grounded_answer",
+        ], message
+        assert "담당자 확인이 필요한 내용입니다" not in body["answer"]
+        assert "매칭 점수" not in body["answer"]
+        assert "추천 점수" not in body["answer"]
+        assert "Nguyen Van A" not in body["answer"]
+
+
+def test_agent_chat_semantic_orchestrator_v2_exercises_llm_path_with_fake_model(monkeypatch):
+    from app.services.agent_chat_rag import AgentChatLLMQuery
+
+    def fake_plan(self, message: str) -> AgentChatLLMQuery:
+        return AgentChatLLMQuery(
+            query=message,
+            entities={"date_range": "this_week"},
+            intent_candidates=["visa_expiry"],
+            answer_style="operational_brief",
+        )
+
+    def fake_grounded_answer(
+        self,
+        *,
+        message,
+        normalized_plan,
+        fallback_answer,
+        rag_results,
+        executed_tools,
+    ) -> str:
+        assert message
+        assert normalized_plan.intent == "visa_expiry"
+        assert rag_results
+        assert executed_tools
+        return f"{fallback_answer}\n(fake LLM grounded answer path)"
+
+    monkeypatch.setattr(
+        "app.services.agent_chat_rag.OpenAIAgentChatQueryPlanner.enabled",
+        lambda self: True,
+    )
+    monkeypatch.setattr(
+        "app.services.agent_chat_rag.OpenAIAgentChatQueryPlanner.provider_name",
+        lambda self: "fake",
+    )
+    monkeypatch.setattr(
+        "app.services.agent_chat_rag.OpenAIAgentChatQueryPlanner.plan",
+        fake_plan,
+    )
+    monkeypatch.setattr(
+        "app.services.agent_chat_rag.OpenAIAgentChatQueryPlanner.grounded_answer",
+        fake_grounded_answer,
+    )
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/v1/agent/chat",
+        json={
+            "message": "비자 끝나는 사람 있으면 먼저 알려줘",
+            "companyId": "company_001",
+            "activeTab": "today",
+            "sessionId": "semantic_v2_fake_llm_path",
+        },
+        headers={
+            "X-Company-Id": "company_001",
+            "X-User-Role": "manager",
+            "X-User-Id": "manager_001",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "rag_first_chat"
+    assert body["llm_used"] is True
+    assert body["llm_provider"] == "fake"
+    assert body["normalized_intent"] == "visa_expiry"
+    assert body["normalized_entities"]["date_range"] == "this_week"
+    assert "(fake LLM grounded answer path)" in body["answer"]
+    assert [call["name"] for call in body["tool_calls"][:4]] == [
+        "agent_chat_semantic_retrieve",
+        "agent_chat_llm_normalize",
+        "agent_chat_tool_execute",
+        "agent_chat_llm_grounded_answer",
+    ]
+
+
+def test_agent_chat_semantic_orchestrator_v2_blocks_real_user_forbidden_requests(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.agent_chat_rag.OpenAIAgentChatQueryPlanner.enabled",
+        lambda self: False,
+    )
+    client = TestClient(app)
+    examples = {
+        "이거 바로 문자 보내줘": "send_message_without_approval",
+        "어느 나라 사람이 제일 안 도망가?": "discriminatory_or_attrition_prediction",
+    }
+
+    for message, expected_blocked_action in examples.items():
+        response = client.post(
+            "/api/v1/agent/chat",
+            json={
+                "message": message,
+                "companyId": "company_001",
+                "activeTab": "today",
+                "sessionId": f"semantic_v2_forbidden_{expected_blocked_action}",
+            },
+            headers={
+                "X-Company-Id": "company_001",
+                "X-User-Role": "manager",
+                "X-User-Id": "manager_001",
+            },
+        )
+
+        assert response.status_code == 200, message
+        body = response.json()
+        assert body["route"] == "unsupported", message
+        assert body["orchestration_version"] == "semantic_rag_llm_tools_v2", message
+        assert body["normalized_intent"] == "unsupported", message
+        assert body["actions"] == [], message
+        assert body["structured_plan"]["execution_allowed"] is False, message
+        assert expected_blocked_action in body["structured_plan"]["blocked_actions"], message
+        assert "추천 점수" not in body["answer"]
+        assert "매칭 점수" not in body["answer"]

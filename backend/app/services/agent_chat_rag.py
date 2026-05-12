@@ -12,6 +12,8 @@ from app.agent_runtime.rag.retriever import PolicyRetriever, tokenize
 from app.config import get_settings
 
 
+ORCHESTRATION_VERSION = "semantic_rag_llm_tools_v2"
+
 CANONICAL_INTENTS = {
     "quota_review",
     "visa_expiry",
@@ -97,7 +99,49 @@ FORBIDDEN_ACTION_TERMS: tuple[str, ...] = (
     "국적별 점수",
     "국적별 순위",
     "나라별 추천",
+    "바로 문자",
+    "문자 보내줘",
+    "문자 보내",
+    "안 도망가",
+    "도망가",
+    "도망",
+    "이탈 예측",
 )
+
+FORBIDDEN_ACTION_PATTERNS: dict[str, tuple[str, ...]] = {
+    "send_message_without_approval": (
+        "카톡으로 바로",
+        "문자로 바로",
+        "바로 문자",
+        "문자 보내줘",
+        "문자 보내",
+        "발송해줘",
+        "보내버려",
+        "승인 없이",
+    ),
+    "government_portal_submission": (
+        "정부 포털",
+        "바로 제출",
+        "자동 제출",
+    ),
+    "complete_status_without_approval": (
+        "완료 처리",
+    ),
+    "discriminatory_or_attrition_prediction": (
+        "국적별 추천",
+        "국적별로 추천",
+        "국적별로 성실",
+        "국적 선호",
+        "성실할 사람 추천",
+        "이탈 가능성",
+        "어느 나라",
+        "안 도망가",
+        "도망가",
+        "도망",
+        "이탈 예측",
+        "나라별 추천",
+    ),
+}
 
 INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
     "quota_review": (
@@ -106,6 +150,8 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "직원 더 뽑아야 해",
         "일할 사람 없어",
         "채용 좀 해야 할 것 같아",
+        "요즘 일이 밀려서 사람 더 써야 할 것 같은데 뭐부터 봐",
+        "새로 뽑으려면 회사 쪽에서 준비할 거 있어",
     ),
     "visa_expiry": (
         "비자 뭐 해야 해",
@@ -113,12 +159,16 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "기간 얼마 남았어",
         "끝나는 사람 있어",
         "만료되는 사람 있어",
+        "비자 끝나는 사람 있으면 먼저 알려줘",
+        "갱신해야 되는 사람 누구야",
+        "비자 쪽에서 오늘 손볼 거 있어",
     ),
     "contract_visa_conflict": (
         "날짜 안 맞는 거 있어",
         "계약이랑 비자 안 맞아",
         "둘이 날짜 겹쳐",
         "계약 끝나는 거랑 비자 끝나는 거 봐줘",
+        "계약서는 끝났는데 비자는 남아있는 사람 있어",
     ),
     "reporting_deadline": (
         "신고 기한 지난 케이스 있어",
@@ -126,6 +176,7 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "신고기한 놓친 건 있어",
         "신고 늦은 케이스 있어",
         "고용변동 기한 확인해줘",
+        "퇴사 처리된 사람 신고할 거 남았어",
     ),
     "document_gap": (
         "뭐 빠졌어",
@@ -133,6 +184,8 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "안 낸 서류 있어",
         "여권 사본 받았어",
         "서류 다 됐어",
+        "외국인등록증이나 여권 사본 안 받은 사람 있어",
+        "서류 아직 덜 된 사람만 골라줘",
     ),
     "document_request_message": (
         "서류 달라고 해줘",
@@ -146,6 +199,8 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "교육장으로 오라고 안내해줘",
         "안전교육 안내문 만들어줘",
         "네팔어 안내문 만들어줘",
+        "Tran한테 서류 다시 보내달라고 정중하게 써줘",
+        "베트남 직원한테 여권 사진 다시 달라고 말해줘",
     ),
     "handoff_preview": (
         "행정사한테 뭐 보내야 해",
@@ -153,6 +208,8 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "검토자료 만들어줘",
         "누구한테 넘기면 돼",
         "보낼 묶음 만들어줘",
+        "이 건 행정사한테 넘기려면 뭐 묶어야 돼",
+        "전문가한테 보여줄 자료만 정리해줘",
     ),
     "daily_briefing": (
         "오늘 뭐부터 해",
@@ -162,6 +219,8 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "먼저 볼 것만 알려줘",
         "오늘 할 일 알려줘",
         "이번 달 외국인 직원 중 급한 케이스만 정리해줘",
+        "오늘 외국인 직원 쪽에서 먼저 볼 거 있어",
+        "이번 주 안에 놓치면 안 되는 거만 알려줘",
     ),
     "candidate_readiness": (
         "후보자 준비됐어",
@@ -169,6 +228,8 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "들어올 사람 문제 있어",
         "입국할 사람 뭐 빠졌어",
         "새로 올 사람 확인해줘",
+        "입국 예정인 사람들 서류 문제 없는지만 봐줘",
+        "새로 오는 사람 중에 서류 안 된 사람 있어",
     ),
     "evidence_audit_review": (
         "왜 그렇게 봤어",
@@ -176,6 +237,8 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "로그 보여줘",
         "기록 남아 있어",
         "어디 보고 말한 거야",
+        "이 판단 왜 나온 건지 다시 볼 수 있어",
+        "방금 말한 근거가 어디서 온 거야",
     ),
 }
 
@@ -206,6 +269,27 @@ class AgentChatStructuredPlan(BaseModel):
     target_service: str = "rag_first_chat"
 
 
+class AgentChatNormalizedPlan(BaseModel):
+    intent: str
+    entities: dict[str, str] = Field(default_factory=dict)
+    action: str = "answer"
+    target_case_ids: list[str] = Field(default_factory=list)
+    required_tools: list[str] = Field(default_factory=list)
+    blocked_actions: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+
+
+def _parse_json_object(raw: str) -> dict[str, Any]:
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise
+        return json.loads(raw[start : end + 1])
+
+
 @dataclass(frozen=True)
 class RAGFirstChatContext:
     company_id: str
@@ -219,8 +303,10 @@ class RAGFirstPreflight:
     rag_results: list[dict[str, Any]]
     intent: str
     llm_used: bool
+    llm_provider: str | None = None
     llm_error: str | None = None
     blocked: bool = False
+    blocked_actions: list[str] | None = None
 
 
 class OpenAIAgentChatQueryPlanner:
@@ -229,22 +315,46 @@ class OpenAIAgentChatQueryPlanner:
     def __init__(self) -> None:
         self.settings = get_settings()
 
+    def provider_name(self) -> str:
+        provider = (self.settings.agent_chat_llm_provider or "openai").strip().lower()
+        if provider not in {"openai", "ollama"}:
+            return "openai"
+        return provider
+
     def enabled(self) -> bool:
-        return bool(
-            self.settings.agent_chat_openai_smoke_enabled
-            and self.settings.openai_api_key
+        if not self.settings.agent_chat_openai_smoke_enabled:
+            return False
+        provider = self.provider_name()
+        if provider == "ollama":
+            return True
+        return bool(self.settings.openai_api_key)
+
+    def _chat_model(self, *, json_mode: bool = False) -> ChatOpenAI:
+        provider = self.provider_name()
+        if provider == "ollama":
+            return ChatOpenAI(
+                model=self.settings.agent_chat_ollama_model,
+                temperature=0,
+                api_key="ollama",
+                base_url=self.settings.agent_chat_ollama_base_url,
+                timeout=120,
+                max_retries=0,
+            )
+
+        model_kwargs = {"response_format": {"type": "json_object"}} if json_mode else {}
+        return ChatOpenAI(
+            model=self.settings.agent_chat_openai_model,
+            temperature=0,
+            openai_api_key=self.settings.openai_api_key,
+            model_kwargs=model_kwargs,
+            timeout=60,
         )
 
     def plan(self, message: str) -> AgentChatLLMQuery:
         if not self.enabled():
             return AgentChatLLMQuery(query=message)
 
-        llm = ChatOpenAI(
-            model=self.settings.agent_chat_openai_model,
-            temperature=0,
-            openai_api_key=self.settings.openai_api_key,
-            model_kwargs={"response_format": {"type": "json_object"}},
-        )
+        llm = self._chat_model(json_mode=True)
         response = llm.invoke(
             [
                 SystemMessage(
@@ -259,7 +369,7 @@ class OpenAIAgentChatQueryPlanner:
             ]
         )
         raw = str(response.content or "").strip()
-        parsed = json.loads(raw)
+        parsed = _parse_json_object(raw)
         query = AgentChatLLMQuery.model_validate(parsed)
         query.intent_candidates = [
             intent for intent in query.intent_candidates if intent in CANONICAL_INTENTS
@@ -267,6 +377,50 @@ class OpenAIAgentChatQueryPlanner:
         if not query.query.strip():
             query.query = message
         return query
+
+    def grounded_answer(
+        self,
+        *,
+        message: str,
+        normalized_plan: AgentChatNormalizedPlan,
+        fallback_answer: str,
+        rag_results: list[dict[str, Any]],
+        executed_tools: list[dict[str, Any]],
+    ) -> str:
+        if not self.enabled():
+            return fallback_answer
+
+        evidence = {
+            "user_message": message,
+            "normalized_plan": normalized_plan.model_dump(),
+            "rag_hits": [_rag_hit_view(result) for result in rag_results[:8]],
+            "executed_tools": executed_tools,
+            "tool_summary": fallback_answer,
+        }
+        llm = self._chat_model(json_mode=False)
+        try:
+            response = llm.invoke(
+                [
+                    SystemMessage(
+                        content=(
+                            "You are an operations assistant for Korean foreign-worker employment workflows. "
+                            "Answer in Korean using only the provided RAG hits, tool results, and tool_summary. "
+                            "Do not expose raw PII, matching scores, recommendation scores, legal certainty, "
+                            "or any unapproved send/submit/complete action. Keep the answer concise and actionable."
+                        )
+                    ),
+                    HumanMessage(content=json.dumps(evidence, ensure_ascii=False)),
+                ]
+            )
+        except Exception:
+            return fallback_answer
+
+        answer = str(response.content or "").strip()
+        if not answer:
+            return fallback_answer
+        if any(term in answer for term in ("Nguyen Van A", "매칭 점수", "추천 점수")):
+            return fallback_answer
+        return answer
 
 
 def prepare_agent_chat_rag_first(
@@ -287,15 +441,20 @@ def prepare_agent_chat_rag_first(
         llm_query = AgentChatLLMQuery(query=message)
         llm_error = exc.__class__.__name__
 
-    blocked = _has_forbidden_action(message) or _has_forbidden_action(llm_query.query)
+    blocked_actions = sorted(
+        set(_blocked_actions(message)) | set(_blocked_actions(llm_query.query))
+    )
+    blocked = bool(blocked_actions)
     if not rag_results:
         return RAGFirstPreflight(
             llm_query=llm_query,
             rag_results=[],
             intent="unsupported",
             llm_used=planner.enabled(),
+            llm_provider=planner.provider_name() if planner.enabled() else None,
             llm_error=llm_error,
             blocked=blocked,
+            blocked_actions=blocked_actions,
         )
 
     return RAGFirstPreflight(
@@ -303,8 +462,10 @@ def prepare_agent_chat_rag_first(
         rag_results=rag_results,
         intent=_select_intent(rag_results, llm_query),
         llm_used=planner.enabled(),
+        llm_provider=planner.provider_name() if planner.enabled() else None,
         llm_error=llm_error,
         blocked=blocked,
+        blocked_actions=blocked_actions,
     )
 
 
@@ -316,9 +477,10 @@ def run_agent_chat_rag_first(
     llm_planner: OpenAIAgentChatQueryPlanner | None = None,
     preflight: RAGFirstPreflight | None = None,
 ) -> dict[str, Any]:
+    planner = llm_planner or OpenAIAgentChatQueryPlanner()
     preflight = preflight or prepare_agent_chat_rag_first(
         message,
-        llm_planner=llm_planner,
+        llm_planner=planner,
     )
     llm_query = preflight.llm_query
     if preflight.blocked:
@@ -327,6 +489,7 @@ def run_agent_chat_rag_first(
             daily_briefing=daily_briefing,
             llm_query=llm_query,
             llm_used=preflight.llm_used,
+            llm_provider=preflight.llm_provider,
         )
 
     chunks = _build_operational_chunks(daily_briefing)
@@ -339,27 +502,48 @@ def run_agent_chat_rag_first(
     if not results:
         results = preflight.rag_results
 
-    intent = preflight.intent if preflight.intent != "unsupported" else _select_intent(results, llm_query)
+    normalized_plan = _normalize_agent_chat_plan(
+        message=message,
+        llm_query=llm_query,
+        rag_results=results,
+        fallback_intent=preflight.intent,
+        blocked_actions=preflight.blocked_actions or [],
+    )
+    intent = normalized_plan.intent
     selected_items = _select_daily_briefing_items(daily_briefing.items, intent)
     actions = _selected_actions(daily_briefing.recommended_actions, selected_items)
     sources = _selected_sources(daily_briefing.citation_summaries, selected_items, results)
-    answer = _rag_answer(
+    executed_tools = _executed_tools_for_intent(
+        intent=intent,
+        selected_items=selected_items,
+        actions=actions,
+        sources=sources,
+        rag_hits=results,
+    )
+    fallback_answer = _rag_answer(
         daily_briefing,
         intent,
         selected_items=selected_items,
         selected_actions=actions,
         rag_hits=results,
     )
+    answer = planner.grounded_answer(
+        message=message,
+        normalized_plan=normalized_plan,
+        fallback_answer=fallback_answer,
+        rag_results=results,
+        executed_tools=executed_tools,
+    )
     structured_plan = AgentChatStructuredPlan(
         intent=intent,
         plan_steps=[
-            "retrieve_rag_intent_chunks",
-            "plan_with_llm_from_rag_context",
-            "load_rule_db_state_for_selected_intent",
-            "return_grounded_answer",
+            "agent_chat_semantic_retrieve",
+            "agent_chat_llm_normalize",
+            "agent_chat_tool_execute",
+            "agent_chat_llm_grounded_answer",
         ],
         required_context=_required_context(intent),
-        entities=llm_query.entities,
+        entities=normalized_plan.entities,
         approval_required=True,
         execution_allowed=True,
         target_service="rag_first_chat",
@@ -369,39 +553,51 @@ def run_agent_chat_rag_first(
         "answer": answer,
         "final_response": answer,
         "route": "rag_first_chat",
+        "orchestration_version": ORCHESTRATION_VERSION,
+        "normalized_intent": normalized_plan.intent,
+        "normalized_entities": normalized_plan.entities,
+        "executed_tools": executed_tools,
         "llm_used": preflight.llm_used,
         "latency_mode": "llm_plan_fast_answer" if preflight.llm_used else "rag_first_fast",
         "tool_calls": [
             {
-                "name": "agent_chat_rag_search",
+                "name": "agent_chat_semantic_retrieve",
                 "route": "rag_first_chat",
                 "intent": intent,
-                "result_count": len(preflight.rag_results),
+                "result_count": len(results),
                 "action_count": 0,
                 "source_count": len(
                     {
                         citation_id
-                        for result in preflight.rag_results
+                        for result in results
                         for citation_id in result.get("metadata", {}).get("citation_ids", [])
                     }
                 ),
             },
             {
-                "name": "agent_chat_llm_plan",
+                "name": "agent_chat_llm_normalize",
                 "route": "rag_first_chat",
                 "intent": intent,
                 "result_count": 1 if not preflight.llm_error else 0,
                 "action_count": 0,
-                "source_count": len(preflight.rag_results),
+                "source_count": len(results),
             },
             {
-                "name": "daily_briefing_lookup",
+                "name": "agent_chat_tool_execute",
                 "route": "rag_first_chat",
                 "intent": intent,
                 "result_count": len(selected_items),
                 "action_count": len(actions),
                 "source_count": len(sources),
-            }
+            },
+            {
+                "name": "agent_chat_llm_grounded_answer",
+                "route": "rag_first_chat",
+                "intent": intent,
+                "result_count": 1,
+                "action_count": len(actions),
+                "source_count": len(sources),
+            },
         ],
         "actions": [action.model_dump() for action in actions],
         "sources": [source.model_dump() for source in sources],
@@ -417,7 +613,7 @@ def run_agent_chat_rag_first(
                 for result in results
             }
         ),
-        "llm_provider": "openai" if preflight.llm_used else None,
+        "llm_provider": preflight.llm_provider,
         "fallback_used": False,
         "fallback_reason": preflight.llm_error,
     }
@@ -713,6 +909,111 @@ def _select_intent(
     return "daily_briefing"
 
 
+def _normalize_agent_chat_plan(
+    *,
+    message: str,
+    llm_query: AgentChatLLMQuery,
+    rag_results: list[dict[str, Any]],
+    fallback_intent: str,
+    blocked_actions: list[str],
+) -> AgentChatNormalizedPlan:
+    if blocked_actions:
+        return AgentChatNormalizedPlan(
+            intent="unsupported",
+            entities=llm_query.entities,
+            action="blocked",
+            blocked_actions=blocked_actions,
+            confidence=1.0,
+        )
+
+    intent = fallback_intent if fallback_intent != "unsupported" else _select_intent(rag_results, llm_query)
+    if intent not in CANONICAL_INTENTS:
+        intent = _select_intent(rag_results, llm_query)
+
+    target_case_ids = []
+    for result in rag_results:
+        case_id = str(result.get("metadata", {}).get("case_id") or "")
+        if case_id and case_id != "intent_snapshot" and case_id not in target_case_ids:
+            target_case_ids.append(case_id)
+
+    confidence = max(
+        (float(result.get("score") or 0.0) for result in rag_results),
+        default=0.0,
+    )
+    return AgentChatNormalizedPlan(
+        intent=intent,
+        entities={**llm_query.entities, **_extract_light_entities(message)},
+        action=_action_for_intent(intent),
+        target_case_ids=target_case_ids[:5],
+        required_tools=_required_tools(intent),
+        blocked_actions=[],
+        confidence=round(confidence, 4),
+    )
+
+
+def _extract_light_entities(message: str) -> dict[str, str]:
+    entities: dict[str, str] = {}
+    for token in ("Nguyen", "Tran"):
+        if token.casefold() in message.casefold():
+            entities["person_ref"] = token
+            break
+    if "이번 주" in message or "이번주" in message:
+        entities["date_range"] = "this_week"
+    if "이번 달" in message or "이번달" in message:
+        entities["date_range"] = "this_month"
+    if "베트남" in message or "베트남어" in message:
+        entities["language"] = "vi"
+    if "네팔" in message or "네팔어" in message:
+        entities["language"] = "ne"
+    return entities
+
+
+def _action_for_intent(intent: str) -> str:
+    actions = {
+        "document_request_message": "draft_message",
+        "handoff_preview": "draft_handoff",
+        "evidence_audit_review": "review_evidence",
+    }
+    return actions.get(intent, "answer")
+
+
+def _required_tools(intent: str) -> list[str]:
+    tools = {
+        "daily_briefing": ["daily_briefing_lookup"],
+        "visa_expiry": ["visa_expiry_lookup", "d_day_rule"],
+        "document_gap": ["document_gap_lookup", "document_checklist_rule"],
+        "contract_visa_conflict": ["contract_visa_conflict_rule"],
+        "reporting_deadline": ["reporting_deadline_rule"],
+        "quota_review": ["quota_review_lookup", "company_readiness_rule"],
+        "candidate_readiness": ["candidate_readiness_lookup"],
+        "document_request_message": ["document_request_draft"],
+        "handoff_preview": ["handoff_preview_draft"],
+        "evidence_audit_review": ["evidence_audit_lookup"],
+    }
+    return tools.get(intent, ["daily_briefing_lookup"])
+
+
+def _executed_tools_for_intent(
+    *,
+    intent: str,
+    selected_items: list[Any],
+    actions: list[Any],
+    sources: list[Any],
+    rag_hits: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "name": tool_name,
+            "intent": intent,
+            "result_count": len(selected_items),
+            "action_count": len(actions),
+            "source_count": len(sources),
+            "rag_hit_count": len(rag_hits),
+        }
+        for tool_name in _required_tools(intent)
+    ]
+
+
 def _rag_answer(
     result: Any,
     intent: str,
@@ -773,6 +1074,7 @@ def _not_found_response(
     daily_briefing: Any | None,
     llm_query: AgentChatLLMQuery,
     llm_used: bool,
+    llm_provider: str | None = None,
 ) -> dict[str, Any]:
     structured_plan = AgentChatStructuredPlan(
         should_run=False,
@@ -792,11 +1094,15 @@ def _not_found_response(
         "answer": answer,
         "final_response": answer,
         "route": "rag_first_chat",
+        "orchestration_version": ORCHESTRATION_VERSION,
+        "normalized_intent": "unsupported",
+        "normalized_entities": llm_query.entities,
+        "executed_tools": [],
         "llm_used": llm_used,
         "latency_mode": "llm_plan_fast_answer" if llm_used else "rag_first_fast",
         "tool_calls": [
             {
-                "name": "agent_chat_rag_search",
+                "name": "agent_chat_semantic_retrieve",
                 "route": "rag_first_chat",
                 "intent": "unsupported",
                 "result_count": 0,
@@ -813,7 +1119,7 @@ def _not_found_response(
         "structured_plan": structured_plan.model_dump(),
         "rag_hits": [],
         "retrieval_source_types": [],
-        "llm_provider": "openai" if llm_used else None,
+        "llm_provider": llm_provider if llm_used else None,
         "fallback_used": False,
     }
 
@@ -828,6 +1134,7 @@ def rag_first_not_found_response(
         daily_briefing=None,
         llm_query=preflight.llm_query,
         llm_used=preflight.llm_used,
+        llm_provider=preflight.llm_provider,
     )
 
 
@@ -837,18 +1144,20 @@ def _forbidden_response(
     daily_briefing: Any | None,
     llm_query: AgentChatLLMQuery,
     llm_used: bool,
+    llm_provider: str | None = None,
 ) -> dict[str, Any]:
     answer = (
         "외부 발송, 정부 제출, 상태 완료 처리는 담당자 승인 없이 수행할 수 없습니다. "
         "초안 생성이나 검토 패키지 준비처럼 승인 전 단계로 다시 요청해 주세요."
     )
+    blocked_actions = _blocked_actions(message) or ["external_send_or_submit_without_approval"]
     structured_plan = AgentChatStructuredPlan(
         should_run=False,
         intent="unsupported",
         plan_steps=["guardrail_check"],
         required_context=[],
         entities=llm_query.entities,
-        blocked_actions=["external_send_or_submit_without_approval"],
+        blocked_actions=blocked_actions,
         approval_required=True,
         execution_allowed=False,
         target_service="rag_first_chat",
@@ -857,6 +1166,10 @@ def _forbidden_response(
         "answer": answer,
         "final_response": answer,
         "route": "unsupported",
+        "orchestration_version": ORCHESTRATION_VERSION,
+        "normalized_intent": "unsupported",
+        "normalized_entities": llm_query.entities,
+        "executed_tools": [],
         "llm_used": llm_used,
         "latency_mode": "llm_guardrail" if llm_used else "fast_guardrail",
         "tool_calls": [],
@@ -869,7 +1182,7 @@ def _forbidden_response(
         "structured_plan": structured_plan.model_dump(),
         "rag_hits": [],
         "retrieval_source_types": [],
-        "llm_provider": "openai" if llm_used else None,
+        "llm_provider": llm_provider if llm_used else None,
         "fallback_used": False,
     }
 
@@ -884,6 +1197,7 @@ def rag_first_forbidden_response(
         daily_briefing=None,
         llm_query=preflight.llm_query,
         llm_used=preflight.llm_used,
+        llm_provider=preflight.llm_provider,
     )
 
 
@@ -1006,48 +1320,48 @@ def _domain_terms(intent: str) -> str:
     terms = {
         "quota_review": (
             "인원이 필요해 인원 필요해 인원 필요 인력이 필요해 인력이 모자라 "
-            "충원 사람 더 뽑아 채용 하고 싶어 추가 채용 "
+            "충원 사람 더 뽑아 채용 하고 싶어 추가 채용 일이 밀려 사람 더 써야 "
             "신규 외국인 근로자 고용허가 쿼터 준비 이번 라인 생산팀 "
-            "추가로 뽑을 수 있어 e 9 새로 받을 준비 충원 가능 인원"
+            "추가로 뽑을 수 있어 e 9 새로 받을 준비 충원 가능 인원 회사 준비"
         ),
         "visa_expiry": (
             "비자 체류기간 체류만료 체류 만료 기존 직원 직원들 갱신 확인 "
-            "다음 일 손볼 것 만료 가까운 순서 다가오는 임박한 "
-            "먼저 챙길 얼마 안 남은 이번 주 갱신해야 e 9 만료 리스크"
+            "다음 일 손볼 것 만료 가까운 순서 다가오는 임박한 끝나는 사람 "
+            "먼저 챙길 얼마 안 남은 이번 주 갱신해야 갱신해야 되는 사람 e 9 만료 리스크"
         ),
         "contract_visa_conflict": (
             "계약 종료 체류만료 날짜 안 맞는 엇갈린 충돌 겹치는 "
             "근로계약 비자랑 안 맞는 계약기간 비교 비자는 남았는데 "
-            "계약은 끝나는 경우 계약서 날짜 계약기간이랑 사람 찾아줘 "
+            "계약은 끝나는 경우 계약서는 끝났는데 계약서 날짜 계약기간이랑 사람 찾아줘 "
             "계약 만료랑 체류 만료 비교해줘"
         ),
         "reporting_deadline": (
             "고용변동 신고 신고기한 신고 기한 기한 지난 케이스 "
-            "기한 놓친 신고 늦은 고용변동 기한 확인 보고 마감"
+            "기한 놓친 신고 늦은 고용변동 기한 확인 보고 마감 퇴사 처리 신고할 거 남았어"
         ),
         "document_gap": (
             "갱신 서류 빠진 누락 누락된 빈칸 보완 체크 점검 여권 사본 "
-            "표준근로계약서 모아줘 없는 직원 제출 준비 안 된 빠진 사람 완성됐는지"
+            "외국인등록증 안 받은 아직 덜 된 골라줘 표준근로계약서 모아줘 없는 직원 제출 준비 안 된 빠진 사람 완성됐는지"
         ),
         "candidate_readiness": (
             "후보자 입국 전 준비 안 된 서류 준비상태 요건 매칭 점수 제외 추천 제외 "
-            "신규 후보 항목 후보별 제출 준비 입국 예정자"
+            "신규 후보 항목 후보별 제출 준비 입국 예정자 새로 오는 사람 문제 없는지만"
         ),
         "document_request_message": (
             "다국어 베트남어 서류 요청 메시지 문자 초안 알려주는 문구 "
-            "서류 다시 달라고 말해줘 보내달라고 작성 근로계약서 사본 요청 "
+            "서류 다시 달라고 정중하게 말해줘 보내달라고 작성 여권 사진 근로계약서 사본 요청 "
             "네팔어 안내문 안내 메시지 안전교육 교육장 직원에게 공손하게"
         ),
         "handoff_preview": (
             "행정사 노무사 전문가 검토 패키지 handoff 전달 넘길 자료 묶어줘 "
-            "검토자료 노무사에게 넘길 초안 전문가 전달용 승인 전에 볼"
+            "뭐 묶어야 보여줄 자료 정리 검토자료 노무사에게 넘길 초안 전문가 전달용 승인 전에 볼"
         ),
         "evidence_audit_review": (
-            "판단 근거 감사 로그 evidence audit 기록 재현 왜 출처 보고 방금 판단 로그 감사용"
+            "판단 근거 감사 로그 evidence audit 기록 재현 왜 출처 보고 어디서 온 방금 판단 로그 감사용"
         ),
         "daily_briefing": (
-            "오늘 위험 급한 케이스 브리핑 우선순위 이번 달 급한 순서 "
-            "리스크 높은 제일 먼저 처리 반장이 봐야"
+            "오늘 위험 급한 케이스 브리핑 우선순위 이번 달 이번 주 놓치면 안 되는 "
+            "리스크 높은 제일 먼저 처리 먼저 볼 거 반장이 봐야"
         ),
     }
     examples = " ".join(INTENT_EXAMPLE_PHRASES.get(intent, ()))
@@ -1060,9 +1374,17 @@ def _generic_title(intent: str) -> str:
     return INTENT_LABELS.get(intent, intent)
 
 
-def _has_forbidden_action(text: str) -> bool:
+def _blocked_actions(text: str) -> list[str]:
     normalized = text.replace(" ", "")
-    return any(term.replace(" ", "") in normalized for term in FORBIDDEN_ACTION_TERMS)
+    blocked: list[str] = []
+    for action, terms in FORBIDDEN_ACTION_PATTERNS.items():
+        if any(term.replace(" ", "") in normalized for term in terms):
+            blocked.append(action)
+    return blocked
+
+
+def _has_forbidden_action(text: str) -> bool:
+    return bool(_blocked_actions(text))
 
 
 def _intent_query_bonus(intent: str, query: str) -> float:

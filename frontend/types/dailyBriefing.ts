@@ -119,6 +119,15 @@ export type AgentChatStructuredPlan = {
   target_service: string | null;
 };
 
+export type AgentChatExecutedTool = {
+  name: string;
+  intent: string;
+  result_count: number;
+  action_count: number;
+  source_count: number;
+  rag_hit_count: number;
+};
+
 export type AgentChatRagHit = {
   chunk_id: string | null;
   source_id: string | null;
@@ -136,6 +145,10 @@ export type AgentChatResponse = {
   answer: string;
   final_response: string;
   route: string;
+  orchestration_version?: string;
+  normalized_intent?: string;
+  normalized_entities?: Record<string, string>;
+  executed_tools?: AgentChatExecutedTool[];
   llm_used: boolean;
   latency_mode: string;
   tool_calls: AgentChatToolCall[];
