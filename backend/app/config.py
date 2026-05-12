@@ -105,7 +105,7 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     gemini_api_key: str | None = None
     google_api_key: str | None = None
-    openai_model: str = "gpt-4o-mini"
+    openai_model: str = "gpt-4.1-nano"
     langchain_runtime_enabled: bool = True
     langchain_checkpoint_enabled: bool = True
     langchain_checkpoint_path: str = "data/langchain_checkpoints.sqlite3"
