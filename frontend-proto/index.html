@@ -551,7 +551,13 @@ function App() {
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: 'var(--semantic-background-normal-alternative)', overflow: 'hidden' }}>
           <PhoneBezel>
-            <MobileChat onApprove={() => {}}/>
+            <MobileChat
+              onApprove={() => {}}
+              briefingDate={briefingDate}
+              onOpenDocReq={handleOpenDocReq}
+              onOpenEvidence={() => setActiveTab('evidence')}
+              onOpenHandoff={() => setActiveTab('handoff')}
+            />
           </PhoneBezel>
         </div>
       )}
@@ -577,7 +583,13 @@ function App() {
               사장님 모바일
             </div>
             <PhoneBezel compact>
-              <MobileChat onApprove={() => {}}/>
+              <MobileChat
+                onApprove={() => {}}
+                briefingDate={briefingDate}
+                onOpenDocReq={handleOpenDocReq}
+                onOpenEvidence={() => setActiveTab('evidence')}
+                onOpenHandoff={() => setActiveTab('handoff')}
+              />
             </PhoneBezel>
           </div>
         </div>

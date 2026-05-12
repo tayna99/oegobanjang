@@ -17,7 +17,23 @@ const MobileDraftView = ({ task, thread, onBack, onApprove }) => {
     setTimeout(() => onApprove?.(), 300);
   };
 
-  const missingDocs = ['표준근로계약서 사본', '여권 사본'];
+  const workerName = thread?.workerName || task?.workerName || '대상자';
+  const nationality = thread?.nationality || '확인 대상';
+  const channel = thread?.channel || '메시지';
+  const timingLabel = task?.dDay !== null && task?.dDay !== undefined
+    ? `D-${task.dDay}`
+    : '검토 필요';
+  const missingDocs = task?.missingDocs || (
+    task?.highlight === '누락 서류 2건'
+      ? ['표준근로계약서 사본', '여권 사본']
+      : ['요청 서류 확인']
+  );
+  const checkedItems = [
+    `${workerName} · ${nationality}${thread?.language ? ` · ${thread.language.toUpperCase()}` : ''}`,
+    thread?.lastMessage || task?.body || '서류 요청 초안 생성 필요',
+    ...missingDocs.map(doc => `${doc} 필요`),
+    `${channel} 발송 전 승인 필요`,
+  ];
   const scenarios = thread?.scenarios || [
     { type: 'positive', label: '긍정 응답 시', desc: '누락 서류를 제출하고 연장 절차가 진행됩니다.' },
     { type: 'question', label: '추가 질문 시', desc: '필요 정보 안내 후 추가 확인이 진행됩니다.' },
@@ -46,21 +62,21 @@ const MobileDraftView = ({ task, thread, onBack, onApprove }) => {
         {/* 제목 */}
         <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.022em',
           color: 'var(--semantic-label-normal)', lineHeight: 1.3, marginBottom: 10 }}>
-          {task?.title || 'Nguyen V. 체류기간 연장 서류 요청'}
+          {task?.title || `${workerName} 서류 요청`}
         </div>
 
         {/* 배지 행 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600,
-            background: '#FEF2F2', color: '#B00C0C' }}>체류만료 D-30</span>
+            background: '#FEF2F2', color: '#B00C0C' }}>{timingLabel}</span>
           <span style={{ padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600,
-            background: '#FFF7ED', color: '#C2410C' }}>누락 서류 2건</span>
+            background: '#FFF7ED', color: '#C2410C' }}>{task?.highlight || `확인 항목 ${missingDocs.length}건`}</span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4,
             padding: '3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 500,
             background: '#F0FDF4', color: '#166534',
             border: '1px solid #BBF7D0' }}>
             <Icon name="shield" size={11}/>
-            승인 후 Zalo로 발송됩니다
+            승인 후 {channel}로 발송됩니다
           </span>
         </div>
       </div>
@@ -85,12 +101,7 @@ const MobileDraftView = ({ task, thread, onBack, onApprove }) => {
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--semantic-label-normal)' }}>AI가 확인한 내용</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            {[
-              'Nguyen V. · 베트남 · E-9',
-              '3일 전 서류 요청 이력 있음',
-              '표준근로계약서 사본 누락',
-              '여권 사본 누락',
-            ].map((item, i) => (
+            {checkedItems.map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 14,
                 color: 'var(--semantic-label-neutral)', lineHeight: 1.5 }}>
                 <span style={{ marginTop: 4, width: 5, height: 5, borderRadius: 999,
@@ -122,7 +133,7 @@ const MobileDraftView = ({ task, thread, onBack, onApprove }) => {
                 background: 'rgba(99,102,241,0.10)', color: '#4F46E5', marginBottom: 8 }}>VN</div>
               <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--semantic-label-normal)' }}>
                 {thread?.draftMessage?.vi ||
-                  'Xin chào Nguyen V.,\nĐể gia hạn thời gian lưu trú (E-9), vui lòng bổ sung các giấy tờ còn thiếu và gửi lại cho chúng tôi.\n\n• Bản sao hợp đồng lao động theo mẫu chuẩn\n• Bản sao hộ chiếu\n\nVui lòng gửi trước ngày 2024-06-10.\nCảm ơn anh.'}
+                  `Xin chào ${workerName},\nVui lòng gửi lại các giấy tờ cần bổ sung để chúng tôi kiểm tra hồ sơ.\n\n${missingDocs.map(doc => `• ${doc}`).join('\n')}\n\nTin nhắn này sẽ chỉ được gửi sau khi người phụ trách phê duyệt.`}
               </div>
             </div>
             {/* 구분선 + 화살표 */}
@@ -139,7 +150,7 @@ const MobileDraftView = ({ task, thread, onBack, onApprove }) => {
                 background: 'rgba(59,130,246,0.10)', color: '#2563EB', marginBottom: 8 }}>KR</div>
               <div style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--semantic-label-normal)' }}>
                 {thread?.draftMessage?.ko ||
-                  '안녕하세요, Nguyen V.님.\n체류기간 연장(E-9)을 위해 아래 서류를 보완하여 보내주시기 바랍니다.\n\n• 표준근로계약서 사본\n• 여권 사본\n\n2024-06-10까지 제출 부탁드립니다.\n감사합니다.'}
+                  `안녕하세요, ${workerName}님.\n서류 확인을 위해 아래 항목을 다시 보내주세요.\n\n${missingDocs.map(doc => `• ${doc}`).join('\n')}\n\n담당자 승인 후에만 발송됩니다. 감사합니다.`}
               </div>
             </div>
           </div>

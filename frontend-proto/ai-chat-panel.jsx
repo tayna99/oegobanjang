@@ -90,6 +90,8 @@ const postAgentChatMessage = async ({
   date = getAgentToday(),
   selectedCaseId,
   selectedActionId,
+  workspaceId = 'frontend_proto',
+  activeTab = 'today',
 }) => {
   const response = await fetch(`${getAgentApiBaseUrl()}/agent/chat`, {
     method: 'POST',
@@ -103,8 +105,8 @@ const postAgentChatMessage = async ({
       message,
       companyId: AGENT_COMPANY_ID,
       date,
-      workspaceId: 'frontend_proto',
-      activeTab: 'today',
+      workspaceId,
+      activeTab,
       selectedCaseId,
       selectedActionId,
       sessionId,
@@ -606,5 +608,6 @@ Object.assign(window, {
   FloatingChatButton,
   AIReflexButton,
   fetchAgentDailyBriefing,
+  postAgentChatMessage,
   getAgentToday,
 });
