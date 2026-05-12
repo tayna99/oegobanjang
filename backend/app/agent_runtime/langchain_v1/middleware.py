@@ -214,7 +214,15 @@ def _model_name(model: Any) -> str:
 class WorkBridgeSafetyMiddleware(AgentMiddleware):
     async def awrap_model_call(self, request, handler):
         context = _context_from_runtime(request.runtime)
-        message_text = "\n".join(str(getattr(msg, "content", msg)) for msg in request.messages)
+        # system 메시지 제외, user/human 메시지만 금지어 검사
+        from langchain_core.messages import HumanMessage, SystemMessage as LCSystemMessage
+        user_messages = [
+            msg for msg in request.messages
+            if not isinstance(msg, LCSystemMessage)
+            and getattr(msg, "type", None) != "system"
+            and getattr(msg, "role", None) not in ("system", "assistant")
+        ]
+        message_text = "\n".join(str(getattr(msg, "content", msg)) for msg in user_messages)
         for term in FORBIDDEN_INPUT_TERMS:
             if term in message_text:
                 response = build_blocked_response(
