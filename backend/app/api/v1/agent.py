@@ -4,7 +4,8 @@ import re
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic import model_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -41,7 +42,12 @@ from backend.app.services.runtime_outbox_service import (
     RuntimeOutboxNotFoundError,
     prepare_runtime_delivery_outbox_for_company,
 )
-from backend.app.services.agent_service import HandoffResponse, build_handoff_response
+from backend.app.services.agent_service import (
+    AgentRunRequest as ContactAgentRunRequest,
+    HandoffResponse,
+    build_handoff_response,
+    run_agent as run_contact_agent,
+)
 from backend.app.agent_runtime.langchain_v1.contact_artifact_store import (
     pop_contact_artifacts,
 )
@@ -58,9 +64,72 @@ from backend.app.services.contact_persistence_service import (
     save_worker_reply_summary_result,
 )
 from backend.app.services.handoff_persistence_service import save_handoff_package_draft
+from app.services.agent_chat_rag import (
+    RAGFirstChatContext,
+    prepare_agent_chat_rag_first,
+    rag_first_forbidden_response,
+    rag_first_not_found_response,
+    run_agent_chat_rag_first,
+)
+from app.services.daily_briefing_planner import plan_daily_briefing_from_message
+from app.services.daily_briefing_service import build_sqlalchemy_daily_briefing_service
 
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+RISK_TYPES_BY_INTENT: dict[str, tuple[str, ...]] = {
+    "visa_expiry": ("visa_expiry", "missing_document", "contract_visa_conflict"),
+    "document_gap": ("missing_document", "candidate_readiness"),
+    "document_request_message": ("missing_document",),
+    "contract_visa_conflict": ("contract_visa_conflict",),
+    "reporting_deadline": ("reporting_deadline",),
+    "quota_review": ("quota_review", "candidate_readiness"),
+    "candidate_readiness": ("candidate_readiness",),
+    "handoff_preview": (
+        "visa_expiry",
+        "missing_document",
+        "contract_visa_conflict",
+        "reporting_deadline",
+    ),
+    "evidence_audit_review": (
+        "reporting_deadline",
+        "contract_visa_conflict",
+        "visa_expiry",
+        "missing_document",
+        "quota_review",
+        "candidate_readiness",
+    ),
+}
+
+INTENT_LABELS: dict[str, str] = {
+    "visa_expiry": "비자 관련 업무",
+    "document_gap": "서류 누락 업무",
+    "contract_visa_conflict": "계약-체류기간 충돌 검토 업무",
+    "reporting_deadline": "신고기한 업무",
+    "quota_review": "채용/쿼터 검토 업무",
+    "handoff_preview": "전문가 검토 패키지 업무",
+    "document_request_message": "다국어 서류 요청 메시지 업무",
+    "candidate_readiness": "후보자 서류 준비상태 확인 업무",
+    "evidence_audit_review": "근거/감사 재현 업무",
+    "daily_briefing": "오늘 확인할 외국인 고용 업무",
+}
+
+RISK_LABELS: dict[str, str] = {
+    "visa_expiry": "체류기간 연장 준비",
+    "missing_document": "체류/고용 서류 누락 확인",
+    "contract_visa_conflict": "계약-체류기간 충돌 검토",
+    "reporting_deadline": "고용변동 신고기한 확인",
+    "quota_review": "신규 인력/쿼터 검토",
+    "candidate_readiness": "후보자 서류 준비상태 확인",
+}
+
+DOCUMENT_LABELS: dict[str, str] = {
+    "passport_copy": "여권 사본",
+    "alien_registration_copy": "외국인등록증 사본",
+    "alien_registration": "외국인등록증 사본",
+    "standard_labor_contract": "표준근로계약서 사본",
+}
 
 
 class AgentRunRequest(BaseModel):
@@ -85,6 +154,18 @@ class AgentRunRequest(BaseModel):
         return (self.user_message or self.user_request or "").strip()
 
 
+class AgentChatRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    message: str
+    company_id: str = Field(default="company_001", alias="companyId")
+    user_id: str = Field(default="manager_001", alias="userId")
+    workspace_id: str | None = Field(default=None, alias="workspaceId")
+    active_tab: str | None = Field(default=None, alias="activeTab")
+    selected_case_id: str | None = Field(default=None, alias="selectedCaseId")
+    session_id: str | None = Field(default=None, alias="sessionId")
+
+
 class AgentRunResponse(BaseModel):
     request_id: str
     final_response: str
@@ -98,6 +179,8 @@ class AgentRunResponse(BaseModel):
     persistence: dict[str, Any] = Field(default_factory=dict)
     evidence_event_count: int
     rag_context_count: int
+    daily_briefing: dict[str, Any] | None = None
+    structured_plan: dict[str, Any] | None = None
 
 
 class AgentResumeRequest(BaseModel):
@@ -109,11 +192,232 @@ class AgentCheckpointResumeRequest(BaseModel):
     resume_value: Any | None = None
 
 
+@router.post("/chat")
+async def chat_agent(
+    request: AgentChatRequest,
+    x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_role: str = Header(default="viewer", alias="X-User-Role"),
+    db: Session = Depends(get_sync_db),
+) -> dict[str, Any]:
+    daily_briefing_plan = plan_daily_briefing_from_message(request.message)
+    if not daily_briefing_plan.should_run and daily_briefing_plan.intent == "forbidden":
+        return {
+            "answer": "처리 가능한 외국인 고용 운영 질문으로 다시 입력해 주세요.",
+            "final_response": "처리 가능한 외국인 고용 운영 질문으로 다시 입력해 주세요.",
+            "route": "unsupported",
+            "llm_used": False,
+            "latency_mode": "fast_guardrail",
+            "tool_calls": [],
+            "rag_hits": [],
+            "retrieval_source_types": [],
+            "llm_provider": None,
+            "fallback_used": False,
+            "fallback_reason": None,
+            "actions": [],
+            "sources": [],
+            "detected_intents": [daily_briefing_plan.intent or "unknown"],
+            "approval_required": daily_briefing_plan.approval_required,
+            "structured_plan": daily_briefing_plan.model_dump(),
+        }
+
+    preflight = prepare_agent_chat_rag_first(request.message)
+    if preflight.blocked:
+        return rag_first_forbidden_response(message=request.message, preflight=preflight)
+    if not preflight.rag_results:
+        return rag_first_not_found_response(message=request.message, preflight=preflight)
+
+    try:
+        service = build_sqlalchemy_daily_briefing_service(db)
+        result = service.run_daily_briefing(
+            company_id=request.company_id,
+            date=None,
+            user_role=x_user_role,
+            allowed_company_ids=[x_company_id] if x_company_id else None,
+        )
+        db.commit()
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error_code": str(e.args[0]) if e.args else "TENANT_SCOPE_VIOLATION",
+                "message": "Requested company is outside the allowed company scope.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from e
+    except LookupError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": str(e.args[0]) if e.args else "MISSING_REQUIRED_CONTEXT",
+                "message": "Required company or worker context is missing.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from e
+
+    try:
+        return run_agent_chat_rag_first(
+            message=request.message,
+            daily_briefing=result,
+            context=RAGFirstChatContext(
+                company_id=request.company_id,
+                user_role=x_user_role,
+                fallback_plan=daily_briefing_plan.model_dump(),
+            ),
+            preflight=preflight,
+        )
+    except Exception:
+        if not daily_briefing_plan.should_run:
+            state = await run_workflow(
+                user_message=request.message,
+                user_id=request.user_id,
+                company_id=request.company_id,
+                thread_id=request.session_id,
+            )
+            return _agent_runtime_chat_response(
+                state,
+                daily_briefing_plan.model_dump(),
+                fallback_used=True,
+                fallback_reason="rag_first_failed",
+            )
+
+    return _daily_briefing_chat_response(
+        result,
+        daily_briefing_plan.intent,
+        fallback_used=True,
+        fallback_reason="rag_first_failed",
+    )
+
+
+def _daily_briefing_chat_response(
+    result: Any,
+    intent: str | None,
+    *,
+    fallback_used: bool = False,
+    fallback_reason: str | None = None,
+) -> dict[str, Any]:
+    selected_items = _select_daily_briefing_items(
+        result.items,
+        intent,
+    )
+    actions = _selected_actions(result.recommended_actions, selected_items)
+    sources = _selected_sources(result.citation_summaries, selected_items)
+    answer = _daily_briefing_answer(
+        result,
+        intent,
+        selected_items=selected_items,
+        selected_actions=actions,
+    )
+    return {
+        "answer": answer,
+        "final_response": answer,
+        "route": "daily_briefing_service",
+        "llm_used": False,
+        "latency_mode": "fast_operational",
+        "tool_calls": [
+            _tool_trace(
+                "daily_briefing_lookup",
+                intent,
+                selected_items,
+                actions,
+                sources,
+            )
+        ],
+        "rag_hits": [],
+        "retrieval_source_types": [],
+        "llm_provider": None,
+        "fallback_used": fallback_used,
+        "fallback_reason": fallback_reason,
+        "actions": [action.model_dump() for action in actions],
+        "sources": [source.model_dump() for source in sources],
+        "detected_intents": [intent or "daily_briefing"],
+        "approval_required": result.approval_required,
+        "approval_status": "pending" if result.approval_required else "not_required",
+        "daily_briefing": result.model_dump(),
+        "structured_plan": {
+            "should_run": True,
+            "intent": intent or "daily_briefing",
+            "plan_steps": [],
+            "required_context": [],
+            "entities": {},
+            "blocked_actions": [],
+            "approval_required": True,
+            "execution_allowed": True,
+            "target_service": "daily_briefing",
+        },
+    }
+
+
+def _agent_runtime_chat_response(
+    state: ForeignHiringState,
+    structured_plan: dict[str, Any],
+    *,
+    fallback_used: bool = False,
+    fallback_reason: str | None = None,
+) -> dict[str, Any]:
+    tool_calls = [
+        {
+            "name": result.get("agent", "agent_runtime"),
+            "route": "agent_runtime_workflow",
+            "intent": state.detected_intents[0].value if state.detected_intents else "unknown",
+            "result_count": int(result.get("tool_calls") or 0),
+            "action_count": 0,
+            "source_count": len(state.rag_contexts),
+        }
+        for result in state.agent_results
+        if isinstance(result, dict)
+    ]
+    if not tool_calls:
+        tool_calls.append(
+            {
+                "name": "agent_runtime_workflow",
+                "route": "agent_runtime_workflow",
+                "intent": state.detected_intents[0].value if state.detected_intents else "unknown",
+                "result_count": len(state.tool_results),
+                "action_count": 0,
+                "source_count": len(state.rag_contexts),
+            }
+        )
+
+    return {
+        "answer": state.final_response,
+        "final_response": state.final_response,
+        "route": "agent_runtime_workflow",
+        "llm_used": True,
+        "latency_mode": "llm_agent_runtime",
+        "tool_calls": tool_calls,
+        "rag_hits": [],
+        "retrieval_source_types": [],
+        "llm_provider": None,
+        "fallback_used": fallback_used,
+        "fallback_reason": fallback_reason,
+        "actions": [],
+        "sources": [],
+        "detected_intents": [intent.value for intent in state.detected_intents],
+        "approval_required": state.approval.required,
+        "approval_status": state.approval.status,
+        "daily_briefing": None,
+        "structured_plan": structured_plan,
+    }
+
+
 @router.post("/run")
 async def run_agent(
     body: dict[str, Any] = Body(...),
+    x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_role: str = Header(default="viewer", alias="X-User-Role"),
     db: Session = Depends(get_sync_db),
 ) -> dict[str, Any]:
+    if "user_request" in body and "user_message" not in body:
+        contact_payload = dict(body.get("input_payload") or {})
+        for key in ("worker_id", "company_id", "persist_result", "created_by", "user_id"):
+            if key in body and key not in contact_payload:
+                contact_payload[key] = body[key]
+        contact_request = ContactAgentRunRequest(
+            user_request=str(body["user_request"]),
+            input_payload=contact_payload,
+        )
+        return run_contact_agent(contact_request, db=db).model_dump()
+
     try:
         request = AgentRunRequest.model_validate(body)
         normalized_payload, resolved_worker_id = _normalize_worker_lookup(
@@ -122,6 +426,54 @@ async def run_agent(
             worker_id=request.worker_id or "",
             input_payload=request.input_payload,
         )
+        daily_briefing_plan = plan_daily_briefing_from_message(request.normalized_message)
+        if daily_briefing_plan.should_run:
+            try:
+                service = build_sqlalchemy_daily_briefing_service(db)
+                result = service.run_daily_briefing(
+                    company_id=request.company_id,
+                    date=None,
+                    user_role=x_user_role,
+                    allowed_company_ids=[x_company_id] if x_company_id else None,
+                )
+                db.commit()
+                selected_items = _select_daily_briefing_items(
+                    result.items,
+                    daily_briefing_plan.intent,
+                )
+                selected_actions = _selected_actions(
+                    result.recommended_actions,
+                    selected_items,
+                )
+                return AgentRunResponse(
+                    request_id=result.briefing_run_id,
+                    final_response=_daily_briefing_answer(
+                        result,
+                        daily_briefing_plan.intent,
+                        selected_items=selected_items,
+                        selected_actions=selected_actions,
+                    ),
+                    detected_intents=[daily_briefing_plan.intent or "daily_briefing"],
+                    risk_flags=[
+                        item.risk_type
+                        for item in result.items
+                        if item.severity in {"CRITICAL", "HIGH"}
+                    ],
+                    approval_required=result.approval_required,
+                    approval_status="pending" if result.approval_required else "not_required",
+                    evidence_event_count=len(result.evidence_event_ids),
+                    rag_context_count=len(
+                        [
+                            summary
+                            for summary in result.citation_summaries
+                            if summary.validation_status == "validated"
+                        ]
+                    ),
+                    daily_briefing=result.model_dump(),
+                    structured_plan=daily_briefing_plan.model_dump(),
+                ).model_dump()
+            except LookupError:
+                db.rollback()
         state: ForeignHiringState = await run_workflow(
             user_message=request.normalized_message,
             user_id=request.user_id,
@@ -130,6 +482,33 @@ async def run_agent(
             thread_id=request.thread_id,
             input_payload=normalized_payload,
         )
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error_code": str(e.args[0]) if e.args else "TENANT_SCOPE_VIOLATION",
+                "message": "Requested company is outside the allowed company scope.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from e
+    except LookupError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error_code": str(e.args[0]) if e.args else "MISSING_REQUIRED_CONTEXT",
+                "message": "Required company or worker context is missing.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from e
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error_code": str(e.args[0]) if e.args else "STATE_SAVE_FAILED",
+                "message": "Agent request failed safely.",
+                "trace_id": "trace_unavailable",
+            },
+        ) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
@@ -237,6 +616,132 @@ def _save_contact_message_artifact(
         "approval_id": message.approval_id,
         "status": message.status,
     }
+
+
+def _select_daily_briefing_items(
+    items: list[Any],
+    intent: str | None,
+) -> list[Any]:
+    risk_types = RISK_TYPES_BY_INTENT.get(intent or "")
+    if not risk_types:
+        return items[:5]
+    selected = [item for item in items if item.risk_type in risk_types]
+    return selected[:5]
+
+
+def _selected_actions(actions: list[Any], items: list[Any]) -> list[Any]:
+    action_ids = {
+        action_id
+        for item in items
+        for action_id in item.next_action_ids
+    }
+    return [action for action in actions if action.action_id in action_ids]
+
+
+def _selected_sources(sources: list[Any], items: list[Any]) -> list[Any]:
+    citation_ids = {
+        citation_id
+        for item in items
+        for citation_id in item.citation_ids
+    }
+    return [source for source in sources if source.citation_id in citation_ids]
+
+
+def _tool_trace(
+    name: str,
+    intent: str | None,
+    items: list[Any],
+    actions: list[Any],
+    sources: list[Any],
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "route": "daily_briefing_service",
+        "intent": intent or "daily_briefing",
+        "result_count": len(items),
+        "action_count": len(actions),
+        "source_count": len(sources),
+    }
+
+
+def _daily_briefing_answer(
+    result: Any,
+    intent: str | None,
+    *,
+    selected_items: list[Any],
+    selected_actions: list[Any],
+) -> str:
+    label = INTENT_LABELS.get(intent or "", INTENT_LABELS["daily_briefing"])
+    if intent == "evidence_audit_review":
+        citation_count = len(
+            {
+                citation_id
+                for item in selected_items
+                for citation_id in item.citation_ids
+            }
+        )
+        return "\n".join(
+            [
+                f"오늘 기준 {label} {len(selected_items)}건입니다.",
+                f"- 재현 가능한 Evidence/Audit Review 케이스: {len(result.evidence_event_ids)}개 이벤트",
+                f"- 연결된 근거 문서: {citation_count}개 citation",
+                "- 다음 처리: 판단 기록 열람 / 근거 문서 확인 / 담당자 승인 이력 확인",
+                "민감정보 원문은 응답에 포함하지 않았고, 외부 발송이나 제출은 수행하지 않았습니다.",
+            ]
+        )
+    if not selected_items:
+        return (
+            f"오늘 기준 {label}는 확인된 항목이 없습니다. "
+            "외부 발송이나 제출은 수행하지 않았습니다."
+        )
+
+    actions_by_id = {action.action_id: action for action in selected_actions}
+    lines = [f"오늘 기준 {label} {len(selected_items)}건입니다."]
+    for item in selected_items:
+        action_labels = [
+            _action_label(actions_by_id[action_id])
+            for action_id in item.next_action_ids
+            if action_id in actions_by_id
+        ]
+        if action_labels:
+            action_labels.append("담당자 승인 요청")
+        else:
+            action_labels.append("담당자 확인")
+        lines.append(
+            "- "
+            f"{item.subject_id}: "
+            f"{RISK_LABELS.get(item.risk_type, item.risk_type)} "
+            f"({_risk_timing(item)}, {item.severity})"
+        )
+        lines.append(f"  누락 서류: {_document_list(item.missing_documents)}")
+        lines.append(f"  다음 처리: {' / '.join(dict.fromkeys(action_labels))}")
+    lines.append("외부 발송, 정부 제출, 상태 완료 처리는 아직 수행하지 않았습니다.")
+    return "\n".join(lines)
+
+
+def _risk_timing(item: Any) -> str:
+    if item.expired:
+        if item.days_overdue is not None:
+            return f"만료 후 {item.days_overdue}일 경과"
+        return "기한 경과"
+    if item.d_day is not None:
+        return f"D-{item.d_day}"
+    return "기한 확인 필요"
+
+
+def _document_list(documents: list[str]) -> str:
+    if not documents:
+        return "현재 응답 범위에서 확인된 누락 없음"
+    return ", ".join(DOCUMENT_LABELS.get(document, document) for document in documents)
+
+
+def _action_label(action: Any) -> str:
+    if action.action_type == "request_document":
+        return "누락서류 요청 초안 보기"
+    if action.action_type == "create_handoff":
+        return "전문가 검토 패키지 초안 보기"
+    return str(action.label)
+
 
 
 def _is_persistable_contact_artifact(artifact: Any) -> bool:

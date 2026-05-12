@@ -34,6 +34,28 @@ def create_app() -> FastAPI:
 
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 
+    if settings.daily_briefing_scheduler_enabled:
+        from app.db.session import SessionLocal
+        from app.services.daily_briefing_scheduler import DailyBriefingBackgroundScheduler
+
+        scheduler = DailyBriefingBackgroundScheduler(
+            SessionLocal,
+            interval_seconds=settings.daily_briefing_scheduler_interval_seconds,
+            company_ids=settings.daily_briefing_scheduler_company_id_list,
+            timezone_name=settings.daily_briefing_scheduler_timezone,
+        )
+        app.state.daily_briefing_scheduler = scheduler
+
+        @app.on_event("startup")
+        def start_daily_briefing_scheduler() -> None:
+            scheduler.start(
+                run_immediately=settings.daily_briefing_scheduler_run_on_startup
+            )
+
+        @app.on_event("shutdown")
+        def stop_daily_briefing_scheduler() -> None:
+            scheduler.stop()
+
     @app.get("/")
     def root() -> dict[str, str]:
         return {
