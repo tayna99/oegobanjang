@@ -70,7 +70,7 @@ const TAB_ICONS = {
 };
 
 /* ─── APP TOP BAR (stateful nav) ────────────────────────── */
-function AppTopBar({ activeTab, onTabChange, company, search, onSearch, pendingCount, onOpenAIChat }) {
+function AppTopBar({ activeTab, onTabChange, company, search, onSearch, pendingCount }) {
   const tabs = [
     { id: 'today',       label: '오늘 할 일',  icon: 'today' },
     { id: 'recruitment', label: '채용 준비',   icon: 'recruitment' },
@@ -122,27 +122,6 @@ function AppTopBar({ activeTab, onTabChange, company, search, onSearch, pendingC
               fontFamily: 'inherit', fontSize: 13, color: 'var(--semantic-label-normal)' }}/>
         </div>
 
-        {/* AI ask — 워크톡 스타일 pill */}
-        <button onClick={onOpenAIChat} style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          padding: '9px 18px', borderRadius: 999, border: 0, cursor: 'pointer',
-          background: 'linear-gradient(135deg, #1B3FA0 0%, #00BFA5 100%)',
-          color: '#fff', fontWeight: 700, fontSize: 13.5, fontFamily: 'inherit',
-          boxShadow: '0 3px 12px rgba(27,63,160,0.35)', flexShrink: 0,
-          letterSpacing: '-0.01em', whiteSpace: 'nowrap',
-          transition: 'opacity 0.15s, transform 0.15s',
-        }}
-          onMouseEnter={e => { e.currentTarget.style.opacity='0.9'; e.currentTarget.style.transform='scale(1.04)'; }}
-          onMouseLeave={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.transform='scale(1)'; }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"
-              fill="#fff" stroke="#fff" strokeWidth="0.5" strokeLinejoin="round"/>
-            <path d="M19 2L19.8 4.2L22 5L19.8 5.8L19 8L18.2 5.8L16 5L18.2 4.2L19 2Z"
-              fill="#fff" opacity="0.7"/>
-          </svg>
-          AI 반장
-        </button>
 
         {/* Bell */}
         <div style={{ position: 'relative', cursor: 'pointer', flexShrink: 0, padding: 4 }}>
@@ -563,8 +542,33 @@ function App() {
           onApprove={handleApprove}/>
       )}
 
-      {/* AI 반장 챗봇 사이드 패널 */}
+      {/* AI 반장 채팅 팝업 */}
       <AIChatPanel open={aiChatOpen} onClose={() => setAiChatOpen(false)}/>
+
+      {/* 플로팅 AI 반장 버튼 — 우측 하단 고정 */}
+      {!aiChatOpen && (
+        <button onClick={() => setAiChatOpen(true)} style={{
+          position: 'fixed', bottom: 28, right: 28, zIndex: 500,
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '12px 20px', borderRadius: 999, border: 0, cursor: 'pointer',
+          background: 'linear-gradient(135deg, #1B3FA0 0%, #00BFA5 100%)',
+          color: '#fff', fontWeight: 700, fontSize: 14.5, fontFamily: 'inherit',
+          boxShadow: '0 4px 20px rgba(27,63,160,0.45)',
+          letterSpacing: '-0.01em', whiteSpace: 'nowrap',
+          transition: 'transform 0.15s, box-shadow 0.15s',
+        }}
+          onMouseEnter={e => { e.currentTarget.style.transform='scale(1.05)'; e.currentTarget.style.boxShadow='0 6px 28px rgba(27,63,160,0.55)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform='scale(1)'; e.currentTarget.style.boxShadow='0 4px 20px rgba(27,63,160,0.45)'; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z"
+              fill="#fff" stroke="#fff" strokeWidth="0.5" strokeLinejoin="round"/>
+            <path d="M19 2L19.8 4.2L22 5L19.8 5.8L19 8L18.2 5.8L16 5L18.2 4.2L19 2Z"
+              fill="#fff" opacity="0.7"/>
+          </svg>
+          AI 반장
+        </button>
+      )}
 
       {/* TWEAKS PANEL */}
       <TweaksPanel>
