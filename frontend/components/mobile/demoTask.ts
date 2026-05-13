@@ -21,8 +21,8 @@ export const demoTask = {
     vi: "Xin chào Nguyen, vui lòng gửi bản sao hợp đồng lao động tiêu chuẩn và hộ chiếu. Cảm ơn bạn.",
     ko: "안녕하세요 Nguyen 씨, 표준근로계약서 사본과 여권 사본을 보내주세요. 감사합니다.",
     politeVi:
-      "Xin chào anh Nguyen, để chuẩn bị gia hạn thời gian lưu trú, vui lòng gửi giúp chúng tôi bản sao hợp đồng lao động tiêu chuẩn và bản sao hộ chiếu. Cảm ơn anh.",
+      "Xin chào anh Nguyen, để chuẩn bị hồ sơ gia hạn thời gian lưu trú, vui lòng gửi giúp chúng tôi bản sao hợp đồng lao động tiêu chuẩn và bản sao hộ chiếu. Cảm ơn anh.",
     politeKo:
-      "안녕하세요 Nguyen 씨, 체류기간 연장 준비를 위해 표준근로계약서 사본과 여권 사본을 보내주시면 감사하겠습니다. 감사합니다.",
+      "안녕하세요 Nguyen 씨. 체류기간 연장 준비를 위해 표준근로계약서 사본과 여권 사본을 보내주시면 감사하겠습니다. 감사합니다.",
   },
 };

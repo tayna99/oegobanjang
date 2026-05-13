@@ -56,11 +56,11 @@ export function MobileDraftScreen({
         ) : null}
 
         <div className="mobile-demo-action-grid">
-          <ActionButton kind="teal" onClick={onRequestRevision}>
+          <ActionButton data-testid="mobile-draft-revision" kind="teal" onClick={onRequestRevision}>
             <Pencil aria-hidden="true" />
             {busyAction === "revision" ? "요청 중" : "수정 요청"}
           </ActionButton>
-          <ActionButton onClick={onApprove ?? (() => go("done"))}>
+          <ActionButton data-testid="mobile-draft-approve" onClick={onApprove ?? (() => go("done"))}>
             <Send aria-hidden="true" />
             {busyAction === "approve" ? "승인 중" : "보내기 승인"}
           </ActionButton>
