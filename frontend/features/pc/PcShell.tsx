@@ -52,18 +52,14 @@ const pathToView: Record<string, PcViewKey> = {
   "/evidence": "judgment",
 };
 
-function renderView(
-  view: PcViewKey,
-  onAction: (action: PcViewAction) => void,
-  workflow: ReturnType<typeof useDailyBriefingWorkflow>,
-) {
+function renderView(view: PcViewKey, onAction: (action: PcViewAction) => void) {
   if (view === "hiring") return <HiringPreparationView onAction={onAction} />;
   if (view === "workers") return <WorkersView onAction={onAction} />;
   if (view === "contact") return <ContactView onAction={onAction} />;
   if (view === "cases") return <CasesView onAction={onAction} />;
   if (view === "admin") return <AdminReviewView onAction={onAction} />;
   if (view === "judgment") return <JudgmentLogView onAction={onAction} />;
-  return <TodayTasksView briefing={workflow.briefing} loading={workflow.loading} onAction={onAction} />;
+  return <TodayTasksView onAction={onAction} />;
 }
 
 type InfoPanel = {
@@ -105,9 +101,21 @@ export function PcShell() {
       title: "서류 요청 초안",
       body: (
         <div className={styles.modalStack}>
-          <p>현재 브리핑 응답에 연결된 서류 요청 action이 없습니다.</p>
-          <p>백엔드 원본 action이 생성되면 같은 버튼에서 초안 API를 호출합니다.</p>
-          <p className={styles.safeNotice}>승인 전에는 외부로 발송되지 않습니다.</p>
+          <p>화면 기준 서류 요청 초안 미리보기입니다. 실제 발송은 수행하지 않습니다.</p>
+          <div className={styles.previewBox}>
+            <strong>Tiếng Việt</strong>
+            <p>
+              Xin chào anh Nguyen V.,
+              <br />
+              Đây là Oegobanjang.
+              <br />
+              Chúng tôi đang chuẩn bị gia hạn thời gian cư trú.
+              <br />
+              Vui lòng gửi bản sao hộ chiếu và bản sao thẻ đăng ký người nước ngoài trước ngày 20 tháng 5.
+            </p>
+            <strong>KR</strong>
+            <p>안녕하세요 Nguyen 씨, 체류기간 연장 준비를 위해 여권 사본과 외국인등록증 사본을 보내주세요.</p>
+          </div>
         </div>
       ),
     });
@@ -141,7 +149,7 @@ export function PcShell() {
         body: (
           <div className={styles.modalStack}>
             <p>{result ? `승인 상태가 ${result.status}로 반영됐습니다.` : "승인 요청 처리 중 오류가 발생했습니다."}</p>
-            <p>외부 발송은 자동 실행하지 않고, mock/manual dispatch 상태만 사용합니다.</p>
+            <p>외부 발송은 자동 실행하지 않고, 담당자 확인 대기 상태만 표시합니다.</p>
           </div>
         ),
       });
@@ -169,9 +177,6 @@ export function PcShell() {
   }
 
   async function handleAction(action: PcViewAction) {
-    const selectedAction = action.actionId
-      ? actions.find((candidate) => candidate.action_id === action.actionId) ?? null
-      : null;
     if (action.kind === "open-ai") {
       setChatOpen(true);
       return;
@@ -182,19 +187,19 @@ export function PcShell() {
       return;
     }
     if (action.kind === "document-draft") {
-      await openDocumentDraft(selectedAction ?? documentAction);
+      await openDocumentDraft(documentAction);
       return;
     }
     if (action.kind === "handoff-preview") {
-      await openHandoffPreview(selectedAction ?? handoffAction);
+      await openHandoffPreview(handoffAction);
       return;
     }
     if (action.kind === "approval-preview") {
-      await approvePreview(selectedAction ?? pendingAction);
+      await approvePreview(pendingAction);
       return;
     }
     if (action.kind === "revision-request") {
-      await requestRevision(selectedAction ?? pendingAction);
+      await requestRevision(pendingAction);
       return;
     }
     if (action.kind === "pdf-draft") {
@@ -207,7 +212,7 @@ export function PcShell() {
     if (action.kind === "worker-register") {
       setPanel({
         title: "근로자 등록",
-        body: <p>근로자 등록 폼은 후속 구현 영역입니다. 현재 데모에서는 기존 근로자 상태 확인만 제공합니다.</p>,
+        body: <p>근로자 등록 폼은 후속 구현 영역입니다. 현재 화면에서는 기존 근로자 상태 확인만 제공합니다.</p>,
       });
       return;
     }
@@ -269,7 +274,7 @@ export function PcShell() {
         </nav>
       </header>
 
-      <main className={styles.main}>{renderView(activeView, (action) => void handleAction(action), workflow)}</main>
+      <main className={styles.main}>{renderView(activeView, (action) => void handleAction(action))}</main>
 
       <button className={styles.fab} onClick={() => setChatOpen(true)} type="button">
         <BriefcaseBusiness size={16} /> AI 반장
