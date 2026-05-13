@@ -1,5 +1,5 @@
-import { PcRoutePage } from "@/features/pc/PcRoutePage";
+import { DashboardShell } from "@/features/dashboard/DashboardShell";
 
 export default function DashboardPage() {
-  return <PcRoutePage />;
+  return <DashboardShell />;
 }
