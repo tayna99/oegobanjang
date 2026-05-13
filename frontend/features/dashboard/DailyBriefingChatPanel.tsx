@@ -44,9 +44,9 @@ export function DailyBriefingChatPanel({
         <span className="agent-chat-avatar">반</span>
         <div>
           <p>AI 반장</p>
-          <h2>데일리 브리핑 챗봇</h2>
+          <h2>데일리 브리핑 AI 반장</h2>
         </div>
-        <span className="agent-chat-badge">API 연결</span>
+        <span className="agent-chat-badge">근거 기반</span>
       </div>
 
       <div className="agent-chat-suggestions">
@@ -60,13 +60,25 @@ export function DailyBriefingChatPanel({
       <div className="agent-chat-thread">
         {messages.length === 0 ? (
           <div className="agent-chat-empty">
-            오늘 업무, 비자, 서류, 채용, 행정사 전달, 판단 근거를 자연어로 물어볼 수 있습니다.
+            <strong>오늘 외국인 고용 업무를 같이 확인할게요.</strong>
+            <p>
+              비자, 서류, 채용 준비, 행정사 전달, 판단 근거를 자연어로 물어볼 수 있습니다. 발송과 제출은
+              담당자 승인 전에는 실행하지 않습니다.
+            </p>
+            <div className="agent-chat-empty-actions">
+              <button disabled={loading} onClick={() => void sendMessage("오늘 먼저 볼 일 정리해줘")} type="button">
+                오늘 먼저 볼 일
+              </button>
+              <button disabled={loading} onClick={() => void sendMessage("Nguyen 케이스 근거 보여줘")} type="button">
+                Nguyen 근거 확인
+              </button>
+            </div>
           </div>
         ) : null}
 
         {messages.map((message) => (
           <div className={message.role === "user" ? "agent-message user" : "agent-message assistant"} key={message.id}>
-            <p>{message.content}</p>
+            {message.role === "assistant" ? <ChatAnswer content={message.content} /> : <p>{message.content}</p>}
             {message.role === "assistant" ? (
               <ChatMetadata
                 onOpenCitation={onOpenCitation}
@@ -92,7 +104,58 @@ export function DailyBriefingChatPanel({
           {loading ? "확인 중" : "전송"}
         </button>
       </form>
+      <p className="agent-chat-footnote">AI 반장은 제한된 운영 데이터와 근거를 바탕으로 답합니다. 중요한 판단은 담당자 확인이 필요합니다.</p>
     </aside>
+  );
+}
+
+function ChatAnswer({ content }: { content: string }) {
+  const lines = content
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\bCRITICAL\b/g, "즉시 확인")
+    .replace(/\bHIGH\b/g, "우선 확인")
+    .replace(/\bMEDIUM\b/g, "확인 필요")
+    .replace(/\bLOW\b/g, "참고")
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return <p>확인된 내용을 정리했습니다.</p>;
+  }
+
+  return (
+    <div className="agent-answer-body">
+      {lines.map((line, index) => {
+        const isNumbered = /^\d+\.\s+/.test(line);
+        const isBullet = /^[-•]\s+/.test(line);
+        const cleanLine = line
+          .replace(/^\d+\.\s+/, "")
+          .replace(/^[-•]\s+/, "")
+          .replace(/\s{2,}/g, " ");
+
+        if (isNumbered) {
+          return (
+            <div className="agent-answer-case" key={`${cleanLine}_${index}`}>
+              {cleanLine}
+            </div>
+          );
+        }
+
+        if (isBullet) {
+          return (
+            <div className="agent-answer-detail" key={`${cleanLine}_${index}`}>
+              <span aria-hidden="true" />
+              <p>{cleanLine}</p>
+            </div>
+          );
+        }
+
+        return <p key={`${cleanLine}_${index}`}>{cleanLine}</p>;
+      })}
+    </div>
   );
 }
 
@@ -107,23 +170,36 @@ function ChatMetadata({
   onOpenHandoffPreview?: (action: NextAction) => void;
   onOpenCitation?: (citationId: string) => void;
 }) {
-  const tool = response.tool_calls[0];
   const visibleActions = response.actions.filter(
     (action) => action.action_type === "request_document" || action.action_type === "create_handoff",
   );
   const firstSource = response.sources[0];
+  const actionByType = new Map<NextAction["action_type"], NextAction>();
+  visibleActions.forEach((action) => {
+    if (!actionByType.has(action.action_type)) {
+      actionByType.set(action.action_type, action);
+    }
+  });
+  const uniqueActions = Array.from(actionByType.values());
+  const chips = [
+    labelRoute(response.route),
+    labelIntent(response.normalized_intent ?? response.structured_plan.intent),
+    firstSource ? "근거 확인됨" : null,
+    response.approval_required ? "승인 필요" : null,
+  ].filter((chip): chip is string => Boolean(chip));
 
   return (
     <div className="agent-chat-meta">
-      <div>
-        <span>{response.route}</span>
-        <span>{response.normalized_intent ?? response.structured_plan.intent ?? "unknown"}</span>
-        {tool ? <span>{tool.name}</span> : null}
-        {response.approval_required ? <strong>승인 필요</strong> : null}
+      <div className="agent-chat-meta-chips" aria-label="응답 상태">
+        {chips.map((chip) => (
+          <span data-alert={chip === "승인 필요" ? "true" : undefined} key={chip}>
+            {chip}
+          </span>
+        ))}
       </div>
-      {visibleActions.length || firstSource ? (
+      {uniqueActions.length || firstSource ? (
         <div className="agent-chat-meta-actions">
-          {visibleActions.map((action) => {
+          {uniqueActions.map((action) => {
             if (action.action_type === "request_document") {
               return (
                 <button key={action.action_id} onClick={() => onOpenDocumentDraft?.(action)} type="button">
@@ -133,7 +209,7 @@ function ChatMetadata({
             }
             return (
               <button key={action.action_id} onClick={() => onOpenHandoffPreview?.(action)} type="button">
-                행정사 패키지
+                행정사 검토 패키지
               </button>
             );
           })}
@@ -146,4 +222,30 @@ function ChatMetadata({
       ) : null}
     </div>
   );
+}
+
+function labelRoute(route: string) {
+  const labels: Record<string, string> = {
+    agent_runtime_workflow: "업무 처리",
+    daily_briefing_service: "브리핑 요약",
+    rag_first_chat: "근거 기반 응답",
+    unsupported: "지원 범위 확인",
+  };
+  return labels[route] ?? "AI 응답";
+}
+
+function labelIntent(intent?: string | null) {
+  if (!intent) {
+    return null;
+  }
+  const labels: Record<string, string> = {
+    candidate_readiness: "채용 준비",
+    contact_follow_up: "컨택",
+    document_request_message: "서류 요청",
+    handoff_package: "행정사 검토",
+    missing_document: "누락 서류",
+    reporting_deadline: "신고기한",
+    visa_expiry: "체류기간",
+  };
+  return labels[intent] ?? null;
 }

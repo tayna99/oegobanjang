@@ -3,12 +3,13 @@ import { AlertTriangle, CalendarDays, Clock, FileText, Folder, Send } from "luci
 import { ActionButton } from "./ActionButton";
 import { ChatPromptBox } from "./ChatPromptBox";
 import { demoTask, type MobileDemoStep } from "./demoTask";
-import { PageTitle } from "./MobileShell";
+import { BrandHeader, PageTitle } from "./MobileShell";
 import { MobileCard } from "./MobileCard";
 
 export function MobileCaseDetailScreen({ go }: { go: (step: MobileDemoStep) => void }) {
   return (
     <div className="mobile-demo-screen">
+      <BrandHeader />
       <PageTitle back onBack={() => go("briefing")} title="서류 요청 상세" />
       <div className="mobile-demo-scroll">
         <MobileCard className="mobile-demo-profile">
