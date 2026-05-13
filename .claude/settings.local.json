@@ -52,8 +52,26 @@
       "PowerShell($py = \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\.venv\\\\Scripts\\\\python.exe\"; Set-Location \"C:\\\\Users\\\\user\\\\workspaces\\\\oegobanjang\\\\oegobanjang\\\\backend\"; & $py -m pytest tests/test_visa_sub_agents.py -v --no-header 2>&1)",
       "Bash(git stash *)",
       "Bash(uv run *)",
-      "Bash(dir \"C:/WorkBridge\")",
-      "Bash(dir *)"
+      "Bash(xargs grep -l \"seed\\\\|dummy\\\\|fixture\\\\|sample\")",
+      "Bash(PYTHONPATH=. python -c ' *)",
+      "Bash(../.venv/Scripts/python -c ' *)",
+      "Bash(Get-Content *)",
+      "Bash(PYTHONPATH=. ../.venv/Scripts/python.exe *)",
+      "Bash(find \"C:\\\\\\\\Users\\\\\\\\user\\\\\\\\workspaces\\\\\\\\oegobanjang\\\\\\\\oegobanjang\" -name \"*agent*.py\" -type f)",
+      "Bash(find \"C:\\\\\\\\Users\\\\\\\\user\\\\\\\\workspaces\\\\\\\\oegobanjang\\\\\\\\oegobanjang\\\\\\\\data-pipeline\" -type f -name \"*.py\")",
+      "Bash(find \"C:\\\\\\\\Users\\\\\\\\user\\\\\\\\workspaces\\\\\\\\oegobanjang\\\\\\\\oegobanjang\\\\\\\\data-pipeline\\\\\\\\raw\" -type d)",
+      "Bash(find \"C:\\\\\\\\Users\\\\\\\\user\\\\\\\\workspaces\\\\\\\\oegobanjang\\\\\\\\oegobanjang\\\\\\\\data-pipeline\\\\\\\\raw\" -type f -name \"*.jsonl\")",
+      "Bash(find C:\\\\\\\\Users\\\\\\\\user\\\\\\\\workspaces\\\\\\\\oegobanjang\\\\\\\\oegobanjang *)",
+      "Bash(grep -r \"chroma_collection_name\\\\|CHROMA_COLLECTION_NAME\\\\|collection_name\" \"C:\\\\\\\\Users\\\\\\\\user\\\\\\\\workspaces\\\\\\\\oegobanjang\\\\\\\\oegobanjang\\\\\\\\backend\\\\\\\\app\\\\\\\\agent_runtime\" --include=\"*.py\")",
+      "Bash(grep -r \"multilingual_contact\" \"C:\\\\\\\\Users\\\\\\\\user\\\\\\\\workspaces\\\\\\\\oegobanjang\\\\\\\\oegobanjang\\\\\\\\backend\\\\\\\\app\\\\\\\\agent_runtime\" --include=\"*.py\")",
+      "Bash(find C:\\\\\\\\Users\\\\\\\\user\\\\\\\\workspaces\\\\\\\\oegobanjang\\\\\\\\oegobanjang\\\\\\\\backend\\\\\\\\app\\\\\\\\agent_runtime\\\\\\\\rag *)",
+      "Bash(python3 -c \"import sys,json; [print\\(json.dumps\\({k:v for k,v in json.loads\\(l\\).items\\(\\) if k in ['source_id','title','doc_type','evidence_grade','visa_type','mission_agent']}, ensure_ascii=False\\)\\) for l in sys.stdin]\")",
+      "Bash(PYTHONPATH=backend .venv/Scripts/python.exe data-pipeline/ingest.py)",
+      "Bash(PYTHONPATH=backend .venv/Scripts/python.exe *)",
+      "Bash(.venv/Scripts/python.exe -c \"import sys,json; d=json.loads\\(sys.stdin.read\\(\\)\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k != 'content'}, ensure_ascii=False, indent=2\\)\\)\")",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(Select-Object -First 80)",
+      "Bash(pip show *)"
     ]
   },
   "statusLine": {

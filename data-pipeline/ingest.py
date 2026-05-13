@@ -17,32 +17,46 @@ from app.agent_runtime.rag_hyunwook.vector_store import get_chroma_store
 
 RAW_DIR = ROOT_DIR / "data-pipeline" / "raw"
 
+VISA_SOURCE_DIRS = ["eps", "laws", "안전", "정부24_hikorea"]
+
 
 def load_chunks_from_raw(raw_dir: Path = RAW_DIR) -> list[Document]:
-  """Load 729 chunks from raw/{laws,eps,gov24_hikoska,safety}/*.jsonl"""
+  """Load visa-agent source docs from raw/{eps,laws,안전,정부24_hikorea}/*.jsonl"""
   documents = []
 
-  for jsonl_file in sorted(raw_dir.rglob("*.jsonl")):
-    with open(jsonl_file, "r", encoding="utf-8") as f:
-      for line in f:
-        if not line.strip():
-          continue
-        data = json.loads(line)
-        doc = Document(
-          page_content=data.get("content", ""),
-          metadata={
-            "source_id": data.get("source_id", ""),
-            "title": data.get("title", ""),
-            "publisher": data.get("publisher", ""),
-            "source_type": data.get("source_type", ""),
-            "doc_type": data.get("doc_type", ""),
-            "evidence_grade": data.get("evidence_grade", ""),
-            "visa_type": data.get("visa_type"),
-            "mission_agent": data.get("mission_agent"),
-            "retrieved_at": data.get("retrieved_at", ""),
-          }
-        )
-        documents.append(doc)
+  for subdir in VISA_SOURCE_DIRS:
+    subdir_path = raw_dir / subdir
+    if not subdir_path.exists():
+      continue
+    for jsonl_file in sorted(subdir_path.rglob("*.jsonl")):
+      with open(jsonl_file, "r", encoding="utf-8") as f:
+        for line in f:
+          if not line.strip():
+            continue
+          data = json.loads(line)
+          # 필드가 최상위 또는 중첩 metadata 안에 있을 수 있음
+          meta = data.get("metadata") or {}
+          def _field(key: str) -> str:
+            return data.get(key) or meta.get(key) or ""
+          visa_type_raw = data.get("visa_type") or meta.get("visa_type")
+          visa_type = visa_type_raw[0] if isinstance(visa_type_raw, list) else (visa_type_raw or "")
+          mission_agent_raw = data.get("mission_agent") or meta.get("mission_agent")
+          mission_agent = ",".join(mission_agent_raw) if isinstance(mission_agent_raw, list) else (mission_agent_raw or "")
+          doc = Document(
+            page_content=data.get("content", ""),
+            metadata={
+              "source_id": _field("source_id"),
+              "title": _field("title"),
+              "publisher": _field("publisher"),
+              "source_type": _field("source_type"),
+              "doc_type": _field("doc_type"),
+              "evidence_grade": _field("evidence_grade"),
+              "visa_type": visa_type,
+              "mission_agent": mission_agent,
+              "retrieved_at": _field("retrieved_at"),
+            }
+          )
+          documents.append(doc)
 
   return documents
 
