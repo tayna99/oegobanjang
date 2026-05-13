@@ -49,11 +49,11 @@ export function MobileCaseDetailScreen({ go }: { go: (step: MobileDemoStep) => v
         />
 
         <div className="mobile-demo-action-grid">
-          <ActionButton kind="outline" onClick={() => go("draft")}>
+          <ActionButton data-testid="mobile-detail-draft" kind="outline" onClick={() => go("draft")}>
             <FileText aria-hidden="true" />
             초안 보기
           </ActionButton>
-          <ActionButton onClick={() => go("process")}>
+          <ActionButton data-testid="mobile-detail-approve" onClick={() => go("process")}>
             <Send aria-hidden="true" />
             대표 승인 요청
           </ActionButton>

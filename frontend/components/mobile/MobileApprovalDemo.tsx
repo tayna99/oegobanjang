@@ -84,7 +84,7 @@ export function MobileApprovalDemo({
       );
       setReviewMessage(
         result
-          ? `수정 요청이 기록되었습니다. Evidence ${result.evidence_event_id}`
+          ? "수정 요청이 업무 기록에 저장되었습니다."
           : "수정 요청 API 응답을 받지 못했습니다. PC 오류 영역을 확인해 주세요.",
       );
     } finally {
@@ -99,20 +99,12 @@ export function MobileApprovalDemo({
           <MobileBriefingScreen
             busyAction={busyAction}
             go={go}
-            onApprove={approveSelectedAction}
             onRequestRevision={requestSelectedRevision}
             reviewMessage={reviewMessage}
           />
         ) : null}
         {step === "detail" ? <MobileCaseDetailScreen go={go} /> : null}
-        {step === "process" ? (
-          <MobileAgentProcessScreen
-            busyAction={busyAction}
-            go={go}
-            onApprove={approveSelectedAction}
-            onRequestRevision={requestSelectedRevision}
-          />
-        ) : null}
+        {step === "process" ? <MobileAgentProcessScreen go={go} /> : null}
         {step === "draft" ? (
           <MobileDraftScreen
             backTo={draftBackTarget}
@@ -125,7 +117,6 @@ export function MobileApprovalDemo({
         ) : null}
         {step === "done" ? (
           <MobileApprovalDoneScreen
-            approvalResult={approvalResult}
             deliveryJob={deliveryJob}
             go={go}
           />
