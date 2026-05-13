@@ -18,9 +18,9 @@ def test_daily_briefing_generates_core_mvp_result() -> None:
 
     assert result.briefing_run_id == "brf_company_001_2026-05-08"
     assert result.risk_summary.total_count == 6
-    assert result.risk_summary.critical_count == 2
-    assert result.risk_summary.high_count == 3
-    assert result.risk_summary.medium_count == 1
+    assert result.risk_summary.critical_count == 1
+    assert result.risk_summary.high_count == 1
+    assert result.risk_summary.medium_count == 4
     assert result.approval_required is True
     assert {item.risk_type for item in result.items} == {
         "contract_visa_conflict",
@@ -32,6 +32,9 @@ def test_daily_briefing_generates_core_mvp_result() -> None:
     assert any(action.action_type == "request_document" for action in result.recommended_actions)
     assert any(action.action_type == "create_handoff" for action in result.recommended_actions)
     assert all(action.status == "pending_approval" for action in result.recommended_actions)
+    missing_item = next(item for item in result.items if item.risk_type == "missing_document")
+    assert missing_item.subject_id == "worker_001"
+    assert missing_item.missing_documents == ["standard_labor_contract", "passport_copy"]
     assert result.citation_summaries
     assert result.evidence_event_ids
     assert any(action.label == "누락서류 요청 초안 생성" for action in result.recommended_actions)
@@ -52,8 +55,8 @@ def test_daily_briefing_generates_contract_visa_conflict_item_and_handoff() -> N
 
     conflict_item = next(item for item in result.items if item.risk_type == "contract_visa_conflict")
     assert conflict_item.subject_id == "worker_001"
-    assert conflict_item.severity == "HIGH"
-    assert conflict_item.d_day == 30
+    assert conflict_item.severity == "MEDIUM"
+    assert conflict_item.d_day == 43
     assert conflict_item.citation_ids == ["cit_contract_visa_conflict"]
 
     conflict_actions = [

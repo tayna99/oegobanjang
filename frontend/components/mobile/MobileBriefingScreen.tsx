@@ -7,7 +7,19 @@ import { BrandHeader, PageTitle } from "./MobileShell";
 import { MobileCard } from "./MobileCard";
 import { StatusBadge } from "./StatusBadge";
 
-export function MobileBriefingScreen({ go }: { go: (step: MobileDemoStep) => void }) {
+export function MobileBriefingScreen({
+  busyAction = null,
+  go,
+  onApprove,
+  onRequestRevision,
+  reviewMessage,
+}: {
+  busyAction?: "approve" | "revision" | null;
+  go: (step: MobileDemoStep) => void;
+  onApprove?: () => void | Promise<void>;
+  onRequestRevision?: () => void | Promise<void>;
+  reviewMessage?: string | null;
+}) {
   return (
     <div className="mobile-demo-screen">
       <BrandHeader />
@@ -41,21 +53,27 @@ export function MobileBriefingScreen({ go }: { go: (step: MobileDemoStep) => voi
           <p className="mobile-demo-copy">
             AI가 베트남어 요청 메시지를 준비했습니다.
             <br />
-            승인 후 근로자에게 발송됩니다.
+            승인 후에는 발송 예정 상태로 기록됩니다.
           </p>
+          {reviewMessage ? (
+            <div className="mobile-demo-safe-note">
+              <AlertTriangle aria-hidden="true" />
+              <p>{reviewMessage}</p>
+            </div>
+          ) : null}
           <div className="mobile-demo-divider" />
           <div className="mobile-demo-action-grid three">
             <ActionButton kind="outline" onClick={() => go("draft")}>
               <FileText aria-hidden="true" />
               초안 보기
             </ActionButton>
-            <ActionButton kind="teal">
+            <ActionButton kind="teal" onClick={onRequestRevision}>
               <Pencil aria-hidden="true" />
-              수정 요청
+              {busyAction === "revision" ? "요청 중" : "수정 요청"}
             </ActionButton>
-            <ActionButton onClick={() => go("done")}>
+            <ActionButton onClick={onApprove ?? (() => go("done"))}>
               <Send aria-hidden="true" />
-              보내기 승인
+              {busyAction === "approve" ? "승인 중" : "보내기 승인"}
             </ActionButton>
           </div>
         </MobileCard>

@@ -43,6 +43,8 @@ def test_request_document_action_returns_real_message_draft_without_external_sen
     assert draft.approval_required is True
     assert draft.external_send_performed is False
     assert "passport_copy" in draft.missing_documents
-    assert "Tran T." in draft.korean_text
-    assert "Tran Thi B" not in draft.model_dump_json()
+    assert "standard_labor_contract" in draft.missing_documents
+    assert "Nguyen V." in draft.korean_text
+    assert "표준근로계약서 사본" in draft.korean_text
+    assert "Nguyen Van A" not in draft.model_dump_json()
     assert draft.translated_text

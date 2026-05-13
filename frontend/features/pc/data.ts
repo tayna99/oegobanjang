@@ -18,9 +18,9 @@ export const workers = [
     nationalityCode: "VN",
     nationality: "베트남",
     visaType: "E-9-1",
-    line: "A동 조립라인",
-    visaExpiry: "2026.06.07",
-    contractEnd: "2026.09.30",
+    line: "화성 2공장 조립라인",
+    visaExpiry: "2026.06.20",
+    contractEnd: "2026.07.01",
     dday: "D-30",
     status: "우선 확인",
     statusTone: "orange" as Tone,
@@ -134,7 +134,7 @@ export const riskCases = [
     title: "체류만료 임박",
     worker: "Nguyen V.",
     nationalityCode: "VN",
-    desc: "체류만료까지 30일 남았습니다. 연장 신청 또는 자진 출국 검토가 필요합니다.",
+    desc: "체류만료까지 30일 남았습니다. 체류기간 연장 준비 여부를 담당자/전문가가 검토해야 합니다.",
     tone: "orange" as Tone,
     actions: ["출입국관리법 제25조", "체류기간 연장허가 신청 안내", "서류 요청 초안 보기", "체류기간 연장 검토 자료 만들기"],
   },
@@ -144,9 +144,9 @@ export const riskCases = [
     title: "필수서류 누락",
     worker: "Nguyen V.",
     nationalityCode: "VN",
-    desc: "여권 사본, 외국인등록증 사본 보완이 필요합니다.",
+    desc: "표준근로계약서 사본, 여권 사본 보완이 필요합니다.",
     tone: "orange" as Tone,
-    actions: ["외국인근로자 고용 시 보유 서류", "여권/외국인등록증 사본 요청 초안 보기"],
+    actions: ["외국인근로자 고용 시 보유 서류", "표준근로계약서/여권 사본 요청 초안 보기"],
   },
   {
     id: "case_006",
@@ -171,7 +171,7 @@ export const riskCases = [
 
 export const todaysTasks = [
   { kind: "doc", title: "체류기간 연장 서류 요청", target: "Nguyen V.", status: "승인 필요", deadline: "D-30", next: "초안 보기", tone: "orange" as Tone },
-  { kind: "hiring", title: "신규 베트남 E-9 3명 채용 요청", target: "송출회사 요청서", status: "진행 중", deadline: "이번 주", next: "요청서 보기", tone: "blue" as Tone },
+  { kind: "hiring", title: "신규 E-9 3명 채용 준비", target: "채용 요청서", status: "진행 중", deadline: "이번 주", next: "요청서 보기", tone: "blue" as Tone },
   { kind: "doc", title: "후보자 입국 전 서류 요청", target: "Candidate A", status: "승인 대기", deadline: "5/20", next: "승인 요청", tone: "orange" as Tone },
   { kind: "message", title: "계약 종료 확인", target: "Tran T. H.", status: "응답 도착", deadline: "5/12", next: "응답 요약", tone: "green" as Tone },
 ];
@@ -183,16 +183,16 @@ export const contactItems = [
 ];
 
 export const judgmentRows = [
-  { id: "#4789", worker: "Nguyen V.", status: "승인 완료", tone: "green" as Tone, date: "2024-05-16" },
-  { id: "#4790", worker: "Nguyen V.", status: "외부 발송", tone: "blue" as Tone, date: "2024-05-16" },
-  { id: "#4788", worker: "Tran T. H.", status: "승인 완료", tone: "green" as Tone, date: "2024-05-15" },
-  { id: "#4787", worker: "김민수", status: "승인 완료", tone: "green" as Tone, date: "2024-05-15" },
-  { id: "#4786", worker: "Candidate A", status: "승인 완료", tone: "green" as Tone, date: "2024-05-15" },
-  { id: "#4785", worker: "Nguyen V.", status: "외부 발송", tone: "blue" as Tone, date: "2024-05-14" },
-  { id: "#4784", worker: "Pham T. A.", status: "승인 완료", tone: "green" as Tone, date: "2024-05-14" },
-  { id: "#4783", worker: "Candidate B", status: "승인 완료", tone: "green" as Tone, date: "2024-05-13" },
-  { id: "#4782", worker: "Nguyen V.", status: "외부 발송", tone: "blue" as Tone, date: "2024-05-12" },
-  { id: "#4781", worker: "Bayar M.", status: "승인 완료", tone: "green" as Tone, date: "2024-05-12" },
+  { id: "#4789", worker: "Nguyen V.", status: "승인 완료", tone: "green" as Tone, date: "2026-05-21" },
+  { id: "#4790", worker: "Nguyen V.", status: "발송 예정", tone: "blue" as Tone, date: "2026-05-21" },
+  { id: "#4788", worker: "Tran T. H.", status: "수정 요청", tone: "orange" as Tone, date: "2026-05-20" },
+  { id: "#4787", worker: "김민수", status: "담당자 확인", tone: "green" as Tone, date: "2026-05-20" },
+  { id: "#4786", worker: "Candidate A", status: "승인 대기", tone: "orange" as Tone, date: "2026-05-19" },
+  { id: "#4785", worker: "Nguyen V.", status: "mock 발송 확인", tone: "blue" as Tone, date: "2026-05-19" },
+  { id: "#4784", worker: "Pham T. A.", status: "승인 완료", tone: "green" as Tone, date: "2026-05-18" },
+  { id: "#4783", worker: "Candidate B", status: "승인 대기", tone: "orange" as Tone, date: "2026-05-18" },
+  { id: "#4782", worker: "Nguyen V.", status: "담당자 확인", tone: "green" as Tone, date: "2026-05-17" },
+  { id: "#4781", worker: "Bayar M.", status: "검토 자료 준비", tone: "blue" as Tone, date: "2026-05-17" },
 ];
 
 export const adminPackage = {

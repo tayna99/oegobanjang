@@ -181,6 +181,7 @@ function ChatMetadata({
     }
   });
   const uniqueActions = Array.from(actionByType.values());
+  const contactPreview = response.contact_preview;
   const chips = [
     labelRoute(response.route),
     labelIntent(response.normalized_intent ?? response.structured_plan.intent),
@@ -197,6 +198,20 @@ function ChatMetadata({
           </span>
         ))}
       </div>
+      {contactPreview?.kind === "message_draft" ? (
+        <details className="agent-chat-contact-preview">
+          <summary>다국어 초안 보기</summary>
+          {contactPreview.korean_text ? <p>{contactPreview.korean_text}</p> : null}
+          {contactPreview.translated_text ? <p>{contactPreview.translated_text}</p> : null}
+        </details>
+      ) : null}
+      {contactPreview?.kind === "worker_reply_summary" ? (
+        <details className="agent-chat-contact-preview">
+          <summary>응답 요약 보기</summary>
+          <p>{contactPreview.summary_ko ?? "담당자 검토용 요약을 생성했습니다."}</p>
+          <p>상태 업데이트 후보 {contactPreview.status_update_candidate_count ?? 0}건</p>
+        </details>
+      ) : null}
       {uniqueActions.length || firstSource ? (
         <div className="agent-chat-meta-actions">
           {uniqueActions.map((action) => {
@@ -241,11 +256,13 @@ function labelIntent(intent?: string | null) {
   const labels: Record<string, string> = {
     candidate_readiness: "채용 준비",
     contact_follow_up: "컨택",
+    contact_onboarding: "컨택 안내",
     document_request_message: "서류 요청",
     handoff_package: "행정사 검토",
     missing_document: "누락 서류",
     reporting_deadline: "신고기한",
     visa_expiry: "체류기간",
+    worker_reply_interpretation: "응답 해석",
   };
   return labels[intent] ?? null;
 }

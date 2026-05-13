@@ -1122,15 +1122,20 @@ class DailyBriefingService:
                     document_request_drafts.extend(generated["document_request_drafts"])
                     events.extend(generated["events"])
 
-            for document in self._missing_documents_for_worker(worker.worker_id):
-                risk = evaluate_missing_document_risk(target_date, document)
+            missing_worker_documents = self._missing_documents_for_worker(worker.worker_id)
+            if missing_worker_documents:
+                risk = self._strongest_document_risk(target_date, missing_worker_documents)
                 item, generated = self._build_item_bundle(
                     company_id=company_id,
                     worker=worker,
                     risk_type="missing_document",
                     risk=risk,
-                    due_date=document.due_date,
-                    missing_documents=[document.document_type],
+                    due_date=self._nearest_due_date(
+                        [document.due_date for document in missing_worker_documents]
+                    ),
+                    missing_documents=[
+                        document.document_type for document in missing_worker_documents
+                    ],
                     citation_ids=["cit_missing_document"],
                     trace_id=trace_id,
                 )
@@ -2280,7 +2285,7 @@ class DailyBriefingService:
         worker: WorkerRecord,
         item: DailyBriefingItem,
     ) -> DocumentRequestDraft:
-        documents = ", ".join(item.missing_documents)
+        documents = _document_display_list(item.missing_documents)
         korean_text = (
             f"{worker.display_name_masked}님, 외국인 고용 업무 확인을 위해 "
             f"다음 서류 제출이 필요합니다: {documents}. "
@@ -2691,8 +2696,8 @@ def build_seed_repository() -> InMemoryDailyBriefingRepository:
                 company_id="company_001",
                 display_name_masked="Nguyen V.",
                 raw_name="Nguyen Van A",
-                visa_expiry_date="2026-06-07",
-                contract_end_date="2026-07-31",
+                visa_expiry_date="2026-06-20",
+                contract_end_date="2026-07-01",
             ),
             WorkerRecord(
                 worker_id="worker_002",
@@ -2718,18 +2723,18 @@ def build_seed_repository() -> InMemoryDailyBriefingRepository:
         ],
         documents=[
             DocumentStatusRecord(
-                worker_id="worker_002",
-                document_type="passport_copy",
+                worker_id="worker_001",
+                document_type="standard_labor_contract",
                 status="missing",
                 required=True,
-                due_date="2026-05-05",
+                due_date="2026-06-20",
             ),
             DocumentStatusRecord(
                 worker_id="worker_001",
-                document_type="standard_labor_contract",
-                status="verified",
+                document_type="passport_copy",
+                status="missing",
                 required=True,
-                due_date="2026-05-30",
+                due_date="2026-06-20",
             ),
         ],
         reporting_events=[
@@ -2966,6 +2971,55 @@ def seed_daily_briefing_source_tables_if_empty(
             and row.display_name_masked.startswith("[WORKER_NAME")
         ):
             row.display_name_masked = worker.display_name_masked
+    db.flush()
+
+
+def upgrade_packaged_demo_source_rows(db: Session) -> None:
+    """Move older bundled demo rows to the current Nguyen demo contract.
+
+    Existing operator edits are preserved: only rows that still match the old
+    packaged demo values are changed.
+    """
+
+    worker = db.get(DailyBriefingWorkerSource, "worker_001")
+    if (
+        worker is not None
+        and worker.visa_expiry_date == "2026-06-07"
+        and worker.contract_end_date == "2026-07-31"
+    ):
+        worker.visa_expiry_date = "2026-06-20"
+        worker.contract_end_date = "2026-07-01"
+
+    contract = db.get(DailyBriefingDocumentSource, "worker_001:standard_labor_contract")
+    if (
+        contract is not None
+        and contract.status == "verified"
+        and contract.due_date == "2026-05-30"
+    ):
+        contract.status = "missing"
+        contract.required = True
+        contract.due_date = "2026-06-20"
+
+    if db.get(DailyBriefingDocumentSource, "worker_001:passport_copy") is None:
+        db.merge(
+            DailyBriefingDocumentSource(
+                id="worker_001:passport_copy",
+                worker_id="worker_001",
+                document_type="passport_copy",
+                status="missing",
+                required=True,
+                due_date="2026-06-20",
+            )
+        )
+
+    old_tran_passport = db.get(DailyBriefingDocumentSource, "worker_002:passport_copy")
+    if (
+        old_tran_passport is not None
+        and old_tran_passport.status == "missing"
+        and old_tran_passport.required is True
+        and old_tran_passport.due_date == "2026-05-05"
+    ):
+        db.delete(old_tran_passport)
     db.flush()
 
 
@@ -3329,6 +3383,7 @@ def build_sqlalchemy_daily_briefing_service(
     fallback_repository = build_seed_repository() if allow_seed_source_fallback else None
     if allow_seed_source_fallback:
         seed_daily_briefing_source_tables_if_empty(db, build_seed_repository())
+        upgrade_packaged_demo_source_rows(db)
     source_repository = build_repository_from_db_sources(db, fallback=fallback_repository)
     return DailyBriefingService(
         SqlAlchemyDailyBriefingRepository(

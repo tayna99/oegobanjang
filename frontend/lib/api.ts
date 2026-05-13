@@ -1,4 +1,5 @@
 import type {
+  ApprovalActionResult,
   DailyBriefingResult,
   AgentChatResponse,
   CaseAuditReview,
@@ -127,7 +128,7 @@ export async function sendAgentChatMessage({
 export async function approveAction(
   approvalId: string,
   companyId = "company_001",
-): Promise<{ status: string }> {
+): Promise<ApprovalActionResult> {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/approve`, {
     method: "POST",
     headers: {
@@ -148,7 +149,7 @@ export async function rejectAction(
   approvalId: string,
   reason: string,
   companyId = "company_001",
-): Promise<{ status: string }> {
+): Promise<ApprovalActionResult> {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/reject`, {
     method: "POST",
     headers: {
@@ -171,7 +172,7 @@ export async function requestRevision(
   approvalId: string,
   reason: string,
   companyId = "company_001",
-): Promise<{ status: string }> {
+): Promise<ApprovalActionResult> {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/request-revision`, {
     method: "POST",
     headers: {

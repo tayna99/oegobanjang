@@ -7,10 +7,18 @@ import { MobileCard } from "./MobileCard";
 
 export function MobileDraftScreen({
   backTo = "process",
+  busyAction = null,
   go,
+  onApprove,
+  onRequestRevision,
+  reviewMessage,
 }: {
   backTo?: MobileDemoStep;
+  busyAction?: "approve" | "revision" | null;
   go: (step: MobileDemoStep) => void;
+  onApprove?: () => void | Promise<void>;
+  onRequestRevision?: () => void | Promise<void>;
+  reviewMessage?: string | null;
 }) {
   return (
     <div className="mobile-demo-screen">
@@ -36,18 +44,25 @@ export function MobileDraftScreen({
         </MobileCard>
 
         <h2 className="mobile-demo-section-title">예상 응답</h2>
-        <ExpectedCard desc="서류 수신 후 검토 자료 반영" icon={<ThumbsUp />} label="긍정 응답" tone="teal" />
+        <ExpectedCard desc="반영 후보 생성 후 담당자 확인" icon={<ThumbsUp />} label="긍정 응답" tone="teal" />
         <ExpectedCard desc="제출 형식 안내" icon={<HelpCircle />} label="추가 질문" tone="blue" />
         <ExpectedCard desc="2일 뒤 리마인드 제안" icon={<Clock />} label="응답 지연" tone="orange" />
 
+        {reviewMessage ? (
+          <MobileCard className="mobile-demo-safe-note">
+            <Info aria-hidden="true" />
+            <p>{reviewMessage}</p>
+          </MobileCard>
+        ) : null}
+
         <div className="mobile-demo-action-grid">
-          <ActionButton kind="teal">
+          <ActionButton kind="teal" onClick={onRequestRevision}>
             <Pencil aria-hidden="true" />
-            수정 요청
+            {busyAction === "revision" ? "요청 중" : "수정 요청"}
           </ActionButton>
-          <ActionButton onClick={() => go("done")}>
+          <ActionButton onClick={onApprove ?? (() => go("done"))}>
             <Send aria-hidden="true" />
-            보내기 승인
+            {busyAction === "approve" ? "승인 중" : "보내기 승인"}
           </ActionButton>
         </div>
 

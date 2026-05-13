@@ -10,6 +10,11 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.agent_runtime.rag.retriever import PolicyRetriever, tokenize
 from app.config import get_settings
+from app.services.agent_chat_contact import (
+    CONTACT_CHAT_INTENTS,
+    AgentChatContactExecution,
+    run_agent_chat_contact_subagent,
+)
 
 
 ORCHESTRATION_VERSION = "semantic_rag_llm_tools_v2"
@@ -23,6 +28,8 @@ CANONICAL_INTENTS = {
     "contract_visa_conflict",
     "document_gap",
     "document_request_message",
+    "contact_onboarding",
+    "worker_reply_interpretation",
     "reporting_deadline",
     "handoff_preview",
     "daily_briefing",
@@ -34,6 +41,8 @@ RISK_TYPES_BY_INTENT: dict[str, tuple[str, ...]] = {
     "visa_expiry": ("visa_expiry", "missing_document", "contract_visa_conflict"),
     "document_gap": ("missing_document", "candidate_readiness"),
     "document_request_message": ("missing_document",),
+    "contact_onboarding": (),
+    "worker_reply_interpretation": (),
     "contract_visa_conflict": ("contract_visa_conflict",),
     "reporting_deadline": ("reporting_deadline",),
     "quota_review": ("quota_review", "candidate_readiness"),
@@ -62,6 +71,8 @@ INTENT_LABELS: dict[str, str] = {
     "quota_review": "채용/쿼터 검토 업무",
     "handoff_preview": "전문가 검토 패키지 업무",
     "document_request_message": "다국어 서류 요청 메시지 업무",
+    "contact_onboarding": "다국어 컨택 안내 업무",
+    "worker_reply_interpretation": "외국어 응답 해석 업무",
     "candidate_readiness": "후보자 서류 준비상태 확인 업무",
     "evidence_audit_review": "근거/감사 재현 업무",
     "daily_briefing": "오늘 확인할 외국인 고용 업무",
@@ -212,6 +223,22 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "네팔어 안내문 만들어줘",
         "Tran한테 서류 다시 보내달라고 정중하게 써줘",
         "베트남 직원한테 여권 사진 다시 달라고 말해줘",
+    ),
+    "contact_onboarding": (
+        "안전교육 일정 베트남어로 안내문 만들어줘",
+        "안전교육 안내문 만들어줘",
+        "온보딩 안내문 만들어줘",
+        "상담센터 안내문 만들어줘",
+        "숙소 생활 안내문 만들어줘",
+        "Nguyen에게 안전교육 일정 베트남어로 안내문 만들어줘",
+    ),
+    "worker_reply_interpretation": (
+        "답했는데 요약해줘",
+        "근로자 답변 보고 상태 업데이트까지 해줘",
+        "근로자 답변 요약해줘",
+        "외국어 답변 해석해줘",
+        "상태 업데이트 후보 만들어줘",
+        "Tôi có hộ chiếu",
     ),
     "handoff_preview": (
         "행정사한테 뭐 보내야 해",
@@ -544,12 +571,22 @@ def run_agent_chat_rag_first(
         blocked_actions=preflight.blocked_actions or [],
     )
     intent = normalized_plan.intent
+    contact_execution: AgentChatContactExecution | None = None
+    if intent in CONTACT_CHAT_INTENTS:
+        contact_execution = run_agent_chat_contact_subagent(
+            message=message,
+            intent=intent,
+            entities=normalized_plan.entities,
+        )
+
     selected_items = _select_daily_briefing_items(
         daily_briefing.items,
         intent,
         selected_case_id=context.selected_case_id,
         selected_action_id=context.selected_action_id,
     )
+    if intent in {"contact_onboarding", "worker_reply_interpretation"}:
+        selected_items = []
     quota_review_answer_mode = _quota_review_answer_mode(
         message=message,
         llm_query=llm_query,
@@ -558,6 +595,10 @@ def run_agent_chat_rag_first(
         selected_action_id=context.selected_action_id,
     )
     if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE:
+        actions = []
+    elif contact_execution and not contact_execution.actions_allowed:
+        actions = []
+    elif intent in {"contact_onboarding", "worker_reply_interpretation"}:
         actions = []
     else:
         actions = _selected_actions(
@@ -575,6 +616,8 @@ def run_agent_chat_rag_first(
     )
     if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE:
         fallback_answer = _quota_review_hiring_start_answer(selected_items)
+    elif contact_execution:
+        fallback_answer = contact_execution.answer
     else:
         fallback_answer = _rag_answer(
             daily_briefing,
@@ -593,6 +636,8 @@ def run_agent_chat_rag_first(
     display_context = (
         _quota_review_guidance_display_context(sources)
         if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE
+        else _contact_display_context(sources)
+        if intent in {"contact_onboarding", "worker_reply_interpretation"}
         else _display_context(selected_items, actions, sources)
     )
     structured_plan = AgentChatStructuredPlan(
@@ -606,8 +651,19 @@ def run_agent_chat_rag_first(
         required_context=_required_context(intent),
         entities=normalized_plan.entities,
         approval_required=True,
-        execution_allowed=True,
+        execution_allowed=(
+            contact_execution.execution_allowed if contact_execution is not None else True
+        ),
         target_service="rag_first_chat",
+    )
+    tool_calls = _tool_calls(
+        intent=intent,
+        results=results,
+        selected_items=selected_items,
+        actions=actions,
+        sources=sources,
+        llm_error=preflight.llm_error,
+        contact_execution=contact_execution,
     )
 
     return {
@@ -620,46 +676,7 @@ def run_agent_chat_rag_first(
         "executed_tools": executed_tools,
         "llm_used": preflight.llm_used,
         "latency_mode": "llm_plan_fast_answer" if preflight.llm_used else "rag_first_fast",
-        "tool_calls": [
-            {
-                "name": "agent_chat_semantic_retrieve",
-                "route": "rag_first_chat",
-                "intent": intent,
-                "result_count": len(results),
-                "action_count": 0,
-                "source_count": len(
-                    {
-                        citation_id
-                        for result in results
-                        for citation_id in result.get("metadata", {}).get("citation_ids", [])
-                    }
-                ),
-            },
-            {
-                "name": "agent_chat_llm_normalize",
-                "route": "rag_first_chat",
-                "intent": intent,
-                "result_count": 1 if not preflight.llm_error else 0,
-                "action_count": 0,
-                "source_count": len(results),
-            },
-            {
-                "name": "agent_chat_tool_execute",
-                "route": "rag_first_chat",
-                "intent": intent,
-                "result_count": len(selected_items),
-                "action_count": len(actions),
-                "source_count": len(sources),
-            },
-            {
-                "name": "agent_chat_llm_grounded_answer",
-                "route": "rag_first_chat",
-                "intent": intent,
-                "result_count": 1,
-                "action_count": len(actions),
-                "source_count": len(sources),
-            },
-        ],
+        "tool_calls": tool_calls,
         "actions": [action.model_dump() for action in actions],
         "sources": [source.model_dump() for source in sources],
         **display_context,
@@ -678,6 +695,7 @@ def run_agent_chat_rag_first(
         "llm_provider": preflight.llm_provider,
         "fallback_used": False,
         "fallback_reason": preflight.llm_error,
+        **_contact_response_fields(contact_execution),
     }
 
 
@@ -1035,6 +1053,8 @@ def _extract_light_entities(message: str) -> dict[str, str]:
 def _action_for_intent(intent: str) -> str:
     actions = {
         "document_request_message": "draft_message",
+        "contact_onboarding": "draft_message",
+        "worker_reply_interpretation": "interpret_reply",
         "handoff_preview": "draft_handoff",
         "evidence_audit_review": "review_evidence",
     }
@@ -1050,7 +1070,9 @@ def _required_tools(intent: str) -> list[str]:
         "reporting_deadline": ["reporting_deadline_rule"],
         "quota_review": ["quota_review_lookup", "company_readiness_rule"],
         "candidate_readiness": ["candidate_readiness_lookup"],
-        "document_request_message": ["document_request_draft"],
+        "document_request_message": ["document_request_draft", "run_contact_onboarding"],
+        "contact_onboarding": ["run_contact_onboarding"],
+        "worker_reply_interpretation": ["run_worker_reply_interpreter"],
         "handoff_preview": ["handoff_preview_draft"],
         "evidence_audit_review": ["evidence_audit_lookup"],
     }
@@ -1076,6 +1098,81 @@ def _executed_tools_for_intent(
         }
         for tool_name in _required_tools(intent)
     ]
+
+
+def _tool_calls(
+    *,
+    intent: str,
+    results: list[dict[str, Any]],
+    selected_items: list[Any],
+    actions: list[Any],
+    sources: list[Any],
+    llm_error: str | None,
+    contact_execution: AgentChatContactExecution | None,
+) -> list[dict[str, Any]]:
+    tool_calls = [
+        {
+            "name": "agent_chat_semantic_retrieve",
+            "route": "rag_first_chat",
+            "intent": intent,
+            "result_count": len(results),
+            "action_count": 0,
+            "source_count": len(
+                {
+                    citation_id
+                    for result in results
+                    for citation_id in result.get("metadata", {}).get("citation_ids", [])
+                }
+            ),
+        },
+        {
+            "name": "agent_chat_llm_normalize",
+            "route": "rag_first_chat",
+            "intent": intent,
+            "result_count": 1 if not llm_error else 0,
+            "action_count": 0,
+            "source_count": len(results),
+        },
+        {
+            "name": "agent_chat_tool_execute",
+            "route": "rag_first_chat",
+            "intent": intent,
+            "result_count": len(selected_items),
+            "action_count": len(actions),
+            "source_count": len(sources),
+        },
+        {
+            "name": "agent_chat_llm_grounded_answer",
+            "route": "rag_first_chat",
+            "intent": intent,
+            "result_count": 1,
+            "action_count": len(actions),
+            "source_count": len(sources),
+        },
+    ]
+    if contact_execution and contact_execution.tool_name:
+        tool_calls.append(
+            {
+                "name": contact_execution.tool_name,
+                "route": "rag_first_chat",
+                "intent": intent,
+                "result_count": 1 if contact_execution.execution_allowed else 0,
+                "action_count": 0,
+                "source_count": len(sources),
+            }
+        )
+    return tool_calls
+
+
+def _contact_response_fields(
+    contact_execution: AgentChatContactExecution | None,
+) -> dict[str, Any]:
+    if contact_execution is None:
+        return {}
+    return {
+        "contact_preview": contact_execution.contact_preview,
+        "contact_subagents": contact_execution.contact_subagents,
+    }
 
 
 def _rag_answer(
@@ -1212,6 +1309,18 @@ def _quota_review_guidance_display_context(sources: list[Any]) -> dict[str, Any]
         "case_summary": (
             "사업장 채용 가능 상태, 고용허가 요건, 후보자 서류 준비 상태를 먼저 확인합니다."
         ),
+        "primary_action": None,
+        "source_labels": [source.title for source in sources],
+    }
+
+
+def _contact_display_context(sources: list[Any]) -> dict[str, Any]:
+    return {
+        "subject_display_name": "컨택 대상자",
+        "subject_display_id": None,
+        "risk_timing_label": "승인 전 초안",
+        "case_title": "다국어 컨택 preview",
+        "case_summary": "다국어 안내/응답 해석 결과는 담당자 검토 후에만 발송 또는 반영할 수 있습니다.",
         "primary_action": None,
         "source_labels": [source.title for source in sources],
     }
@@ -1491,8 +1600,10 @@ def _rag_hit_view(result: dict[str, Any]) -> dict[str, Any]:
 def _required_context(intent: str) -> list[str]:
     if intent == "evidence_audit_review":
         return ["rag", "evidence_events", "citations"]
+    if intent in {"contact_onboarding", "worker_reply_interpretation"}:
+        return ["rag", "contact_subagents", "approvals"]
     if intent in {"document_request_message", "handoff_preview"}:
-        return ["rag", "cases", "actions", "approvals", "citations"]
+        return ["rag", "cases", "actions", "contact_subagents", "approvals", "citations"]
     if intent == "candidate_readiness":
         return ["rag", "candidates", "candidate_documents"]
     if intent == "quota_review":
@@ -1560,7 +1671,17 @@ def _domain_terms(intent: str) -> str:
         "document_request_message": (
             "다국어 베트남어 서류 요청 메시지 문자 초안 알려주는 문구 "
             "서류 다시 달라고 정중하게 말해줘 보내달라고 작성 여권 사진 근로계약서 사본 요청 "
-            "네팔어 안내문 안내 메시지 안전교육 교육장 직원에게 공손하게"
+            "네팔어 안내문 안내 메시지 직원에게 공손하게"
+        ),
+        "contact_onboarding": (
+            "다국어 컨택 온보딩 안전교육 생활 안내 상담센터 안내 숙소 안내 "
+            "베트남어 안내문 인도네시아어 안내문 교육 일정 작업 전 안전수칙 "
+            "교육장으로 오라고 생활 관련 어려움 공식 상담 채널"
+        ),
+        "worker_reply_interpretation": (
+            "근로자 답변 외국어 답변 베트남어 답변 인도네시아어 답변 요약 해석 "
+            "상태 업데이트 후보 응답 해석 제출했다고 답함 내일 보낸다고 답함 "
+            "Tôi có hộ chiếu ảnh mai gửi saya sudah kirim dokumen"
         ),
         "handoff_preview": (
             "행정사 노무사 전문가 검토 패키지 handoff 전달 넘길 자료 묶어줘 "

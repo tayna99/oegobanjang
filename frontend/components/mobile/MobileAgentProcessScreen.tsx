@@ -40,7 +40,7 @@ export function MobileAgentProcessScreen({ go }: { go: (step: MobileDemoStep) =>
 
         <MobileCard className="mobile-demo-safe-note">
           <ShieldCheck aria-hidden="true" />
-          <p>AI는 외부 발송을 자동으로 실행하지 않습니다.</p>
+          <p>AI는 실제 전달을 자동으로 실행하지 않습니다.</p>
         </MobileCard>
 
         <ActionButton onClick={() => go("draft")}>

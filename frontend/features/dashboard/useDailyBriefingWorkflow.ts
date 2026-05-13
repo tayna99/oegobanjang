@@ -18,6 +18,7 @@ import {
   runDailyBriefing,
 } from "../../lib/api";
 import type {
+  ApprovalActionResult,
   CitationChunkView,
   CitationSourceDocumentView,
   CitationValidationStatus,
@@ -76,40 +77,46 @@ export function useDailyBriefingWorkflow(initialCompanyId = "company_001") {
     async (action: NextAction) => {
       setError(null);
       try {
-        await approveAction(action.approval_id, companyId);
+        const result = await approveAction(action.approval_id, companyId);
         setBriefing(await refreshBriefing());
+        return result;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Approval failed");
+        return null;
       }
     },
     [companyId, refreshBriefing],
-  );
+  ) as (action: NextAction) => Promise<ApprovalActionResult | null>;
 
   const reject = useCallback(
     async (action: NextAction) => {
       setError(null);
       try {
-        await rejectAction(action.approval_id, "Rejected during internal review.", companyId);
+        const result = await rejectAction(action.approval_id, "Rejected during internal review.", companyId);
         setBriefing(await refreshBriefing());
+        return result;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Reject failed");
+        return null;
       }
     },
     [companyId, refreshBriefing],
-  );
+  ) as (action: NextAction) => Promise<ApprovalActionResult | null>;
 
   const requestActionRevision = useCallback(
-    async (action: NextAction) => {
+    async (action: NextAction, reason = "Please revise this draft.") => {
       setError(null);
       try {
-        await requestRevision(action.approval_id, "Please revise this draft.", companyId);
+        const result = await requestRevision(action.approval_id, reason, companyId);
         setBriefing(await refreshBriefing());
+        return result;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Revision request failed");
+        return null;
       }
     },
     [companyId, refreshBriefing],
-  );
+  ) as (action: NextAction, reason?: string) => Promise<ApprovalActionResult | null>;
 
   const openHandoffPreview = useCallback(
     async (action: NextAction) => {
@@ -139,9 +146,12 @@ export function useDailyBriefingWorkflow(initialCompanyId = "company_001") {
     async (action: NextAction) => {
       setError(null);
       try {
-        setDeliveryJob(await createExternalDeliveryJob(action.action_id, companyId, "mock_webhook"));
+        const job = await createExternalDeliveryJob(action.action_id, companyId, "mock_webhook");
+        setDeliveryJob(job);
+        return job;
       } catch (err) {
         setError(err instanceof Error ? err.message : "External delivery job failed");
+        return null;
       }
     },
     [companyId],

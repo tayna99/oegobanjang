@@ -23,7 +23,7 @@ const textToneClasses: Record<Tone, string> = {
   red: styles.textRed,
   gray: styles.textGray,
   purple: styles.textPurple,
-  teal: styles.toneTeal,
+  teal: styles.textTeal,
 };
 
 export function toneClass(tone: Tone) {

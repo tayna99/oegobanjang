@@ -59,6 +59,14 @@ export type NextAction = {
   approved_at: string | null;
 };
 
+export type ApprovalActionResult = {
+  approval_id: string;
+  action_id: string;
+  status: string;
+  approved_at: string;
+  evidence_event_id: string;
+};
+
 export type CitationSummary = {
   citation_id: string;
   title: string;
@@ -148,6 +156,36 @@ export type AgentChatRagHit = {
   score: number | null;
 };
 
+export type AgentChatContactPreview = {
+  kind:
+    | "message_draft"
+    | "worker_reply_summary"
+    | "worker_reply_summary_required_input"
+    | string;
+  language_code?: string | null;
+  message_purpose?: string | null;
+  status?: string | null;
+  korean_text?: string | null;
+  translated_text?: string | null;
+  summary_ko?: string | null;
+  status_update_candidate_count?: number;
+  sent?: boolean;
+  status_applied?: boolean;
+  external_send_performed?: boolean;
+  approval_required?: boolean;
+  manager_review_required?: boolean;
+  required_input?: string | null;
+};
+
+export type AgentChatContactSubagentSummary = {
+  status: string;
+  approval_required: boolean;
+  approval_status: string;
+  manager_review_required?: boolean;
+  status_update_candidate_count?: number;
+  risk_flags?: string[];
+};
+
 export type AgentChatResponse = {
   answer: string;
   final_response: string;
@@ -178,6 +216,8 @@ export type AgentChatResponse = {
   llm_provider?: string | null;
   fallback_used?: boolean;
   fallback_reason?: string | null;
+  contact_preview?: AgentChatContactPreview | null;
+  contact_subagents?: Record<string, AgentChatContactSubagentSummary>;
 };
 
 export type HandoffPreview = {

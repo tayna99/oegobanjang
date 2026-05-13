@@ -24,6 +24,7 @@ const summary = [
   { title: "승인 대기", value: "5건", tone: "orange" as Tone, icon: Shield },
   { title: "행정사 검토 준비", value: "2건", tone: "blue" as Tone, icon: FileText },
 ];
+const totalRiskCaseCount = riskCases.length;
 
 export function TodayTasksView() {
   return (
@@ -33,7 +34,9 @@ export function TodayTasksView() {
           <span className={styles.gradientMark}>반</span>
           <div>
             <strong>오늘 브리핑이 준비되었습니다</strong>
-            <p className={styles.subtle}>외고반장이 7개 케이스를 정리했습니다. 즉시 확인 1건, 우선 확인 3건, 승인 대기 5건.</p>
+            <p className={styles.subtle}>
+              외고반장이 {totalRiskCaseCount}개 케이스를 정리했습니다. 즉시 확인 1건, 우선 확인 3건, 승인 대기 5건.
+            </p>
           </div>
         </div>
         <div className={styles.buttonRow}>
@@ -102,7 +105,7 @@ export function TodayTasksView() {
 
 export function HiringPreparationView() {
   const hiringCards = [
-    { title: "신규 베트남 E-9 3명 채용 요청", meta: "화성 1공장 · 조립라인 · 행정사 검토 전 확인 필요", deadline: "2026.05.20", percent: 72, done: "5/8 완료", tone: "teal" as Tone, tasks: ["구인노력 기간 확인", "고용허가 신청서 준비", "송출회사 요청서 확인"] },
+    { title: "신규 E-9 3명 채용 준비", meta: "화성 1공장 · 조립라인 · 행정사 검토 전 확인 필요", deadline: "2026.05.20", percent: 72, done: "5/8 완료", tone: "teal" as Tone, tasks: ["구인노력 기간 확인", "고용허가 신청서 준비", "채용 요청서 확인"] },
     { title: "Candidate A 입국 전 서류 패키지", meta: "화성 1공장 · 도장라인 · 행정사 검토 전 확인 필요", deadline: "2026.05.20", percent: 45, done: "2/5 완료", tone: "orange" as Tone, tasks: ["건강진단서 원본 확인", "입국 전 교육 수료증 확인", "근로계약서 사본 확인"] },
   ];
 
@@ -223,7 +226,7 @@ export function CasesView() {
     <div className={styles.stack}>
       <div>
         <div className={styles.subtle}>케이스 목록</div>
-        <h1 className={styles.headline}>리스크 케이스 · 7건</h1>
+        <h1 className={styles.headline}>리스크 케이스 · {totalRiskCaseCount}건</h1>
         <p className={styles.subtle}>AI는 비자 가능 여부를 확정하지 않으며, 담당자 검토용 근거와 초안만 제공합니다.</p>
       </div>
       {groups.map((group) => {
@@ -299,7 +302,7 @@ export function ContactView() {
             </div>
             <h3>예상 응답 시나리오</h3>
             <div className={styles.scenarioGrid}>
-              <Scenario title="긍정 응답" desc="서류 수신 후 행정사 검토 자료에 자동 반영" tone="green" />
+              <Scenario title="긍정 응답" desc="서류 수신 후 반영 후보 생성 / 담당자 확인 후 반영" tone="green" />
               <Scenario title="추가 정보 요청" desc="필요 서류와 형식 기준을 다시 안내" tone="blue" />
               <Scenario title="응답 지연" desc="2일 뒤 리마인드 메시지 제안" tone="orange" />
             </div>
@@ -345,7 +348,7 @@ export function AdminReviewView() {
         </Card>
         <Card className={styles.panel}>
           <h2>승인 흐름</h2>
-          {["시스템 초안 생성", "담당자 검토", "사장님 승인", "행정사 전달"].map((step, index) => (
+          {["시스템 초안 생성", "담당자 검토", "사장님 승인", "행정사 전달 준비"].map((step, index) => (
             <div className={styles.row} key={step}><Badge tone={index < 2 ? "green" : "gray"}>{index + 1}</Badge><strong>{step}</strong></div>
           ))}
         </Card>
@@ -359,7 +362,7 @@ export function JudgmentLogView() {
     <div className={styles.judgmentLayout}>
       <section className={styles.judgmentList}>
         <h1 className={styles.headline}>판단 기록</h1>
-        <div className={styles.buttonRow}><Button>전체</Button><Button variant="secondary">승인 필요</Button><Button variant="secondary">외부 발송</Button><Button variant="secondary">행정사 검토</Button></div>
+        <div className={styles.buttonRow}><Button>전체</Button><Button variant="secondary">승인 필요</Button><Button variant="secondary">발송 예정</Button><Button variant="secondary">행정사 검토</Button></div>
         <div className={styles.buttonRow}><div className={cn(styles.button, styles.buttonGhost)}><Search size={16} /> 키워드 검색 (사유, 이벤트, 대상 등)</div><Button variant="secondary">필터</Button></div>
         <Card className={styles.tableWrap}>
           <table className={styles.table}>
@@ -372,9 +375,9 @@ export function JudgmentLogView() {
         <div className={styles.pageHead}><h2>판단 기록 #4789 <Badge tone="green">승인 완료</Badge></h2><div className={styles.buttonRow}><Button variant="secondary"><MoreHorizontal size={16} /></Button><Button variant="ghost"><X size={16} /></Button></div></div>
         <div className={styles.infoGrid}><Info label="담당자" value="김대리 (인사팀)" /><Info label="대상 근로자" value="Nguyen V." /><Info label="관련 케이스" value="체류기간 연장 서류 요청" /></div>
         <div className={styles.separator} />
-        <Block title="판단 요약"><Card className={styles.panel}>체류만료일이 45일 이내로 확인되어, 누락된 서류를 요청하고 외부 발송 전 베트남어 메시지 초안을 생성하여 대표 승인이 완료됐습니다.</Card></Block>
+        <Block title="판단 요약"><Card className={styles.panel}>체류만료일이 45일 이내로 확인되어, 누락된 서류 요청 초안을 만들고 실제 전달 전 대표 승인이 완료됐습니다.</Card></Block>
         <Block title="사용한 정보"><div className={styles.badgeLine}><Badge tone="gray">근로자 프로필</Badge><Badge tone="gray">체류 정보</Badge><Badge tone="gray">케이스 정보</Badge><Badge tone="gray">이전 대화 기록</Badge><Badge tone="gray">서류 체크리스트</Badge></div></Block>
-        <Block title="승인 이력"><Card className={styles.panel}><div className={styles.sectionTitle}><div><strong>대표 (대표근로계약서)</strong><p className={styles.subtle}>김대표 · 2024-05-16 10:42</p></div><Badge tone="green">승인 완료</Badge></div></Card></Block>
+        <Block title="승인 이력"><Card className={styles.panel}><div className={styles.sectionTitle}><div><strong>대표 (서류 요청 초안)</strong><p className={styles.subtle}>김대표 · 2026-05-21 10:42</p></div><Badge tone="green">승인 완료</Badge></div></Card></Block>
         <Block title="이벤트 타임라인"><Timeline /></Block>
       </aside>
     </div>
@@ -407,6 +410,6 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function Timeline() {
-  const items = ["체류만료일 확인", "누락 서류 감지", "이전 대화 기록 확인", "베트남어 메시지 초안 생성", "대표 승인 요청", "외부 발송 전 제한 적용"];
-  return <div className={styles.timeline}>{items.map((item, index) => <div className={styles.row} key={item}><span className={cn(styles.dot, styles.toneGreen)} /><div><strong>{item}</strong><div className={styles.subtle}>2024-05-16 10:{10 + index * 3}</div></div></div>)}</div>;
+  const items = ["체류만료일 확인", "누락 서류 감지", "이전 대화 기록 확인", "베트남어 메시지 초안 생성", "대표 승인 요청", "발송 예정 상태로 제한 적용"];
+  return <div className={styles.timeline}>{items.map((item, index) => <div className={styles.row} key={item}><span className={cn(styles.dot, styles.toneGreen)} /><div><strong>{item}</strong><div className={styles.subtle}>2026-05-21 10:{10 + index * 3}</div></div></div>)}</div>;
 }

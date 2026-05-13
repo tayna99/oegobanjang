@@ -4,8 +4,20 @@ import { ActionButton } from "./ActionButton";
 import { demoTask, type MobileDemoStep } from "./demoTask";
 import { BrandHeader, PageTitle } from "./MobileShell";
 import { MobileCard } from "./MobileCard";
+import type { ApprovalActionResult, ExternalDeliveryJob } from "../../types/dailyBriefing";
 
-export function MobileApprovalDoneScreen({ go }: { go: (step: MobileDemoStep) => void }) {
+export function MobileApprovalDoneScreen({
+  approvalResult = null,
+  deliveryJob = null,
+  go,
+}: {
+  approvalResult?: ApprovalActionResult | null;
+  deliveryJob?: ExternalDeliveryJob | null;
+  go: (step: MobileDemoStep) => void;
+}) {
+  const evidenceLabel = approvalResult?.evidence_event_id ?? `demo-${demoTask.workLogId}`;
+  const deliveryStatus = deliveryJob ? labelDeliveryStatus(deliveryJob.status) : "발송 예정 상태";
+
   return (
     <div className="mobile-demo-screen">
       <BrandHeader />
@@ -23,21 +35,23 @@ export function MobileApprovalDoneScreen({ go }: { go: (step: MobileDemoStep) =>
             <h2>보내기 승인이 완료되었습니다.</h2>
             <p>{demoTask.worker.displayName}에게 보낼 서류 요청 메시지가 승인되었습니다.</p>
             <p>
-              업무 기록 <strong>#{demoTask.workLogId}</strong>에 저장되었습니다.
+              Evidence <strong>{evidenceLabel}</strong>로 기록되었습니다.
             </p>
-            <p>관리자 대시보드에도 반영됩니다.</p>
+            <p>관리자 대시보드에도 다시 반영됩니다.</p>
           </div>
         </MobileCard>
 
         <MobileCard className="mobile-demo-safe-note">
           <Info aria-hidden="true" />
-          <p>데모 환경에서는 실제 발송 없이 발송 예정 상태만 표시합니다.</p>
+          <p>
+            데모 환경에서는 실제 발송 없이 <strong>{deliveryStatus}</strong>만 표시합니다.
+          </p>
         </MobileCard>
 
         <MobileCard className="mobile-demo-list">
           <DoneRow icon={<CalendarDays />} label="체류만료" value={`D-${demoTask.dDay}`} />
           <DoneRow icon={<AlertTriangle />} label="누락 서류" value={`${demoTask.missingDocuments.length}건`} />
-          <DoneRow blue icon={<Clock />} label="다음 할 일" value="응답 확인" />
+          <DoneRow blue icon={<Clock />} label="다음 할 일" value={deliveryStatus} />
         </MobileCard>
 
         <div className="mobile-demo-action-grid">
@@ -53,6 +67,16 @@ export function MobileApprovalDoneScreen({ go }: { go: (step: MobileDemoStep) =>
       </div>
     </div>
   );
+}
+
+function labelDeliveryStatus(status: ExternalDeliveryJob["status"]) {
+  if (status === "mock_dispatched") {
+    return "mock 발송 경로 확인";
+  }
+  if (status === "pending_manual_dispatch") {
+    return "담당자 수동 발송 대기";
+  }
+  return "실제 발송 상태 확인 필요";
 }
 
 function DoneRow({

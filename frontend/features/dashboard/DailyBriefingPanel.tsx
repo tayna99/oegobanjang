@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import { demoTask } from "../../components/mobile/demoTask";
 import { MobileApprovalDemo } from "../../components/mobile/MobileApprovalDemo";
-import type { DailyBriefingItem, NextAction } from "../../types/dailyBriefing";
+import type {
+  ApprovalActionResult,
+  DailyBriefingItem,
+  ExternalDeliveryJob,
+  NextAction,
+} from "../../types/dailyBriefing";
 import { DailyBriefingChatPanel } from "./DailyBriefingChatPanel";
 import { useDailyBriefingWorkflow } from "./useDailyBriefingWorkflow";
 
@@ -138,6 +143,7 @@ export function DailyBriefingPanel() {
     citationSource,
     citationValidation,
     companyId,
+    createDeliveryJob: handleCreateDeliveryJob,
     date,
     deliveryJob,
     documentDraft,
@@ -161,7 +167,10 @@ export function DailyBriefingPanel() {
   } = useDailyBriefingWorkflow();
   const [chatOpen, setChatOpen] = useState(false);
   const [demoCaseOpen, setDemoCaseOpen] = useState(false);
+  const [mobileApprovalResult, setMobileApprovalResult] = useState<ApprovalActionResult | null>(null);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showExportArtifacts, setShowExportArtifacts] = useState(false);
 
   useEffect(() => {
@@ -182,6 +191,70 @@ export function DailyBriefingPanel() {
     [item.case_title, item.subject_display_name, item.subject_display_id, item.subject_id]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes("nguyen"));
+  const selectedItem = useMemo(
+    () => items.find((item) => item.item_id === selectedItemId) ?? null,
+    [items, selectedItemId],
+  );
+  const selectedItemActions = useMemo(
+    () =>
+      selectedItem
+        ? actions.filter((action) => selectedItem.next_action_ids.includes(action.action_id))
+        : [],
+    [actions, selectedItem],
+  );
+  const selectedAction = useMemo(
+    () => actions.find((action) => action.action_id === selectedActionId) ?? null,
+    [actions, selectedActionId],
+  );
+  const nguyenActionIds = useMemo(
+    () =>
+      new Set(
+        items
+          .filter(isNguyenDemoItem)
+          .flatMap((item) => item.next_action_ids),
+      ),
+    [items],
+  );
+  const relatedSelectedActions = useMemo(
+    () =>
+      selectedItem
+        ? actions.filter((action) => action.subject_id === selectedItem.subject_id)
+        : [],
+    [actions, selectedItem],
+  );
+  const selectedDocumentAction =
+    selectedItemActions.find((action) => action.action_type === "request_document") ??
+    relatedSelectedActions.find((action) => action.action_type === "request_document") ??
+    actions.find(
+      (action) => action.action_type === "request_document" && nguyenActionIds.has(action.action_id),
+    ) ??
+    null;
+  const selectedHandoffAction =
+    selectedItemActions.find((action) => action.action_type === "create_handoff") ??
+    relatedSelectedActions.find((action) => action.action_type === "create_handoff") ??
+    null;
+  const mobileAction = selectedDocumentAction ?? selectedAction;
+
+  function selectItem(item: DailyBriefingItem, rowActions: NextAction[]) {
+    setSelectedItemId(item.item_id);
+    setSelectedActionId(rowActions[0]?.action_id ?? item.primary_action?.action_id ?? null);
+  }
+
+  async function handleMobileApprove(action: NextAction) {
+    const result = await handleApprove(action);
+    setMobileApprovalResult(result);
+    return result;
+  }
+
+  async function handleMobileCreateDeliveryJob(action: NextAction): Promise<ExternalDeliveryJob | null> {
+    return handleCreateDeliveryJob(action);
+  }
+
+  async function handleMobileRevision(action: NextAction, reason: string) {
+    const result = await handleRevision(action, reason);
+    setMobileApprovalResult(result);
+    return result;
+  }
 
   return (
     <section className="ops-console">
@@ -198,7 +271,14 @@ export function DailyBriefingPanel() {
           </p>
         </div>
         <span className="ops-announcement-time">오늘 08:00</span>
-        <button className="ops-mobile-preview-button" onClick={() => setMobilePreviewOpen(true)} type="button">
+        <button
+          className="ops-mobile-preview-button"
+          onClick={() => {
+            setMobileApprovalResult(null);
+            setMobilePreviewOpen(true);
+          }}
+          type="button"
+        >
           대표 모바일 미리보기
         </button>
         <button className="ops-secondary-button" disabled={loading} onClick={handleRunBriefing} type="button">
@@ -255,33 +335,44 @@ export function DailyBriefingPanel() {
               <div className="ops-task-title">
                 <span className="ops-task-icon">{taskIconByRisk[item.risk_type]}</span>
                 <button
-                  onClick={() =>
-                    isNguyenDemoItem(item)
-                      ? setDemoCaseOpen(true)
-                      : item.citation_ids[0]
-                        ? handleOpenCitation(item.citation_ids[0])
-                        : undefined
-                  }
+                  onClick={() => {
+                    selectItem(item, rowActions);
+                    if (isNguyenDemoItem(item)) {
+                      setDemoCaseOpen(true);
+                      return;
+                    }
+                    if (item.citation_ids[0]) {
+                      void handleOpenCitation(item.citation_ids[0]);
+                    }
+                  }}
                   type="button"
                 >
-                  {item.case_title ?? riskTypeLabel[item.risk_type]}
+                  {isNguyenDemoItem(item)
+                    ? `${demoTask.worker.displayName} 체류기간 연장 서류 요청`
+                    : item.case_title ?? riskTypeLabel[item.risk_type]}
                 </button>
               </div>
               <span className="ops-subject">
-                {item.subject_display_name ?? item.subject_display_id ?? item.subject_id}
+                {isNguyenDemoItem(item)
+                  ? demoTask.worker.displayName
+                  : item.subject_display_name ?? item.subject_display_id ?? item.subject_id}
               </span>
               <span className="ops-status">{rowStatus(rowActions)}</span>
               <strong className={item.expired || (item.d_day ?? 99) <= 30 ? "ops-deadline urgent" : "ops-deadline"}>
-                {timingLabel(item)}
+                {isNguyenDemoItem(item) ? `D-${demoTask.dDay}` : timingLabel(item)}
               </strong>
               <div className="ops-row-actions">
                 {primaryAction ? (
                   <button
-                    onClick={() =>
-                      primaryAction.action_type === "request_document"
-                        ? handleOpenDocumentDraft(primaryAction)
-                        : handleOpenPreview(primaryAction)
-                    }
+                    onClick={() => {
+                      selectItem(item, rowActions);
+                      setSelectedActionId(primaryAction.action_id);
+                      if (primaryAction.action_type === "request_document") {
+                        void handleOpenDocumentDraft(primaryAction);
+                        return;
+                      }
+                      void handleOpenPreview(primaryAction);
+                    }}
                     type="button"
                   >
                     {nextActionLabel(rowActions)}
@@ -379,7 +470,7 @@ export function DailyBriefingPanel() {
               <strong>AI가 준비한 일</strong>
               <p>
                 {demoTask.worker.language} 요청 메시지 초안, 한국어 번역본, 예상 응답 시나리오를 준비했습니다.
-                외부 발송은 대표 승인 전까지 차단됩니다.
+                실제 전달은 대표 승인 전까지 차단됩니다.
               </p>
             </div>
             <dl>
@@ -413,11 +504,33 @@ export function DailyBriefingPanel() {
               <p>{demoTask.draft.ko}</p>
             </div>
             <div className="ops-demo-case-actions">
-              <button type="button">초안 보기</button>
-              <button onClick={() => setMobilePreviewOpen(true)} type="button">
+              <button
+                disabled={!selectedDocumentAction}
+                onClick={() => selectedDocumentAction && handleOpenDocumentDraft(selectedDocumentAction)}
+                type="button"
+              >
+                초안 보기
+              </button>
+              <button
+                disabled={!selectedDocumentAction}
+                onClick={() => {
+                  if (selectedDocumentAction) {
+                    setSelectedActionId(selectedDocumentAction.action_id);
+                  }
+                  setMobileApprovalResult(null);
+                  setMobilePreviewOpen(true);
+                }}
+                type="button"
+              >
                 대표 승인 요청
               </button>
-              <button type="button">검토 자료 만들기</button>
+              <button
+                disabled={!selectedHandoffAction}
+                onClick={() => selectedHandoffAction && handleOpenPreview(selectedHandoffAction)}
+                type="button"
+              >
+                검토 자료 만들기
+              </button>
             </div>
           </div>
         </DetailDrawer>
@@ -436,7 +549,7 @@ export function DailyBriefingPanel() {
       {deliveryJob ? (
         <DetailDrawer title="외부 전달 경계" onClose={() => setDeliveryJob(null)}>
           <p>
-            상태: {deliveryJob.status}. Provider: {deliveryJob.provider}. 실제 외부 발송 여부:{" "}
+            상태: {deliveryJob.status}. Provider: {deliveryJob.provider}. 실제 전달 여부:{" "}
             {String(deliveryJob.external_send_performed)}.
           </p>
           {deliveryJob.status === "pending_manual_dispatch" ? (
@@ -485,6 +598,8 @@ export function DailyBriefingPanel() {
               onOpenCitation={handleOpenCitation}
               onOpenDocumentDraft={handleOpenDocumentDraft}
               onOpenHandoffPreview={handleOpenPreview}
+              selectedActionId={selectedAction?.action_id ?? selectedDocumentAction?.action_id ?? null}
+              selectedCaseId={selectedItem?.case_id ?? null}
             />
           </div>
         </div>
@@ -493,12 +608,20 @@ export function DailyBriefingPanel() {
       {mobilePreviewOpen ? (
         <div className="ops-mobile-preview-modal" role="dialog" aria-modal="true" aria-label="대표 모바일 승인 미리보기">
           <div className="ops-mobile-preview-panel">
-            <MobileApprovalDemo embedded />
+            <MobileApprovalDemo
+              action={mobileAction}
+              approvalResult={mobileApprovalResult}
+              deliveryJob={deliveryJob}
+              embedded
+              onApprove={handleMobileApprove}
+              onCreateDeliveryJob={handleMobileCreateDeliveryJob}
+              onRequestRevision={handleMobileRevision}
+            />
             <aside className="ops-mobile-preview-caption">
               <h2>대표 모바일 승인 화면</h2>
               <p>
                 PC에서 Nguyen 케이스를 확인한 뒤 대표 승인 요청을 보냈을 때 보이는 모바일 브리핑 흐름입니다.
-                초안 확인, 수정 요청, 승인 완료까지 발표용으로 안정적으로 이어집니다.
+                초안 확인, 수정 요청, 승인 완료, mock outbox 생성까지 같은 action 기준으로 이어집니다.
               </p>
               <button onClick={() => setMobilePreviewOpen(false)} type="button">
                 닫기

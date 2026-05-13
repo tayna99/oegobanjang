@@ -383,6 +383,7 @@
 .textRed { color: #ef4444; }
 .textPurple { color: #7c3aed; }
 .textGray { color: #64748b; }
+.textTeal { color: #0f766e; }
 
 .button {
   display: inline-flex;
