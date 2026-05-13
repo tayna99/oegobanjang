@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarDays, Clock, FileText, Folder, Megaphone, Pencil, Send } from "lucide-react";
+import { AlertTriangle, CalendarDays, Clock, FileText, Folder, Megaphone, Pencil, Send, ShieldCheck } from "lucide-react";
 
 import { ActionButton } from "./ActionButton";
 import { ChatPromptBox } from "./ChatPromptBox";
@@ -10,7 +10,6 @@ import { StatusBadge } from "./StatusBadge";
 export function MobileBriefingScreen({
   busyAction = null,
   go,
-  onApprove,
   onRequestRevision,
   reviewMessage,
 }: {
@@ -51,9 +50,9 @@ export function MobileBriefingScreen({
             <StatusLine icon={<AlertTriangle />} label="누락 서류" value={`${demoTask.missingDocuments.length}건`} />
           </div>
           <p className="mobile-demo-copy">
-            AI가 베트남어 요청 메시지를 준비했습니다.
+            Multilingual Contact Agent가 베트남어 요청 메시지를 준비했습니다.
             <br />
-            승인 후에는 발송 예정 상태로 기록됩니다.
+            대표 승인 전에는 외부로 발송되지 않습니다.
           </p>
           {reviewMessage ? (
             <div className="mobile-demo-safe-note">
@@ -63,7 +62,7 @@ export function MobileBriefingScreen({
           ) : null}
           <div className="mobile-demo-divider" />
           <div className="mobile-demo-action-grid three">
-            <ActionButton kind="outline" onClick={() => go("draft")}>
+            <ActionButton kind="outline" onClick={() => go("process")}>
               <FileText aria-hidden="true" />
               초안 보기
             </ActionButton>
@@ -71,17 +70,38 @@ export function MobileBriefingScreen({
               <Pencil aria-hidden="true" />
               {busyAction === "revision" ? "요청 중" : "수정 요청"}
             </ActionButton>
-            <ActionButton onClick={onApprove ?? (() => go("done"))}>
+            <ActionButton onClick={() => go("process")}>
               <Send aria-hidden="true" />
               {busyAction === "approve" ? "승인 중" : "보내기 승인"}
             </ActionButton>
           </div>
         </MobileCard>
 
-        <div className="mobile-demo-summary-grid">
-          <SummaryCard color="orange" count="2건" icon={<FileText />} label="서류 보완 필요" />
-          <SummaryCard color="blue" count="1건" icon={<Clock />} label="승인 대기" />
-        </div>
+        <MobileCard className="mobile-demo-secondary-task">
+          <span className="mobile-demo-round-icon">
+            <ShieldCheck aria-hidden="true" />
+          </span>
+          <div>
+            <strong>Candidate A 입국 전 서류 패키지</strong>
+            <p>행정사 검토 전 확인 필요 · 승인 마감 5/20</p>
+          </div>
+          <ActionButton kind="outline" onClick={() => go("draft")}>
+            검토 자료 보기
+          </ActionButton>
+        </MobileCard>
+
+        <MobileCard className="mobile-demo-secondary-task">
+          <span className="mobile-demo-round-icon">
+            <Clock aria-hidden="true" />
+          </span>
+          <div>
+            <strong>Tran T.H. 계약 종료 확인</strong>
+            <p>근로자 응답 도착 · 요약 확인 필요</p>
+          </div>
+          <ActionButton kind="outline" onClick={() => go("detail")}>
+            응답 요약
+          </ActionButton>
+        </MobileCard>
 
         <ChatPromptBox
           placeholder="이 메시지 조금 더 정중하게 바꿔줘"
@@ -102,22 +122,3 @@ function StatusLine({ icon, label, value }: { icon: React.ReactNode; label: stri
   );
 }
 
-function SummaryCard({
-  color,
-  count,
-  icon,
-  label,
-}: {
-  color: "blue" | "orange";
-  count: string;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <MobileCard className="mobile-demo-summary" data-color={color}>
-      <span>{icon}</span>
-      <p>{label}</p>
-      <strong>{count}</strong>
-    </MobileCard>
-  );
-}

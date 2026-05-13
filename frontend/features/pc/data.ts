@@ -2,6 +2,38 @@ export type PcViewKey = "today" | "hiring" | "workers" | "contact" | "cases" | "
 
 export type Tone = "blue" | "green" | "orange" | "red" | "gray" | "purple" | "teal";
 
+export type TodayTaskKind = "doc" | "hiring" | "message";
+
+export type TodayTask = {
+  kind: TodayTaskKind;
+  title: string;
+  target: string;
+  worksiteLine: string;
+  status: string;
+  deadline: string;
+  riskLevel: "높음" | "중간" | "낮음";
+  owner: string;
+  next: string;
+  tone: Tone;
+  detail: {
+    title: string;
+    statusBadges: string[];
+    subject: string;
+    nationality?: string;
+    visaType?: string;
+    channel?: string;
+    language?: string;
+    visaExpiryDate?: string;
+    contractEndDate?: string;
+    why: string;
+    prepared: string[];
+    missingDocuments?: string[];
+    nextActions: string[];
+    evidence: string[];
+    judgmentRecordId: string;
+  };
+};
+
 export const company = {
   name: "한별제조",
   location: "경기 화성",
@@ -188,11 +220,135 @@ export const riskCases = [
   },
 ];
 
-export const todaysTasks = [
-  { kind: "doc", title: "체류기간 연장 서류 요청", target: "Nguyen V.", status: "승인 필요", deadline: "D-30", next: "초안 보기", tone: "orange" as Tone },
-  { kind: "hiring", title: "신규 E-9 3명 채용 준비", target: "채용 요청서", status: "진행 중", deadline: "이번 주", next: "요청서 보기", tone: "blue" as Tone },
-  { kind: "doc", title: "후보자 입국 전 서류 요청", target: "Candidate A", status: "승인 대기", deadline: "5/20", next: "승인 요청", tone: "orange" as Tone },
-  { kind: "message", title: "계약 종료 확인", target: "Tran T. H.", status: "응답 도착", deadline: "5/12", next: "응답 요약", tone: "green" as Tone },
+export const todaysTasks: TodayTask[] = [
+  {
+    kind: "doc",
+    title: "체류기간 연장 서류 요청",
+    target: "Nguyen V.",
+    worksiteLine: "화성 2공장 조립라인",
+    status: "우선 확인",
+    deadline: "D-30",
+    riskLevel: "높음",
+    owner: "김대리",
+    next: "초안 보기",
+    tone: "orange",
+    detail: {
+      title: "Nguyen V. 체류기간 연장 서류 요청",
+      statusBadges: ["D-30", "우선 확인", "승인 전"],
+      subject: "Nguyen Van A",
+      nationality: "베트남",
+      visaType: "E-9",
+      channel: "Zalo",
+      language: "베트남어",
+      visaExpiryDate: "2026.06.20",
+      contractEndDate: "2026.07.01",
+      why:
+        "체류기간 만료까지 30일 남았고, 표준근로계약서 사본과 여권 사본이 아직 확인되지 않았습니다. 승인 없이 외부 발송은 진행되지 않습니다.",
+      prepared: [
+        "베트남어 서류 요청 메시지 초안 생성",
+        "한국어 번역본 생성",
+        "행정사 검토용 자료 패키지 준비",
+        "이전 대화 기록 확인",
+        "예상 응답 시나리오 생성",
+      ],
+      missingDocuments: ["표준근로계약서 사본", "여권 사본"],
+      nextActions: [
+        "Nguyen에게 서류 요청 메시지 발송 승인",
+        "응답 없을 경우 2일 뒤 리마인드 제안",
+        "서류 수신 후 행정사 검토 자료 생성",
+      ],
+      evidence: [
+        "체류만료일: 2026.06.20",
+        "최근 서류 상태: 표준근로계약서 사본 누락, 여권 사본 누락",
+        "이전 메시지: 3일 전 서류 요청 기록 있음",
+        "승인 전 외부 발송 제한 적용",
+      ],
+      judgmentRecordId: "4789",
+    },
+  },
+  {
+    kind: "hiring",
+    title: "신규 베트남 E-9 3명 채용 요청",
+    target: "송출회사 요청서",
+    worksiteLine: "화성 1공장 조립라인",
+    status: "준비 중",
+    deadline: "이번 주",
+    riskLevel: "중간",
+    owner: "박대리",
+    next: "요청서 보기",
+    tone: "blue",
+    detail: {
+      title: "신규 베트남 E-9 3명 채용 요청",
+      statusBadges: ["준비 72%", "쿼터 검토", "행정사 확인 필요"],
+      subject: "송출회사 요청서",
+      why:
+        "추가 고용 가능성을 검토할 수 있는 상태지만, 최종 가능 여부는 고용센터와 행정사 확인이 필요합니다. 후보자 점수화나 국적별 우열 판단은 하지 않습니다.",
+      prepared: [
+        "고용 쿼터 확인",
+        "채용 의도 분석",
+        "신청 서류 초안 작성",
+        "내국인 구인노력 기간 산정",
+        "채용 요청서 초안 생성",
+      ],
+      nextActions: ["요청서 검토", "준비 체크리스트 확인", "행정사 검토 요청"],
+      evidence: [
+        "요청 인원: 3명",
+        "잔여 쿼터: 5명까지 추가 고용 가능성 검토",
+        "준비 상태: 72%",
+        "최종 판단: 고용센터 / 행정사 확인 필요",
+      ],
+      judgmentRecordId: "4790",
+    },
+  },
+  {
+    kind: "doc",
+    title: "Candidate A 입국 전 서류 패키지",
+    target: "Candidate A",
+    worksiteLine: "도장라인",
+    status: "승인 대기",
+    deadline: "5/20",
+    riskLevel: "중간",
+    owner: "김대리",
+    next: "승인 요청",
+    tone: "orange",
+    detail: {
+      title: "Candidate A 입국 전 서류 패키지",
+      statusBadges: ["승인 대기", "5/20 마감", "검토 필요"],
+      subject: "Candidate A",
+      why: "입국 전 제출 서류 패키지가 일부 준비됐지만, 행정사 검토 전 담당자 승인이 필요합니다.",
+      prepared: ["건강진단서 원본 확인", "입국 전 교육 수료증 확인", "근로계약서 사본 확인"],
+      missingDocuments: ["건강진단서 원본", "입국 전 교육 수료증"],
+      nextActions: ["대표 승인 요청", "행정사 검토 자료 확정", "후보자 안내 메시지 준비"],
+      evidence: ["승인 마감: 2026.05.20", "준비 완료도: 45%", "행정사 검토 전 확인 필요"],
+      judgmentRecordId: "4786",
+    },
+  },
+  {
+    kind: "message",
+    title: "계약 종료 확인",
+    target: "Tran T. H.",
+    worksiteLine: "포장라인",
+    status: "응답 도착",
+    deadline: "5/12",
+    riskLevel: "낮음",
+    owner: "김대리",
+    next: "응답 요약",
+    tone: "green",
+    detail: {
+      title: "Tran T.H. 계약 종료 응답 확인",
+      statusBadges: ["응답 도착", "요약 확인", "다음 절차 확인"],
+      subject: "Tran T. H.",
+      nationality: "베트남",
+      visaType: "E-9",
+      channel: "Zalo",
+      language: "베트남어",
+      why: "근로자 응답이 도착했으며, 계약 종료 관련 내용을 담당자가 확인해야 합니다.",
+      prepared: ["외국어 응답 요약", "한국어 업무 메모 생성", "다음 절차 확인 항목 정리"],
+      nextActions: ["응답 요약 확인", "계약 종료 일정 재확인", "필요 시 추가 질문 전송"],
+      evidence: ["응답 도착: 2026.05.11", "계약 종료일: 2026.06.22", "체류만료일: 2026.09.15"],
+      judgmentRecordId: "4788",
+    },
+  },
 ];
 
 export const contactItems = [

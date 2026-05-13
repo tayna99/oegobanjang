@@ -2726,6 +2726,39 @@ a {
   padding: 20px;
 }
 
+.mobile-demo-secondary-task {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 50px minmax(0, 1fr) auto;
+  padding: 16px;
+}
+
+.mobile-demo-secondary-task .mobile-demo-round-icon {
+  height: 50px;
+  width: 50px;
+}
+
+.mobile-demo-secondary-task .mobile-demo-round-icon svg {
+  height: 24px;
+  width: 24px;
+}
+
+.mobile-demo-secondary-task strong {
+  color: #0c234a;
+  display: block;
+  font-size: 17px;
+  font-weight: 950;
+  line-height: 1.3;
+}
+
+.mobile-demo-secondary-task p {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 650;
+  margin: 4px 0 0;
+}
+
 .mobile-demo-task-head {
   align-items: flex-start;
   display: grid;
@@ -3261,6 +3294,11 @@ a {
 
 .mobile-demo-log-note strong {
   color: #1267f5;
+}
+
+.mobile-demo-safe-note strong {
+  color: #1267f5;
+  font-weight: 950;
 }
 
 .mobile-demo-draft-worker {

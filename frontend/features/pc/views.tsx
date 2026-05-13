@@ -11,7 +11,8 @@ import {
   UserRoundPlus,
   X,
 } from "lucide-react";
-import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "./data";
+import { useState } from "react";
+import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type TodayTask, type Tone } from "./data";
 import { Badge, Button, Card, cn, IconTile, PillButton, textToneClass, toneClass } from "./ui";
 import styles from "./PcShell.module.css";
 
@@ -55,37 +56,49 @@ function actionForNext(next: string): PcActionKind {
 }
 
 export function TodayTasksView({ onAction }: PcViewProps = {}) {
+  const [selectedTask, setSelectedTask] = useState<TodayTask>(todaysTasks[0]);
+
+  function runTaskAction(task: TodayTask) {
+    onAction?.({ kind: actionForNext(task.next), label: task.next });
+  }
+
   return (
-    <div className={styles.stack}>
-      <Card className={styles.briefing}>
-        <div className={styles.row}>
-          <span className={styles.gradientMark}>반</span>
-          <div>
-            <strong>오늘 브리핑이 준비되었습니다</strong>
-            <p className={styles.subtle}>
-              외고반장이 {totalRiskCaseCount}개 케이스를 정리했습니다. 즉시 확인 1건, 우선 확인 3건, 승인 대기 5건.
-            </p>
+    <div className={styles.todayLayout}>
+      <section className={styles.queuePanel}>
+        <Card className={styles.briefing}>
+          <div className={styles.row}>
+            <span className={styles.gradientMark}>반</span>
+            <div>
+              <strong>오늘 브리핑이 준비되었습니다</strong>
+              <p className={styles.subtle}>
+                외고반장이 {totalRiskCaseCount}개 케이스를 정리했습니다. 즉시 확인 1건, 우선 확인 3건, 승인 대기 5건.
+                모든 판단의 근거는 항목 클릭으로 확인할 수 있습니다.
+              </p>
+            </div>
           </div>
-        </div>
-        <div className={styles.buttonRow}>
-          <span className={styles.subtle}>오늘 08:00</span>
-          <Button variant="secondary" onClick={() => onAction?.({ kind: "refresh", label: "다시 생성" })}>
-            <RefreshCcw size={16} /> 다시 생성
-          </Button>
-        </div>
-      </Card>
+          <div className={styles.buttonRow}>
+            <span className={styles.subtle}>오늘 08:00</span>
+            <Button variant="secondary" onClick={() => onAction?.({ kind: "refresh", label: "다시 생성" })}>
+              <RefreshCcw size={16} /> 다시 생성
+            </Button>
+          </div>
+        </Card>
 
-      <div className={styles.summaryGrid}>
-        {summary.map((item) => (
-          <Card className={styles.statCard} key={item.title}>
-            <IconTile icon={item.icon} tone={item.tone} />
-            <div className={styles.subtle}>{item.title}</div>
-            <div className={cn(styles.statValue, textToneClass(item.tone))}>{item.value}</div>
-          </Card>
-        ))}
-      </div>
+        <div className={styles.summaryGrid}>
+          {summary.map((item) => (
+            <button
+              className={cn(styles.card, styles.statCard, styles.statButton)}
+              key={item.title}
+              onClick={() => setSelectedTask(todaysTasks.find((task) => task.tone === item.tone) ?? todaysTasks[0])}
+              type="button"
+            >
+              <IconTile icon={item.icon} tone={item.tone} />
+              <div className={styles.subtle}>{item.title}</div>
+              <div className={cn(styles.statValue, textToneClass(item.tone))}>{item.value}</div>
+            </button>
+          ))}
+        </div>
 
-      <section>
         <div className={styles.sectionTitle}>
           <h1 className={styles.headline}>오늘의 업무 큐 <Badge>4건</Badge></h1>
           <div className={styles.buttonRow}>
@@ -100,16 +113,22 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
                 <th><input type="checkbox" aria-label="전체 선택" /></th>
                 <th>업무</th>
                 <th>대상</th>
+                <th>사업장/라인</th>
                 <th>상태</th>
                 <th>기한</th>
+                <th>위험도</th>
                 <th>다음 처리</th>
-                <th aria-label="더보기" />
+                <th>담당자</th>
               </tr>
             </thead>
             <tbody>
               {todaysTasks.map((task) => (
-                <tr key={task.title}>
-                  <td><input type="checkbox" aria-label={`${task.title} 선택`} /></td>
+                <tr
+                  className={selectedTask.title === task.title ? styles.selectedRow : undefined}
+                  key={task.title}
+                  onClick={() => setSelectedTask(task)}
+                >
+                  <td><input aria-label={`${task.title} 선택`} onClick={(event) => event.stopPropagation()} type="checkbox" /></td>
                   <td>
                     <div className={styles.row}>
                       <IconTile icon={task.kind === "hiring" ? UserRoundPlus : task.kind === "message" ? MessageSquare : FileText} tone={task.tone} />
@@ -117,27 +136,107 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
                     </div>
                   </td>
                   <td>{task.target}</td>
+                  <td>{task.worksiteLine}</td>
                   <td><Badge tone={task.tone}>{task.status}</Badge></td>
                   <td><strong>{task.deadline}</strong></td>
+                  <td>{task.riskLevel}</td>
                   <td>
-                    <PillButton onClick={() => onAction?.({ kind: actionForNext(task.next), label: task.next })}>
+                    <PillButton onClick={(event) => { event.stopPropagation(); runTaskAction(task); }}>
                       {task.next}
                     </PillButton>
                   </td>
-                  <td>⋮</td>
+                  <td>{task.owner}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </Card>
       </section>
+
+      <aside className={styles.taskDetail}>
+        <div className={styles.pageHead}>
+          <div>
+            <h2>{selectedTask.detail.title}</h2>
+            <div className={styles.badgeLine}>
+              {selectedTask.detail.statusBadges.map((badge) => (
+                <Badge key={badge} tone={selectedTask.tone}>{badge}</Badge>
+              ))}
+            </div>
+          </div>
+          <Button variant="ghost" onClick={() => setSelectedTask(todaysTasks[0])}>
+            <X size={16} /> 닫기
+          </Button>
+        </div>
+
+        <div className={styles.detailSection}>
+          <h3>대상 정보</h3>
+          <div className={styles.infoGrid}>
+            <Info label="대상" value={selectedTask.detail.subject} />
+            <Info label="사업장/라인" value={selectedTask.worksiteLine} />
+            <Info label="담당자" value={selectedTask.owner} />
+            {selectedTask.detail.nationality ? <Info label="국적" value={selectedTask.detail.nationality} /> : null}
+            {selectedTask.detail.visaType ? <Info label="체류자격" value={selectedTask.detail.visaType} /> : null}
+            {selectedTask.detail.channel ? <Info label="연락 채널" value={selectedTask.detail.channel} /> : null}
+            {selectedTask.detail.visaExpiryDate ? <Info label="체류만료일" value={selectedTask.detail.visaExpiryDate} /> : null}
+            {selectedTask.detail.contractEndDate ? <Info label="계약종료일" value={selectedTask.detail.contractEndDate} /> : null}
+          </div>
+        </div>
+
+        <div className={styles.detailSection}>
+          <h3>왜 확인이 필요한가요?</h3>
+          <Card className={styles.panel}>{selectedTask.detail.why}</Card>
+        </div>
+
+        <div className={styles.detailSection}>
+          <h3>AI가 준비한 일</h3>
+          <ul className={styles.detailList}>
+            {selectedTask.detail.prepared.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </div>
+
+        {selectedTask.detail.missingDocuments?.length ? (
+          <div className={styles.detailSection}>
+            <h3>누락 서류</h3>
+            <div className={styles.badgeLine}>
+              {selectedTask.detail.missingDocuments.map((document) => <Badge key={document} tone="orange">{document}</Badge>)}
+            </div>
+          </div>
+        ) : null}
+
+        <div className={styles.detailSection}>
+          <h3>다음 할 일</h3>
+          <ul className={styles.detailList}>
+            {selectedTask.detail.nextActions.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </div>
+
+        <div className={styles.detailSection}>
+          <h3>판단 근거 / 업무 기록</h3>
+          <ul className={styles.detailList}>
+            {selectedTask.detail.evidence.map((item) => <li key={item}>{item}</li>)}
+            <li>판단 기록: #{selectedTask.detail.judgmentRecordId}</li>
+          </ul>
+        </div>
+
+        <div className={styles.buttonRow}>
+          <Button onClick={() => onAction?.({ kind: "approval-preview", label: "대표 승인 요청 보내기" })}>
+            대표 승인 요청 보내기
+          </Button>
+          <Button variant="secondary" onClick={() => onAction?.({ kind: "handoff-preview", label: "행정사 검토 자료 만들기" })}>
+            행정사 검토 자료 만들기
+          </Button>
+          <Button variant="ghost" onClick={() => onAction?.({ kind: "response-summary", label: "판단 기록 보기" })}>
+            판단 기록 보기
+          </Button>
+        </div>
+      </aside>
     </div>
   );
 }
 
 export function HiringPreparationView({ onAction }: PcViewProps = {}) {
   const hiringCards = [
-    { title: "신규 E-9 3명 채용 준비", meta: "화성 1공장 · 조립라인 · 행정사 검토 전 확인 필요", deadline: "2026.05.20", percent: 72, done: "5/8 완료", tone: "teal" as Tone, tasks: ["구인노력 기간 확인", "고용허가 신청서 준비", "채용 요청서 확인"] },
+    { title: "신규 베트남 E-9 3명 채용 요청", meta: "화성 1공장 · 조립라인 · 잔여 쿼터 확인 · 후보자 추천 없음", deadline: "2026.05.20", percent: 72, done: "5/8 완료", tone: "teal" as Tone, tasks: ["구인노력 기간 확인", "고용허가 신청서 준비", "채용 요청서 확인"] },
     { title: "Candidate A 입국 전 서류 패키지", meta: "화성 1공장 · 도장라인 · 행정사 검토 전 확인 필요", deadline: "2026.05.20", percent: 45, done: "2/5 완료", tone: "orange" as Tone, tasks: ["건강진단서 원본 확인", "입국 전 교육 수료증 확인", "근로계약서 사본 확인"] },
   ];
 

@@ -16,7 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import { company, type PcViewKey } from "./data";
-import { cn } from "./ui";
+import { Button, cn } from "./ui";
 import styles from "./PcShell.module.css";
 import {
   AdminReviewView,
@@ -36,7 +36,7 @@ const routes: Array<{ key: PcViewKey; href: string; label: string; icon: React.E
   { key: "today", href: "/dashboard", label: "오늘 할 일", icon: CalendarCheck },
   { key: "hiring", href: "/hiring", label: "채용 준비", icon: UserRoundPlus },
   { key: "workers", href: "/workers", label: "근로자", icon: Users },
-  { key: "contact", href: "/contacts", label: "컨택", icon: MessageSquare },
+  { key: "contact", href: "/contacts", label: "메시지 관리", icon: MessageSquare },
   { key: "cases", href: "/visa", label: "케이스", icon: ClipboardList },
   { key: "admin", href: "/documents", label: "행정사 검토", icon: FileCheck2 },
   { key: "judgment", href: "/evidence", label: "판단 기록", icon: Clock3 },
@@ -235,7 +235,7 @@ export function PcShell() {
             <button className={styles.company} type="button">
               <span className={styles.companyMark}>한</span>
               {company.name}
-              <span className={styles.muted}>· {company.location}</span>
+              <span className={styles.muted}>· {company.location} · 자동차부품</span>
             </button>
           </div>
 
@@ -245,6 +245,9 @@ export function PcShell() {
           </div>
 
           <div className={styles.rightCluster}>
+            <Button variant="secondary" onClick={() => setChatOpen(true)}>
+              <BriefcaseBusiness size={16} /> AI 반장에게 물어보기
+            </Button>
             <button className={styles.iconButton} type="button" aria-label="알림">
               <Bell size={20} />
               <span className={styles.noticeCount}>12</span>

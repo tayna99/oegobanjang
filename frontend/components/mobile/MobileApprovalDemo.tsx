@@ -105,7 +105,14 @@ export function MobileApprovalDemo({
           />
         ) : null}
         {step === "detail" ? <MobileCaseDetailScreen go={go} /> : null}
-        {step === "process" ? <MobileAgentProcessScreen go={go} /> : null}
+        {step === "process" ? (
+          <MobileAgentProcessScreen
+            busyAction={busyAction}
+            go={go}
+            onApprove={approveSelectedAction}
+            onRequestRevision={requestSelectedRevision}
+          />
+        ) : null}
         {step === "draft" ? (
           <MobileDraftScreen
             backTo={draftBackTarget}
