@@ -14,6 +14,9 @@ from app.config import get_settings
 
 ORCHESTRATION_VERSION = "semantic_rag_llm_tools_v2"
 
+QUOTA_REVIEW_HIRING_START_GUIDANCE = "hiring_start_guidance"
+QUOTA_REVIEW_OPERATIONAL_CASE_SUMMARY = "operational_case_summary"
+
 CANONICAL_INTENTS = {
     "quota_review",
     "visa_expiry",
@@ -106,6 +109,14 @@ FORBIDDEN_ACTION_TERMS: tuple[str, ...] = (
     "도망가",
     "도망",
     "이탈 예측",
+)
+
+INTERNAL_RESPONSE_TERMS: tuple[str, ...] = (
+    "Demo Manufacturing",
+    "company_001",
+    "intent_snapshot",
+    "worker_",
+    "candidate_",
 )
 
 FORBIDDEN_ACTION_PATTERNS: dict[str, tuple[str, ...]] = {
@@ -409,7 +420,12 @@ class OpenAIAgentChatQueryPlanner:
                     SystemMessage(
                         content=(
                             "You are an operations assistant for Korean foreign-worker employment workflows. "
-                            "Answer in Korean using only the provided RAG hits, tool results, and tool_summary. "
+                            "Answer in product-display-safe Korean only, using the provided evidence and tool_summary. "
+                            "Do not use Markdown emphasis such as **. Do not expose raw route, tool, intent, "
+                            "risk_type, severity, RAG, quota_review, HIGH, or CRITICAL labels. "
+                            "Use a natural manager-facing explanation style. Do not expose internal seed names "
+                            "or identifiers, including demo company names. When the user asks how to start hiring, "
+                            "answer as procedural guidance instead of summarizing existing cases. "
                             "Do not expose raw PII, matching scores, recommendation scores, legal certainty, "
                             "or any unapproved send/submit/complete action. Keep the answer concise and actionable."
                         )
@@ -423,7 +439,20 @@ class OpenAIAgentChatQueryPlanner:
         answer = str(response.content or "").strip()
         if not answer:
             return fallback_answer
-        if any(term in answer for term in ("Nguyen Van A", "매칭 점수", "추천 점수")):
+        if any(
+            term in answer
+            for term in (
+                "Nguyen Van A",
+                "매칭 점수",
+                "추천 점수",
+                "RAG",
+                "quota_review",
+                "HIGH",
+                "CRITICAL",
+                "**",
+                *INTERNAL_RESPONSE_TERMS,
+            )
+        ):
             return fallback_answer
         return answer
 
@@ -521,11 +550,21 @@ def run_agent_chat_rag_first(
         selected_case_id=context.selected_case_id,
         selected_action_id=context.selected_action_id,
     )
-    actions = _selected_actions(
-        daily_briefing.recommended_actions,
-        selected_items,
+    quota_review_answer_mode = _quota_review_answer_mode(
+        message=message,
+        llm_query=llm_query,
+        intent=intent,
+        selected_case_id=context.selected_case_id,
         selected_action_id=context.selected_action_id,
     )
+    if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE:
+        actions = []
+    else:
+        actions = _selected_actions(
+            daily_briefing.recommended_actions,
+            selected_items,
+            selected_action_id=context.selected_action_id,
+        )
     sources = _selected_sources(daily_briefing.citation_summaries, selected_items, results)
     executed_tools = _executed_tools_for_intent(
         intent=intent,
@@ -534,13 +573,16 @@ def run_agent_chat_rag_first(
         sources=sources,
         rag_hits=results,
     )
-    fallback_answer = _rag_answer(
-        daily_briefing,
-        intent,
-        selected_items=selected_items,
-        selected_actions=actions,
-        rag_hits=results,
-    )
+    if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE:
+        fallback_answer = _quota_review_hiring_start_answer(selected_items)
+    else:
+        fallback_answer = _rag_answer(
+            daily_briefing,
+            intent,
+            selected_items=selected_items,
+            selected_actions=actions,
+            rag_hits=results,
+        )
     answer = planner.grounded_answer(
         message=message,
         normalized_plan=normalized_plan,
@@ -548,7 +590,11 @@ def run_agent_chat_rag_first(
         rag_results=results,
         executed_tools=executed_tools,
     )
-    display_context = _display_context(selected_items, actions, sources)
+    display_context = (
+        _quota_review_guidance_display_context(sources)
+        if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE
+        else _display_context(selected_items, actions, sources)
+    )
     structured_plan = AgentChatStructuredPlan(
         intent=intent,
         plan_steps=[
@@ -1086,6 +1132,91 @@ def _rag_answer(
     return "\n".join(lines)
 
 
+def _quota_review_answer_mode(
+    *,
+    message: str,
+    llm_query: AgentChatLLMQuery,
+    intent: str,
+    selected_case_id: str | None = None,
+    selected_action_id: str | None = None,
+) -> str:
+    if intent != "quota_review":
+        return QUOTA_REVIEW_OPERATIONAL_CASE_SUMMARY
+    if selected_case_id or selected_action_id:
+        return QUOTA_REVIEW_OPERATIONAL_CASE_SUMMARY
+
+    if _is_hiring_start_guidance_query(f"{message} {llm_query.query}"):
+        return QUOTA_REVIEW_HIRING_START_GUIDANCE
+    return QUOTA_REVIEW_OPERATIONAL_CASE_SUMMARY
+
+
+def _is_hiring_start_guidance_query(message: str) -> bool:
+    compact_text = _compact_for_intent_match(message)
+    explicit_lookup_terms = (
+        "쿼터검토",
+        "쿼터확인",
+        "가능인원확인",
+        "충원가능인원",
+        "인원확인",
+        "인원있",
+        "준비상태확인",
+    )
+    if any(term in compact_text for term in explicit_lookup_terms):
+        return False
+
+    hiring_start_terms = (
+        "채용하고싶",
+        "채용을하고싶",
+        "채용좀해야",
+        "어떻게하면",
+        "뭐부터",
+        "준비할거",
+        "준비할것",
+        "시작",
+        "새로뽑",
+        "뽑으려면",
+        "사람더필요",
+        "사람이더필요",
+        "사람이부족",
+        "사람더써야",
+        "인력부족",
+        "인력이부족",
+        "인력이필요",
+        "인력모자",
+        "직원더뽑",
+        "일할사람없",
+    )
+    return any(term in compact_text for term in hiring_start_terms)
+
+
+def _quota_review_hiring_start_answer(selected_items: list[Any]) -> str:
+    item_count = len(selected_items)
+    return "\n".join(
+        [
+            "신규 외국인 채용을 시작하려면 먼저 사업장 채용 가능 상태, 고용허가 요건, 후보자 서류 준비 상태를 확인해야 합니다.",
+            f"외고반장이 오늘 기준으로 확인할 수 있는 채용 준비 항목은 {item_count}건입니다.",
+            "다음 단계로 채용 준비 체크리스트를 열어볼 수 있습니다.",
+            "필요 시 행정사 검토 자료 초안 준비까지 이어갈 수 있습니다.",
+            "외고반장은 비자 가능 여부를 단정하거나 법률 자문을 하지 않습니다.",
+            "외부 발송, 정부 제출, 상태 완료 처리는 아직 수행하지 않았습니다.",
+        ]
+    )
+
+
+def _quota_review_guidance_display_context(sources: list[Any]) -> dict[str, Any]:
+    return {
+        "subject_display_name": "사업장 전체",
+        "subject_display_id": None,
+        "risk_timing_label": "오늘 기준",
+        "case_title": "신규 외국인 채용 준비",
+        "case_summary": (
+            "사업장 채용 가능 상태, 고용허가 요건, 후보자 서류 준비 상태를 먼저 확인합니다."
+        ),
+        "primary_action": None,
+        "source_labels": [source.title for source in sources],
+    }
+
+
 def _not_found_response(
     *,
     message: str,
@@ -1318,6 +1449,8 @@ def _display_context(
 
 
 def _subject_label(item: Any) -> str:
+    if getattr(item, "risk_type", None) == "quota_review":
+        return "사업장 전체"
     return str(getattr(item, "subject_display_name", None) or item.subject_id)
 
 
@@ -1485,6 +1618,10 @@ def _intent_query_bonus(intent: str, query: str) -> float:
 
 def _normalize_for_phrase(text: str) -> str:
     return "".join(tokenize(text))
+
+
+def _compact_for_intent_match(text: str) -> str:
+    return _normalize_for_phrase(text).casefold()
 
 
 def _exact_phrase_intent(query: str) -> str | None:

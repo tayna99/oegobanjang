@@ -719,6 +719,63 @@ def test_agent_chat_covers_natural_language_variants_for_core_situation_cases():
         assert "Nguyen Van A" not in body["answer"]
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        "아니 신규 채용을 하고 싶다고",
+        "채용 하고 싶은데 어떻게 하면 돼?",
+        "새로 뽑으려면 뭐부터 봐야 해?",
+    ],
+)
+def test_agent_chat_quota_review_hiring_start_question_returns_guidance(message):
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/agent/chat",
+        json={
+            "message": message,
+            "companyId": "company_001",
+            "activeTab": "today",
+            "sessionId": "quota_review_hiring_start_guidance",
+        },
+        headers={
+            "X-Company-Id": "company_001",
+            "X-User-Role": "manager",
+            "X-User-Id": "manager_001",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["route"] == "rag_first_chat"
+    assert body["normalized_intent"] == "quota_review"
+    assert body["structured_plan"]["intent"] == "quota_review"
+    assert "신규 외국인 채용을 시작하려면" in body["answer"]
+    assert (
+        "채용 준비 체크리스트" in body["answer"]
+        or "사업장 채용 가능 상태" in body["answer"]
+    )
+    assert "사업장 채용 가능 상태" in body["answer"]
+    assert "고용허가 요건" in body["answer"]
+    assert "후보자 서류 준비 상태" in body["answer"]
+    assert "채용 준비 체크리스트" in body["answer"]
+    assert "행정사 검토 자료 초안 준비" in body["answer"]
+    assert "외부 발송" in body["answer"]
+    assert "정부 제출" in body["answer"]
+    assert "상태 완료 처리" in body["answer"]
+    assert "수행하지 않았습니다" in body["answer"]
+    assert "누락 서류:" not in body["answer"]
+    assert "전문가 검토 패키지" not in body["answer"]
+    assert "담당자 승인 요청" not in body["answer"]
+    assert "정부 제출 완료" not in body["answer"]
+    assert "가능 여부 확정" not in body["answer"]
+    for forbidden in ("Demo Manufacturing", "quota_review", "RAG", "HIGH", "CRITICAL", "**"):
+        assert forbidden not in body["answer"]
+    assert body["actions"] == []
+    assert body["tool_calls"][2]["name"] == "agent_chat_tool_execute"
+    assert body["tool_calls"][2]["action_count"] == 0
+
+
 def test_agent_chat_rag_first_handles_broad_paraphrases_without_keyword_planner(monkeypatch):
     def unknown_planner(message: str) -> DailyBriefingPlan:
         return DailyBriefingPlan(
@@ -905,6 +962,32 @@ def test_agent_chat_rag_first_handles_beginner_level_questions_without_keyword_p
         assert "추천 점수" not in body["answer"]
 
 
+def test_agent_chat_quota_review_specific_capacity_request_keeps_operational_summary():
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v1/agent/chat",
+        json={
+            "message": "충원 가능 인원 확인해줘",
+            "companyId": "company_001",
+            "activeTab": "today",
+            "sessionId": "quota_review_capacity_operational_summary",
+        },
+        headers={
+            "X-Company-Id": "company_001",
+            "X-User-Role": "manager",
+            "X-User-Id": "manager_001",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["normalized_intent"] == "quota_review"
+    assert "신규 인력/쿼터 검토" in body["answer"]
+    assert "다음 처리:" in body["answer"]
+    assert body["actions"]
+
+
 def test_agent_chat_blocks_discriminatory_nationality_recommendation_requests():
     client = TestClient(app)
 
@@ -1077,6 +1160,42 @@ def test_agent_chat_semantic_orchestrator_v2_exercises_llm_path_with_fake_model(
         "agent_chat_tool_execute",
         "agent_chat_llm_grounded_answer",
     ]
+
+
+def test_agent_chat_grounded_answer_rejects_internal_seed_names(monkeypatch):
+    from app.services.agent_chat_rag import (
+        AgentChatNormalizedPlan,
+        OpenAIAgentChatQueryPlanner,
+    )
+
+    class FakeResponse:
+        content = "Demo Manufacturing 회사(company_001)의 candidate_001 케이스를 처리하세요."
+
+    class FakeModel:
+        def invoke(self, messages):
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        "app.services.agent_chat_rag.OpenAIAgentChatQueryPlanner.enabled",
+        lambda self: True,
+    )
+    monkeypatch.setattr(
+        "app.services.agent_chat_rag.OpenAIAgentChatQueryPlanner._chat_model",
+        lambda self, json_mode=False: FakeModel(),
+    )
+
+    planner = OpenAIAgentChatQueryPlanner()
+    fallback_answer = "신규 외국인 채용을 시작하려면 먼저 사업장 채용 가능 상태를 확인해야 합니다."
+
+    answer = planner.grounded_answer(
+        message="채용 하고 싶은데 어떻게 하면 돼?",
+        normalized_plan=AgentChatNormalizedPlan(intent="quota_review"),
+        fallback_answer=fallback_answer,
+        rag_results=[],
+        executed_tools=[],
+    )
+
+    assert answer == fallback_answer
 
 
 def test_agent_chat_semantic_orchestrator_v2_blocks_real_user_forbidden_requests(monkeypatch):
