@@ -30,7 +30,9 @@ const WorkersView = ({ workers, cases, selectedId, onSelect, search }) => {
           <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--semantic-label-alternative)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>
             근로자 목록
           </div>
-          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.018em' }}>한별제조 · {workers.length}명</div>
+          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.018em' }}>
+            {(window.COMPANIES && window.COMPANIES[0]) ? window.COMPANIES[0].name : '사업장'} · {workers.length}명
+          </div>
         </div>
         <Button variant="outlined" size="small" leadingIcon={<Icon name="plus" size={13}/>}>근로자 등록</Button>
       </div>

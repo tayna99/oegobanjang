@@ -343,17 +343,31 @@ function ComingSoon({ label }) {
 function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
                      onSelectWorker, severityFilter, onSetFilter, density, onSetDensity,
                      onOpenDocReq, onApprove, approvedIds, onOpenAIChat,
-                     apiBriefing, apiBriefingStatus, apiBriefingError }) {
-  const company = COMPANIES[0];
-  const counts = { visa: 4, docs: 7, contract: 1, approval: 5, handoff: 2, recruitment: 1, contact: 4, reply: 2 };
-  const selectedWorker = selectedWorkerId ? WORKERS.find(w => w.id === selectedWorkerId) : null;
+                     apiBriefing, apiBriefingStatus, apiBriefingError, dataReady }) {
+  const _companies = (window.COMPANIES && window.COMPANIES.length > 0) ? window.COMPANIES : COMPANIES;
+  const _workers   = (window.WORKERS   && window.WORKERS.length   > 0) ? window.WORKERS   : WORKERS;
+  const _raw = _companies[0] || {};
+  const company = {
+    id: _raw.id || '',
+    name: _raw.name || '로딩 중...',
+    sub: _raw.region ? `${_raw.region} · ${_raw.industry || ''}` : '',
+    workers: _raw.workers || 0,
+  };
+  const counts = React.useMemo(() => {
+    const ws = (window.WORKERS && window.WORKERS.length > 0) ? window.WORKERS : WORKERS;
+    const visaCount     = ws.filter(w => w.visaExpiry && dDayNum(w.visaExpiry) <= 90).length;
+    const docsCount     = ws.filter(w => (w.missingDocs || 0) > 0).length;
+    const approvalCount = (window.APPROVAL_QUEUE || APPROVAL_QUEUE || []).filter(a => a.status === 'pending').length;
+    return { visa: visaCount, docs: docsCount, contract: 1, approval: approvalCount, handoff: 2, recruitment: 1, contact: 4, reply: 2 };
+  }, [dataReady]);
+  const selectedWorker = selectedWorkerId ? _workers.find(w => w.id === selectedWorkerId) : null;
   const [selectedTask, setSelectedTask] = React.useState(null);
   const effectiveActions = Object.fromEntries(
     Object.entries(ACTIONS).map(([id, a]) => [
       id, approvedIds.has(id) ? { ...a, status: 'approved' } : a
     ])
   );
-  const taskWorker = selectedTask?.workerId ? WORKERS.find(w => w.id === selectedTask.workerId) : null;
+  const taskWorker = selectedTask?.workerId ? _workers.find(w => w.id === selectedTask.workerId) : null;
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
@@ -411,13 +425,13 @@ function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
           )}
           {activeTab === 'workers' && (
             <div className="fade-in">
-              <WorkersView workers={WORKERS} cases={CASES}
+              <WorkersView workers={_workers} cases={CASES}
                 selectedId={selectedWorkerId} onSelect={onSelectWorker} search={search}/>
             </div>
           )}
           {activeTab === 'cases' && (
             <div className="fade-in">
-              <CasesView cases={CASES} workers={WORKERS}
+              <CasesView cases={CASES} workers={_workers}
                 citations={CITATIONS} actions={effectiveActions}/>
             </div>
           )}
@@ -445,7 +459,7 @@ function PCContent({ activeTab, onTabChange, search, onSearch, selectedWorkerId,
         {/* 근로자/케이스 탭: 기존 DetailPanel */}
         {activeTab !== 'today' && selectedWorker && (
           <div className="panel-enter">
-            <DetailPanel worker={selectedWorker} cases={CASES} citations={CITATIONS}
+            <DetailPanel worker={selectedWorker || {}} cases={CASES} citations={CITATIONS}
               actions={effectiveActions} onClose={() => onSelectWorker(null)}
               onApprove={onApprove} onOpenDocReq={onOpenDocReq}/>
           </div>
@@ -475,6 +489,13 @@ function App() {
   const [briefingDate, setBriefingDate] = React.useState(
     () => window.getAgentToday?.() || new Date().toISOString().slice(0, 10)
   );
+  const [dataReady, setDataReady] = React.useState(false);
+
+  React.useEffect(() => {
+    const handler = () => setDataReady(true);
+    window.addEventListener('proto-data-ready', handler);
+    return () => window.removeEventListener('proto-data-ready', handler);
+  }, []);
 
   React.useEffect(() => { setRole(t.role || 'pc'); }, [t.role]);
   React.useEffect(() => { setDensity(t.density || 'compact'); }, [t.density]);
@@ -533,6 +554,7 @@ function App() {
     apiBriefing,
     apiBriefingStatus,
     apiBriefingError,
+    dataReady,
   };
 
   return (

@@ -142,6 +142,7 @@ class Settings(BaseSettings):
     # CORS
     cors_allow_origins: str = (
         "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:3001,http://127.0.0.1:3001,"
         "http://localhost:3131,http://127.0.0.1:3131"
     )
 
