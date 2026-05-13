@@ -87,7 +87,10 @@ def _briefing_run_id(company_id: str, target_date: str) -> str:
 
 
 def _today_for_timezone(timezone_name: str) -> str:
-    return datetime.now(ZoneInfo(timezone_name)).date().isoformat()
+    try:
+        return datetime.now(ZoneInfo(timezone_name)).date().isoformat()
+    except Exception:
+        return datetime.now(UTC).date().isoformat()
 
 
 def _risk_timing_label_from_risk(risk: "RiskEvaluation") -> str:

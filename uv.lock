@@ -2812,6 +2812,7 @@ dependencies = [
     { name = "torch" },
     { name = "torchaudio" },
     { name = "torchvision" },
+    { name = "tzdata" },
     { name = "uuid" },
     { name = "uvicorn" },
 ]
@@ -2861,6 +2862,7 @@ requires-dist = [
     { name = "torch", specifier = ">=2.11.0", index = "https://download.pytorch.org/whl/cu126" },
     { name = "torchaudio", specifier = ">=2.10.0" },
     { name = "torchvision", specifier = ">=0.26.0", index = "https://download.pytorch.org/whl/cu126" },
+    { name = "tzdata", specifier = ">=2024.1" },
     { name = "uuid", specifier = ">=1.30" },
     { name = "uvicorn", specifier = ">=0.41.0" },
 ]
