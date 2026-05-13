@@ -1,5 +1,10 @@
 import { DailyBriefingPanel } from "./DailyBriefingPanel";
+import { PcFrame } from "../pc/PcShell";
 
 export function DashboardShell() {
-  return <DailyBriefingPanel />;
+  return (
+    <PcFrame showFab={false}>
+      <DailyBriefingPanel />
+    </PcFrame>
+  );
 }
