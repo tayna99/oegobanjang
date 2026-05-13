@@ -57,7 +57,13 @@ function renderView(view: PcViewKey) {
   return <TodayTasksView />;
 }
 
-export function PcShell() {
+export function PcFrame({
+  children,
+  showFab = true,
+}: {
+  children: React.ReactNode;
+  showFab?: boolean;
+}) {
   const pathname = usePathname();
   const activeView = pathToView[pathname] ?? "today";
 
@@ -113,11 +119,20 @@ export function PcShell() {
         </nav>
       </header>
 
-      <main className={styles.main}>{renderView(activeView)}</main>
+      <main className={styles.main}>{children}</main>
 
-      <button className={styles.fab} type="button">
-        <BriefcaseBusiness size={16} /> AI 반장
-      </button>
+      {showFab ? (
+        <Link className={styles.fab} href="/dashboard?ai=1">
+          <BriefcaseBusiness size={16} /> AI 반장
+        </Link>
+      ) : null}
     </div>
   );
+}
+
+export function PcShell() {
+  const pathname = usePathname();
+  const activeView = pathToView[pathname] ?? "today";
+
+  return <PcFrame>{renderView(activeView)}</PcFrame>;
 }
