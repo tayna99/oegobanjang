@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   approveAction,
   createExternalDeliveryJob,
   dispatchExternalDeliveryJob,
   downloadHandoffExportPdf,
+  fetchCompanyList,
   getCitationChunk,
   getCitationSourceDocument,
   getCitationValidation,
@@ -34,7 +35,7 @@ export function todayInputValue() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 }
 
-export function useDailyBriefingWorkflow(initialCompanyId = "company_001") {
+export function useDailyBriefingWorkflow(initialCompanyId = "") {
   const [companyId, setCompanyId] = useState(initialCompanyId);
   const [date, setDate] = useState(todayInputValue);
   const [briefing, setBriefing] = useState<DailyBriefingResult | null>(null);
@@ -47,6 +48,13 @@ export function useDailyBriefingWorkflow(initialCompanyId = "company_001") {
   const [citationValidation, setCitationValidation] = useState<CitationValidationStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (companyId) return;
+    fetchCompanyList().then((list) => {
+      if (list.length > 0) setCompanyId(list[0].id);
+    });
+  }, [companyId]);
 
   const refreshBriefing = useCallback(() => runDailyBriefing(companyId, date), [companyId, date]);
 
@@ -61,6 +69,7 @@ export function useDailyBriefingWorkflow(initialCompanyId = "company_001") {
   }, []);
 
   const runBriefing = useCallback(async () => {
+    if (!companyId) return;
     setLoading(true);
     setError(null);
     try {
@@ -71,7 +80,7 @@ export function useDailyBriefingWorkflow(initialCompanyId = "company_001") {
     } finally {
       setLoading(false);
     }
-  }, [clearOpenViews, refreshBriefing]);
+  }, [clearOpenViews, companyId, refreshBriefing]);
 
   const approve = useCallback(
     async (action: NextAction) => {
