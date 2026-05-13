@@ -178,12 +178,6 @@ export function DailyBriefingPanel() {
   }, [handleRunBriefing]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("ai") === "1") {
-      setChatOpen(true);
-    }
-  }, []);
-
-  useEffect(() => {
     if (exportArtifacts.length) {
       setShowExportArtifacts(true);
     }
