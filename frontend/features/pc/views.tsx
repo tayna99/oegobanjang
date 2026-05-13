@@ -11,19 +11,11 @@ import {
   UserRoundPlus,
   X,
 } from "lucide-react";
-import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "./data";
+import { adminPackage, contactItems, judgmentRows, riskCases, workers, type Tone } from "./data";
 import { Badge, Button, Card, cn, IconTile, PillButton, textToneClass, toneClass } from "./ui";
 import styles from "./PcShell.module.css";
+import type { DailyBriefingItem, DailyBriefingResult, NextAction } from "../../types/dailyBriefing";
 
-const summary = [
-  { title: "체류기간 임박", value: "4명", tone: "red" as Tone, icon: FileText },
-  { title: "서류 보완 필요", value: "7건", tone: "orange" as Tone, icon: FileText },
-  { title: "신규 채용 준비", value: "1건", tone: "green" as Tone, icon: UserRoundPlus },
-  { title: "컨택 대기", value: "4건", tone: "purple" as Tone, icon: MessageSquare },
-  { title: "응답 도착", value: "2건", tone: "blue" as Tone, icon: MessageSquare },
-  { title: "승인 대기", value: "5건", tone: "orange" as Tone, icon: Shield },
-  { title: "행정사 검토 준비", value: "2건", tone: "blue" as Tone, icon: FileText },
-];
 const totalRiskCaseCount = riskCases.length;
 
 export type PcActionKind =
@@ -38,23 +30,102 @@ export type PcActionKind =
   | "open-ai";
 
 export type PcViewAction = {
+  actionId?: string;
   kind: PcActionKind;
   label: string;
 };
 
 export type PcViewProps = {
+  briefing?: DailyBriefingResult | null;
+  loading?: boolean;
   onAction?: (action: PcViewAction) => void;
 };
 
-function actionForNext(next: string): PcActionKind {
-  if (next.includes("초안")) return "document-draft";
-  if (next.includes("요청서")) return "handoff-preview";
-  if (next.includes("승인")) return "approval-preview";
-  if (next.includes("응답")) return "response-summary";
+const statusLabel: Record<NextAction["status"], string> = {
+  approved: "승인됨",
+  blocked: "차단",
+  cancelled: "취소",
+  completed: "완료",
+  pending_approval: "승인 대기",
+  rejected: "반려",
+  revision_requested: "수정 요청",
+};
+
+const riskTypeLabel: Record<DailyBriefingItem["risk_type"], string> = {
+  candidate_readiness: "후보자 입국 전 서류",
+  contract_visa_conflict: "계약 종료 확인",
+  missing_document: "서류 보완 필요",
+  quota_review: "신규 채용 준비",
+  reporting_deadline: "고용변동 신고기한",
+  visa_expiry: "체류기간 연장 서류",
+};
+
+const riskIconByType: Record<DailyBriefingItem["risk_type"], typeof FileText> = {
+  candidate_readiness: FileText,
+  contract_visa_conflict: MessageSquare,
+  missing_document: FileText,
+  quota_review: UserRoundPlus,
+  reporting_deadline: Shield,
+  visa_expiry: FileText,
+};
+
+function severityTone(item: DailyBriefingItem): Tone {
+  if (item.severity === "CRITICAL") return "red";
+  if (item.severity === "HIGH") return "orange";
+  if (item.severity === "MEDIUM") return "blue";
+  return "green";
+}
+
+function timingLabel(item: DailyBriefingItem) {
+  if (item.risk_timing_label) return item.risk_timing_label;
+  if (item.expired) return `D+${item.days_overdue ?? 0}`;
+  if (item.d_day !== null) return `D-${item.d_day}`;
+  return "이번 주";
+}
+
+function rowStatus(actions: NextAction[]) {
+  const primary = actions[0];
+  if (!primary) return "확인 필요";
+  return statusLabel[primary.status] ?? primary.status;
+}
+
+function nextActionLabel(actions: NextAction[]) {
+  const action = actions[0];
+  if (!action) return "근거 보기";
+  if (action.action_type === "request_document") return "초안 보기";
+  return "검토 자료 보기";
+}
+
+function nextActionKind(actions: NextAction[]): PcActionKind {
+  const action = actions[0];
+  if (!action) return "response-summary";
+  if (action.action_type === "request_document") return "document-draft";
+  if (action.status === "pending_approval") return "approval-preview";
   return "handoff-preview";
 }
 
-export function TodayTasksView({ onAction }: PcViewProps = {}) {
+function buildLiveSummary(briefing: DailyBriefingResult | null) {
+  const items = briefing?.items ?? [];
+  const actions = briefing?.recommended_actions ?? [];
+  const byRisk = (riskType: DailyBriefingItem["risk_type"]) => items.filter((item) => item.risk_type === riskType).length;
+  return [
+    { title: "체류기간 임박", value: `${byRisk("visa_expiry")}명`, tone: "red" as Tone, icon: FileText },
+    { title: "서류 보완 필요", value: `${byRisk("missing_document")}건`, tone: "orange" as Tone, icon: FileText },
+    { title: "신규 채용 준비", value: `${byRisk("quota_review")}건`, tone: "green" as Tone, icon: UserRoundPlus },
+    { title: "컨택 대기", value: `${actions.filter((action) => action.action_type === "request_document").length}건`, tone: "purple" as Tone, icon: MessageSquare },
+    { title: "응답 도착", value: `${byRisk("contract_visa_conflict")}건`, tone: "blue" as Tone, icon: MessageSquare },
+    { title: "승인 대기", value: `${actions.filter((action) => action.status === "pending_approval").length}건`, tone: "orange" as Tone, icon: Shield },
+    { title: "행정사 검토 준비", value: `${actions.filter((action) => action.action_type === "create_handoff").length}건`, tone: "blue" as Tone, icon: FileText },
+  ];
+}
+
+export function TodayTasksView({ briefing = null, loading = false, onAction }: PcViewProps = {}) {
+  const liveSummary = buildLiveSummary(briefing);
+  const liveItems = briefing?.items ?? [];
+  const liveActions = briefing?.recommended_actions ?? [];
+  const visibleItems = liveItems.slice(0, 8);
+  const pendingCount = liveActions.filter((action) => action.status === "pending_approval").length;
+
   return (
     <div className={styles.stack}>
       <Card className={styles.briefing}>
@@ -63,7 +134,9 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
           <div>
             <strong>오늘 브리핑이 준비되었습니다</strong>
             <p className={styles.subtle}>
-              외고반장이 {totalRiskCaseCount}개 케이스를 정리했습니다. 즉시 확인 1건, 우선 확인 3건, 승인 대기 5건.
+              외고반장이 {liveItems.length}개 케이스를 정리했습니다. 즉시 확인{" "}
+              {briefing?.risk_summary.critical_count ?? 0}건, 우선 확인 {briefing?.risk_summary.high_count ?? 0}건,
+              승인 대기 {pendingCount}건.
             </p>
           </div>
         </div>
@@ -76,7 +149,7 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
       </Card>
 
       <div className={styles.summaryGrid}>
-        {summary.map((item) => (
+        {liveSummary.map((item) => (
           <Card className={styles.statCard} key={item.title}>
             <IconTile icon={item.icon} tone={item.tone} />
             <div className={styles.subtle}>{item.title}</div>
@@ -87,7 +160,7 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
 
       <section>
         <div className={styles.sectionTitle}>
-          <h1 className={styles.headline}>오늘의 업무 큐 <Badge>4건</Badge></h1>
+          <h1 className={styles.headline}>오늘의 업무 큐 <Badge>{visibleItems.length}건</Badge></h1>
           <div className={styles.buttonRow}>
             <Button variant="secondary">필터</Button>
             <Button variant="secondary">기한 임박 순</Button>
@@ -107,26 +180,50 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
               </tr>
             </thead>
             <tbody>
-              {todaysTasks.map((task) => (
-                <tr key={task.title}>
-                  <td><input type="checkbox" aria-label={`${task.title} 선택`} /></td>
+              {loading && !briefing ? (
+                <tr>
+                  <td colSpan={7}>브리핑 데이터를 불러오는 중입니다.</td>
+                </tr>
+              ) : null}
+              {!loading && !visibleItems.length ? (
+                <tr>
+                  <td colSpan={7}>오늘 표시할 원본 브리핑 업무가 없습니다.</td>
+                </tr>
+              ) : null}
+              {visibleItems.map((item) => {
+                const rowActions = liveActions.filter((action) => item.next_action_ids.includes(action.action_id));
+                const primaryAction = rowActions[0];
+                const tone = severityTone(item);
+                const Icon = riskIconByType[item.risk_type];
+                return (
+                <tr key={item.item_id}>
+                  <td><input type="checkbox" aria-label={`${item.case_title ?? item.item_id} 선택`} /></td>
                   <td>
                     <div className={styles.row}>
-                      <IconTile icon={task.kind === "hiring" ? UserRoundPlus : task.kind === "message" ? MessageSquare : FileText} tone={task.tone} />
-                      <strong>{task.title}</strong>
+                      <IconTile icon={Icon} tone={tone} />
+                      <strong>{item.case_title ?? riskTypeLabel[item.risk_type]}</strong>
                     </div>
                   </td>
-                  <td>{task.target}</td>
-                  <td><Badge tone={task.tone}>{task.status}</Badge></td>
-                  <td><strong>{task.deadline}</strong></td>
+                  <td>{item.subject_display_name ?? item.subject_display_id ?? item.subject_id}</td>
+                  <td><Badge tone={tone}>{rowStatus(rowActions)}</Badge></td>
+                  <td><strong>{timingLabel(item)}</strong></td>
                   <td>
-                    <PillButton onClick={() => onAction?.({ kind: actionForNext(task.next), label: task.next })}>
-                      {task.next}
+                    <PillButton
+                      onClick={() =>
+                        onAction?.({
+                          actionId: primaryAction?.action_id,
+                          kind: nextActionKind(rowActions),
+                          label: nextActionLabel(rowActions),
+                        })
+                      }
+                    >
+                      {nextActionLabel(rowActions)}
                     </PillButton>
                   </td>
                   <td>⋮</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </Card>

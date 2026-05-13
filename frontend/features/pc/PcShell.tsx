@@ -28,7 +28,6 @@ import {
   WorkersView,
   type PcViewAction,
 } from "./views";
-import { demoTask } from "../../components/mobile/demoTask";
 import type { NextAction } from "../../types/dailyBriefing";
 import { DailyBriefingChatPanel } from "../dashboard/DailyBriefingChatPanel";
 import { useDailyBriefingWorkflow } from "../dashboard/useDailyBriefingWorkflow";
@@ -53,14 +52,18 @@ const pathToView: Record<string, PcViewKey> = {
   "/evidence": "judgment",
 };
 
-function renderView(view: PcViewKey, onAction: (action: PcViewAction) => void) {
+function renderView(
+  view: PcViewKey,
+  onAction: (action: PcViewAction) => void,
+  workflow: ReturnType<typeof useDailyBriefingWorkflow>,
+) {
   if (view === "hiring") return <HiringPreparationView onAction={onAction} />;
   if (view === "workers") return <WorkersView onAction={onAction} />;
   if (view === "contact") return <ContactView onAction={onAction} />;
   if (view === "cases") return <CasesView onAction={onAction} />;
   if (view === "admin") return <AdminReviewView onAction={onAction} />;
   if (view === "judgment") return <JudgmentLogView onAction={onAction} />;
-  return <TodayTasksView onAction={onAction} />;
+  return <TodayTasksView briefing={workflow.briefing} loading={workflow.loading} onAction={onAction} />;
 }
 
 type InfoPanel = {
@@ -102,13 +105,9 @@ export function PcShell() {
       title: "서류 요청 초안",
       body: (
         <div className={styles.modalStack}>
-          <p>백엔드 action이 아직 연결되지 않아 데모 초안을 표시합니다. 실제 발송은 수행하지 않습니다.</p>
-          <div className={styles.previewBox}>
-            <strong>VN</strong>
-            <p>{demoTask.draft.vi}</p>
-            <strong>KR</strong>
-            <p>{demoTask.draft.ko}</p>
-          </div>
+          <p>현재 브리핑 응답에 연결된 서류 요청 action이 없습니다.</p>
+          <p>백엔드 원본 action이 생성되면 같은 버튼에서 초안 API를 호출합니다.</p>
+          <p className={styles.safeNotice}>승인 전에는 외부로 발송되지 않습니다.</p>
         </div>
       ),
     });
@@ -170,6 +169,9 @@ export function PcShell() {
   }
 
   async function handleAction(action: PcViewAction) {
+    const selectedAction = action.actionId
+      ? actions.find((candidate) => candidate.action_id === action.actionId) ?? null
+      : null;
     if (action.kind === "open-ai") {
       setChatOpen(true);
       return;
@@ -180,19 +182,19 @@ export function PcShell() {
       return;
     }
     if (action.kind === "document-draft") {
-      await openDocumentDraft(documentAction);
+      await openDocumentDraft(selectedAction ?? documentAction);
       return;
     }
     if (action.kind === "handoff-preview") {
-      await openHandoffPreview(handoffAction);
+      await openHandoffPreview(selectedAction ?? handoffAction);
       return;
     }
     if (action.kind === "approval-preview") {
-      await approvePreview(pendingAction);
+      await approvePreview(selectedAction ?? pendingAction);
       return;
     }
     if (action.kind === "revision-request") {
-      await requestRevision(pendingAction);
+      await requestRevision(selectedAction ?? pendingAction);
       return;
     }
     if (action.kind === "pdf-draft") {
@@ -267,7 +269,7 @@ export function PcShell() {
         </nav>
       </header>
 
-      <main className={styles.main}>{renderView(activeView, (action) => void handleAction(action))}</main>
+      <main className={styles.main}>{renderView(activeView, (action) => void handleAction(action), workflow)}</main>
 
       <button className={styles.fab} onClick={() => setChatOpen(true)} type="button">
         <BriefcaseBusiness size={16} /> AI 반장
