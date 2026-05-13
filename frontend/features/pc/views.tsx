@@ -26,7 +26,35 @@ const summary = [
 ];
 const totalRiskCaseCount = riskCases.length;
 
-export function TodayTasksView() {
+export type PcActionKind =
+  | "refresh"
+  | "document-draft"
+  | "handoff-preview"
+  | "approval-preview"
+  | "revision-request"
+  | "response-summary"
+  | "worker-register"
+  | "pdf-draft"
+  | "open-ai";
+
+export type PcViewAction = {
+  kind: PcActionKind;
+  label: string;
+};
+
+export type PcViewProps = {
+  onAction?: (action: PcViewAction) => void;
+};
+
+function actionForNext(next: string): PcActionKind {
+  if (next.includes("초안")) return "document-draft";
+  if (next.includes("요청서")) return "handoff-preview";
+  if (next.includes("승인")) return "approval-preview";
+  if (next.includes("응답")) return "response-summary";
+  return "handoff-preview";
+}
+
+export function TodayTasksView({ onAction }: PcViewProps = {}) {
   return (
     <div className={styles.stack}>
       <Card className={styles.briefing}>
@@ -41,7 +69,7 @@ export function TodayTasksView() {
         </div>
         <div className={styles.buttonRow}>
           <span className={styles.subtle}>오늘 08:00</span>
-          <Button variant="secondary">
+          <Button variant="secondary" onClick={() => onAction?.({ kind: "refresh", label: "다시 생성" })}>
             <RefreshCcw size={16} /> 다시 생성
           </Button>
         </div>
@@ -91,7 +119,11 @@ export function TodayTasksView() {
                   <td>{task.target}</td>
                   <td><Badge tone={task.tone}>{task.status}</Badge></td>
                   <td><strong>{task.deadline}</strong></td>
-                  <td><PillButton>{task.next}</PillButton></td>
+                  <td>
+                    <PillButton onClick={() => onAction?.({ kind: actionForNext(task.next), label: task.next })}>
+                      {task.next}
+                    </PillButton>
+                  </td>
                   <td>⋮</td>
                 </tr>
               ))}
@@ -103,7 +135,7 @@ export function TodayTasksView() {
   );
 }
 
-export function HiringPreparationView() {
+export function HiringPreparationView({ onAction }: PcViewProps = {}) {
   const hiringCards = [
     { title: "신규 E-9 3명 채용 준비", meta: "화성 1공장 · 조립라인 · 행정사 검토 전 확인 필요", deadline: "2026.05.20", percent: 72, done: "5/8 완료", tone: "teal" as Tone, tasks: ["구인노력 기간 확인", "고용허가 신청서 준비", "채용 요청서 확인"] },
     { title: "Candidate A 입국 전 서류 패키지", meta: "화성 1공장 · 도장라인 · 행정사 검토 전 확인 필요", deadline: "2026.05.20", percent: 45, done: "2/5 완료", tone: "orange" as Tone, tasks: ["건강진단서 원본 확인", "입국 전 교육 수료증 확인", "근로계약서 사본 확인"] },
@@ -157,8 +189,8 @@ export function HiringPreparationView() {
             ))}
           </div>
           <div className={styles.buttonRow}>
-            <Button variant="secondary"><FileText size={16} /> 요청서 보기</Button>
-            <Button variant="secondary"><Check size={16} /> 행정사 검토 요청</Button>
+            <Button variant="secondary" onClick={() => onAction?.({ kind: "handoff-preview", label: "요청서 보기" })}><FileText size={16} /> 요청서 보기</Button>
+            <Button variant="secondary" onClick={() => onAction?.({ kind: "approval-preview", label: "행정사 검토 요청" })}><Check size={16} /> 행정사 검토 요청</Button>
             <span className={styles.subtle}>남은 작업 {card.tasks.length}개</span>
           </div>
         </Card>
@@ -167,7 +199,7 @@ export function HiringPreparationView() {
   );
 }
 
-export function WorkersView() {
+export function WorkersView({ onAction }: PcViewProps = {}) {
   const statCards: Array<[string, string, Tone]> = [
     ["전체 등록", "6명", "blue"],
     ["즉시·우선 확인", "2명", "orange"],
@@ -181,7 +213,7 @@ export function WorkersView() {
           <div className={styles.subtle}>근로자 목록</div>
           <h1 className={styles.headline}>한별제조 · 6명</h1>
         </div>
-        <Button variant="secondary">+ 근로자 등록</Button>
+        <Button variant="secondary" onClick={() => onAction?.({ kind: "worker-register", label: "근로자 등록" })}>+ 근로자 등록</Button>
       </div>
       <div className={styles.metricGrid}>
         {statCards.map(([title, value, tone]) => (
@@ -220,7 +252,7 @@ export function WorkersView() {
   );
 }
 
-export function CasesView() {
+export function CasesView({ onAction }: PcViewProps = {}) {
   const groups = ["즉시 확인", "우선 확인", "확인 필요"];
   return (
     <div className={styles.stack}>
@@ -251,7 +283,25 @@ export function CasesView() {
                       <strong className={styles.muted}>{item.worker}</strong>
                     </div>
                     <p>{item.desc}</p>
-                    <div className={styles.buttonRow}>{item.actions.map((action) => <PillButton key={action}>{action}</PillButton>)}</div>
+                    <div className={styles.buttonRow}>
+                      {item.actions.map((action) => (
+                        <PillButton
+                          key={action}
+                          onClick={() =>
+                            onAction?.({
+                              kind: action.includes("초안")
+                                ? "document-draft"
+                                : action.includes("자료") || action.includes("신고서")
+                                  ? "handoff-preview"
+                                  : "response-summary",
+                              label: action,
+                            })
+                          }
+                        >
+                          {action}
+                        </PillButton>
+                      ))}
+                    </div>
                   </div>
                   <span className={styles.subtle}>{item.id}</span>
                 </div>
@@ -264,7 +314,7 @@ export function CasesView() {
   );
 }
 
-export function ContactView() {
+export function ContactView({ onAction }: PcViewProps = {}) {
   return (
     <div>
       <div className={styles.pageHead}>
@@ -307,14 +357,18 @@ export function ContactView() {
               <Scenario title="응답 지연" desc="2일 뒤 리마인드 메시지 제안" tone="orange" />
             </div>
           </div>
-          <div className={cn(styles.buttonRow, styles.document)}><Button variant="ghost">나중에 보기</Button><Button variant="secondary">수정 요청</Button><Button>승인</Button></div>
+          <div className={cn(styles.buttonRow, styles.document)}>
+            <Button variant="ghost" onClick={() => onAction?.({ kind: "response-summary", label: "나중에 보기" })}>나중에 보기</Button>
+            <Button variant="secondary" onClick={() => onAction?.({ kind: "revision-request", label: "수정 요청" })}>수정 요청</Button>
+            <Button onClick={() => onAction?.({ kind: "approval-preview", label: "승인" })}>승인</Button>
+          </div>
         </section>
       </Card>
     </div>
   );
 }
 
-export function AdminReviewView() {
+export function AdminReviewView({ onAction }: PcViewProps = {}) {
   return (
     <div className={styles.split}>
       <Card className={styles.document}>
@@ -334,9 +388,9 @@ export function AdminReviewView() {
         <Card className={styles.panel}>
           <h2>다음 단계</h2>
           <div className={styles.stack}>
-            <Button>승인 후 검토 자료 확정</Button>
-            <Button variant="secondary">수정 요청</Button>
-            <Button variant="ghost"><Download size={16} /> PDF 내보내기</Button>
+            <Button onClick={() => onAction?.({ kind: "approval-preview", label: "승인 후 검토 자료 확정" })}>승인 후 검토 자료 확정</Button>
+            <Button variant="secondary" onClick={() => onAction?.({ kind: "revision-request", label: "수정 요청" })}>수정 요청</Button>
+            <Button variant="ghost" onClick={() => onAction?.({ kind: "pdf-draft", label: "PDF 내보내기" })}><Download size={16} /> PDF 내보내기</Button>
           </div>
           <p className={styles.subtle}>승인 후에도 정부 포털 자동 제출은 수행하지 않습니다.</p>
         </Card>
@@ -357,7 +411,7 @@ export function AdminReviewView() {
   );
 }
 
-export function JudgmentLogView() {
+export function JudgmentLogView({ onAction }: PcViewProps = {}) {
   return (
     <div className={styles.judgmentLayout}>
       <section className={styles.judgmentList}>
@@ -372,7 +426,7 @@ export function JudgmentLogView() {
         </Card>
       </section>
       <aside className={styles.judgmentDetail}>
-        <div className={styles.pageHead}><h2>판단 기록 #4789 <Badge tone="green">승인 완료</Badge></h2><div className={styles.buttonRow}><Button variant="secondary"><MoreHorizontal size={16} /></Button><Button variant="ghost"><X size={16} /></Button></div></div>
+        <div className={styles.pageHead}><h2>판단 기록 #4789 <Badge tone="green">승인 완료</Badge></h2><div className={styles.buttonRow}><Button variant="secondary" onClick={() => onAction?.({ kind: "response-summary", label: "판단 기록 메뉴" })}><MoreHorizontal size={16} /></Button><Button variant="ghost" onClick={() => onAction?.({ kind: "response-summary", label: "상세 닫기" })}><X size={16} /></Button></div></div>
         <div className={styles.infoGrid}><Info label="담당자" value="김대리 (인사팀)" /><Info label="대상 근로자" value="Nguyen V." /><Info label="관련 케이스" value="체류기간 연장 서류 요청" /></div>
         <div className={styles.separator} />
         <Block title="판단 요약"><Card className={styles.panel}>체류만료일이 45일 이내로 확인되어, 누락된 서류 요청 초안을 만들고 실제 전달 전 대표 승인이 완료됐습니다.</Card></Block>

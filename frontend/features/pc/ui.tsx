@@ -42,12 +42,25 @@ export function Badge({ children, tone = "blue" }: { children: React.ReactNode; 
   return <span className={cn(styles.badge, toneClass(tone))}>{children}</span>;
 }
 
-export function PillButton({ children, tone = "blue" }: { children: React.ReactNode; tone?: Tone }) {
-  return <button className={cn(styles.pill, toneClass(tone))} type="button">{children}</button>;
+export function PillButton({
+  children,
+  tone = "blue",
+  ...props
+}: { children: React.ReactNode; tone?: Tone } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button className={cn(styles.pill, toneClass(tone))} type="button" {...props}>{children}</button>;
 }
 
-export function Button({ children, variant = "primary", className }: { children: React.ReactNode; variant?: "primary" | "secondary" | "ghost"; className?: string }) {
-  return <button className={cn(styles.button, variant === "primary" && styles.buttonPrimary, variant === "ghost" && styles.buttonGhost, className)} type="button">{children}</button>;
+export function Button({
+  children,
+  variant = "primary",
+  className,
+  ...props
+}: {
+  children: React.ReactNode;
+  variant?: "primary" | "secondary" | "ghost";
+  className?: string;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button className={cn(styles.button, variant === "primary" && styles.buttonPrimary, variant === "ghost" && styles.buttonGhost, className)} type="button" {...props}>{children}</button>;
 }
 
 export function IconTile({ icon: Icon, tone = "blue" }: { icon: LucideIcon; tone?: Tone }) {

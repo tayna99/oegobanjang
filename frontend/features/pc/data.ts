@@ -167,6 +167,25 @@ export const riskCases = [
     tone: "blue" as Tone,
     actions: ["계약 정보 보기", "검토 메모 작성"],
   },
+  {
+    id: "case_005",
+    group: "확인 필요",
+    title: "서류 유효기간 확인",
+    worker: "Mohammad I.",
+    nationalityCode: "BD",
+    desc: "건강진단서와 계약 서류의 최신본 여부를 담당자가 확인해야 합니다.",
+    tone: "blue" as Tone,
+    actions: ["서류 현황 보기", "확인 메모 작성"],
+  },
+  {
+    id: "case_007",
+    group: "확인 필요",
+    title: "입국 전 안내 확인",
+    worker: "Candidate B",
+    desc: "입국 전 안내와 제출 서류 수신 상태 확인이 필요합니다.",
+    tone: "blue" as Tone,
+    actions: ["후보자 서류 보기", "안내 메시지 초안 보기"],
+  },
 ];
 
 export const todaysTasks = [
