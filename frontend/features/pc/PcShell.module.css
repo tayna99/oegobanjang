@@ -403,6 +403,99 @@
   gap: 12px;
 }
 
+.todayDashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 34vw, 540px);
+  gap: 24px;
+  align-items: start;
+}
+
+.todayDashboardCollapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.summaryButton {
+  border: 1px solid #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.summaryButtonActive {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.todayDetail {
+  position: sticky;
+  top: 130px;
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  border-left: 1px solid #e2e8f0;
+  padding-left: 28px;
+}
+
+.detailHeader {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 22px;
+  margin-bottom: 22px;
+}
+
+.detailHeader h2 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.bigAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  background: #22c55e;
+  color: #fff;
+  font-size: 34px;
+  font-weight: 900;
+}
+
+.detailSection {
+  border-bottom: 1px solid #f1f5f9;
+  padding: 22px 0;
+}
+
+.detailSection h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.riskCard {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  padding: 18px;
+}
+
+.docRow,
+.actionCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.docRow span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .statCard,
 .panel {
   padding: 16px;
@@ -740,6 +833,17 @@
 
   .nav {
     padding: 0 18px;
+  }
+
+  .todayDashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .todayDetail {
+    position: static;
+    max-height: none;
+    border-left: 0;
+    padding-left: 0;
   }
 
   .summaryGrid,

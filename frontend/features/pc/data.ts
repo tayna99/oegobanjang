@@ -207,7 +207,7 @@ export const judgmentRows = [
   { id: "#4788", worker: "Tran T. H.", status: "수정 요청", tone: "orange" as Tone, date: "2026-05-20" },
   { id: "#4787", worker: "김민수", status: "담당자 확인", tone: "green" as Tone, date: "2026-05-20" },
   { id: "#4786", worker: "Candidate A", status: "승인 대기", tone: "orange" as Tone, date: "2026-05-19" },
-  { id: "#4785", worker: "Nguyen V.", status: "mock 발송 확인", tone: "blue" as Tone, date: "2026-05-19" },
+  { id: "#4785", worker: "Nguyen V.", status: "발송 예정", tone: "blue" as Tone, date: "2026-05-19" },
   { id: "#4784", worker: "Pham T. A.", status: "승인 완료", tone: "green" as Tone, date: "2026-05-18" },
   { id: "#4783", worker: "Candidate B", status: "승인 대기", tone: "orange" as Tone, date: "2026-05-18" },
   { id: "#4782", worker: "Nguyen V.", status: "담당자 확인", tone: "green" as Tone, date: "2026-05-17" },

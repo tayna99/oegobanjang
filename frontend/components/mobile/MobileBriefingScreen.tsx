@@ -10,13 +10,11 @@ import { StatusBadge } from "./StatusBadge";
 export function MobileBriefingScreen({
   busyAction = null,
   go,
-  onApprove,
   onRequestRevision,
   reviewMessage,
 }: {
   busyAction?: "approve" | "revision" | null;
   go: (step: MobileDemoStep) => void;
-  onApprove?: () => void | Promise<void>;
   onRequestRevision?: () => void | Promise<void>;
   reviewMessage?: string | null;
 }) {
@@ -41,7 +39,7 @@ export function MobileBriefingScreen({
             <span className="mobile-demo-round-icon">
               <Folder aria-hidden="true" />
             </span>
-            <button onClick={() => go("detail")} type="button">
+            <button data-testid="mobile-open-detail" onClick={() => go("detail")} type="button">
               {demoTask.worker.displayName} 체류기간 연장 서류 요청
             </button>
             <StatusBadge tone="danger">HIGH</StatusBadge>
@@ -63,17 +61,17 @@ export function MobileBriefingScreen({
           ) : null}
           <div className="mobile-demo-divider" />
           <div className="mobile-demo-action-grid three">
-            <ActionButton kind="outline" onClick={() => go("draft")}>
+            <ActionButton data-testid="mobile-briefing-draft" kind="outline" onClick={() => go("draft")}>
               <FileText aria-hidden="true" />
               초안 보기
             </ActionButton>
-            <ActionButton kind="teal" onClick={onRequestRevision}>
+            <ActionButton data-testid="mobile-briefing-revision" kind="teal" onClick={onRequestRevision}>
               <Pencil aria-hidden="true" />
               {busyAction === "revision" ? "요청 중" : "수정 요청"}
             </ActionButton>
-            <ActionButton onClick={onApprove ?? (() => go("done"))}>
+            <ActionButton data-testid="mobile-briefing-approve" onClick={() => go("process")}>
               <Send aria-hidden="true" />
-              {busyAction === "approve" ? "승인 중" : "보내기 승인"}
+              보내기 승인
             </ActionButton>
           </div>
         </MobileCard>
