@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import fitz
+import pytest
+
+try:
+    import fitz
+except ImportError:
+    fitz = None  # type: ignore[assignment]
 
 from app.agent_runtime.rag.raw_ingest import (
     IngestQualityGate,
@@ -59,6 +64,8 @@ def test_html_table_rows_keep_header_value_meaning() -> None:
     ]
 
 
+@pytest.mark.heavy_deps
+@pytest.mark.skipif(fitz is None, reason="pymupdf not installed")
 def test_pdf_loader_emits_page_records_with_source_metadata(tmp_path: Path) -> None:
     pdf_path = tmp_path / "guide.pdf"
     pdf = fitz.open()

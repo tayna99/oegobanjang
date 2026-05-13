@@ -67,4 +67,5 @@ testpaths = ["backend/tests"]
 pythonpath = ["backend"]
 markers = [
     "openai_smoke: real OpenAI API smoke tests disabled unless explicitly enabled",
+    "heavy_deps: tests requiring heavy native dependencies (e.g. pymupdf) skipped in lightweight CI",
 ]
