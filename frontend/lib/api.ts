@@ -57,8 +57,17 @@ export async function safeJsonFetch<T>(url: string): Promise<ApiResult<T>> {
   }
 }
 
+export async function fetchCompanyList(): Promise<{ id: string; name: string }[]> {
+  const response = await fetch(`${API_BASE_URL}/proto/companies`, {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) return [];
+  return response.json();
+}
+
 export async function runDailyBriefing(
-  companyId = "company_001",
+  companyId: string,
   date = "2026-05-08",
 ): Promise<DailyBriefingResult> {
   const response = await fetch(`${API_BASE_URL}/daily-briefings/run`, {
