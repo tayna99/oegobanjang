@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -10,17 +14,9 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.agent_runtime.rag.retriever import PolicyRetriever, tokenize
 from app.config import get_settings
-from app.services.agent_chat_contact import (
-    CONTACT_CHAT_INTENTS,
-    AgentChatContactExecution,
-    run_agent_chat_contact_subagent,
-)
 
 
 ORCHESTRATION_VERSION = "semantic_rag_llm_tools_v2"
-
-QUOTA_REVIEW_HIRING_START_GUIDANCE = "hiring_start_guidance"
-QUOTA_REVIEW_OPERATIONAL_CASE_SUMMARY = "operational_case_summary"
 
 CANONICAL_INTENTS = {
     "quota_review",
@@ -28,8 +24,6 @@ CANONICAL_INTENTS = {
     "contract_visa_conflict",
     "document_gap",
     "document_request_message",
-    "contact_onboarding",
-    "worker_reply_interpretation",
     "reporting_deadline",
     "handoff_preview",
     "daily_briefing",
@@ -41,8 +35,6 @@ RISK_TYPES_BY_INTENT: dict[str, tuple[str, ...]] = {
     "visa_expiry": ("visa_expiry", "missing_document", "contract_visa_conflict"),
     "document_gap": ("missing_document", "candidate_readiness"),
     "document_request_message": ("missing_document",),
-    "contact_onboarding": (),
-    "worker_reply_interpretation": (),
     "contract_visa_conflict": ("contract_visa_conflict",),
     "reporting_deadline": ("reporting_deadline",),
     "quota_review": ("quota_review", "candidate_readiness"),
@@ -71,8 +63,6 @@ INTENT_LABELS: dict[str, str] = {
     "quota_review": "채용/쿼터 검토 업무",
     "handoff_preview": "전문가 검토 패키지 업무",
     "document_request_message": "다국어 서류 요청 메시지 업무",
-    "contact_onboarding": "다국어 컨택 안내 업무",
-    "worker_reply_interpretation": "외국어 응답 해석 업무",
     "candidate_readiness": "후보자 서류 준비상태 확인 업무",
     "evidence_audit_review": "근거/감사 재현 업무",
     "daily_briefing": "오늘 확인할 외국인 고용 업무",
@@ -122,14 +112,6 @@ FORBIDDEN_ACTION_TERMS: tuple[str, ...] = (
     "이탈 예측",
 )
 
-INTERNAL_RESPONSE_TERMS: tuple[str, ...] = (
-    "Demo Manufacturing",
-    "company_001",
-    "intent_snapshot",
-    "worker_",
-    "candidate_",
-)
-
 FORBIDDEN_ACTION_PATTERNS: dict[str, tuple[str, ...]] = {
     "send_message_without_approval": (
         "카톡으로 바로",
@@ -174,6 +156,20 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "채용 좀 해야 할 것 같아",
         "요즘 일이 밀려서 사람 더 써야 할 것 같은데 뭐부터 봐",
         "새로 뽑으려면 회사 쪽에서 준비할 거 있어",
+        # 절차 FAQ 자연어
+        "외국인 처음 써보는데 어디서 시작해",
+        "고용허가서 어디서 받아",
+        "내국인 구인 먼저 해야 한다는 게 뭐야",
+        "몇 명까지 쓸 수 있어",
+        "처음에 뭐부터 해야 해",
+        "E-9 처음인데 전체 과정 어떻게 돼",
+        "외국인 직원 나가고 다시 뽑을 수 있어",
+        "취업교육 어디서 받아",
+        "뽑으려면 얼마나 걸려",
+        "계약서 쓸 때 어떻게 해",
+        "표준근로계약서 있어",
+        "비자 신청은 어떻게 해",
+        "고용허가서 받은 다음에",
     ),
     "visa_expiry": (
         "비자 뭐 해야 해",
@@ -224,22 +220,6 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "Tran한테 서류 다시 보내달라고 정중하게 써줘",
         "베트남 직원한테 여권 사진 다시 달라고 말해줘",
     ),
-    "contact_onboarding": (
-        "안전교육 일정 베트남어로 안내문 만들어줘",
-        "안전교육 안내문 만들어줘",
-        "온보딩 안내문 만들어줘",
-        "상담센터 안내문 만들어줘",
-        "숙소 생활 안내문 만들어줘",
-        "Nguyen에게 안전교육 일정 베트남어로 안내문 만들어줘",
-    ),
-    "worker_reply_interpretation": (
-        "답했는데 요약해줘",
-        "근로자 답변 보고 상태 업데이트까지 해줘",
-        "근로자 답변 요약해줘",
-        "외국어 답변 해석해줘",
-        "상태 업데이트 후보 만들어줘",
-        "Tôi có hộ chiếu",
-    ),
     "handoff_preview": (
         "행정사한테 뭐 보내야 해",
         "전문가한테 보낼 거 만들어줘",
@@ -279,6 +259,22 @@ INTENT_EXAMPLE_PHRASES: dict[str, tuple[str, ...]] = {
         "방금 말한 근거가 어디서 온 거야",
     ),
 }
+
+POLICY_FAQ_PHRASES: tuple[str, ...] = (
+    "외국인 처음 써보는데 어디서 시작해",
+    "고용허가서 어디서 받아",
+    "내국인 구인 먼저 해야 한다는 게 뭐야",
+    "몇 명까지 쓸 수 있어",
+    "처음에 뭐부터 해야 해",
+    "E-9 처음인데 전체 과정 어떻게 돼",
+    "외국인 직원 나가고 다시 뽑을 수 있어",
+    "취업교육 어디서 받아",
+    "뽑으려면 얼마나 걸려",
+    "계약서 쓸 때 어떻게 해",
+    "표준근로계약서 있어",
+    "비자 신청은 어떻게 해",
+    "고용허가서 받은 다음에",
+)
 
 
 class AgentChatLLMQuery(BaseModel):
@@ -447,12 +443,7 @@ class OpenAIAgentChatQueryPlanner:
                     SystemMessage(
                         content=(
                             "You are an operations assistant for Korean foreign-worker employment workflows. "
-                            "Answer in product-display-safe Korean only, using the provided evidence and tool_summary. "
-                            "Do not use Markdown emphasis such as **. Do not expose raw route, tool, intent, "
-                            "risk_type, severity, RAG, quota_review, HIGH, or CRITICAL labels. "
-                            "Use a natural manager-facing explanation style. Do not expose internal seed names "
-                            "or identifiers, including demo company names. When the user asks how to start hiring, "
-                            "answer as procedural guidance instead of summarizing existing cases. "
+                            "Answer in Korean using only the provided RAG hits, tool results, and tool_summary. "
                             "Do not expose raw PII, matching scores, recommendation scores, legal certainty, "
                             "or any unapproved send/submit/complete action. Keep the answer concise and actionable."
                         )
@@ -466,20 +457,7 @@ class OpenAIAgentChatQueryPlanner:
         answer = str(response.content or "").strip()
         if not answer:
             return fallback_answer
-        if any(
-            term in answer
-            for term in (
-                "Nguyen Van A",
-                "매칭 점수",
-                "추천 점수",
-                "RAG",
-                "quota_review",
-                "HIGH",
-                "CRITICAL",
-                "**",
-                *INTERNAL_RESPONSE_TERMS,
-            )
-        ):
+        if any(term in answer for term in ("Nguyen Van A", "매칭 점수", "추천 점수")):
             return fallback_answer
         return answer
 
@@ -571,42 +549,34 @@ def run_agent_chat_rag_first(
         blocked_actions=preflight.blocked_actions or [],
     )
     intent = normalized_plan.intent
-    contact_execution: AgentChatContactExecution | None = None
-    if intent in CONTACT_CHAT_INTENTS:
-        contact_execution = run_agent_chat_contact_subagent(
-            message=message,
-            intent=intent,
-            entities=normalized_plan.entities,
-        )
-
     selected_items = _select_daily_briefing_items(
         daily_briefing.items,
         intent,
         selected_case_id=context.selected_case_id,
         selected_action_id=context.selected_action_id,
     )
-    if intent in {"contact_onboarding", "worker_reply_interpretation"}:
-        selected_items = []
-    quota_review_answer_mode = _quota_review_answer_mode(
-        message=message,
-        llm_query=llm_query,
-        intent=intent,
-        selected_case_id=context.selected_case_id,
+    actions = _selected_actions(
+        daily_briefing.recommended_actions,
+        selected_items,
         selected_action_id=context.selected_action_id,
     )
-    if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE:
-        actions = []
-    elif contact_execution and not contact_execution.actions_allowed:
-        actions = []
-    elif intent in {"contact_onboarding", "worker_reply_interpretation"}:
-        actions = []
-    else:
-        actions = _selected_actions(
-            daily_briefing.recommended_actions,
-            selected_items,
-            selected_action_id=context.selected_action_id,
-        )
     sources = _selected_sources(daily_briefing.citation_summaries, selected_items, results)
+
+    policy_hits: list[dict[str, Any]] = []
+    policy_answer_text: str | None = None
+    _is_faq = _is_policy_faq(llm_query.query) or _is_policy_faq(message)
+    _policy_eligible = intent not in {"evidence_audit_review", "daily_briefing", "unsupported"}
+    if _policy_eligible and _is_faq:
+        _policy_chunks = _load_workforce_policy_chunks()
+        if _policy_chunks:
+            policy_hits = PolicyRetriever(_policy_chunks).search(
+                llm_query.query,
+                top_k=5,
+                answer_evidence_only=False,
+            )
+            if policy_hits:
+                policy_answer_text = _policy_procedure_answer(policy_hits)
+
     executed_tools = _executed_tools_for_intent(
         intent=intent,
         selected_items=selected_items,
@@ -614,18 +584,15 @@ def run_agent_chat_rag_first(
         sources=sources,
         rag_hits=results,
     )
-    if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE:
-        fallback_answer = _quota_review_hiring_start_answer(selected_items)
-    elif contact_execution:
-        fallback_answer = contact_execution.answer
-    else:
-        fallback_answer = _rag_answer(
-            daily_briefing,
-            intent,
-            selected_items=selected_items,
-            selected_actions=actions,
-            rag_hits=results,
-        )
+    fallback_answer = _rag_answer(
+        daily_briefing,
+        intent,
+        selected_items=selected_items,
+        selected_actions=actions,
+        rag_hits=results,
+        policy_text=policy_answer_text,
+        force_policy=_is_faq,
+    )
     answer = planner.grounded_answer(
         message=message,
         normalized_plan=normalized_plan,
@@ -633,13 +600,7 @@ def run_agent_chat_rag_first(
         rag_results=results,
         executed_tools=executed_tools,
     )
-    display_context = (
-        _quota_review_guidance_display_context(sources)
-        if quota_review_answer_mode == QUOTA_REVIEW_HIRING_START_GUIDANCE
-        else _contact_display_context(sources)
-        if intent in {"contact_onboarding", "worker_reply_interpretation"}
-        else _display_context(selected_items, actions, sources)
-    )
+    display_context = _display_context(selected_items, actions, sources)
     structured_plan = AgentChatStructuredPlan(
         intent=intent,
         plan_steps=[
@@ -651,19 +612,8 @@ def run_agent_chat_rag_first(
         required_context=_required_context(intent),
         entities=normalized_plan.entities,
         approval_required=True,
-        execution_allowed=(
-            contact_execution.execution_allowed if contact_execution is not None else True
-        ),
+        execution_allowed=True,
         target_service="rag_first_chat",
-    )
-    tool_calls = _tool_calls(
-        intent=intent,
-        results=results,
-        selected_items=selected_items,
-        actions=actions,
-        sources=sources,
-        llm_error=preflight.llm_error,
-        contact_execution=contact_execution,
     )
 
     return {
@@ -676,9 +626,58 @@ def run_agent_chat_rag_first(
         "executed_tools": executed_tools,
         "llm_used": preflight.llm_used,
         "latency_mode": "llm_plan_fast_answer" if preflight.llm_used else "rag_first_fast",
-        "tool_calls": tool_calls,
+        "tool_calls": [
+            {
+                "name": "agent_chat_semantic_retrieve",
+                "route": "rag_first_chat",
+                "intent": intent,
+                "result_count": len(results),
+                "action_count": 0,
+                "source_count": len(
+                    {
+                        citation_id
+                        for result in results
+                        for citation_id in result.get("metadata", {}).get("citation_ids", [])
+                    }
+                ),
+            },
+            {
+                "name": "agent_chat_llm_normalize",
+                "route": "rag_first_chat",
+                "intent": intent,
+                "result_count": 1 if not preflight.llm_error else 0,
+                "action_count": 0,
+                "source_count": len(results),
+            },
+            {
+                "name": "agent_chat_tool_execute",
+                "route": "rag_first_chat",
+                "intent": intent,
+                "result_count": len(selected_items),
+                "action_count": len(actions),
+                "source_count": len(sources),
+            },
+            {
+                "name": "agent_chat_llm_grounded_answer",
+                "route": "rag_first_chat",
+                "intent": intent,
+                "result_count": 1,
+                "action_count": len(actions),
+                "source_count": len(sources),
+            },
+        ],
         "actions": [action.model_dump() for action in actions],
-        "sources": [source.model_dump() for source in sources],
+        "sources": [source.model_dump() for source in sources] + [
+            {
+                "citation_id": hit.get("source_id") or hit.get("chunk_id", ""),
+                "title": hit.get("title") or hit.get("metadata", {}).get("title", ""),
+                "source": hit.get("metadata", {}).get("url", ""),
+                "publisher": hit.get("metadata", {}).get("publisher", ""),
+                "source_type": hit.get("metadata", {}).get("source_type", "official_procedure"),
+                "validation_status": "validated",
+            }
+            for hit in policy_hits[:3]
+        ],
         **display_context,
         "detected_intents": [intent],
         "approval_required": daily_briefing.approval_required,
@@ -695,7 +694,6 @@ def run_agent_chat_rag_first(
         "llm_provider": preflight.llm_provider,
         "fallback_used": False,
         "fallback_reason": preflight.llm_error,
-        **_contact_response_fields(contact_execution),
     }
 
 
@@ -877,6 +875,50 @@ def _build_operational_chunks(daily_briefing: Any) -> list[dict[str, Any]]:
     return chunks
 
 
+_WORKFORCE_POLICY_JSONL = (
+    Path(__file__).resolve().parents[3]
+    / "data-pipeline/processed/chunks/workforce_official_chroma_records.jsonl"
+)
+
+
+def _load_workforce_policy_chunks() -> list[dict[str, Any]]:
+    if not _WORKFORCE_POLICY_JSONL.exists():
+        logger.warning("workforce policy JSONL not found: %s", _WORKFORCE_POLICY_JSONL)
+        return []
+    chunks: list[dict[str, Any]] = []
+    try:
+        with _WORKFORCE_POLICY_JSONL.open("r", encoding="utf-8") as f:
+            for line in f:
+                raw = line.strip()
+                if not raw:
+                    continue
+                record = json.loads(raw)
+                # normalise top-level keys for PolicyRetriever compatibility
+                if "chunk_id" not in record:
+                    record["chunk_id"] = record.get("id", "")
+                if "source_id" not in record:
+                    record["source_id"] = record.get("metadata", {}).get("source_id", "")
+                if "title" not in record:
+                    record["title"] = record.get("metadata", {}).get("title", "")
+                chunks.append(record)
+    except Exception as exc:
+        logger.warning("failed to load workforce policy chunks: %s", exc)
+    return chunks
+
+
+def _policy_procedure_answer(policy_hits: list[dict[str, Any]]) -> str:
+    lines = ["아래는 관련 절차·정책 문서에서 찾은 내용입니다. 담당자 검토 후 진행하세요."]
+    for hit in policy_hits[:3]:
+        title = hit.get("title") or hit.get("metadata", {}).get("title", "")
+        text = str(hit.get("text", ""))
+        publisher = hit.get("metadata", {}).get("publisher", "")
+        excerpt = text[:300].replace("\n", " ")
+        lines.append(f"\n[{title}] ({publisher})")
+        lines.append(f"  {excerpt}...")
+    lines.append("\n외부 발송, 정부 제출, 상태 완료 처리는 수행하지 않았습니다.")
+    return "\n".join(lines)
+
+
 def _build_static_rag_chunks() -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     for intent in sorted(CANONICAL_INTENTS):
@@ -1053,8 +1095,6 @@ def _extract_light_entities(message: str) -> dict[str, str]:
 def _action_for_intent(intent: str) -> str:
     actions = {
         "document_request_message": "draft_message",
-        "contact_onboarding": "draft_message",
-        "worker_reply_interpretation": "interpret_reply",
         "handoff_preview": "draft_handoff",
         "evidence_audit_review": "review_evidence",
     }
@@ -1070,9 +1110,7 @@ def _required_tools(intent: str) -> list[str]:
         "reporting_deadline": ["reporting_deadline_rule"],
         "quota_review": ["quota_review_lookup", "company_readiness_rule"],
         "candidate_readiness": ["candidate_readiness_lookup"],
-        "document_request_message": ["document_request_draft", "run_contact_onboarding"],
-        "contact_onboarding": ["run_contact_onboarding"],
-        "worker_reply_interpretation": ["run_worker_reply_interpreter"],
+        "document_request_message": ["document_request_draft"],
         "handoff_preview": ["handoff_preview_draft"],
         "evidence_audit_review": ["evidence_audit_lookup"],
     }
@@ -1100,81 +1138,6 @@ def _executed_tools_for_intent(
     ]
 
 
-def _tool_calls(
-    *,
-    intent: str,
-    results: list[dict[str, Any]],
-    selected_items: list[Any],
-    actions: list[Any],
-    sources: list[Any],
-    llm_error: str | None,
-    contact_execution: AgentChatContactExecution | None,
-) -> list[dict[str, Any]]:
-    tool_calls = [
-        {
-            "name": "agent_chat_semantic_retrieve",
-            "route": "rag_first_chat",
-            "intent": intent,
-            "result_count": len(results),
-            "action_count": 0,
-            "source_count": len(
-                {
-                    citation_id
-                    for result in results
-                    for citation_id in result.get("metadata", {}).get("citation_ids", [])
-                }
-            ),
-        },
-        {
-            "name": "agent_chat_llm_normalize",
-            "route": "rag_first_chat",
-            "intent": intent,
-            "result_count": 1 if not llm_error else 0,
-            "action_count": 0,
-            "source_count": len(results),
-        },
-        {
-            "name": "agent_chat_tool_execute",
-            "route": "rag_first_chat",
-            "intent": intent,
-            "result_count": len(selected_items),
-            "action_count": len(actions),
-            "source_count": len(sources),
-        },
-        {
-            "name": "agent_chat_llm_grounded_answer",
-            "route": "rag_first_chat",
-            "intent": intent,
-            "result_count": 1,
-            "action_count": len(actions),
-            "source_count": len(sources),
-        },
-    ]
-    if contact_execution and contact_execution.tool_name:
-        tool_calls.append(
-            {
-                "name": contact_execution.tool_name,
-                "route": "rag_first_chat",
-                "intent": intent,
-                "result_count": 1 if contact_execution.execution_allowed else 0,
-                "action_count": 0,
-                "source_count": len(sources),
-            }
-        )
-    return tool_calls
-
-
-def _contact_response_fields(
-    contact_execution: AgentChatContactExecution | None,
-) -> dict[str, Any]:
-    if contact_execution is None:
-        return {}
-    return {
-        "contact_preview": contact_execution.contact_preview,
-        "contact_subagents": contact_execution.contact_subagents,
-    }
-
-
 def _rag_answer(
     result: Any,
     intent: str,
@@ -1182,6 +1145,8 @@ def _rag_answer(
     selected_items: list[Any],
     selected_actions: list[Any],
     rag_hits: list[dict[str, Any]],
+    policy_text: str | None = None,
+    force_policy: bool = False,
 ) -> str:
     if intent == "evidence_audit_review":
         citation_ids = {
@@ -1199,7 +1164,12 @@ def _rag_answer(
             ]
         )
 
+    if force_policy and policy_text:
+        return policy_text
+
     if not selected_items:
+        if policy_text:
+            return policy_text
         return (
             f"RAG 검색으로 {INTENT_LABELS.get(intent, intent)}를 찾았지만 "
             "오늘 기준 확인된 운영 항목은 없습니다. 외부 발송이나 제출은 수행하지 않았습니다."
@@ -1227,103 +1197,6 @@ def _rag_answer(
         lines.append(f"  다음 처리: {' / '.join(dict.fromkeys(action_labels))}")
     lines.append("외부 발송, 정부 제출, 상태 완료 처리는 아직 수행하지 않았습니다.")
     return "\n".join(lines)
-
-
-def _quota_review_answer_mode(
-    *,
-    message: str,
-    llm_query: AgentChatLLMQuery,
-    intent: str,
-    selected_case_id: str | None = None,
-    selected_action_id: str | None = None,
-) -> str:
-    if intent != "quota_review":
-        return QUOTA_REVIEW_OPERATIONAL_CASE_SUMMARY
-    if selected_case_id or selected_action_id:
-        return QUOTA_REVIEW_OPERATIONAL_CASE_SUMMARY
-
-    if _is_hiring_start_guidance_query(f"{message} {llm_query.query}"):
-        return QUOTA_REVIEW_HIRING_START_GUIDANCE
-    return QUOTA_REVIEW_OPERATIONAL_CASE_SUMMARY
-
-
-def _is_hiring_start_guidance_query(message: str) -> bool:
-    compact_text = _compact_for_intent_match(message)
-    explicit_lookup_terms = (
-        "쿼터검토",
-        "쿼터확인",
-        "가능인원확인",
-        "충원가능인원",
-        "인원확인",
-        "인원있",
-        "준비상태확인",
-    )
-    if any(term in compact_text for term in explicit_lookup_terms):
-        return False
-
-    hiring_start_terms = (
-        "채용하고싶",
-        "채용을하고싶",
-        "채용좀해야",
-        "어떻게하면",
-        "뭐부터",
-        "준비할거",
-        "준비할것",
-        "시작",
-        "새로뽑",
-        "뽑으려면",
-        "사람더필요",
-        "사람이더필요",
-        "사람이부족",
-        "사람더써야",
-        "인력부족",
-        "인력이부족",
-        "인력이필요",
-        "인력모자",
-        "직원더뽑",
-        "일할사람없",
-    )
-    return any(term in compact_text for term in hiring_start_terms)
-
-
-def _quota_review_hiring_start_answer(selected_items: list[Any]) -> str:
-    item_count = len(selected_items)
-    return "\n".join(
-        [
-            "신규 외국인 채용을 시작하려면 먼저 사업장 채용 가능 상태, 고용허가 요건, 후보자 서류 준비 상태를 확인해야 합니다.",
-            f"외고반장이 오늘 기준으로 확인할 수 있는 채용 준비 항목은 {item_count}건입니다.",
-            "다음 단계로 채용 준비 체크리스트를 열어볼 수 있습니다.",
-            "필요 시 행정사 검토 자료 초안 준비까지 이어갈 수 있습니다.",
-            "외고반장은 비자 가능 여부를 단정하거나 법률 자문을 하지 않습니다.",
-            "외부 발송, 정부 제출, 상태 완료 처리는 아직 수행하지 않았습니다.",
-        ]
-    )
-
-
-def _quota_review_guidance_display_context(sources: list[Any]) -> dict[str, Any]:
-    return {
-        "subject_display_name": "사업장 전체",
-        "subject_display_id": None,
-        "risk_timing_label": "오늘 기준",
-        "case_title": "신규 외국인 채용 준비",
-        "case_summary": (
-            "사업장 채용 가능 상태, 고용허가 요건, 후보자 서류 준비 상태를 먼저 확인합니다."
-        ),
-        "primary_action": None,
-        "source_labels": [source.title for source in sources],
-    }
-
-
-def _contact_display_context(sources: list[Any]) -> dict[str, Any]:
-    return {
-        "subject_display_name": "컨택 대상자",
-        "subject_display_id": None,
-        "risk_timing_label": "승인 전 초안",
-        "case_title": "다국어 컨택 preview",
-        "case_summary": "다국어 안내/응답 해석 결과는 담당자 검토 후에만 발송 또는 반영할 수 있습니다.",
-        "primary_action": None,
-        "source_labels": [source.title for source in sources],
-    }
 
 
 def _not_found_response(
@@ -1558,8 +1431,6 @@ def _display_context(
 
 
 def _subject_label(item: Any) -> str:
-    if getattr(item, "risk_type", None) == "quota_review":
-        return "사업장 전체"
     return str(getattr(item, "subject_display_name", None) or item.subject_id)
 
 
@@ -1600,10 +1471,8 @@ def _rag_hit_view(result: dict[str, Any]) -> dict[str, Any]:
 def _required_context(intent: str) -> list[str]:
     if intent == "evidence_audit_review":
         return ["rag", "evidence_events", "citations"]
-    if intent in {"contact_onboarding", "worker_reply_interpretation"}:
-        return ["rag", "contact_subagents", "approvals"]
     if intent in {"document_request_message", "handoff_preview"}:
-        return ["rag", "cases", "actions", "contact_subagents", "approvals", "citations"]
+        return ["rag", "cases", "actions", "approvals", "citations"]
     if intent == "candidate_readiness":
         return ["rag", "candidates", "candidate_documents"]
     if intent == "quota_review":
@@ -1671,17 +1540,7 @@ def _domain_terms(intent: str) -> str:
         "document_request_message": (
             "다국어 베트남어 서류 요청 메시지 문자 초안 알려주는 문구 "
             "서류 다시 달라고 정중하게 말해줘 보내달라고 작성 여권 사진 근로계약서 사본 요청 "
-            "네팔어 안내문 안내 메시지 직원에게 공손하게"
-        ),
-        "contact_onboarding": (
-            "다국어 컨택 온보딩 안전교육 생활 안내 상담센터 안내 숙소 안내 "
-            "베트남어 안내문 인도네시아어 안내문 교육 일정 작업 전 안전수칙 "
-            "교육장으로 오라고 생활 관련 어려움 공식 상담 채널"
-        ),
-        "worker_reply_interpretation": (
-            "근로자 답변 외국어 답변 베트남어 답변 인도네시아어 답변 요약 해석 "
-            "상태 업데이트 후보 응답 해석 제출했다고 답함 내일 보낸다고 답함 "
-            "Tôi có hộ chiếu ảnh mai gửi saya sudah kirim dokumen"
+            "네팔어 안내문 안내 메시지 안전교육 교육장 직원에게 공손하게"
         ),
         "handoff_preview": (
             "행정사 노무사 전문가 검토 패키지 handoff 전달 넘길 자료 묶어줘 "
@@ -1741,8 +1600,16 @@ def _normalize_for_phrase(text: str) -> str:
     return "".join(tokenize(text))
 
 
-def _compact_for_intent_match(text: str) -> str:
-    return _normalize_for_phrase(text).casefold()
+def _is_policy_faq(query: str) -> bool:
+    normalized_query = _normalize_for_phrase(query)
+    for phrase in POLICY_FAQ_PHRASES:
+        normalized_phrase = _normalize_for_phrase(phrase)
+        if normalized_phrase and (
+            normalized_phrase in normalized_query
+            or normalized_query in normalized_phrase
+        ):
+            return True
+    return False
 
 
 def _exact_phrase_intent(query: str) -> str | None:
