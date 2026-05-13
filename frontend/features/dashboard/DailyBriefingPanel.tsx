@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { demoTask } from "../../components/mobile/demoTask";
+import { MobileApprovalDemo } from "../../components/mobile/MobileApprovalDemo";
 import type { DailyBriefingItem, NextAction } from "../../types/dailyBriefing";
 import { DailyBriefingChatPanel } from "./DailyBriefingChatPanel";
 import { useDailyBriefingWorkflow } from "./useDailyBriefingWorkflow";
@@ -158,6 +160,8 @@ export function DailyBriefingPanel() {
     setPreview,
   } = useDailyBriefingWorkflow();
   const [chatOpen, setChatOpen] = useState(false);
+  const [demoCaseOpen, setDemoCaseOpen] = useState(false);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
   const [showExportArtifacts, setShowExportArtifacts] = useState(false);
 
   useEffect(() => {
@@ -174,6 +178,10 @@ export function DailyBriefingPanel() {
   const actions = briefing?.recommended_actions ?? [];
   const summaryCards = useMemo(() => buildSummaryCards({ actions, items }), [actions, items]);
   const visibleItems = items.slice(0, 8);
+  const isNguyenDemoItem = (item: DailyBriefingItem) =>
+    [item.case_title, item.subject_display_name, item.subject_display_id, item.subject_id]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes("nguyen"));
 
   return (
     <section className="ops-console">
@@ -190,6 +198,9 @@ export function DailyBriefingPanel() {
           </p>
         </div>
         <span className="ops-announcement-time">오늘 08:00</span>
+        <button className="ops-mobile-preview-button" onClick={() => setMobilePreviewOpen(true)} type="button">
+          대표 모바일 미리보기
+        </button>
         <button className="ops-secondary-button" disabled={loading} onClick={handleRunBriefing} type="button">
           ↻ 다시 생성
         </button>
@@ -244,7 +255,13 @@ export function DailyBriefingPanel() {
               <div className="ops-task-title">
                 <span className="ops-task-icon">{taskIconByRisk[item.risk_type]}</span>
                 <button
-                  onClick={() => (item.citation_ids[0] ? handleOpenCitation(item.citation_ids[0]) : undefined)}
+                  onClick={() =>
+                    isNguyenDemoItem(item)
+                      ? setDemoCaseOpen(true)
+                      : item.citation_ids[0]
+                        ? handleOpenCitation(item.citation_ids[0])
+                        : undefined
+                  }
                   type="button"
                 >
                   {item.case_title ?? riskTypeLabel[item.risk_type]}
@@ -348,6 +365,64 @@ export function DailyBriefingPanel() {
         </DetailDrawer>
       ) : null}
 
+      {demoCaseOpen ? (
+        <DetailDrawer title="Nguyen V. 서류 요청 상세" onClose={() => setDemoCaseOpen(false)}>
+          <div className="ops-demo-case">
+            <div>
+              <strong>왜 확인이 필요한가요?</strong>
+              <p>
+                체류기간 만료까지 {demoTask.dDay}일 남았고, {demoTask.missingDocuments.join(", ")}이 아직
+                확인되지 않았습니다. {demoTask.previousRecord}.
+              </p>
+            </div>
+            <div>
+              <strong>AI가 준비한 일</strong>
+              <p>
+                {demoTask.worker.language} 요청 메시지 초안, 한국어 번역본, 예상 응답 시나리오를 준비했습니다.
+                외부 발송은 대표 승인 전까지 차단됩니다.
+              </p>
+            </div>
+            <dl>
+              <div>
+                <dt>근로자</dt>
+                <dd>
+                  {demoTask.worker.name} · {demoTask.worker.nationality} · {demoTask.worker.visaType}
+                </dd>
+              </div>
+              <div>
+                <dt>사업장</dt>
+                <dd>
+                  {demoTask.worker.worksite} {demoTask.worker.line}
+                </dd>
+              </div>
+              <div>
+                <dt>체류/계약</dt>
+                <dd>
+                  체류만료 {demoTask.expiryDate} · 계약종료 {demoTask.contractEndDate}
+                </dd>
+              </div>
+              <div>
+                <dt>연락 채널</dt>
+                <dd>{demoTask.worker.contactChannel}</dd>
+              </div>
+            </dl>
+            <div className="ops-demo-draft">
+              <span>VN</span>
+              <p>{demoTask.draft.vi}</p>
+              <span>KR</span>
+              <p>{demoTask.draft.ko}</p>
+            </div>
+            <div className="ops-demo-case-actions">
+              <button type="button">초안 보기</button>
+              <button onClick={() => setMobilePreviewOpen(true)} type="button">
+                대표 승인 요청
+              </button>
+              <button type="button">검토 자료 만들기</button>
+            </div>
+          </div>
+        </DetailDrawer>
+      ) : null}
+
       {documentDraft ? (
         <DetailDrawer title="서류 요청 메시지 초안" onClose={() => setDocumentDraft(null)}>
           <h4>한국어 원문</h4>
@@ -411,6 +486,24 @@ export function DailyBriefingPanel() {
               onOpenDocumentDraft={handleOpenDocumentDraft}
               onOpenHandoffPreview={handleOpenPreview}
             />
+          </div>
+        </div>
+      ) : null}
+
+      {mobilePreviewOpen ? (
+        <div className="ops-mobile-preview-modal" role="dialog" aria-modal="true" aria-label="대표 모바일 승인 미리보기">
+          <div className="ops-mobile-preview-panel">
+            <MobileApprovalDemo embedded />
+            <aside className="ops-mobile-preview-caption">
+              <h2>대표 모바일 승인 화면</h2>
+              <p>
+                PC에서 Nguyen 케이스를 확인한 뒤 대표 승인 요청을 보냈을 때 보이는 모바일 브리핑 흐름입니다.
+                초안 확인, 수정 요청, 승인 완료까지 발표용으로 안정적으로 이어집니다.
+              </p>
+              <button onClick={() => setMobilePreviewOpen(false)} type="button">
+                닫기
+              </button>
+            </aside>
           </div>
         </div>
       ) : null}
