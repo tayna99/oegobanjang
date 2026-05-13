@@ -1,546 +1,447 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import {
-  approveAction,
-  createExternalDeliveryJob,
-  dispatchExternalDeliveryJob,
-  downloadHandoffExportPdf,
-  getCitationChunk,
-  getCitationSourceDocument,
-  getCitationValidation,
-  getDocumentRequestDraft,
-  getHandoffExportArtifacts,
-  getHandoffPreview,
-  rejectAction,
-  requestRevision,
-  runDailyBriefing,
-} from "../../lib/api";
-import type {
-  DailyBriefingResult,
-  CitationChunkView,
-  CitationSourceDocumentView,
-  CitationValidationStatus,
-  DocumentRequestDraft,
-  ExternalDeliveryJob,
-  HandoffExportArtifact,
-  HandoffPreview,
-  NextAction,
-} from "../../types/dailyBriefing";
+import type { DailyBriefingItem, NextAction } from "../../types/dailyBriefing";
 import { DailyBriefingChatPanel } from "./DailyBriefingChatPanel";
+import { useDailyBriefingWorkflow } from "./useDailyBriefingWorkflow";
 
-const severityTone = {
-  CRITICAL: "border-red-500 bg-red-50 text-red-900",
-  HIGH: "border-orange-500 bg-orange-50 text-orange-900",
-  MEDIUM: "border-amber-400 bg-amber-50 text-amber-900",
-  LOW: "border-slate-300 bg-slate-50 text-slate-800",
-};
-
-const riskTypeLabel = {
-  contract_visa_conflict: "계약-체류 충돌",
-  candidate_readiness: "후보자 서류 준비상태",
-  missing_document: "누락 서류",
-  quota_review: "신규 고용/쿼터 검토",
+const riskTypeLabel: Record<DailyBriefingItem["risk_type"], string> = {
+  candidate_readiness: "후보자 입국 전 서류",
+  contract_visa_conflict: "계약 종료 확인",
+  missing_document: "서류 보완 필요",
+  quota_review: "신규 채용 준비",
   reporting_deadline: "고용변동 신고기한",
-  visa_expiry: "체류만료",
+  visa_expiry: "체류기간 연장 서류",
 };
 
-function todayInputValue() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+const taskIconByRisk: Record<DailyBriefingItem["risk_type"], string> = {
+  candidate_readiness: "□",
+  contract_visa_conflict: "▤",
+  missing_document: "□",
+  quota_review: "♙",
+  reporting_deadline: "!",
+  visa_expiry: "□",
+};
+
+const statusLabel: Record<NextAction["status"], string> = {
+  approved: "승인됨",
+  blocked: "차단",
+  cancelled: "취소",
+  completed: "완료",
+  pending_approval: "승인 대기",
+  rejected: "반려",
+  revision_requested: "수정 요청",
+};
+
+function timingLabel(item: DailyBriefingItem) {
+  if (item.risk_timing_label) {
+    return item.risk_timing_label;
+  }
+  if (item.expired) {
+    return `D+${item.days_overdue ?? 0}`;
+  }
+  if (item.d_day !== null) {
+    return `D-${item.d_day}`;
+  }
+  return "이번 주";
+}
+
+function rowStatus(actions: NextAction[]) {
+  const primary = actions[0];
+  if (!primary) {
+    return "응답 도착";
+  }
+  return statusLabel[primary.status] ?? primary.status;
+}
+
+function nextActionLabel(actions: NextAction[]) {
+  const action = actions[0];
+  if (!action) {
+    return "응답 요약";
+  }
+  if (action.action_type === "request_document") {
+    return "초안 보기";
+  }
+  return "승인 요청";
+}
+
+function buildSummaryCards({
+  items,
+  actions,
+}: {
+  items: DailyBriefingItem[];
+  actions: NextAction[];
+}) {
+  const byRisk = (riskType: DailyBriefingItem["risk_type"]) =>
+    items.filter((item) => item.risk_type === riskType).length;
+  return [
+    {
+      icon: "◷",
+      label: "체류기간 임박",
+      tone: "danger",
+      unit: "명",
+      value: byRisk("visa_expiry"),
+    },
+    {
+      icon: "□",
+      label: "서류 보완 필요",
+      tone: "orange",
+      unit: "건",
+      value: byRisk("missing_document"),
+    },
+    {
+      icon: "♙",
+      label: "신규 채용 준비",
+      tone: "green",
+      unit: "건",
+      value: byRisk("quota_review"),
+    },
+    {
+      icon: "▱",
+      label: "컨택 대기",
+      tone: "purple",
+      unit: "건",
+      value: actions.filter((action) => action.action_type === "request_document").length,
+    },
+    {
+      icon: "▰",
+      label: "응답 도착",
+      tone: "blue",
+      unit: "건",
+      value: items.filter((item) => item.risk_type === "contract_visa_conflict").length,
+    },
+    {
+      icon: "◇",
+      label: "승인 대기",
+      tone: "amber",
+      unit: "건",
+      value: actions.filter((action) => action.status === "pending_approval").length,
+    },
+    {
+      icon: "☑",
+      label: "행정사 검토 준비",
+      tone: "indigo",
+      unit: "건",
+      value: actions.filter((action) => action.action_type === "create_handoff").length,
+    },
+  ];
 }
 
 export function DailyBriefingPanel() {
-  const [companyId, setCompanyId] = useState("company_001");
-  const [date, setDate] = useState(todayInputValue);
-  const [briefing, setBriefing] = useState<DailyBriefingResult | null>(null);
-  const [preview, setPreview] = useState<HandoffPreview | null>(null);
-  const [documentDraft, setDocumentDraft] = useState<DocumentRequestDraft | null>(null);
-  const [deliveryJob, setDeliveryJob] = useState<ExternalDeliveryJob | null>(null);
-  const [exportArtifacts, setExportArtifacts] = useState<HandoffExportArtifact[]>([]);
-  const [citationChunk, setCitationChunk] = useState<CitationChunkView | null>(null);
-  const [citationSource, setCitationSource] = useState<CitationSourceDocumentView | null>(null);
-  const [citationValidation, setCitationValidation] = useState<CitationValidationStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    approve: handleApprove,
+    briefing,
+    citationChunk,
+    citationSource,
+    citationValidation,
+    companyId,
+    date,
+    deliveryJob,
+    documentDraft,
+    error,
+    exportArtifacts,
+    loading,
+    mockDispatch: handleMockDispatch,
+    openCitation: handleOpenCitation,
+    openDocumentDraft: handleOpenDocumentDraft,
+    openHandoffPreview: handleOpenPreview,
+    preview,
+    reject: handleReject,
+    requestActionRevision: handleRevision,
+    runBriefing: handleRunBriefing,
+    setCitationChunk,
+    setCitationSource,
+    setCitationValidation,
+    setDeliveryJob,
+    setDocumentDraft,
+    setPreview,
+  } = useDailyBriefingWorkflow();
+  const [chatOpen, setChatOpen] = useState(false);
+  const [showExportArtifacts, setShowExportArtifacts] = useState(false);
 
-  async function refreshBriefing() {
-    return runDailyBriefing(companyId, date);
-  }
+  useEffect(() => {
+    void handleRunBriefing();
+  }, [handleRunBriefing]);
 
-  async function handleRunBriefing() {
-    setLoading(true);
-    setError(null);
-    try {
-      setBriefing(await refreshBriefing());
-      setPreview(null);
-      setDocumentDraft(null);
-      setDeliveryJob(null);
-      setExportArtifacts([]);
-      setCitationChunk(null);
-      setCitationSource(null);
-      setCitationValidation(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Daily briefing failed");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (exportArtifacts.length) {
+      setShowExportArtifacts(true);
     }
-  }
+  }, [exportArtifacts.length]);
 
-  async function handleApprove(action: NextAction) {
-    setError(null);
-    try {
-      await approveAction(action.approval_id, companyId);
-      setBriefing(await refreshBriefing());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Approval failed");
-    }
-  }
-
-  async function handleReject(action: NextAction) {
-    setError(null);
-    try {
-      await rejectAction(action.approval_id, "Rejected during internal review.", companyId);
-      setBriefing(await refreshBriefing());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Reject failed");
-    }
-  }
-
-  async function handleRevision(action: NextAction) {
-    setError(null);
-    try {
-      await requestRevision(action.approval_id, "Please revise this draft.", companyId);
-      setBriefing(await refreshBriefing());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Revision request failed");
-    }
-  }
-
-  async function handleOpenPreview(action: NextAction) {
-    setError(null);
-    try {
-      setPreview(await getHandoffPreview(action.action_id, companyId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Handoff preview failed");
-    }
-  }
-
-  async function handleOpenDocumentDraft(action: NextAction) {
-    setError(null);
-    try {
-      setDocumentDraft(await getDocumentRequestDraft(action.action_id, companyId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Document request draft failed");
-    }
-  }
-
-  async function handleCreateDeliveryJob(action: NextAction) {
-    setError(null);
-    try {
-      setDeliveryJob(await createExternalDeliveryJob(action.action_id, companyId, "mock_webhook"));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "External delivery job failed");
-    }
-  }
-
-  async function handleMockDispatch() {
-    if (!deliveryJob) {
-      return;
-    }
-    setError(null);
-    try {
-      setDeliveryJob(await dispatchExternalDeliveryJob(deliveryJob.job_id, companyId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Mock dispatch verification failed");
-    }
-  }
-
-  async function handleDownloadExport(action: NextAction) {
-    setError(null);
-    try {
-      const pdf = await downloadHandoffExportPdf(action.action_id, companyId);
-      const url = window.URL.createObjectURL(pdf);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${action.action_id}-handoff-export.pdf`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-      setExportArtifacts(await getHandoffExportArtifacts(action.action_id, companyId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "PDF export draft failed");
-    }
-  }
-
-  async function handleOpenCitation(citationId: string) {
-    setError(null);
-    try {
-      const [chunk, source, validation] = await Promise.all([
-        getCitationChunk(citationId),
-        getCitationSourceDocument(citationId),
-        getCitationValidation(citationId),
-      ]);
-      setCitationChunk(chunk);
-      setCitationSource(source);
-      setCitationValidation(validation);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Citation viewer failed");
-    }
-  }
+  const items = briefing?.items ?? [];
+  const actions = briefing?.recommended_actions ?? [];
+  const summaryCards = useMemo(() => buildSummaryCards({ actions, items }), [actions, items]);
+  const visibleItems = items.slice(0, 8);
 
   return (
-    <section className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10">
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
-          E-9 operations risk MVP
-        </p>
-        <h1 className="mt-3 text-4xl font-black tracking-tight text-slate-950">
-          데일리 브리핑: 기한, 서류, 승인, 근거를 한 번에 확인합니다.
-        </h1>
-        <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-          시스템은 승인 가능한 초안과 검토 패키지만 준비합니다. 메시지 발송, 정부 제출,
-          외부 전달은 담당자 승인 없이 실행하지 않습니다.
-        </p>
-        <p className="mt-3 max-w-3xl rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-          MVP 안전 모드: 승인은 내부 기록만 생성합니다. 카카오톡, 문자, 이메일, 행정사 전달은
-          실제로 수행하지 않습니다.
-        </p>
-        <div className="mt-6 grid gap-3 md:grid-cols-[1fr_180px_auto]">
-          <label className="flex flex-col gap-2 text-sm font-bold text-slate-700">
-            사업장 ID
-            <input
-              className="rounded-2xl border border-slate-200 px-4 py-3 text-slate-950"
-              onChange={(event) => setCompanyId(event.target.value)}
-              value={companyId}
-            />
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-bold text-slate-700">
-            기준일
-            <input
-              className="rounded-2xl border border-slate-200 px-4 py-3 text-slate-950"
-              onChange={(event) => setDate(event.target.value)}
-              type="date"
-              value={date}
-            />
-          </label>
-          <button
-            className="self-end rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-sm disabled:opacity-50"
-            disabled={loading}
-            onClick={handleRunBriefing}
-          >
-            {loading ? "생성 중..." : "브리핑 생성"}
-          </button>
+    <section className="ops-console">
+      <div className="ops-announcement">
+        <div className="ops-agent-mark">반</div>
+        <div>
+          <strong>오늘 브리핑이 준비되었습니다</strong>
+          <p>
+            외고반장이 {items.length || 0}개 케이스를 정리했습니다. 즉시 확인{" "}
+            {briefing?.risk_summary.critical_count ?? 0}건, 우선 확인{" "}
+            {briefing?.risk_summary.high_count ?? 0}건, 승인 대기{" "}
+            {actions.filter((action) => action.status === "pending_approval").length}건. 모든 판단의 근거는
+            항목 클릭으로 확인할 수 있습니다.
+          </p>
         </div>
-        {error ? <p className="mt-4 text-sm font-semibold text-red-700">{error}</p> : null}
+        <span className="ops-announcement-time">오늘 08:00</span>
+        <button className="ops-secondary-button" disabled={loading} onClick={handleRunBriefing} type="button">
+          ↻ 다시 생성
+        </button>
       </div>
 
-      <DailyBriefingChatPanel
-        companyId={companyId}
-        date={date}
-        onOpenCitation={handleOpenCitation}
-        onOpenDocumentDraft={handleOpenDocumentDraft}
-        onOpenHandoffPreview={handleOpenPreview}
-      />
+      {error ? <div className="ops-error">API 연결 실패 · {error}</div> : null}
 
-      {briefing ? (
-        <>
-          <div className="grid gap-4 md:grid-cols-4">
-            <Metric label="CRITICAL" value={briefing.risk_summary.critical_count} />
-            <Metric label="HIGH" value={briefing.risk_summary.high_count} />
-            <Metric label="MEDIUM" value={briefing.risk_summary.medium_count} />
-            <Metric label="TOTAL" value={briefing.risk_summary.total_count} />
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <Metric
-              label="APPROVAL PENDING"
-              value={briefing.recommended_actions.filter((action) => action.status === "pending_approval").length}
-            />
-            <Metric
-              label="MISSING EVIDENCE"
-              value={briefing.citation_summaries.filter((citation) => citation.missing_evidence).length}
-            />
-            <Metric
-              label="READY ACTIONS"
-              value={briefing.recommended_actions.filter((action) => action.status === "approved").length}
-            />
-          </div>
+      <div className="ops-summary-grid" aria-label="오늘 브리핑 지표">
+        {summaryCards.map((card) => (
+          <article className="ops-summary-card" data-tone={card.tone} key={card.label}>
+            <span className="ops-summary-icon">{card.icon}</span>
+            <span className="ops-summary-label">{card.label}</span>
+            <strong>
+              {card.value}
+              <small>{card.unit}</small>
+            </strong>
+          </article>
+        ))}
+      </div>
 
-          {briefing.items.length === 0 ? (
-            <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-900">
-              이 날짜에는 승인 대기 위험 업무가 없습니다.
-            </div>
-          ) : null}
+      <div className="ops-section-title">
+        <div>
+          <h2>오늘의 업무 큐</h2>
+          <span>{visibleItems.length}건</span>
+        </div>
+        <div className="ops-toolbar">
+          <button type="button">필터</button>
+          <button type="button">기한 임박 순⌄</button>
+        </div>
+      </div>
 
-          <div className="grid gap-4">
-            {briefing.items.map((item) => {
-              const actions = briefing.recommended_actions.filter((action) =>
-                item.next_action_ids.includes(action.action_id),
-              );
-              return (
-                <article
-                  className={`rounded-3xl border p-6 ${severityTone[item.severity]}`}
-                  key={item.item_id}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.25em]">
-                        {item.severity} / {riskTypeLabel[item.risk_type] ?? item.risk_type}
-                      </p>
-                      <h2 className="mt-2 text-2xl font-black">
-                        {item.case_title ?? item.subject_display_name ?? item.subject_id}
-                      </h2>
-                      {item.case_summary ? (
-                        <p className="mt-2 text-sm font-semibold">{item.case_summary}</p>
-                      ) : null}
-                      <p className="mt-2 text-sm">
-                        {item.risk_timing_label ??
-                          (item.expired
-                            ? `D+${item.days_overdue}`
-                            : item.d_day !== null
-                              ? `D-${item.d_day}`
-                              : "기한 확인 필요")}
-                      </p>
-                    </div>
-                    <a
-                      className="rounded-full border border-current px-4 py-2 text-xs font-bold"
-                      href={`/evidence?case_id=${item.case_id}&company_id=${briefing.company_id}`}
-                    >
-                      판단 기록
-                    </a>
-                  </div>
-                  {item.missing_documents.length ? (
-                    <p className="mt-4 text-sm font-semibold">
-                      누락 서류: {item.missing_documents.join(", ")}
-                    </p>
-                  ) : null}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {item.citation_ids.map((citationId) => {
-                      const citation = briefing.citation_summaries.find(
-                        (summary) => summary.citation_id === citationId,
-                      );
-                      return (
-                        <button
-                          className="rounded-full bg-white/70 px-3 py-1 text-left text-xs font-semibold"
-                          key={citationId}
-                          onClick={() => handleOpenCitation(citationId)}
-                        >
-                          근거: {citation?.title ?? citationId}
-                          {citation?.chunk_version ? ` (${citation.chunk_version})` : ""}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    {actions.map((action) => (
-                      <span className="flex flex-wrap gap-2" key={action.action_id}>
-                        {action.action_type === "create_handoff" ? (
-                          <>
-                            <button
-                              className="rounded-full border border-white/70 px-4 py-2 text-xs font-black"
-                              onClick={() => handleOpenPreview(action)}
-                            >
-                              행정사 패키지
-                            </button>
-                            <button
-                              className="rounded-full border border-white/70 px-4 py-2 text-xs font-black"
-                              onClick={() => handleDownloadExport(action)}
-                            >
-                              PDF 초안
-                            </button>
-                            <button
-                              className="rounded-full border border-white/70 px-4 py-2 text-xs font-black"
-                              onClick={() => handleCreateDeliveryJob(action)}
-                            >
-                              전달 기록 초안
-                            </button>
-                          </>
-                        ) : null}
-                        {action.action_type === "request_document" ? (
-                          <button
-                            className="rounded-full border border-white/70 px-4 py-2 text-xs font-black"
-                            onClick={() => handleOpenDocumentDraft(action)}
-                          >
-                            서류 요청 초안
-                          </button>
-                        ) : null}
-                        <button
-                          className="rounded-full bg-white px-4 py-2 text-xs font-black text-slate-950 shadow-sm disabled:opacity-60"
-                          disabled={action.status !== "pending_approval"}
-                          onClick={() => handleApprove(action)}
-                        >
-                          {action.status === "approved" ? "승인됨" : `승인 ${action.label}`}
-                        </button>
-                        <button
-                          className="rounded-full bg-white/70 px-4 py-2 text-xs font-black text-slate-950 disabled:opacity-60"
-                          disabled={action.status !== "pending_approval"}
-                          onClick={() => handleRevision(action)}
-                        >
-                          수정 요청
-                        </button>
-                        <button
-                          className="rounded-full bg-red-900 px-4 py-2 text-xs font-black text-white disabled:opacity-60"
-                          disabled={action.status !== "pending_approval"}
-                          onClick={() => handleReject(action)}
-                        >
-                          반려
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-          {preview ? (
-            <aside className="rounded-3xl border border-slate-200 bg-slate-950 p-6 text-white shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-400">
-                    Internal Handoff Preview
-                  </p>
-                  <h2 className="mt-2 text-2xl font-black">Review-only handoff package</h2>
-                </div>
-                <button className="text-sm font-bold text-slate-300" onClick={() => setPreview(null)}>
-                  Close
-                </button>
-              </div>
-              <pre className="mt-5 overflow-auto rounded-2xl bg-white/10 p-4 text-xs leading-6 text-slate-100">
-                {JSON.stringify(preview.content_redacted, null, 2)}
-              </pre>
-              <p className="mt-4 text-xs text-slate-300">
-                Preview only. No package was sent to an external party.
-              </p>
-            </aside>
-          ) : null}
-          {documentDraft ? (
-            <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-                    Preview-only Document Request
-                  </p>
-                  <h2 className="mt-2 text-2xl font-black text-slate-950">Document request message draft</h2>
-                </div>
-                <button className="text-sm font-bold text-slate-500" onClick={() => setDocumentDraft(null)}>
-                  Close
-                </button>
-              </div>
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">Korean</p>
-                  <p className="mt-3 text-sm leading-6 text-slate-800">{documentDraft.korean_text}</p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-                    Draft translation
-                  </p>
-                  <p className="mt-3 text-sm leading-6 text-slate-800">{documentDraft.translated_text}</p>
-                </div>
-              </div>
-              <p className="mt-4 text-xs font-semibold text-slate-500">
-                External send performed: {String(documentDraft.external_send_performed)}
-              </p>
-            </aside>
-          ) : null}
-          {deliveryJob ? (
-            <aside className="rounded-3xl border border-blue-200 bg-blue-50 p-6 text-blue-950 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-blue-700">
-                    MVP dispatch boundary
-                  </p>
-                  <h2 className="mt-2 text-2xl font-black">No external transfer was performed</h2>
-                </div>
-                <button className="text-sm font-bold text-blue-700" onClick={() => setDeliveryJob(null)}>
-                  Close
-                </button>
-              </div>
-              <p className="mt-4 text-sm">
-                Status: {deliveryJob.status}. Provider: {deliveryJob.provider}. External send performed:{" "}
-                {String(deliveryJob.external_send_performed)}. This record is for internal audit and
-                dispatch-path verification only.
-              </p>
-              {deliveryJob.status === "pending_manual_dispatch" ? (
+      <div className="ops-table-shell">
+        <div className="ops-table-header">
+          <span />
+          <span>업무</span>
+          <span>대상</span>
+          <span>상태</span>
+          <span>기한</span>
+          <span>다음 처리</span>
+          <span />
+        </div>
+        {loading && !briefing ? <div className="ops-empty-row">브리핑을 불러오는 중입니다...</div> : null}
+        {!loading && !visibleItems.length ? (
+          <div className="ops-empty-row">오늘 표시할 업무가 없습니다.</div>
+        ) : null}
+        {visibleItems.map((item) => {
+          const rowActions = actions.filter((action) => item.next_action_ids.includes(action.action_id));
+          const primaryAction = rowActions[0];
+          return (
+            <article className="ops-task-row" key={item.item_id}>
+              <span className="ops-checkbox" aria-hidden="true" />
+              <div className="ops-task-title">
+                <span className="ops-task-icon">{taskIconByRisk[item.risk_type]}</span>
                 <button
-                  className="mt-5 rounded-full bg-blue-950 px-4 py-2 text-xs font-black text-white"
-                  onClick={handleMockDispatch}
+                  onClick={() => (item.citation_ids[0] ? handleOpenCitation(item.citation_ids[0]) : undefined)}
+                  type="button"
                 >
-                  Verify mock dispatch path
+                  {item.case_title ?? riskTypeLabel[item.risk_type]}
                 </button>
-              ) : null}
-            </aside>
-          ) : null}
-          {exportArtifacts.length ? (
-            <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">
-                Export artifact history
-              </p>
-              <div className="mt-4 grid gap-3">
-                {exportArtifacts.map((artifact) => (
-                  <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-700" key={artifact.artifact_id}>
-                    <p className="font-black text-slate-950">{artifact.format.toUpperCase()} draft</p>
-                    <p className="mt-1">Hash: {artifact.content_hash}</p>
-                    <p>External delivery performed: {String(artifact.external_delivery_performed)}</p>
-                    <p className="text-xs text-slate-500">Created: {artifact.created_at}</p>
-                  </div>
-                ))}
               </div>
-            </aside>
-          ) : null}
-          {citationChunk && citationSource && citationValidation ? (
-            <aside className="rounded-3xl border border-indigo-200 bg-indigo-50 p-6 text-indigo-950 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
+              <span className="ops-subject">
+                {item.subject_display_name ?? item.subject_display_id ?? item.subject_id}
+              </span>
+              <span className="ops-status">{rowStatus(rowActions)}</span>
+              <strong className={item.expired || (item.d_day ?? 99) <= 30 ? "ops-deadline urgent" : "ops-deadline"}>
+                {timingLabel(item)}
+              </strong>
+              <div className="ops-row-actions">
+                {primaryAction ? (
+                  <button
+                    onClick={() =>
+                      primaryAction.action_type === "request_document"
+                        ? handleOpenDocumentDraft(primaryAction)
+                        : handleOpenPreview(primaryAction)
+                    }
+                    type="button"
+                  >
+                    {nextActionLabel(rowActions)}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => (item.citation_ids[0] ? handleOpenCitation(item.citation_ids[0]) : undefined)}
+                    type="button"
+                  >
+                    근거 보기
+                  </button>
+                )}
+              </div>
+              <span className="ops-more">⋮</span>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="ops-lower-grid">
+        <section className="ops-panel">
+          <div className="ops-panel-heading">
+            <h3>승인 대기 작업</h3>
+            <span>{actions.filter((action) => action.status === "pending_approval").length}건</span>
+          </div>
+          <div className="ops-action-list">
+            {actions.slice(0, 5).map((action) => (
+              <article className="ops-action-card" key={action.action_id}>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-indigo-700">
-                    Citation source viewer
-                  </p>
-                  <h2 className="mt-2 text-2xl font-black">{citationSource.title}</h2>
+                  <strong>{action.label}</strong>
+                  <p>{action.action_type === "request_document" ? "다국어 초안" : "행정사 검토 패키지"}</p>
                 </div>
-                <button
-                  className="text-sm font-bold text-indigo-700"
-                  onClick={() => {
-                    setCitationChunk(null);
-                    setCitationSource(null);
-                    setCitationValidation(null);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-              <div className="mt-5 grid gap-4 md:grid-cols-[1fr_1.4fr]">
-                <div className="rounded-2xl bg-white/70 p-4 text-sm">
-                  <p className="font-black">Source metadata</p>
-                  <p className="mt-2">Citation: {citationSource.citation_id}</p>
-                  <p>Document: {citationSource.document_id ?? "not linked"}</p>
-                  <p>Source type: {citationSource.source_type}</p>
-                  <p>Retrieved: {citationSource.retrieved_at ?? "not recorded"}</p>
-                  <p>Chunk version: {citationChunk.chunk_version ?? "not versioned"}</p>
-                  <p>Validation: {citationValidation.validation_status}</p>
-                  <p>Missing evidence: {String(citationValidation.missing_evidence)}</p>
-                  <p>Policy update needed: {String(citationValidation.policy_update_needed)}</p>
-                  <p>Original PDF available: {String(citationSource.original_pdf_available)}</p>
+                <div className="ops-action-buttons">
+                  <button
+                    disabled={action.status !== "pending_approval"}
+                    onClick={() => handleApprove(action)}
+                    type="button"
+                  >
+                    승인
+                  </button>
+                  <button
+                    disabled={action.status !== "pending_approval"}
+                    onClick={() => handleRevision(action)}
+                    type="button"
+                  >
+                    수정
+                  </button>
+                  <button
+                    disabled={action.status !== "pending_approval"}
+                    onClick={() => handleReject(action)}
+                    type="button"
+                  >
+                    반려
+                  </button>
                 </div>
-                <div className="rounded-2xl bg-white p-4 text-sm leading-6">
-                  <p className="mb-3 font-black">Retrieved chunk</p>
-                  <p>{citationChunk.chunk_text}</p>
-                </div>
-              </div>
-              <p className="mt-4 text-xs font-semibold text-indigo-700">
-                This viewer shows the retrieved evidence metadata used by the risk briefing. It does not make a legal conclusion.
-              </p>
-            </aside>
-          ) : null}
-        </>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="ops-panel">
+          <div className="ops-panel-heading">
+            <h3>근거 / Evidence</h3>
+            <span>{briefing?.citation_summaries.length ?? 0}개</span>
+          </div>
+          <div className="ops-evidence-list">
+            {(briefing?.citation_summaries ?? []).slice(0, 5).map((source) => (
+              <button key={source.citation_id} onClick={() => handleOpenCitation(source.citation_id)} type="button">
+                <strong>{source.title}</strong>
+                <span>{source.source}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {preview ? (
+        <DetailDrawer title="행정사 검토 패키지" onClose={() => setPreview(null)}>
+          <pre>{JSON.stringify(preview.content_redacted, null, 2)}</pre>
+          <p>검토용 초안입니다. 외부 전달은 수행하지 않았습니다.</p>
+        </DetailDrawer>
       ) : null}
+
+      {documentDraft ? (
+        <DetailDrawer title="서류 요청 메시지 초안" onClose={() => setDocumentDraft(null)}>
+          <h4>한국어 원문</h4>
+          <p>{documentDraft.korean_text}</p>
+          <h4>번역 초안</h4>
+          <p>{documentDraft.translated_text}</p>
+          <p>승인 전에는 외부로 발송되지 않습니다.</p>
+        </DetailDrawer>
+      ) : null}
+
+      {deliveryJob ? (
+        <DetailDrawer title="외부 전달 경계" onClose={() => setDeliveryJob(null)}>
+          <p>
+            상태: {deliveryJob.status}. Provider: {deliveryJob.provider}. 실제 외부 발송 여부:{" "}
+            {String(deliveryJob.external_send_performed)}.
+          </p>
+          {deliveryJob.status === "pending_manual_dispatch" ? (
+            <button className="ops-primary-button" onClick={handleMockDispatch} type="button">
+              Mock dispatch path 확인
+            </button>
+          ) : null}
+        </DetailDrawer>
+      ) : null}
+
+      {exportArtifacts.length && showExportArtifacts ? (
+        <DetailDrawer title="Export artifact history" onClose={() => setShowExportArtifacts(false)}>
+          {exportArtifacts.map((artifact) => (
+            <p key={artifact.artifact_id}>
+              {artifact.format.toUpperCase()} draft · {artifact.content_hash}
+            </p>
+          ))}
+        </DetailDrawer>
+      ) : null}
+
+      {citationChunk && citationSource && citationValidation ? (
+        <DetailDrawer
+          title="판단 근거"
+          onClose={() => {
+            setCitationChunk(null);
+            setCitationSource(null);
+            setCitationValidation(null);
+          }}
+        >
+          <h4>{citationSource.title}</h4>
+          <p>{citationChunk.chunk_text}</p>
+          <p>검증 상태: {citationValidation.validation_status}</p>
+        </DetailDrawer>
+      ) : null}
+
+      {chatOpen ? (
+        <div className="ops-chat-drawer">
+          <div className="ops-chat-backdrop" onClick={() => setChatOpen(false)} />
+          <div className="ops-chat-panel">
+            <button className="ops-chat-close" onClick={() => setChatOpen(false)} type="button">
+              닫기
+            </button>
+            <DailyBriefingChatPanel
+              companyId={companyId}
+              date={date}
+              onOpenCitation={handleOpenCitation}
+              onOpenDocumentDraft={handleOpenDocumentDraft}
+              onOpenHandoffPreview={handleOpenPreview}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      <button className="ops-floating-agent" onClick={() => setChatOpen(true)} type="button">
+        ✦ AI 반장
+      </button>
     </section>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function DetailDrawer({
+  children,
+  title,
+  onClose,
+}: {
+  children: React.ReactNode;
+  title: string;
+  onClose: () => void;
+}) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.25em] text-slate-500">{label}</p>
-      <p className="mt-2 text-4xl font-black text-slate-950">{value}</p>
-    </div>
+    <aside className="ops-drawer">
+      <div className="ops-drawer-card">
+        <div className="ops-drawer-heading">
+          <h3>{title}</h3>
+          <button onClick={onClose} type="button">
+            닫기
+          </button>
+        </div>
+        <div className="ops-drawer-body">{children}</div>
+      </div>
+    </aside>
   );
 }

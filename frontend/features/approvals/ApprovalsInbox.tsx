@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 const COMPANY_ID = "550e8400-e29b-41d4-a716-446655440001";
 const REVIEWER_ID = "manager-demo";
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
 
 type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 type TargetType = "contact_message" | "status_update_candidate" | "handoff_package_draft";
