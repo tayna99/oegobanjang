@@ -26,8 +26,17 @@ import type {
   CitationRefreshQueue,
   ScheduledDailyBriefingStatus,
 } from "../types/dailyBriefing";
+import { getOperatorHeaders } from "./operatorContext";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+
+function companyHeaders(companyId: string, overrides: Parameters<typeof getOperatorHeaders>[0] = {}) {
+  return getOperatorHeaders({ companyId, ...overrides });
+}
+
+function adminHeaders(overrides: Parameters<typeof getOperatorHeaders>[0] = {}) {
+  return getOperatorHeaders({ role: "admin", ...overrides });
+}
 
 export type ApiResult<T> = {
   ok: boolean;
@@ -74,9 +83,7 @@ export async function runDailyBriefing(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Company-Id": companyId,
-      "X-User-Role": "manager",
-      "X-User-Id": "manager_001",
+      ...companyHeaders(companyId),
     },
     body: JSON.stringify({ company_id: companyId, date }),
   });
@@ -111,9 +118,7 @@ export async function sendAgentChatMessage({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Company-Id": companyId,
-      "X-User-Role": "manager",
-      "X-User-Id": "manager_001",
+      ...companyHeaders(companyId),
     },
     body: JSON.stringify({
       message,
@@ -140,11 +145,7 @@ export async function approveAction(
 ): Promise<ApprovalActionResult> {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/approve`, {
     method: "POST",
-    headers: {
-      "X-Company-Id": companyId,
-      "X-User-Role": "manager",
-      "X-User-Id": "manager_001",
-    },
+    headers: companyHeaders(companyId),
   });
 
   if (!response.ok) {
@@ -163,9 +164,7 @@ export async function rejectAction(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Company-Id": companyId,
-      "X-User-Role": "manager",
-      "X-User-Id": "manager_001",
+      ...companyHeaders(companyId),
     },
     body: JSON.stringify({ reason }),
   });
@@ -186,9 +185,7 @@ export async function requestRevision(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Company-Id": companyId,
-      "X-User-Role": "manager",
-      "X-User-Id": "manager_001",
+      ...companyHeaders(companyId),
     },
     body: JSON.stringify({ reason }),
   });
@@ -205,9 +202,7 @@ export async function getHandoffPreview(
   companyId = "",
 ): Promise<HandoffPreview> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/handoff-preview`, {
-    headers: {
-      "X-Company-Id": companyId,
-    },
+    headers: companyHeaders(companyId),
   });
 
   if (!response.ok) {
@@ -222,9 +217,7 @@ export async function getDocumentRequestDraft(
   companyId = "",
 ): Promise<DocumentRequestDraft> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/document-request-draft`, {
-    headers: {
-      "X-Company-Id": companyId,
-    },
+    headers: companyHeaders(companyId),
   });
 
   if (!response.ok) {
@@ -239,9 +232,7 @@ export async function getCaseEvidenceEvents(
   companyId = "",
 ): Promise<EvidenceEvent[]> {
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/evidence-events`, {
-    headers: {
-      "X-Company-Id": companyId,
-    },
+    headers: companyHeaders(companyId),
   });
 
   if (!response.ok) {
@@ -253,9 +244,7 @@ export async function getCaseEvidenceEvents(
 
 export async function getDailyBriefingSourceSummary(): Promise<DailyBriefingSourceSummary> {
   const response = await fetch(`${API_BASE_URL}/daily-briefings/sources/summary`, {
-    headers: {
-      "X-User-Role": "admin",
-    },
+    headers: adminHeaders(),
   });
   if (!response.ok) {
     throw new Error(`Daily briefing source summary failed with ${response.status}`);
@@ -266,9 +255,7 @@ export async function getDailyBriefingSourceSummary(): Promise<DailyBriefingSour
 
 export async function getDailyBriefingSchedulerStatus(): Promise<ScheduledDailyBriefingStatus> {
   const response = await fetch(`${API_BASE_URL}/daily-briefings/scheduler/status`, {
-    headers: {
-      "X-User-Role": "admin",
-    },
+    headers: adminHeaders(),
   });
   if (!response.ok) {
     throw new Error(`Daily briefing scheduler status failed with ${response.status}`);
@@ -284,7 +271,7 @@ export async function importDailyBriefingSourceCsv(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-User-Role": "admin",
+      ...adminHeaders(),
     },
     body: JSON.stringify(payload),
   });
@@ -302,7 +289,7 @@ export async function validateDailyBriefingSourceCsv(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-User-Role": "admin",
+      ...adminHeaders(),
     },
     body: JSON.stringify(payload),
   });
@@ -322,9 +309,7 @@ export async function uploadDailyBriefingSourceCsv(
   form.append("file", file);
   const response = await fetch(`${API_BASE_URL}/daily-briefings/sources/upload-csv`, {
     method: "POST",
-    headers: {
-      "X-User-Role": "admin",
-    },
+    headers: adminHeaders(),
     body: form,
   });
   if (!response.ok) {
@@ -340,9 +325,7 @@ export async function getDailyBriefingHistory(
   const response = await fetch(
     `${API_BASE_URL}/daily-briefings/history/list?company_id=${encodeURIComponent(companyId)}`,
     {
-      headers: {
-        "X-Company-Id": companyId,
-      },
+      headers: companyHeaders(companyId),
     },
   );
   if (!response.ok) {
@@ -358,9 +341,7 @@ export async function getDailyBriefingDataQualitySummary(
   const response = await fetch(
     `${API_BASE_URL}/daily-briefings/quality/summary?company_id=${encodeURIComponent(companyId)}`,
     {
-      headers: {
-        "X-Company-Id": companyId,
-      },
+      headers: companyHeaders(companyId),
     },
   );
   if (!response.ok) {
@@ -376,9 +357,7 @@ export async function getDailyBriefingPilotMetrics(
   const response = await fetch(
     `${API_BASE_URL}/daily-briefings/metrics/summary?company_id=${encodeURIComponent(companyId)}`,
     {
-      headers: {
-        "X-Company-Id": companyId,
-      },
+      headers: companyHeaders(companyId),
     },
   );
   if (!response.ok) {
@@ -396,8 +375,7 @@ export async function createDailyBriefingMetricsSnapshot(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Company-Id": companyId,
-      "X-User-Role": "admin",
+      ...adminHeaders({ companyId }),
     },
     body: JSON.stringify({ company_id: companyId, date }),
   });
@@ -414,9 +392,7 @@ export async function getDailyBriefingSchedulerHistory(
   const response = await fetch(
     `${API_BASE_URL}/daily-briefings/scheduler/history?company_id=${encodeURIComponent(companyId)}`,
     {
-      headers: {
-        "X-Company-Id": companyId,
-      },
+      headers: companyHeaders(companyId),
     },
   );
   if (!response.ok) {
@@ -431,9 +407,7 @@ export async function getHandoffExportDraft(
   companyId = "",
 ): Promise<HandoffExportDraft> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/handoff-export-draft`, {
-    headers: {
-      "X-Company-Id": companyId,
-    },
+    headers: companyHeaders(companyId),
   });
   if (!response.ok) {
     throw new Error(`Handoff export draft failed with ${response.status}`);
@@ -451,9 +425,7 @@ export async function downloadHandoffExportPdf(
   companyId = "",
 ): Promise<Blob> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/handoff-export.pdf`, {
-    headers: {
-      "X-Company-Id": companyId,
-    },
+    headers: companyHeaders(companyId),
   });
   if (!response.ok) {
     throw new Error(`Handoff export PDF failed with ${response.status}`);
@@ -471,9 +443,7 @@ export async function createExternalDeliveryJob(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Company-Id": companyId,
-      "X-User-Role": "manager",
-      "X-User-Id": "manager_001",
+      ...companyHeaders(companyId),
     },
     body: JSON.stringify({ channel: "admin_scrivener", provider }),
   });
@@ -490,11 +460,7 @@ export async function dispatchExternalDeliveryJob(
 ): Promise<ExternalDeliveryJob> {
   const response = await fetch(`${API_BASE_URL}/external-delivery-jobs/${jobId}/dispatch`, {
     method: "POST",
-    headers: {
-      "X-Company-Id": companyId,
-      "X-User-Role": "manager",
-      "X-User-Id": "manager_001",
-    },
+    headers: companyHeaders(companyId),
   });
   if (!response.ok) {
     throw new Error(`External delivery dispatch failed with ${response.status}`);
@@ -508,9 +474,7 @@ export async function getHandoffExportArtifacts(
   companyId = "",
 ): Promise<HandoffExportArtifact[]> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/handoff-exports`, {
-    headers: {
-      "X-Company-Id": companyId,
-    },
+    headers: companyHeaders(companyId),
   });
   if (!response.ok) {
     throw new Error(`Handoff export artifacts failed with ${response.status}`);
@@ -524,9 +488,7 @@ export async function getCaseAuditReview(
   companyId = "",
 ): Promise<CaseAuditReview> {
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/audit-review`, {
-    headers: {
-      "X-Company-Id": companyId,
-    },
+    headers: companyHeaders(companyId),
   });
   if (!response.ok) {
     throw new Error(`Case audit review failed with ${response.status}`);
@@ -568,9 +530,7 @@ export async function getCitationAdminList(
   }
   const suffix = params.toString() ? `?${params.toString()}` : "";
   const response = await fetch(`${API_BASE_URL}/citations/admin/list${suffix}`, {
-    headers: {
-      "X-User-Role": "admin",
-    },
+    headers: adminHeaders(),
   });
   if (!response.ok) {
     throw new Error(`Citation admin list failed with ${response.status}`);
@@ -588,7 +548,7 @@ export async function createCitationRefreshQueueItem(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-User-Role": "admin",
+      ...adminHeaders(),
     },
     body: JSON.stringify({ citation_id: citationId, reason, priority }),
   });
@@ -607,7 +567,7 @@ export async function processCitationRefreshQueueItem(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-User-Role": "admin",
+      ...adminHeaders(),
     },
     body: JSON.stringify({
       refresh_mode: "manual_source",
@@ -635,9 +595,7 @@ export async function getCitationRefreshQueue(status = "open"): Promise<Citation
   const response = await fetch(
     `${API_BASE_URL}/citations/refresh-queue?status=${encodeURIComponent(status)}`,
     {
-      headers: {
-        "X-User-Role": "admin",
-      },
+      headers: adminHeaders(),
     },
   );
   if (!response.ok) {
@@ -655,11 +613,8 @@ export async function getCitationChunk(citationId: string): Promise<CitationChun
 
   return response.json();
 }
-
-export async function getCitationSourceDocument(
-  citationId: string,
-): Promise<CitationSourceDocumentView> {
-  const response = await fetch(`${API_BASE_URL}/citations/${citationId}/source-document`);
+export async function getCitationSourceDocument(citationId: string): Promise<CitationSourceDocumentView> {
+  const response = await fetch(`${API_BASE_URL}/citations/${citationId}/source`);
   if (!response.ok) {
     throw new Error(`Citation source document failed with ${response.status}`);
   }

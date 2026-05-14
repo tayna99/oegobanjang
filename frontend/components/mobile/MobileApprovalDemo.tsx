@@ -8,8 +8,11 @@ import { MobileBriefingScreen } from "./MobileBriefingScreen";
 import { MobileCaseDetailScreen } from "./MobileCaseDetailScreen";
 import { MobileDraftScreen } from "./MobileDraftScreen";
 import { MobileShell } from "./MobileShell";
+import { MobileTabScreen } from "./MobileTabScreens";
 import type { ApprovalActionResult, ExternalDeliveryJob, NextAction } from "../../types/dailyBriefing";
 import type { MobileDemoStep } from "./demoTask";
+
+type TabId = "home" | "workers" | "contact" | "cases" | "more";
 
 type MobileApprovalDemoProps = {
   action?: NextAction | null;
@@ -31,6 +34,7 @@ export function MobileApprovalDemo({
   onRequestRevision,
 }: MobileApprovalDemoProps) {
   const [step, setStep] = useState<MobileDemoStep>("briefing");
+  const [activeTab, setActiveTab] = useState<TabId>("home");
   const [draftBackTarget, setDraftBackTarget] = useState<MobileDemoStep>("process");
   const [busyAction, setBusyAction] = useState<"approve" | "revision" | null>(null);
   const [approvalResult, setApprovalResult] = useState<ApprovalActionResult | null>(externalApprovalResult);
@@ -41,7 +45,15 @@ export function MobileApprovalDemo({
     if (nextStep === "draft" && step !== "draft") {
       setDraftBackTarget(step);
     }
+    setActiveTab("home");
     setStep(nextStep);
+  }
+
+  function handleTabChange(id: TabId) {
+    setActiveTab(id);
+    if (id === "home") {
+      setStep("briefing");
+    }
   }
 
   async function approveSelectedAction() {
@@ -94,33 +106,39 @@ export function MobileApprovalDemo({
 
   return (
     <div className={embedded ? "mobile-demo-stage embedded" : "mobile-demo-stage"}>
-      <MobileShell>
-        {step === "briefing" ? (
-          <MobileBriefingScreen
-            busyAction={busyAction}
-            go={go}
-            onRequestRevision={requestSelectedRevision}
-            reviewMessage={reviewMessage}
-          />
-        ) : null}
-        {step === "detail" ? <MobileCaseDetailScreen go={go} /> : null}
-        {step === "process" ? <MobileAgentProcessScreen go={go} /> : null}
-        {step === "draft" ? (
-          <MobileDraftScreen
-            backTo={draftBackTarget}
-            busyAction={busyAction}
-            go={go}
-            onApprove={approveSelectedAction}
-            onRequestRevision={requestSelectedRevision}
-            reviewMessage={reviewMessage}
-          />
-        ) : null}
-        {step === "done" ? (
-          <MobileApprovalDoneScreen
-            deliveryJob={deliveryJob}
-            go={go}
-          />
-        ) : null}
+      <MobileShell activeTab={activeTab} onTabChange={handleTabChange}>
+        {activeTab !== "home" ? (
+          <MobileTabScreen go={go} tab={activeTab} />
+        ) : (
+          <>
+            {step === "briefing" ? (
+              <MobileBriefingScreen
+                busyAction={busyAction}
+                go={go}
+                onRequestRevision={requestSelectedRevision}
+                reviewMessage={reviewMessage}
+              />
+            ) : null}
+            {step === "detail" ? <MobileCaseDetailScreen go={go} /> : null}
+            {step === "process" ? <MobileAgentProcessScreen go={go} /> : null}
+            {step === "draft" ? (
+              <MobileDraftScreen
+                backTo={draftBackTarget}
+                busyAction={busyAction}
+                go={go}
+                onApprove={approveSelectedAction}
+                onRequestRevision={requestSelectedRevision}
+                reviewMessage={reviewMessage}
+              />
+            ) : null}
+            {step === "done" ? (
+              <MobileApprovalDoneScreen
+                deliveryJob={deliveryJob}
+                go={go}
+              />
+            ) : null}
+          </>
+        )}
       </MobileShell>
     </div>
   );

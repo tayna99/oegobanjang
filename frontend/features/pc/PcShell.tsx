@@ -67,9 +67,15 @@ type InfoPanel = {
   body: React.ReactNode;
 };
 
-export function PcShell() {
+export function PcShell({
+  activeViewOverride,
+  children,
+}: {
+  activeViewOverride?: PcViewKey;
+  children?: React.ReactNode;
+} = {}) {
   const pathname = usePathname();
-  const activeView = pathToView[pathname] ?? "today";
+  const activeView = activeViewOverride ?? pathToView[pathname] ?? "today";
   const workflow = useDailyBriefingWorkflow();
   const [chatOpen, setChatOpen] = useState(false);
   const [panel, setPanel] = useState<InfoPanel | null>(null);
@@ -274,7 +280,7 @@ export function PcShell() {
         </nav>
       </header>
 
-      <main className={styles.main}>{renderView(activeView, (action) => void handleAction(action))}</main>
+      <main className={styles.main}>{children ?? renderView(activeView, (action) => void handleAction(action))}</main>
 
       <button className={styles.fab} data-testid="ai-fab" onClick={() => setChatOpen(true)} type="button">
         <BriefcaseBusiness size={16} /> AI 반장

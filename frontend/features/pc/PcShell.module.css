@@ -669,6 +669,68 @@
 .caseOrange { border-color: #fed7aa; background: rgba(255, 247, 237, 0.45); }
 .caseBlue { border-color: #bfdbfe; background: rgba(239, 246, 255, 0.45); }
 
+/* WorkersView — grid rows */
+.workerGrid {
+  border: 1px solid rgba(112,115,124,0.12);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.workerGridHeader {
+  display: grid;
+  grid-template-columns: 1.6fr 0.8fr 1fr 1.1fr 1fr 1.4fr 0.9fr;
+  padding: 10px 18px;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #70737c;
+  border-bottom: 1px solid rgba(112,115,124,0.12);
+  background: #fafafa;
+}
+.workerGridRow {
+  display: grid;
+  grid-template-columns: 1.6fr 0.8fr 1fr 1.1fr 1fr 1.4fr 0.9fr;
+  padding: 14px 18px;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid rgba(112,115,124,0.08);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s;
+}
+.workerGridRow:last-child { border-bottom: 0; }
+.workerGridRow:hover { background: rgba(112,115,124,0.04); }
+.workerGridRowSelected { background: rgba(0,102,255,0.04); }
+.workerGridRowCritical::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: #FF4242;
+}
+.workerDocTile {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+}
+.workerProcessBtn {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(112,115,124,0.22);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  color: #374151;
+}
+
 .dot {
   width: 10px;
   height: 10px;
@@ -801,6 +863,337 @@
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #1d4ed8, #14b8a6);
+}
+
+/* ===== TODAY TASKS — 프로토 UI 변환 ===== */
+
+.chip {
+  font-family: inherit;
+  border: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(112, 115, 124, 0.07);
+  color: #171719;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+.chip:hover {
+  background: rgba(112, 115, 124, 0.12);
+}
+.chipActive {
+  background: #0f172a;
+  color: #fff;
+}
+.chipCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(112, 115, 124, 0.14);
+  line-height: 1;
+}
+.chipActive .chipCount {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.summaryIconTile {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.summaryCount {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.summaryUnit {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  margin-left: 2px;
+}
+.summaryLabel {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.taskQueueWrap {
+  display: grid;
+  gap: 10px;
+}
+.taskQueueHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.taskQueueHeadCount {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+.taskQueue {
+  border: 1px solid rgba(112, 115, 124, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+.taskQueueHeader {
+  display: grid;
+  grid-template-columns: 36px 1fr 130px 100px 72px 120px 28px;
+  padding: 10px 16px;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f7f7f8;
+  border-bottom: 1px solid rgba(112, 115, 124, 0.1);
+  align-items: center;
+}
+.taskQueueRow {
+  display: grid;
+  grid-template-columns: 36px 1fr 130px 100px 72px 120px 28px;
+  padding: 13px 16px;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid rgba(112, 115, 124, 0.08);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.taskQueueRow:last-child {
+  border-bottom: 0;
+}
+.taskQueueRow:hover {
+  background: #f8fafc;
+}
+.taskQueueRowSelected {
+  background: #eff6ff;
+}
+.taskCheckbox {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid rgba(112, 115, 124, 0.3);
+  background: #fff;
+  flex-shrink: 0;
+}
+.taskTitleCell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.taskTypeIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  background: rgba(112, 115, 124, 0.06);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.taskTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #171719;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taskTarget {
+  font-size: 13px;
+  color: rgba(46, 47, 51, 0.88);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.taskStatusPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.taskDeadlineUrgent {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ef4444;
+}
+.taskDeadlineNormal {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+}
+.taskNextBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border: 1px solid rgba(112, 115, 124, 0.2);
+  background: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  color: rgba(46, 47, 51, 0.88);
+  white-space: nowrap;
+  transition: background 0.1s;
+}
+.taskNextBtn:hover {
+  background: #f8fafc;
+}
+.taskMoreBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: #94a3b8;
+}
+
+/* detail panel — 새 섹션들 */
+.reasonBox {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f8faff;
+  border: 1px solid #dbeafe;
+  margin-bottom: 16px;
+}
+.reasonBoxTitle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1d4ed8;
+  margin-bottom: 8px;
+}
+.reasonItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #1e40af;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.reasonDot {
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #3b82f6;
+  margin-top: 5px;
+}
+.sectionLabelUpper {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+.aiPrepItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(46, 47, 51, 0.88);
+  margin-top: 6px;
+}
+.nextTaskItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8faff;
+  border: 1px solid #dbeafe;
+  font-size: 13px;
+  color: #171719;
+  margin-top: 6px;
+}
+.nextTaskTag {
+  font-size: 11px;
+  color: #1d4ed8;
+  font-weight: 600;
+  background: #dbeafe;
+  padding: 1px 7px;
+  border-radius: 99px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.missingDocItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  font-size: 12.5px;
+  color: #c2410c;
+  margin-top: 6px;
+}
+.detailPanelCta {
+  padding: 16px 0 4px;
+  margin-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.taskCtaBtn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1b3fa0, #00bfa5);
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  box-shadow: 0 2px 10px rgba(27, 63, 160, 0.28);
+  transition: opacity 0.15s;
+}
+.taskCtaBtn:hover {
+  opacity: 0.92;
 }
 
 @media (max-width: 1200px) {

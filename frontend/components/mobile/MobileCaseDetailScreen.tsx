@@ -1,5 +1,4 @@
-import { AlertTriangle, CalendarDays, Clock, FileText, Folder, Send } from "lucide-react";
-
+import { AlertTriangle, CalendarDays, Clock, FileText, Folder, Send, Shield } from "lucide-react";
 import { ActionButton } from "./ActionButton";
 import { ChatPromptBox } from "./ChatPromptBox";
 import { demoTask, type MobileDemoStep } from "./demoTask";
@@ -35,8 +34,8 @@ export function MobileCaseDetailScreen({ go }: { go: (step: MobileDemoStep) => v
         <h2 className="mobile-demo-section-title">AI가 확인한 내용</h2>
         <MobileCard className="mobile-demo-list">
           <InfoRow icon={<CalendarDays />} label="체류만료일" value={demoTask.expiryDate} />
-          {demoTask.missingDocuments.map((document) => (
-            <InfoRow chevron icon={<AlertTriangle />} key={document} label={`${document} 누락`} />
+          {demoTask.missingDocuments.map((doc) => (
+            <InfoRow chevron icon={<AlertTriangle />} key={doc} label={`${doc} 누락`} />
           ))}
           <InfoRow chevron icon={<Clock />} label={demoTask.previousRecord} />
         </MobileCard>
@@ -48,15 +47,24 @@ export function MobileCaseDetailScreen({ go }: { go: (step: MobileDemoStep) => v
           prompts={["무슨 서류가 빠졌어?", "전에 요청했어?", "검토 자료 만들 수 있어?"]}
         />
 
-        <div className="mobile-demo-action-grid">
+        <div className="mobile-demo-approval-actions" style={{ margin: "8px 0" }}>
           <ActionButton data-testid="mobile-detail-draft" kind="outline" onClick={() => go("draft")}>
             <FileText aria-hidden="true" />
             초안 보기
           </ActionButton>
-          <ActionButton data-testid="mobile-detail-approve" onClick={() => go("process")}>
-            <Send aria-hidden="true" />
+          <button
+            className="mobile-demo-approve-btn"
+            data-testid="mobile-detail-approve"
+            onClick={() => go("process")}
+            type="button"
+          >
+            <Send size={13} aria-hidden="true" />
             대표 승인 요청
-          </ActionButton>
+          </button>
+        </div>
+        <div className="mobile-demo-safety-strip" style={{ justifyContent: "center" }}>
+          <Shield size={11} aria-hidden="true" />
+          승인 전에는 외부로 발송되지 않습니다
         </div>
       </div>
     </div>

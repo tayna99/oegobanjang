@@ -1,5 +1,4 @@
-import { AlertTriangle, CalendarDays, Clock, FileText, Folder, HelpCircle, Info, Pencil, Send, ThumbsUp } from "lucide-react";
-
+import { AlertTriangle, CalendarDays, Clock, FileText, HelpCircle, Info, Pencil, Send, Shield, ThumbsUp } from "lucide-react";
 import { ActionButton } from "./ActionButton";
 import { demoTask, type MobileDemoStep } from "./demoTask";
 import { PageTitle } from "./MobileShell";
@@ -26,7 +25,7 @@ export function MobileDraftScreen({
       <div className="mobile-demo-scroll">
         <MobileCard className="mobile-demo-draft-worker">
           <span className="mobile-demo-round-icon">
-            <Folder aria-hidden="true" />
+            <FileText aria-hidden="true" />
           </span>
           <div>
             <h2>{demoTask.worker.displayName}</h2>
@@ -55,15 +54,25 @@ export function MobileDraftScreen({
           </MobileCard>
         ) : null}
 
-        <div className="mobile-demo-action-grid">
+        <div className="mobile-demo-approval-actions" style={{ margin: "0 0 8px" }}>
           <ActionButton data-testid="mobile-draft-revision" kind="teal" onClick={onRequestRevision}>
             <Pencil aria-hidden="true" />
             {busyAction === "revision" ? "요청 중" : "수정 요청"}
           </ActionButton>
-          <ActionButton data-testid="mobile-draft-approve" onClick={onApprove ?? (() => go("done"))}>
-            <Send aria-hidden="true" />
+          <button
+            className="mobile-demo-approve-btn"
+            data-testid="mobile-draft-approve"
+            onClick={onApprove ?? (() => go("done"))}
+            type="button"
+          >
+            <Send size={13} aria-hidden="true" />
             {busyAction === "approve" ? "승인 중" : "보내기 승인"}
-          </ActionButton>
+          </button>
+        </div>
+
+        <div className="mobile-demo-safety-strip" style={{ justifyContent: "center", paddingBottom: 0 }}>
+          <Shield size={11} aria-hidden="true" />
+          승인 전에는 외부로 발송되지 않습니다
         </div>
 
         <MobileCard className="mobile-demo-log-note">
