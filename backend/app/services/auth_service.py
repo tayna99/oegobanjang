@@ -120,6 +120,7 @@ def _seed_demo_users(db: Session) -> None:
     ]
     for item in demo_users:
         user = db.get(User, item["id"])
+        created = user is None
         if user is None:
             user = User(id=item["id"])
             db.add(user)
@@ -129,7 +130,14 @@ def _seed_demo_users(db: Session) -> None:
         user.company_id = item["company_id"]
         user.worker_id = item["worker_id"]
         user.status = "ACTIVE"
-        user.must_change_password = bool(item["must_change_password"])
+        if created:
+            user.must_change_password = bool(item["must_change_password"])
+        elif (
+            item["must_change_password"]
+            and user.password_hash
+            and not verify_password(item["password"], user.password_hash)
+        ):
+            user.must_change_password = False
         if not user.password_hash:
             user.password_hash = hash_password(item["password"])
     db.commit()

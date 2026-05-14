@@ -43,7 +43,7 @@ def ensure_contact_thread_tables(db: Session) -> None:
 
 def list_message_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
     workers = _load_workers(company_id, db)
-    return [
+    worker_options = [
         {
             "id": worker.get("id"),
             "name": _display_worker_name(worker),
@@ -57,6 +57,7 @@ def list_message_workers(company_id: str | None, db: Session) -> list[dict[str, 
         }
         for worker in workers
     ]
+    return _dedupe_worker_options(worker_options)
 
 
 def list_threads(company_id: str | None, db: Session) -> list[dict[str, Any]]:
@@ -294,6 +295,7 @@ def _load_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
         query = select(Worker)
         if company_id:
             query = query.where(Worker.company_id == company_id)
+        query = query.where(Worker.status == "ACTIVE")
         rows = list(db.execute(query.order_by(Worker.name)).scalars())
         if rows:
             return [
@@ -306,6 +308,7 @@ def _load_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
                     "email": row.email,
                     "contact_channel": row.contact_channel,
                     "visa_type": row.visa_type,
+                    "status": row.status,
                 }
                 for row in rows
             ]
@@ -313,8 +316,31 @@ def _load_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
         db.rollback()
     return [
         row for row in _seed_rows("workers.csv")
-        if not company_id or row.get("company_id") == company_id
+        if (not company_id or row.get("company_id") == company_id)
+        and str(row.get("status") or "ACTIVE").upper() == "ACTIVE"
     ]
+
+
+def _dedupe_worker_options(workers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for worker in workers:
+        key = _worker_identity_key(worker)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(worker)
+    return deduped
+
+
+def _worker_identity_key(worker: dict[str, Any]) -> str:
+    email = str(worker.get("email") or "").strip().lower()
+    if email:
+        return f"email:{email}"
+    full_name = str(worker.get("full_name") or worker.get("name") or "").strip().lower()
+    nationality = str(worker.get("nationality") or "").strip().lower()
+    visa_type = str(worker.get("visa_type") or "").strip().lower()
+    return f"profile:{full_name}:{nationality}:{visa_type}"
 
 
 def _display_worker_name(worker: dict[str, Any]) -> str:
