@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   Bell,
   BriefcaseBusiness,
   CalendarCheck,
-  ClipboardList,
   Clock3,
   FileCheck2,
   MessageSquare,
@@ -28,7 +27,7 @@ import {
   WorkersView,
   type PcViewAction,
 } from "./views";
-import type { NextAction } from "../../types/dailyBriefing";
+import type { DailyBriefingResult, NextAction } from "../../types/dailyBriefing";
 import { DailyBriefingChatPanel } from "../dashboard/DailyBriefingChatPanel";
 import { useDailyBriefingWorkflow } from "../dashboard/useDailyBriefingWorkflow";
 
@@ -37,7 +36,6 @@ const routes: Array<{ key: PcViewKey; href: string; label: string; icon: React.E
   { key: "hiring", href: "/hiring", label: "채용 준비", icon: UserRoundPlus },
   { key: "workers", href: "/workers", label: "근로자", icon: Users },
   { key: "contact", href: "/contacts", label: "컨택", icon: MessageSquare },
-  { key: "cases", href: "/visa", label: "케이스", icon: ClipboardList },
   { key: "admin", href: "/documents", label: "행정사 검토", icon: FileCheck2 },
   { key: "judgment", href: "/evidence", label: "판단 기록", icon: Clock3 },
 ];
@@ -52,14 +50,24 @@ const pathToView: Record<string, PcViewKey> = {
   "/evidence": "judgment",
 };
 
-function renderView(view: PcViewKey, onAction: (action: PcViewAction) => void) {
+const viewToPath: Partial<Record<PcViewKey, string>> = {
+  contact: "/contacts",
+  hiring: "/hiring",
+};
+
+function renderView(
+  view: PcViewKey,
+  onAction: (action: PcViewAction) => void,
+  briefing: DailyBriefingResult | null,
+  loading: boolean,
+) {
   if (view === "hiring") return <HiringPreparationView onAction={onAction} />;
   if (view === "workers") return <WorkersView onAction={onAction} />;
   if (view === "contact") return <ContactView onAction={onAction} />;
   if (view === "cases") return <CasesView onAction={onAction} />;
   if (view === "admin") return <AdminReviewView onAction={onAction} />;
   if (view === "judgment") return <JudgmentLogView onAction={onAction} />;
-  return <TodayTasksView onAction={onAction} />;
+  return <TodayTasksView briefing={briefing} loading={loading} onAction={onAction} />;
 }
 
 type InfoPanel = {
@@ -75,6 +83,7 @@ export function PcShell({
   children?: React.ReactNode;
 } = {}) {
   const pathname = usePathname();
+  const router = useRouter();
   const activeView = activeViewOverride ?? pathToView[pathname] ?? "today";
   const workflow = useDailyBriefingWorkflow();
   const [chatOpen, setChatOpen] = useState(false);
@@ -183,6 +192,20 @@ export function PcShell({
   }
 
   async function handleAction(action: PcViewAction) {
+    if (action.source === "today_queue" && action.targetView) {
+      const targetPath = viewToPath[action.targetView];
+      if (targetPath) {
+        const params = new URLSearchParams();
+        params.set("from", "today");
+        params.set("action", action.kind);
+        params.set("label", action.label);
+        if (action.subjectId) params.set("worker_id", action.subjectId);
+        if (action.subjectName) params.set("worker", action.subjectName);
+        if (action.riskType) params.set("risk_type", action.riskType);
+        router.push(`${targetPath}?${params.toString()}`);
+        return;
+      }
+    }
     if (action.kind === "open-ai") {
       setChatOpen(true);
       return;
@@ -247,7 +270,7 @@ export function PcShell({
 
           <div className={styles.search} aria-label="검색">
             <Search size={16} />
-            <span>근로자, 케이스, 서류, 메시지 검색</span>
+            <span>근로자, 서류, 메시지 검색</span>
           </div>
 
           <div className={styles.rightCluster}>
@@ -280,7 +303,9 @@ export function PcShell({
         </nav>
       </header>
 
-      <main className={styles.main}>{children ?? renderView(activeView, (action) => void handleAction(action))}</main>
+      <main className={styles.main}>
+        {children ?? renderView(activeView, (action) => void handleAction(action), workflow.briefing, workflow.loading)}
+      </main>
 
       <button className={styles.fab} data-testid="ai-fab" onClick={() => setChatOpen(true)} type="button">
         <BriefcaseBusiness size={16} /> AI 반장

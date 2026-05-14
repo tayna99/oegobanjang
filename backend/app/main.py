@@ -10,8 +10,8 @@ for path in (BACKEND_DIR, ROOT_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from app.api.v1.router import router as api_v1_router
-from app.config import get_settings
+from .api.v1.router import router as api_v1_router
+from .config import get_settings
 
 
 settings = get_settings()
@@ -35,8 +35,8 @@ def create_app() -> FastAPI:
     app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
 
     if settings.daily_briefing_scheduler_enabled:
-        from app.db.session import SessionLocal
-        from app.services.daily_briefing_scheduler import DailyBriefingBackgroundScheduler
+        from .db.session import SessionLocal
+        from .services.daily_briefing_scheduler import DailyBriefingBackgroundScheduler
 
         scheduler = DailyBriefingBackgroundScheduler(
             SessionLocal,

@@ -124,12 +124,19 @@ function workerTestId(workerId: string) {
 
 export function WorkersView({ onAction }: PcViewProps = {}) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const missingDocumentCount = workers.reduce((total, worker) => {
+    const rawCount = worker.docExtra?.replace("+", "") ?? "0";
+    const count = Number.parseInt(rawCount, 10);
+    return total + (Number.isFinite(count) ? count : 0);
+  }, 0);
+  const needsAttentionCount = workers.filter((worker) => worker.statusTone === "red" || worker.statusTone === "orange").length;
+  const normalCount = workers.filter((worker) => worker.statusTone === "green").length;
 
   const statCards: Array<[string, string, string, string]> = [
-    ["전체 등록", "6명", "#1D4ED8", "#EFF6FF"],
-    ["즉시·우선 확인", "2명", "#C2410C", "#FFF7ED"],
-    ["서류 보완 필요", "3명", "#B00C0C", "#FEF2F2"],
-    ["정상", "1명", "#065F46", "#ECFDF5"],
+    ["전체 등록", `${workers.length}명`, "#1D4ED8", "#EFF6FF"],
+    ["즉시·우선 확인", `${needsAttentionCount}명`, "#C2410C", "#FFF7ED"],
+    ["서류 보완 필요", `${missingDocumentCount}건`, "#B00C0C", "#FEF2F2"],
+    ["정상", `${normalCount}명`, "#065F46", "#ECFDF5"],
   ];
 
   // doc tile 색상: 근로자 위험도 기준 간이 매핑
@@ -149,7 +156,7 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
       <div className={styles.pageHead}>
         <div>
           <div className={styles.subtle}>근로자 목록</div>
-          <h1 className={styles.headline}>한별제조 · 6명</h1>
+          <h1 className={styles.headline}>전체 근로자 · {workers.length}명</h1>
         </div>
         <Button variant="secondary" onClick={() => onAction?.({ kind: "worker-register", label: "근로자 등록" })}>
           <UserRoundPlus size={15} /> 근로자 등록

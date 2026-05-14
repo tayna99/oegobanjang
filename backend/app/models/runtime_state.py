@@ -17,6 +17,7 @@ def _now() -> datetime:
 
 class AgentRuntimeStateSnapshot(Base):
     __tablename__ = "agent_runtime_state_snapshots"
+    __table_args__ = {"extend_existing": True}
 
     request_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

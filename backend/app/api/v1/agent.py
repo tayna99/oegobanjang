@@ -105,6 +105,9 @@ def _classify_intent_from_message(message: str) -> str:
     phrase = _exact_phrase_intent(message)
     if phrase and phrase != "unsupported":
         return phrase
+    if any(keyword in message for keyword in ("누락", "빠진", "미제출", "제출 안", "없는")):
+        if any(keyword in message for keyword in ("비자", "체류", "갱신", "서류", "인원", "사람")):
+            return "document_gap"
     best, best_count = "daily_briefing", 0
     for keywords, intent in _KEYWORD_MAP:
         count = sum(1 for kw in keywords if kw in message)
@@ -140,11 +143,11 @@ def _agent_dispatch_response(
         "llm_provider": None,
         "fallback_used": False,
         "fallback_reason": None,
-        "actions": [a.model_dump() for a in actions],
+        "actions": [a.model_dump() for a in actions] if dispatch.approval_required else [],
         "sources": [s.model_dump() for s in sources],
         "detected_intents": [intent],
-        "approval_required": True,
-        "approval_status": "pending",
+        "approval_required": dispatch.approval_required,
+        "approval_status": "pending" if dispatch.approval_required else "not_required",
         "daily_briefing": briefing.model_dump(),
         "structured_plan": {
             "should_run": True,
@@ -153,7 +156,7 @@ def _agent_dispatch_response(
             "required_context": [],
             "entities": {},
             "blocked_actions": [],
-            "approval_required": True,
+            "approval_required": dispatch.approval_required,
             "execution_allowed": True,
             "target_service": "agent_dispatch",
         },
@@ -211,6 +214,8 @@ DOCUMENT_LABELS: dict[str, str] = {
     "alien_registration_copy": "외국인등록증 사본",
     "alien_registration": "외국인등록증 사본",
     "standard_labor_contract": "표준근로계약서 사본",
+    "labor_contract": "표준근로계약서 사본",
+    "work_permit": "고용허가서",
 }
 
 

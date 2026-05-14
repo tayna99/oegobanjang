@@ -8,7 +8,10 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from app.config import get_settings
+try:
+    from app.config import get_settings
+except ModuleNotFoundError:
+    from backend.app.config import get_settings
 
 
 class Base(DeclarativeBase):

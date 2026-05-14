@@ -5,55 +5,43 @@
   FileText,
   MessageSquare,
   MoreHorizontal,
-  RefreshCcw,
   Search,
   UserRoundPlus,
   X,
 } from "lucide-react";
 import React, { useState } from "react";
-import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "../data";
+import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
+import { adminPackage, contactItems, judgmentRows, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
 
-const summary = [
+const summaryConfig = [
   {
-    id: "visa", label: "체류기간 임박", count: 4, unit: "명",
-    color: "#EF4444", bg: "#FEF2F2", workerId: "w_bayar",
+    id: "all", label: "전체", unit: "건",
+    color: "#1D4ED8", bg: "#EFF6FF",
+    icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h10" stroke="#1D4ED8" strokeWidth="1.8" strokeLinecap="round"/></svg>),
+  },
+  {
+    id: "visa", label: "체류기간 임박", unit: "건",
+    color: "#EF4444", bg: "#FEF2F2",
     icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#EF4444" strokeWidth="1.8"/><path d="M12 7v5l3 3" stroke="#EF4444" strokeWidth="1.8" strokeLinecap="round"/></svg>),
   },
   {
-    id: "docs", label: "서류 보완 필요", count: 7, unit: "건",
-    color: "#F97316", bg: "#FFF7ED", workerId: "w_nguyen",
+    id: "docs", label: "서류 보완 필요", unit: "건",
+    color: "#F97316", bg: "#FFF7ED",
     icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="#F97316" strokeWidth="1.8" strokeLinejoin="round"/><path d="M14 2v6h6M12 12v4M12 10h.01" stroke="#F97316" strokeWidth="1.8" strokeLinecap="round"/></svg>),
   },
   {
-    id: "recruit", label: "신규 채용 준비", count: 1, unit: "건",
-    color: "#10B981", bg: "#ECFDF5", workerId: "w_nguyen",
-    icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.5" stroke="#10B981" strokeWidth="1.8"/><path d="M3 20c0-3.866 2.686-6 6-6s6 2.134 6 6" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round"/><path d="M17 6l1.5 1.5L21 5" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>),
-  },
-  {
-    id: "contact", label: "컨택 대기", count: 4, unit: "건",
-    color: "#8B5CF6", bg: "#F5F3FF", workerId: "w_nguyen",
-    icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 4h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6l-4 4V5a1 1 0 0 1 1-1z" stroke="#8B5CF6" strokeWidth="1.8" strokeLinejoin="round"/></svg>),
-  },
-  {
-    id: "reply", label: "응답 도착", count: 2, unit: "건",
-    color: "#0EA5E9", bg: "#F0F9FF", workerId: "w_tran",
+    id: "reply", label: "응답 도착", unit: "건",
+    color: "#0EA5E9", bg: "#F0F9FF",
     icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#0EA5E9" strokeWidth="1.8" strokeLinejoin="round"/><path d="M8 10h8M8 14h4" stroke="#0EA5E9" strokeWidth="1.8" strokeLinecap="round"/></svg>),
   },
   {
-    id: "approval", label: "승인 대기", count: 5, unit: "건",
-    color: "#F59E0B", bg: "#FFFBEB", workerId: "w_nguyen",
+    id: "approval", label: "승인 대기", unit: "건",
+    color: "#F59E0B", bg: "#FFFBEB",
     icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#F59E0B" strokeWidth="1.8" strokeLinejoin="round"/></svg>),
   },
-  {
-    id: "handoff", label: "행정사 검토 준비", count: 2, unit: "건",
-    color: "#6366F1", bg: "#EEF2FF", workerId: "w_bayar",
-    icon: (<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4" stroke="#6366F1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke="#6366F1" strokeWidth="1.8" strokeLinecap="round"/></svg>),
-  },
 ];
-const totalRiskCaseCount = riskCases.length;
-
 export type PcActionKind =
   | "refresh"
   | "document-draft"
@@ -68,10 +56,20 @@ export type PcActionKind =
 export type PcViewAction = {
   kind: PcActionKind;
   label: string;
+  source?: "today_queue";
+  targetView?: "contact" | "hiring";
+  subjectId?: string | null;
+  subjectName?: string | null;
+  riskType?: string | null;
 };
 
 export type PcViewProps = {
   onAction?: (action: PcViewAction) => void;
+};
+
+type TodayTasksViewProps = PcViewProps & {
+  briefing?: DailyBriefingResult | null;
+  loading?: boolean;
 };
 
 const TASK_STATUS_MAP: Record<string, { label: string; bg: string; fg: string }> = {
@@ -110,32 +108,119 @@ const CASE_SEV: Record<string, { bg: string; bd: string; fg: string; dot: string
   gray:   { bg: "rgba(112,115,124,0.06)", bd: "rgba(112,115,124,0.20)", fg: "#70737C", dot: "#B0B3BA" },
 };
 
-function actionForNext(next: string): PcActionKind {
-  if (next.includes("초안")) return "document-draft";
-  if (next.includes("요청서")) return "handoff-preview";
-  if (next.includes("승인")) return "approval-preview";
-  if (next.includes("응답")) return "response-summary";
-  return "handoff-preview";
-}
-
 function workerTestId(workerId: string) {
   return `worker-row-${workerId.replace("w_", "")}`;
 }
 
-export function TodayTasksView({ onAction }: PcViewProps = {}) {
-  const [selectedWorkerId, setSelectedWorkerId] = useState("w_nguyen");
-  const [selectedSummaryId, setSelectedSummaryId] = useState("visa");
-  const [detailOpen, setDetailOpen] = useState(true);
-  const selectedWorker = workers.find((worker) => worker.id === selectedWorkerId) ?? workers[0];
+function itemMatchesSummary(item: DailyBriefingItem, summaryId: string) {
+  if (summaryId === "all") {
+    return true;
+  }
+  if (summaryId === "visa") {
+    return item.risk_type === "visa_expiry" || item.risk_type === "contract_visa_conflict" || item.risk_type === "reporting_deadline";
+  }
+  if (summaryId === "docs") {
+    return item.risk_type === "missing_document";
+  }
+  if (summaryId === "reply") {
+    return item.case_title?.includes("응답") || item.case_summary?.includes("응답") || false;
+  }
+  if (summaryId === "approval") {
+    return item.primary_action?.status === "pending_approval" || item.primary_action?.approval_required === true;
+  }
+  return true;
+}
 
-  function selectSummary(item: (typeof summary)[number]) {
+function severityLabel(item: DailyBriefingItem) {
+  if (item.expired || item.severity === "CRITICAL") return "즉시 확인";
+  if (item.severity === "HIGH") return "우선 확인";
+  if (item.severity === "MEDIUM") return "확인 필요";
+  if (item.primary_action?.status === "pending_approval") return "승인 필요";
+  return "참고";
+}
+
+function deadlineLabel(item: DailyBriefingItem) {
+  if (item.expired && item.days_overdue != null) return `D+${item.days_overdue}`;
+  if (item.d_day != null) return item.d_day < 0 ? `D+${Math.abs(item.d_day)}` : `D-${item.d_day}`;
+  return item.risk_timing_label ?? "확인 필요";
+}
+
+function nextActionForItem(item: DailyBriefingItem, selectedSummaryId: string): PcViewAction {
+  const subjectName = item.subject_display_name ?? item.subject_display_id ?? item.subject_id;
+  if (selectedSummaryId === "approval" && item.primary_action?.approval_required) {
+    return {
+      kind: "approval-preview",
+      label: "승인 요청",
+      source: "today_queue",
+      targetView: "hiring",
+      subjectId: item.subject_id,
+      subjectName,
+      riskType: item.risk_type,
+    };
+  }
+  if (item.case_title?.includes("응답") || item.case_summary?.includes("응답")) {
+    return {
+      kind: "response-summary",
+      label: "응답 요약",
+      source: "today_queue",
+      targetView: "contact",
+      subjectId: item.subject_id,
+      subjectName,
+      riskType: item.risk_type,
+    };
+  }
+  if (item.primary_action?.action_type === "request_document" || item.risk_type === "missing_document") {
+    return {
+      kind: "document-draft",
+      label: "초안 보기",
+      source: "today_queue",
+      targetView: "contact",
+      subjectId: item.subject_id,
+      subjectName,
+      riskType: item.risk_type,
+    };
+  }
+  if (item.primary_action?.action_type === "create_handoff") {
+    return {
+      kind: "handoff-preview",
+      label: "요청서 보기",
+      source: "today_queue",
+      targetView: "hiring",
+      subjectId: item.subject_id,
+      subjectName,
+      riskType: item.risk_type,
+    };
+  }
+  return {
+    kind: "handoff-preview",
+    label: item.risk_type === "candidate_readiness" ? "요청서 보기" : "요청서 보기",
+    source: "today_queue",
+    targetView: "hiring",
+    subjectId: item.subject_id,
+    subjectName,
+    riskType: item.risk_type,
+  };
+}
+
+export function TodayTasksView({ briefing, loading = false, onAction }: TodayTasksViewProps = {}) {
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
+  const [selectedSummaryId, setSelectedSummaryId] = useState("all");
+  const [detailOpen, setDetailOpen] = useState(false);
+  const selectedWorker = workers.find((worker) => worker.id === selectedWorkerId) ?? null;
+  const items = briefing?.items ?? [];
+  const filteredItems = items.filter((item) => itemMatchesSummary(item, selectedSummaryId));
+  const summary = summaryConfig.map((item) => ({
+    ...item,
+    count: items.filter((briefingItem) => itemMatchesSummary(briefingItem, item.id)).length,
+  }));
+
+  function selectSummary(item: (typeof summaryConfig)[number]) {
     setSelectedSummaryId(item.id);
-    setSelectedWorkerId(item.workerId);
-    setDetailOpen(true);
+    setSelectedWorkerId(null);
+    setDetailOpen(false);
   }
 
   function selectWorker(workerId: string) {
-    setSelectedSummaryId("");
     setSelectedWorkerId(workerId);
     setDetailOpen(true);
   }
@@ -144,27 +229,7 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
     <div className={cn(styles.todayDashboard, !detailOpen && styles.todayDashboardCollapsed)}>
       <section className={styles.stack}>
 
-        {/* 브리핑 배너 */}
-        <div style={{
-          display: "flex", alignItems: "center", gap: 14,
-          padding: "14px 18px", borderRadius: 12,
-          background: "linear-gradient(90deg, rgba(27,63,160,0.07), rgba(0,191,165,0.04))",
-          border: "1px solid rgba(27,63,160,0.15)",
-        }}>
-          <span className={styles.gradientMark} style={{ width: 36, height: 36, borderRadius: 10, fontSize: 14 }}>반</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>오늘 브리핑이 준비되었습니다</div>
-            <div className={styles.subtle} style={{ fontSize: 12.5, lineHeight: 1.5 }}>
-              외고반장이 {totalRiskCaseCount}개 케이스를 정리했습니다. 즉시 확인 1건, 우선 확인 3건, 승인 대기 5건.
-            </div>
-          </div>
-          <span className={styles.subtle} style={{ fontSize: 12, flexShrink: 0 }}>오전 08:31</span>
-          <Button variant="secondary" onClick={() => onAction?.({ kind: "refresh", label: "다시 생성" })}>
-            <RefreshCcw size={14} /> 다시 생성
-          </Button>
-        </div>
-
-        {/* 요약 카드 7칸 */}
+        {/* 요약 카드 */}
         <div className={styles.summaryGrid}>
           {summary.map((item) => (
             <button
@@ -189,57 +254,44 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
           ))}
         </div>
 
-        {/* 필터 Chip 바 */}
-        <div className={styles.sectionTitle}>
-          <div className={styles.buttonRow}>
-            <button className={cn(styles.chip, styles.chipActive)} type="button">전체</button>
-            <button className={styles.chip} type="button">즉시 확인 <span className={styles.chipCount}>1</span></button>
-            <button className={styles.chip} type="button">우선 확인 <span className={styles.chipCount}>3</span></button>
-            <button className={styles.chip} type="button">확인 필요 <span className={styles.chipCount}>2</span></button>
-            <button className={styles.chip} type="button">참고 <span className={styles.chipCount}>1</span></button>
-          </div>
-          <div className={styles.buttonRow}>
-            <button className={styles.chip} type="button">전체 라인</button>
-            <button className={styles.chip} type="button">승인 대기만</button>
-            <button className={styles.chip} type="button">서류 보완 필요</button>
-          </div>
-        </div>
-
         {/* 업무 큐 */}
         <div className={styles.taskQueueWrap}>
           <div className={styles.taskQueueHead}>
             오늘의 업무 큐
-            <span className={styles.taskQueueHeadCount}>{todaysTasks.length}건</span>
+            <span className={styles.taskQueueHeadCount}>{loading ? "불러오는 중" : `${filteredItems.length}건`}</span>
           </div>
           <div className={styles.taskQueue}>
             <div className={styles.taskQueueHeader}>
               <div /><div>업무</div><div>대상</div><div>상태</div><div>기한</div><div>다음 처리</div><div />
             </div>
-            {todaysTasks.map((task, i) => {
-              const st = TASK_STATUS_MAP[task.status] ?? { label: task.status, bg: "#F8FAFC", fg: "#64748B" };
-              const isUrgent = task.deadline.startsWith("D-") && parseInt(task.deadline.slice(2)) <= 30;
-              const matchedWorker = workers.find((w) => w.name.startsWith(task.target.split(" ")[0]));
-              const isSelected = matchedWorker && selectedWorkerId === matchedWorker.id;
+            {filteredItems.map((item) => {
+              const status = severityLabel(item);
+              const deadline = deadlineLabel(item);
+              const nextAction = nextActionForItem(item, selectedSummaryId);
+              const st = TASK_STATUS_MAP[status] ?? { label: status, bg: "#F8FAFC", fg: "#64748B" };
+              const isUrgent = item.expired || item.severity === "CRITICAL" || item.severity === "HIGH";
+              const matchedWorker = item.subject_type === "worker" ? workers.find((worker) => worker.id === item.subject_id) : null;
+              const isSelected = !!matchedWorker && selectedWorkerId === matchedWorker.id;
               return (
                 <div
-                  key={task.kind + String(i)}
+                  key={item.item_id}
                   className={cn(styles.taskQueueRow, isSelected && styles.taskQueueRowSelected)}
                   onClick={() => { if (matchedWorker) selectWorker(matchedWorker.id); }}
                 >
                   <div className={styles.taskCheckbox} />
                   <div className={styles.taskTitleCell}>
-                    <div className={styles.taskTypeIcon}>{TASK_TYPE_ICON[task.kind] ?? null}</div>
-                    <span className={styles.taskTitle}>{task.title}</span>
+                    <div className={styles.taskTypeIcon}>{TASK_TYPE_ICON.doc}</div>
+                    <span className={styles.taskTitle}>{item.case_title ?? item.risk_type}</span>
                   </div>
-                  <div className={styles.taskTarget}>{task.target}</div>
+                  <div className={styles.taskTarget}>{item.subject_display_name ?? item.subject_display_id ?? item.subject_id}</div>
                   <span className={styles.taskStatusPill} style={{ background: st.bg, color: st.fg }}>{st.label}</span>
-                  <div className={isUrgent ? styles.taskDeadlineUrgent : styles.taskDeadlineNormal}>{task.deadline}</div>
+                  <div className={isUrgent ? styles.taskDeadlineUrgent : styles.taskDeadlineNormal}>{deadline}</div>
                   <button
                     className={styles.taskNextBtn}
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); onAction?.({ kind: actionForNext(task.next), label: task.next }); }}
+                    onClick={(e) => { e.stopPropagation(); onAction?.(nextAction); }}
                   >
-                    {task.next}
+                    {nextAction.label}
                   </button>
                   <button className={styles.taskMoreBtn} type="button"><MoreHorizontal size={14} /></button>
                 </div>
@@ -249,7 +301,7 @@ export function TodayTasksView({ onAction }: PcViewProps = {}) {
         </div>
       </section>
 
-      {detailOpen ? (
+      {detailOpen && selectedWorker ? (
         <TodayWorkerDetail onAction={onAction} onClose={() => setDetailOpen(false)} worker={selectedWorker} />
       ) : null}
     </div>

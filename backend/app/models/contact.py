@@ -19,6 +19,7 @@ def _now() -> datetime:
 
 class ContactMessage(Base):
     __tablename__ = "contact_messages"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     company_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -64,6 +65,7 @@ class ContactMessage(Base):
 
 class StatusUpdateCandidate(Base):
     __tablename__ = "status_update_candidates"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     company_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

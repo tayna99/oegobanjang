@@ -14,6 +14,7 @@ def _now() -> datetime:
 
 class WorkerDocument(Base):
     __tablename__ = "worker_documents"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     company_id: Mapped[str | None] = mapped_column(
@@ -50,6 +51,7 @@ class WorkerDocument(Base):
 
 class DocumentRequirement(Base):
     __tablename__ = "document_requirements"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     case_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)

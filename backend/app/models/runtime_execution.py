@@ -19,6 +19,7 @@ def _now() -> datetime:
 
 class ApprovalAction(Base):
     __tablename__ = "approval_actions"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     approval_id: Mapped[str] = mapped_column(
@@ -51,6 +52,7 @@ class ApprovalAction(Base):
 
 class DeliveryOutbox(Base):
     __tablename__ = "delivery_outbox"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     approval_id: Mapped[str] = mapped_column(
@@ -84,6 +86,7 @@ class DeliveryOutbox(Base):
 
 class AgentCheckpoint(Base):
     __tablename__ = "agent_checkpoints"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     request_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -118,6 +121,7 @@ class AgentCheckpoint(Base):
 
 class RuntimeMetric(Base):
     __tablename__ = "runtime_metrics"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     request_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)

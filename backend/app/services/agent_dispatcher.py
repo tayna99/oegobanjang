@@ -91,6 +91,25 @@ def _call_visa_agent(
     company_id: str,
     selected_items: list[Any],
 ) -> AgentDispatchResult:
+    selected_items = _focus_visa_items_for_query(message, selected_items)
+    if _is_list_query(message) or len(selected_items) != 1:
+        answer = _format_visa_item_list(selected_items, intent)
+        return AgentDispatchResult(
+            skipped=False,
+            agent_used="visa_agent",
+            answer=answer,
+            risk_flags=[
+                str(getattr(item, "risk_type", ""))
+                for item in selected_items
+                if getattr(item, "severity", "") in {"CRITICAL", "HIGH"}
+            ],
+            tool_calls_count=0,
+            rag_collections_used=["daily_briefing_source"],
+            approval_required=False,
+            sub_agents=[],
+            raw={"mode": "daily_briefing_item_list", "item_count": len(selected_items)},
+        )
+
     from app.agent_runtime.agents.visa_agent import run_visa_agent
 
     worker_id = _extract_worker_id_from_items(selected_items)
@@ -125,7 +144,6 @@ def _format_visa_answer(result: dict[str, Any], intent: str) -> str:
     intent_ko = _INTENT_KO.get(intent, intent)
     summary = result.get("summary", "")
     risk_flags = result.get("risk_flags", [])
-    sub_agents = result.get("sub_agents", [])
     handoff_triggered = result.get("handoff_triggered", False)
 
     lines = [f"[비자/체류 에이전트] {intent_ko} 분석 결과"]
@@ -137,18 +155,40 @@ def _format_visa_answer(result: dict[str, Any], intent: str) -> str:
     else:
         lines.append("\n위험 플래그: 없음")
 
-    for sub in sub_agents:
-        name = sub.get("name", "")
-        sub_risk = sub.get("risk_flags", [])
-        tc = sub.get("tool_calls", 0)
-        if name:
-            flag_str = ", ".join(sub_risk) if sub_risk else "없음"
-            lines.append(f"  - {name}: tool {tc}건, 위험 {flag_str}")
-
-    if handoff_triggered:
+    if handoff_triggered and risk_flags:
         lines.append("\n행정사 검토 패키지 초안이 준비됐습니다. 담당자 승인 후 발송하세요.")
 
     lines.append("\n외부 발송, 정부 제출, 상태 완료 처리는 아직 수행하지 않았습니다.")
+    return "\n".join(lines)
+
+
+def _format_visa_item_list(selected_items: list[Any], intent: str) -> str:
+    intent_ko = _INTENT_KO.get(intent, intent)
+    if not selected_items:
+        return "\n".join(
+            [
+                f"[비자/체류 에이전트] {intent_ko} 확인 결과",
+                "현재 기준으로 확인된 대상자가 없습니다.",
+                "외부 발송, 정부 제출, 상태 완료 처리는 수행하지 않았습니다.",
+            ]
+        )
+
+    lines = [
+        f"[비자/체류 에이전트] {intent_ko} 확인 결과",
+        f"확인 필요한 인원은 {len(selected_items)}명입니다.",
+    ]
+    for index, item in enumerate(_dedupe_items(selected_items), start=1):
+        name = getattr(item, "subject_display_name", None) or getattr(item, "subject_id", "")
+        risk_type = getattr(item, "risk_type", "")
+        missing_documents = getattr(item, "missing_documents", []) or []
+        severity = getattr(item, "severity", "")
+        lines.append(f"\n{index}. {name}")
+        lines.append(f"- 항목: {RISK_LABELS.get(risk_type, risk_type)}")
+        lines.append(f"- 기한: {_risk_timing(item)}")
+        lines.append(f"- 누락 서류: {_document_list(missing_documents)}")
+        if severity:
+            lines.append(f"- 우선순위: {severity}")
+    lines.append("\n외부 발송, 정부 제출, 상태 완료 처리는 수행하지 않았습니다.")
     return "\n".join(lines)
 
 
@@ -339,7 +379,82 @@ def _make_state(
 
 def _extract_worker_id_from_items(selected_items: list[Any]) -> str:
     for item in selected_items:
-        worker_id = getattr(item, "worker_id", None) or getattr(item, "case_id", None)
+        worker_id = (
+            getattr(item, "worker_id", None)
+            or getattr(item, "subject_id", None)
+            or getattr(item, "case_id", None)
+        )
         if worker_id and worker_id != "intent_snapshot":
             return str(worker_id)
     return ""
+
+
+RISK_LABELS: dict[str, str] = {
+    "visa_expiry": "체류기간 연장 준비",
+    "missing_document": "체류/고용 서류 누락 확인",
+    "contract_visa_conflict": "계약-체류기간 충돌 검토",
+    "reporting_deadline": "고용변동 신고기한 확인",
+    "quota_review": "신규 인력/쿼터 검토",
+    "candidate_readiness": "후보자 서류 준비상태 확인",
+}
+
+
+DOCUMENT_LABELS: dict[str, str] = {
+    "passport_copy": "여권 사본",
+    "alien_registration_copy": "외국인등록증 사본",
+    "alien_registration": "외국인등록증 사본",
+    "standard_labor_contract": "표준근로계약서 사본",
+    "labor_contract": "표준근로계약서 사본",
+    "work_permit": "고용허가서",
+}
+
+
+def _risk_timing(item: Any) -> str:
+    if getattr(item, "expired", False):
+        days_overdue = getattr(item, "days_overdue", None)
+        if days_overdue is not None:
+            return f"만료 후 {days_overdue}일 경과"
+        return "기한 경과"
+    d_day = getattr(item, "d_day", None)
+    if d_day is not None:
+        return f"D-{d_day}"
+    due_date = getattr(item, "due_date", None)
+    if due_date:
+        return str(due_date)
+    return "기한 확인 필요"
+
+
+def _document_list(documents: list[str]) -> str:
+    if not documents:
+        return "현재 응답 범위에서 확인된 누락 없음"
+    return ", ".join(DOCUMENT_LABELS.get(document, document) for document in documents)
+
+
+def _is_list_query(message: str) -> bool:
+    return any(
+        keyword in message
+        for keyword in ("인원", "사람", "누구", "명", "목록", "리스트", "알려줘", "정리")
+    )
+
+
+def _focus_visa_items_for_query(message: str, selected_items: list[Any]) -> list[Any]:
+    if any(keyword in message for keyword in ("누락", "빠진", "미제출", "제출 안", "없는")):
+        missing = [item for item in selected_items if getattr(item, "risk_type", "") == "missing_document"]
+        return missing
+    return selected_items
+
+
+def _dedupe_items(items: list[Any]) -> list[Any]:
+    seen: set[tuple[str, str, str]] = set()
+    output: list[Any] = []
+    for item in items:
+        key = (
+            str(getattr(item, "subject_id", "")),
+            str(getattr(item, "risk_type", "")),
+            ",".join(getattr(item, "missing_documents", []) or []),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(item)
+    return output

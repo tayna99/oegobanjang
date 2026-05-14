@@ -14,6 +14,7 @@ def _now() -> datetime:
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     email: Mapped[str | None] = mapped_column(String(200), nullable=True, unique=True)

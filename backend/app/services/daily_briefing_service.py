@@ -2342,7 +2342,8 @@ class DailyBriefingService:
         return [
             document
             for document in self.repository.documents
-            if document.worker_id == worker_id and document.status == "missing"
+            if document.worker_id == worker_id
+            and str(document.status).strip().lower() == "missing"
         ]
 
     def _missing_documents_for_candidate(
@@ -2352,7 +2353,8 @@ class DailyBriefingService:
         return [
             document
             for document in self.repository.candidate_documents
-            if document.candidate_id == candidate_id and document.status == "missing"
+            if document.candidate_id == candidate_id
+            and str(document.status).strip().lower() == "missing"
         ]
 
     def _strongest_document_risk(

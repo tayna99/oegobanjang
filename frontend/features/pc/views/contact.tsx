@@ -10,7 +10,8 @@
   UserRoundPlus,
   X,
 } from "lucide-react";
-import React, { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import React, { useEffect, useState } from "react";
 import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -123,13 +124,25 @@ function workerTestId(workerId: string) {
 }
 
 export function ContactView({ onAction }: PcViewProps = {}) {
+  const searchParams = useSearchParams();
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const requestedWorkerId = searchParams.get("worker_id");
+  const requestedWorkerName =
+    workers.find((worker) => worker.id === requestedWorkerId)?.name ?? searchParams.get("worker");
+  const requestedActionLabel = searchParams.get("label");
+
+  useEffect(() => {
+    if (!requestedWorkerName) return;
+    const nextIndex = contactItems.findIndex((item) => item.worker === requestedWorkerName);
+    if (nextIndex >= 0) setSelectedIndex(nextIndex);
+  }, [requestedWorkerName]);
 
   const statusConfig: Record<string, { bg: string; bd: string; fg: string }> = {
     "초안":    { bg: "rgba(112,115,124,0.08)", bd: "rgba(112,115,124,0.20)", fg: "#70737C" },
     "응답 도착": { bg: "rgba(0,191,64,0.10)",   bd: "rgba(0,191,64,0.25)",   fg: "#006E25" },
     "승인 대기": { bg: "rgba(255,146,0,0.10)",  bd: "rgba(255,146,0,0.30)",  fg: "#9C5800" },
   };
+  const selectedContact = contactItems[selectedIndex] ?? contactItems[0];
 
   return (
     <div className={styles.stack}>
@@ -196,6 +209,11 @@ export function ContactView({ onAction }: PcViewProps = {}) {
 
         {/* 오른쪽 메시지 상세 */}
         <section style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+          {requestedWorkerName ? (
+            <div style={{ padding: "10px 14px", borderRadius: 10, background: "#EFF6FF", border: "1px solid #BFDBFE", color: "#1E3A8A", fontSize: 12.5, fontWeight: 700, marginBottom: 10 }}>
+              오늘 할 일에서 이동: {requestedWorkerName} · {requestedActionLabel ?? "컨택 확인"}
+            </div>
+          ) : null}
 
           {/* 문서 헤더 */}
           <div className={styles.document}>
@@ -206,15 +224,15 @@ export function ContactView({ onAction }: PcViewProps = {}) {
                     fontSize: 11, fontWeight: 700, padding: "2px 6px", borderRadius: 4,
                     background: "rgba(124,58,237,0.08)", color: "#7C3AED",
                   }}>VN</span>
-                  <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Nguyen V.</h2>
+                  <h2 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{selectedContact.worker}</h2>
                 </div>
-                <p className={styles.subtle} style={{ fontSize: 12.5 }}>베트남 · Zalo · 응우엔 V.</p>
+                <p className={styles.subtle} style={{ fontSize: 12.5 }}>{selectedContact.country} · Zalo · {selectedContact.worker}</p>
               </div>
               <span style={{
                 display: "inline-flex", padding: "3px 10px", borderRadius: 99,
                 fontSize: 11.5, fontWeight: 700,
                 background: "rgba(112,115,124,0.08)", border: "1px solid rgba(112,115,124,0.20)", color: "#70737C",
-              }}>초안</span>
+              }}>{selectedContact.status}</span>
             </div>
 
             {/* 발송 전 안내 */}

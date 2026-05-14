@@ -14,6 +14,7 @@ def _now() -> datetime:
 
 class DailyBriefingResultRow(Base):
     __tablename__ = "daily_briefing_results"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     company_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -31,6 +32,7 @@ class DailyBriefingResultRow(Base):
 
 class DailyBriefingCase(Base):
     __tablename__ = "daily_briefing_cases"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     company_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -48,6 +50,7 @@ class DailyBriefingCase(Base):
 
 class DailyBriefingAction(Base):
     __tablename__ = "daily_briefing_actions"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     case_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -65,6 +68,7 @@ class DailyBriefingAction(Base):
 
 class DailyBriefingApproval(Base):
     __tablename__ = "daily_briefing_approvals"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     case_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -83,6 +87,7 @@ class DailyBriefingApproval(Base):
 
 class DailyBriefingEvidenceEvent(Base):
     __tablename__ = "daily_briefing_evidence_events"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     case_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
@@ -94,6 +99,7 @@ class DailyBriefingEvidenceEvent(Base):
 
 class DailyBriefingHandoffPreview(Base):
     __tablename__ = "daily_briefing_handoff_previews"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     case_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -111,6 +117,7 @@ class DailyBriefingHandoffPreview(Base):
 
 class DailyBriefingDocumentRequestDraft(Base):
     __tablename__ = "daily_briefing_document_request_drafts"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     case_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -130,6 +137,7 @@ class DailyBriefingDocumentRequestDraft(Base):
 
 class DailyBriefingExternalDeliveryJob(Base):
     __tablename__ = "daily_briefing_external_delivery_jobs"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     case_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -151,6 +159,7 @@ class DailyBriefingExternalDeliveryJob(Base):
 
 class DailyBriefingHandoffExportArtifact(Base):
     __tablename__ = "daily_briefing_handoff_export_artifacts"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     case_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -171,6 +180,7 @@ class DailyBriefingHandoffExportArtifact(Base):
 
 class DailyBriefingSchedulerRunHistory(Base):
     __tablename__ = "daily_briefing_scheduler_run_history"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     run_date: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
@@ -185,6 +195,7 @@ class DailyBriefingSchedulerRunHistory(Base):
 
 class DailyBriefingMetricsSnapshot(Base):
     __tablename__ = "daily_briefing_metrics_snapshots"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     company_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
@@ -195,6 +206,7 @@ class DailyBriefingMetricsSnapshot(Base):
 
 class DailyBriefingPilotFeedback(Base):
     __tablename__ = "daily_briefing_pilot_feedback"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     company_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -206,6 +218,7 @@ class DailyBriefingPilotFeedback(Base):
 
 class DailyBriefingCitationRefreshQueue(Base):
     __tablename__ = "daily_briefing_citation_refresh_queue"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     citation_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -224,6 +237,7 @@ class DailyBriefingCitationRefreshQueue(Base):
 
 class DailyBriefingUserCompanyAccess(Base):
     __tablename__ = "daily_briefing_user_company_access"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(160), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
@@ -240,6 +254,7 @@ class DailyBriefingUserCompanyAccess(Base):
 
 class DailyBriefingCompanySource(Base):
     __tablename__ = "daily_briefing_source_companies"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     company_name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -257,6 +272,7 @@ class DailyBriefingCompanySource(Base):
 
 class DailyBriefingWorkerSource(Base):
     __tablename__ = "daily_briefing_source_workers"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     company_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -275,6 +291,7 @@ class DailyBriefingWorkerSource(Base):
 
 class DailyBriefingCandidateSource(Base):
     __tablename__ = "daily_briefing_source_candidates"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     company_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -292,6 +309,7 @@ class DailyBriefingCandidateSource(Base):
 
 class DailyBriefingDocumentSource(Base):
     __tablename__ = "daily_briefing_source_documents"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(160), primary_key=True)
     worker_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -310,6 +328,7 @@ class DailyBriefingDocumentSource(Base):
 
 class DailyBriefingCandidateDocumentSource(Base):
     __tablename__ = "daily_briefing_source_candidate_documents"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(160), primary_key=True)
     candidate_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -328,6 +347,7 @@ class DailyBriefingCandidateDocumentSource(Base):
 
 class DailyBriefingReportingEventSource(Base):
     __tablename__ = "daily_briefing_source_reporting_events"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     company_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -349,6 +369,7 @@ class DailyBriefingReportingEventSource(Base):
 
 class DailyBriefingCitationSource(Base):
     __tablename__ = "daily_briefing_source_citations"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(120), primary_key=True)
     title: Mapped[str] = mapped_column(String(240), nullable=False)

@@ -19,6 +19,7 @@ def _now() -> datetime:
 
 class HandoffPackageDraft(Base):
     __tablename__ = "handoff_package_drafts"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

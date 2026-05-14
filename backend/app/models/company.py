@@ -14,6 +14,7 @@ def _now() -> datetime:
 
 class Company(Base):
     __tablename__ = "companies"
+    __table_args__ = {"extend_existing": True}
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)

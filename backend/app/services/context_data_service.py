@@ -15,11 +15,18 @@ ROOT_DIR = Path(__file__).resolve().parents[3]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from backend.app.db.session import SessionLocal
-from backend.app.models.company import Company
-from backend.app.models.document import DocumentRequirement, WorkerDocument
-from backend.app.models.hiring import Candidate
-from backend.app.models.worker import Worker
+try:
+    from app.db.session import SessionLocal
+    from app.models.company import Company
+    from app.models.document import DocumentRequirement, WorkerDocument
+    from app.models.hiring import Candidate, CandidatePreEntryPackage
+    from app.models.worker import Worker
+except ModuleNotFoundError:
+    from backend.app.db.session import SessionLocal
+    from backend.app.models.company import Company
+    from backend.app.models.document import DocumentRequirement, WorkerDocument
+    from backend.app.models.hiring import Candidate, CandidatePreEntryPackage
+    from backend.app.models.worker import Worker
 
 
 SEED_DIR = Path(__file__).resolve().parents[3] / "data-pipeline" / "seed"
@@ -115,10 +122,16 @@ def get_candidate_profile_data(candidate_id: str, *, db: Session | None = None) 
     fields = [
         "id",
         "company_id",
+        "name",
         "nationality",
         "desired_role",
         "available_from",
         "language",
+        "visa_type",
+        "arrival_due_date",
+        "assigned_workplace",
+        "visa_issuance_status",
+        "pre_entry_training",
         "passport",
         "photo",
         "health_check",
@@ -299,10 +312,16 @@ def calculate_candidate_readiness(
                     [
                         "id",
                         "company_id",
+                        "name",
                         "nationality",
                         "desired_role",
                         "available_from",
                         "language",
+                        "visa_type",
+                        "arrival_due_date",
+                        "assigned_workplace",
+                        "visa_issuance_status",
+                        "pre_entry_training",
                         "passport",
                         "photo",
                         "health_check",
@@ -344,6 +363,7 @@ def _candidate_readiness(row: dict[str, Any], *, requested_role: str | None) -> 
     return {
         "candidate_id": row.get("id"),
         "company_id": row.get("company_id"),
+        "name": row.get("name"),
         "nationality": row.get("nationality"),
         "desired_role": row.get("desired_role"),
         "available_from": row.get("available_from"),
@@ -356,6 +376,44 @@ def _candidate_readiness(row: dict[str, Any], *, requested_role: str | None) -> 
         "requirements_satisfied": not required_missing,
         "safe_description": _safe_candidate_description(row, missing),
     }
+
+
+def mark_candidate_hired(
+    candidate_id: str,
+    *,
+    db: Session | None = None,
+    delete_after_hire: bool = True,
+) -> dict[str, Any]:
+    """Mark a candidate as hired; candidate records are temporary pre-hire data."""
+    with _session_scope(db) as session:
+        try:
+            candidate = session.get(Candidate, candidate_id)
+            if candidate is None:
+                return {"found": False, "candidate_id": candidate_id, "deleted": False}
+            snapshot = get_candidate_profile_data(candidate_id, db=session) or {"id": candidate_id}
+            if delete_after_hire:
+                session.query(CandidatePreEntryPackage).filter(
+                    CandidatePreEntryPackage.candidate_id == candidate_id
+                ).delete(synchronize_session=False)
+                session.delete(candidate)
+                session.commit()
+                return {
+                    "found": True,
+                    "candidate_id": candidate_id,
+                    "deleted": True,
+                    "snapshot": snapshot,
+                }
+            candidate.status = "HIRED"
+            session.commit()
+            return {
+                "found": True,
+                "candidate_id": candidate_id,
+                "deleted": False,
+                "snapshot": snapshot,
+            }
+        except SQLAlchemyError:
+            session.rollback()
+            return {"found": False, "candidate_id": candidate_id, "deleted": False}
 
 
 def _candidate_requirement_results(

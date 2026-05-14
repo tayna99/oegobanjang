@@ -1,5 +1,5 @@
 id,company_id,name,nationality,desired_role,available_from,language,passport,photo,health_check,understood_housing,understood_shift,status,created_at,updated_at
-candidate-001,550e8400-e29b-41d4-a716-446655440001,Candidate A,VN,assembly,2026-06-01,vi,true,false,false,true,false,READY_CHECK,2026-05-09,2026-05-09
+candidate-001,550e8400-e29b-41d4-a716-446655440001,Nguyen Thi Lan,VN,assembly,2026-06-01,vi,true,false,false,true,false,READY_CHECK,2026-05-09,2026-05-09
 candidate-002,550e8400-e29b-41d4-a716-446655440001,Candidate B,NP,welding_assist,2026-07-01,ne,true,true,false,false,true,READY_CHECK,2026-05-09,2026-05-09
 candidate-003,550e8400-e29b-41d4-a716-446655440003,Candidate C,VN,assembly,2026-06-20,vi,true,true,true,true,true,READY_CHECK,2026-05-09,2026-05-09
 candidate-004,550e8400-e29b-41d4-a716-446655440002,Candidate D,ID,shipyard_support,,id,true,true,false,true,true,MISSING_CONTEXT,2026-05-09,2026-05-09
