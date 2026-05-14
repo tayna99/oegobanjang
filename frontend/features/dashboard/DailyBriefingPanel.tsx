@@ -20,6 +20,7 @@ const riskTypeLabel: Record<DailyBriefingItem["risk_type"], string> = {
   quota_review: "신규 채용 준비",
   reporting_deadline: "고용변동 신고기한",
   visa_expiry: "체류기간 연장 서류",
+  worker_reply: "근로자 응답 도착",
 };
 
 const taskIconByRisk: Record<DailyBriefingItem["risk_type"], string> = {
@@ -29,6 +30,7 @@ const taskIconByRisk: Record<DailyBriefingItem["risk_type"], string> = {
   quota_review: "♙",
   reporting_deadline: "!",
   visa_expiry: "□",
+  worker_reply: "↩",
 };
 
 const statusLabel: Record<NextAction["status"], string> = {

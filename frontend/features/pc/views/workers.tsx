@@ -10,8 +10,8 @@
   UserRoundPlus,
   X,
 } from "lucide-react";
-import React, { useState } from "react";
-import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "../data";
+import React, { useEffect, useMemo, useState } from "react";
+import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers as seedWorkers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
 
@@ -124,16 +124,78 @@ function workerTestId(workerId: string) {
 
 export function WorkersView({ onAction }: PcViewProps = {}) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const missingDocumentCount = workers.reduce((total, worker) => {
+  const [dbWorkers, setDbWorkers] = useState<Array<{ id: string; name: string; nationality?: string; language_code?: string; visa_type?: string }>>([]);
+  const [documentRequests, setDocumentRequests] = useState<Array<{ worker_id: string; doc_type: string; status: string }>>([]);
+  useEffect(() => {
+    void Promise.all([
+      fetch("/api/v1/contact/workers?company_id=550e8400-e29b-41d4-a716-446655440001", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() : { workers: [] }),
+      fetch("/api/v1/documents/worker-requests/all?company_id=550e8400-e29b-41d4-a716-446655440001", { cache: "no-store" })
+        .then((response) => response.ok ? response.json() : { requests: [] }),
+    ])
+      .then(([workerData, documentData]) => {
+        setDbWorkers(workerData.workers ?? []);
+        setDocumentRequests(documentData.requests ?? []);
+      })
+      .catch(() => {
+        setDbWorkers([]);
+        setDocumentRequests([]);
+      });
+  }, []);
+  const workerRows = useMemo(() => {
+    const seen = new Set(seedWorkers.map((worker) => worker.id));
+    const documentsByWorker = new Map<string, Array<{ doc_type: string; status: string }>>();
+    for (const request of documentRequests) {
+      const rows = documentsByWorker.get(request.worker_id) ?? [];
+      rows.push(request);
+      documentsByWorker.set(request.worker_id, rows);
+    }
+    const mergeDocumentStatus = (worker: (typeof seedWorkers)[number]) => {
+      const requests = documentsByWorker.get(worker.id) ?? [];
+      if (requests.length === 0) return worker;
+      const requestedCount = requests.filter((request) => request.status === "REQUESTED" || request.status === "MISSING" || request.status === "REJECTED").length;
+      const submittedCount = requests.filter((request) => request.status === "SUBMITTED").length;
+      const hasOpenRequest = requestedCount > 0;
+      const hasSubmitted = submittedCount > 0;
+      return {
+        ...worker,
+        docExtra: hasOpenRequest ? `+${requestedCount}` : "",
+        status: hasOpenRequest ? worker.status : hasSubmitted ? "서류 제출됨" : worker.status,
+        statusTone: hasOpenRequest ? worker.statusTone : hasSubmitted ? ("green" as Tone) : worker.statusTone,
+      };
+    };
+    const added = dbWorkers
+      .filter((worker) => !seen.has(worker.id))
+      .map((worker) => ({
+        id: worker.id,
+        initials: (worker.name || "근").slice(0, 1).toUpperCase(),
+        name: worker.name || "근로자",
+        localName: "신규 등록",
+        nationalityCode: (worker.language_code || "VI").toUpperCase(),
+        nationality: worker.nationality || "-",
+        visaType: worker.visa_type || "E-9",
+        line: "등록 정보 확인 필요",
+        visaExpiry: "-",
+        contractEnd: "-",
+        dday: "-",
+        status: "정상",
+        statusTone: "green" as Tone,
+        tenure: "-",
+        docs: [],
+        docExtra: "",
+      }));
+    return [...seedWorkers.map(mergeDocumentStatus), ...added];
+  }, [dbWorkers, documentRequests]);
+  const missingDocumentCount = workerRows.reduce((total, worker) => {
     const rawCount = worker.docExtra?.replace("+", "") ?? "0";
     const count = Number.parseInt(rawCount, 10);
     return total + (Number.isFinite(count) ? count : 0);
   }, 0);
-  const needsAttentionCount = workers.filter((worker) => worker.statusTone === "red" || worker.statusTone === "orange").length;
-  const normalCount = workers.filter((worker) => worker.statusTone === "green").length;
+  const needsAttentionCount = workerRows.filter((worker) => worker.statusTone === "red" || worker.statusTone === "orange").length;
+  const normalCount = workerRows.filter((worker) => worker.statusTone === "green").length;
 
   const statCards: Array<[string, string, string, string]> = [
-    ["전체 등록", `${workers.length}명`, "#1D4ED8", "#EFF6FF"],
+    ["전체 등록", `${workerRows.length}명`, "#1D4ED8", "#EFF6FF"],
     ["즉시·우선 확인", `${needsAttentionCount}명`, "#C2410C", "#FFF7ED"],
     ["서류 보완 필요", `${missingDocumentCount}건`, "#B00C0C", "#FEF2F2"],
     ["정상", `${normalCount}명`, "#065F46", "#ECFDF5"],
@@ -156,7 +218,7 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
       <div className={styles.pageHead}>
         <div>
           <div className={styles.subtle}>근로자 목록</div>
-          <h1 className={styles.headline}>전체 근로자 · {workers.length}명</h1>
+          <h1 className={styles.headline}>전체 근로자 · {workerRows.length}명</h1>
         </div>
         <Button variant="secondary" onClick={() => onAction?.({ kind: "worker-register", label: "근로자 등록" })}>
           <UserRoundPlus size={15} /> 근로자 등록
@@ -187,7 +249,7 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
         </div>
 
         {/* 데이터 행 */}
-        {workers.map((worker) => {
+        {workerRows.map((worker) => {
           const isCritical = worker.statusTone === "red";
           const isSelected = selectedId === worker.id;
           const sev = CASE_SEV[worker.statusTone] ?? CASE_SEV.gray;

@@ -533,6 +533,50 @@ def test_message_draft_reflects_quality_checker_risk_flags(
     assert "TRANSLATION_QUALITY_REVIEW_REQUIRED" in result.risk_flags
 
 
+def test_message_draft_localizes_korean_placeholder_values(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        contact_agent_module,
+        "search_multilingual_contact_rag_tool",
+        _mock_rag_tool,
+    )
+    template_path = tmp_path / "message_templates.csv"
+    template_path.write_text(
+        "\n".join(
+            [
+                "purpose,target_language,korean_text,translated_text,required_fields,approval_required,review_status",
+                "passport_request,vi,여권 사본을 {due_date}까지 보내주세요. 이 정보는 {privacy_purpose} 목적으로만 사용됩니다. 준비가 어려우면 {contact_person}에게 알려주세요.,Vui lòng gửi bản sao hộ chiếu trước {due_date}. Thông tin này chỉ được sử dụng cho mục đích {privacy_purpose}. Nếu bạn gặp khó khăn khi chuẩn bị vui lòng báo cho {contact_person}.,due_date|privacy_purpose|contact_person,true,approved",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    agent = MultilingualContactAgent(template_path=template_path)
+
+    result = agent.generate_message_draft(
+        MessageDraftInput(
+            worker_id="worker-demo-001",
+            language_code="vi",
+            message_purpose="passport_request",
+            due_date="2026-05-20",
+            contact_person="김대리",
+            user_request="여권 사본 요청 메시지 작성",
+            privacy_purpose="외국인 고용 업무 및 서류 확인",
+        )
+    )
+
+    assert result.status == "SUCCESS"
+    assert result.korean_text
+    assert "외국인 고용 업무 및 서류 확인" in result.korean_text
+    assert "김대리" in result.korean_text
+    assert result.translated_text
+    assert "외국인 고용 업무 및 서류 확인" not in result.translated_text
+    assert "김대리" not in result.translated_text
+    assert "kiểm tra hồ sơ" in result.translated_text
+    assert "người phụ trách" in result.translated_text
+
+
 def test_worker_reply_summary_with_provider_keeps_evidence_events_sanitized() -> None:
     worker_reply = "Tôi có hộ chiếu, ảnh thì ngày mai tôi gửi."
     translated_ko = "여권은 있고 사진은 내일 보낼 수 있습니다."

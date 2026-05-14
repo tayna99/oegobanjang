@@ -1,9 +1,14 @@
-export type OperatorRole = "viewer" | "manager" | "admin" | "system";
+export type OperatorRole = "viewer" | "manager" | "admin" | "system" | "worker";
 
 export type OperatorContext = {
   companyId: string;
   userId: string;
   role: OperatorRole;
+  email?: string;
+  displayName?: string;
+  workerId?: string | null;
+  accessToken?: string;
+  mustChangePassword?: boolean;
 };
 
 const STORAGE_KEY = "workbridge.operatorContext";
@@ -15,7 +20,7 @@ export const defaultOperatorContext: OperatorContext = {
 };
 
 function isOperatorRole(value: unknown): value is OperatorRole {
-  return value === "viewer" || value === "manager" || value === "admin" || value === "system";
+    return value === "viewer" || value === "manager" || value === "admin" || value === "system" || value === "worker";
 }
 
 export function getOperatorContext(): OperatorContext {
@@ -33,6 +38,11 @@ export function getOperatorContext(): OperatorContext {
       companyId: parsed.companyId || defaultOperatorContext.companyId,
       userId: parsed.userId || defaultOperatorContext.userId,
       role: isOperatorRole(parsed.role) ? parsed.role : defaultOperatorContext.role,
+      email: parsed.email,
+      displayName: parsed.displayName,
+      workerId: parsed.workerId,
+      accessToken: parsed.accessToken,
+      mustChangePassword: parsed.mustChangePassword,
     };
   } catch {
     return defaultOperatorContext;
@@ -44,6 +54,14 @@ export function setOperatorContext(context: OperatorContext) {
     return;
   }
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(context));
+  window.dispatchEvent(new Event("workbridge-operator-context-change"));
+}
+
+export function clearOperatorContext() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(STORAGE_KEY);
   window.dispatchEvent(new Event("workbridge-operator-context-change"));
 }
 

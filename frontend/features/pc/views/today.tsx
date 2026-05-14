@@ -9,7 +9,7 @@
   UserRoundPlus,
   X,
 } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
 import { adminPackage, contactItems, judgmentRows, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
@@ -108,6 +108,15 @@ const CASE_SEV: Record<string, { bg: string; bd: string; fg: string; dot: string
   gray:   { bg: "rgba(112,115,124,0.06)", bd: "rgba(112,115,124,0.20)", fg: "#70737C", dot: "#B0B3BA" },
 };
 
+const statusPriority: Record<string, number> = {
+  "즉시 확인": 5,
+  "우선 확인": 4,
+  "확인 필요": 3,
+  "응답 도착": 2,
+  "승인 필요": 1,
+  "참고": 0,
+};
+
 function workerTestId(workerId: string) {
   return `worker-row-${workerId.replace("w_", "")}`;
 }
@@ -123,7 +132,7 @@ function itemMatchesSummary(item: DailyBriefingItem, summaryId: string) {
     return item.risk_type === "missing_document";
   }
   if (summaryId === "reply") {
-    return item.case_title?.includes("응답") || item.case_summary?.includes("응답") || false;
+    return item.risk_type === "worker_reply" || item.case_title?.includes("응답") || item.case_summary?.includes("응답") || false;
   }
   if (summaryId === "approval") {
     return item.primary_action?.status === "pending_approval" || item.primary_action?.approval_required === true;
@@ -132,6 +141,7 @@ function itemMatchesSummary(item: DailyBriefingItem, summaryId: string) {
 }
 
 function severityLabel(item: DailyBriefingItem) {
+  if (item.risk_type === "worker_reply") return "응답 도착";
   if (item.expired || item.severity === "CRITICAL") return "즉시 확인";
   if (item.severity === "HIGH") return "우선 확인";
   if (item.severity === "MEDIUM") return "확인 필요";
@@ -158,7 +168,7 @@ function nextActionForItem(item: DailyBriefingItem, selectedSummaryId: string): 
       riskType: item.risk_type,
     };
   }
-  if (item.case_title?.includes("응답") || item.case_summary?.includes("응답")) {
+  if (item.risk_type === "worker_reply" || item.case_title?.includes("응답") || item.case_summary?.includes("응답")) {
     return {
       kind: "response-summary",
       label: "응답 요약",
@@ -202,16 +212,130 @@ function nextActionForItem(item: DailyBriefingItem, selectedSummaryId: string): 
   };
 }
 
+function groupItemsBySubject(items: DailyBriefingItem[]) {
+  const groups = new Map<string, DailyBriefingItem[]>();
+  for (const item of items) {
+    const key = item.subject_type === "worker" ? item.subject_id : item.item_id;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  return [...groups.values()].map((groupItems) => {
+    const sorted = [...groupItems].sort((a, b) => {
+      const statusDelta = (statusPriority[severityLabel(b)] ?? 0) - (statusPriority[severityLabel(a)] ?? 0);
+      if (statusDelta !== 0) return statusDelta;
+      return (b.primary_action?.approval_required ? 1 : 0) - (a.primary_action?.approval_required ? 1 : 0);
+    });
+    const primary = sorted[0];
+    return {
+      primary,
+      items: sorted,
+      statuses: [...new Set(sorted.map(severityLabel))],
+      titles: [...new Set(sorted.map((item) => item.case_title ?? item.risk_type))],
+    };
+  });
+}
+
 export function TodayTasksView({ briefing, loading = false, onAction }: TodayTasksViewProps = {}) {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [selectedSummaryId, setSelectedSummaryId] = useState("all");
   const [detailOpen, setDetailOpen] = useState(false);
+  const [replyItems, setReplyItems] = useState<DailyBriefingItem[]>([]);
   const selectedWorker = workers.find((worker) => worker.id === selectedWorkerId) ?? null;
-  const items = briefing?.items ?? [];
+  const [submittedDocumentWorkerIds, setSubmittedDocumentWorkerIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    void loadReplyItems();
+    const timer = window.setInterval(() => {
+      void loadReplyItems();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  async function loadReplyItems() {
+    try {
+      const response = await fetch("/api/v1/contact/threads?company_id=550e8400-e29b-41d4-a716-446655440001", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      const threads = data.threads ?? [];
+      const detailed = await Promise.all(
+        threads.map(async (thread: { id: string }) => {
+          const detailResponse = await fetch(`/api/v1/contact/threads/${thread.id}`, { cache: "no-store" });
+          return detailResponse.ok ? detailResponse.json() : null;
+        }),
+      );
+      const nextItems = detailed.flatMap((thread: {
+        id: string;
+        worker?: { id?: string; name?: string };
+        messages?: Array<{ id: string; direction: string; status: string; created_at?: string; attachments?: unknown[] }>;
+      } | null) => {
+        if (!thread) return [];
+        return (thread.messages ?? [])
+          .filter((message) => message.direction === "INBOUND")
+          .map((message) => ({
+            item_id: `contact_reply_${message.id}`,
+            case_id: thread.id,
+            subject_type: "worker" as const,
+            subject_id: thread.worker?.id ?? "",
+            subject_display_name: thread.worker?.name ?? "근로자",
+            subject_display_id: thread.worker?.id ?? null,
+            risk_type: "worker_reply" as const,
+            severity: "LOW" as const,
+            d_day: null,
+            expired: false,
+            days_overdue: null,
+            risk_timing_label: "응답 도착",
+            case_title: "근로자 응답 도착",
+            case_summary: message.attachments?.length ? "근로자가 요청 서류를 업로드했습니다." : "근로자 응답이 도착했습니다.",
+            primary_action: null,
+            source_labels: ["메시지 관리"],
+            missing_documents: [],
+            citation_ids: [],
+            next_action_ids: [],
+          }));
+      });
+      setReplyItems(nextItems);
+    } catch {
+      setReplyItems([]);
+    }
+  }
+
+  useEffect(() => {
+    void loadSubmittedDocuments();
+    const timer = window.setInterval(() => {
+      void loadSubmittedDocuments();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  async function loadSubmittedDocuments() {
+    try {
+      const response = await fetch("/api/v1/documents/worker-requests/all?company_id=550e8400-e29b-41d4-a716-446655440001", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = await response.json();
+      setSubmittedDocumentWorkerIds(
+        new Set(
+          (data.requests ?? [])
+            .filter((request: { status?: string }) => request.status === "SUBMITTED" || request.status === "ACCEPTED")
+            .map((request: { worker_id: string }) => request.worker_id),
+        ),
+      );
+    } catch {
+      setSubmittedDocumentWorkerIds(new Set());
+    }
+  }
+
+  const items = useMemo(() => {
+    const baseItems = briefing?.items ?? [];
+    const existingIds = new Set(baseItems.map((item) => item.item_id));
+    const filteredBaseItems = baseItems.filter((item) => {
+      if (item.risk_type !== "missing_document") return true;
+      return !submittedDocumentWorkerIds.has(item.subject_id);
+    });
+    return [...filteredBaseItems, ...replyItems.filter((item) => !existingIds.has(item.item_id))];
+  }, [briefing?.items, replyItems, submittedDocumentWorkerIds]);
   const filteredItems = items.filter((item) => itemMatchesSummary(item, selectedSummaryId));
+  const groupedItems = groupItemsBySubject(filteredItems);
   const summary = summaryConfig.map((item) => ({
     ...item,
-    count: items.filter((briefingItem) => itemMatchesSummary(briefingItem, item.id)).length,
+    count: groupItemsBySubject(items.filter((briefingItem) => itemMatchesSummary(briefingItem, item.id))).length,
   }));
 
   function selectSummary(item: (typeof summaryConfig)[number]) {
@@ -258,13 +382,14 @@ export function TodayTasksView({ briefing, loading = false, onAction }: TodayTas
         <div className={styles.taskQueueWrap}>
           <div className={styles.taskQueueHead}>
             오늘의 업무 큐
-            <span className={styles.taskQueueHeadCount}>{loading ? "불러오는 중" : `${filteredItems.length}건`}</span>
+            <span className={styles.taskQueueHeadCount}>{loading ? "불러오는 중" : `${groupedItems.length}명 / ${filteredItems.length}건`}</span>
           </div>
           <div className={styles.taskQueue}>
             <div className={styles.taskQueueHeader}>
               <div /><div>업무</div><div>대상</div><div>상태</div><div>기한</div><div>다음 처리</div><div />
             </div>
-            {filteredItems.map((item) => {
+            {groupedItems.map((group) => {
+              const item = group.primary;
               const status = severityLabel(item);
               const deadline = deadlineLabel(item);
               const nextAction = nextActionForItem(item, selectedSummaryId);
@@ -280,11 +405,23 @@ export function TodayTasksView({ briefing, loading = false, onAction }: TodayTas
                 >
                   <div className={styles.taskCheckbox} />
                   <div className={styles.taskTitleCell}>
-                    <div className={styles.taskTypeIcon}>{TASK_TYPE_ICON.doc}</div>
-                    <span className={styles.taskTitle}>{item.case_title ?? item.risk_type}</span>
+                    <div className={styles.taskTypeIcon}>{item.risk_type === "worker_reply" ? TASK_TYPE_ICON.message : TASK_TYPE_ICON.doc}</div>
+                    <span className={styles.taskTitle}>
+                      {group.titles[0]}
+                      {group.titles.length > 1 ? <span className={styles.subtle}> 외 {group.titles.length - 1}건</span> : null}
+                    </span>
                   </div>
                   <div className={styles.taskTarget}>{item.subject_display_name ?? item.subject_display_id ?? item.subject_id}</div>
-                  <span className={styles.taskStatusPill} style={{ background: st.bg, color: st.fg }}>{st.label}</span>
+                  <div className={styles.taskStatusStack}>
+                    {group.statuses.slice(0, 2).map((statusLabel) => {
+                      const statusStyle = TASK_STATUS_MAP[statusLabel] ?? st;
+                      return (
+                        <span className={styles.taskStatusPill} key={statusLabel} style={{ background: statusStyle.bg, color: statusStyle.fg }}>
+                          {statusLabel}
+                        </span>
+                      );
+                    })}
+                  </div>
                   <div className={isUrgent ? styles.taskDeadlineUrgent : styles.taskDeadlineNormal}>{deadline}</div>
                   <button
                     className={styles.taskNextBtn}
@@ -443,24 +580,14 @@ function TodayWorkerDetail({
       </section>
 
       <section className={styles.detailSection}>
-        <h3>추천 액션 <Badge tone="gray">3</Badge></h3>
+        <h3>추천 액션 <Badge tone="gray">1</Badge></h3>
         <div className={styles.stack}>
           <Card className={styles.actionCard}>
             <div>
-              <strong>서류 요청 초안 보기 (베트남어 포함)</strong>
-              <p className={styles.subtle}>대상: {worker.name}</p>
-            </div>
-            <div className={styles.buttonRow}>
-              <Button data-testid="action-draft" variant="secondary" onClick={() => onAction?.({ kind: "document-draft", label: "초안 보기" })}>초안 보기</Button>
-              <Button data-testid="action-approval" onClick={() => onAction?.({ kind: "approval-preview", label: "승인" })}>승인</Button>
-            </div>
-          </Card>
-          <Card className={styles.actionCard}>
-            <div>
               <strong>체류기간 연장 검토 자료 만들기</strong>
-              <p className={styles.subtle}>대상: {worker.name}</p>
+              <p className={styles.subtle}>행정사에게 전달할 검토 패키지를 사람 읽기 좋은 문서 형태로 확인합니다.</p>
             </div>
-            <Button data-testid="action-handoff" variant="secondary" onClick={() => onAction?.({ kind: "handoff-preview", label: "검토 자료 보기" })}>검토 자료 보기</Button>
+            <Button data-testid="action-handoff" variant="secondary" onClick={() => onAction?.({ kind: "handoff-preview", label: "행정사 전달 문서 보기" })}>검토 자료 보기</Button>
           </Card>
         </div>
       </section>
@@ -482,21 +609,6 @@ function TodayWorkerDetail({
           ))}
         </div>
       </section>
-
-      {/* 하단 CTA */}
-      <div className={styles.detailPanelCta}>
-        <button
-          className={styles.taskCtaBtn}
-          type="button"
-          onClick={() => onAction?.({ kind: "approval-preview", label: "대표 승인 요청" })}
-        >
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-            <path d="M17 11v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6M13 3h5v5M8 12l9-9" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          대표 승인 요청
-        </button>
-        <Button variant="secondary" onClick={() => onAction?.({ kind: "revision-request", label: "수정 요청" })}>수정 요청</Button>
-      </div>
     </aside>
   );
 }

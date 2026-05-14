@@ -104,6 +104,20 @@
   font-size: 14px;
 }
 
+.search input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 700;
+}
+
+.search input::placeholder {
+  color: #94a3b8;
+}
+
 .rightCluster {
   gap: 16px;
 }
@@ -153,8 +167,25 @@
 }
 
 .role {
+  display: block;
   color: #64748b;
   font-size: 12px;
+}
+
+.loginButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  border: 1px solid #d8e0ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
 }
 
 .nav {
@@ -173,7 +204,12 @@
   align-items: center;
   align-self: stretch;
   gap: 8px;
+  border: 0;
   border-bottom: 2px solid transparent;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
   padding: 0 4px;
   font-weight: 800;
   white-space: nowrap;
@@ -187,6 +223,47 @@
 .main {
   min-height: calc(100vh - 102px);
   padding: 28px;
+}
+
+.loginRequiredMain {
+  min-height: calc(100vh - 59px);
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: #f4f7fb;
+}
+
+.loginRequiredCard {
+  width: min(420px, 100%);
+  border: 1px solid #d8e0ec;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+  padding: 28px;
+  text-align: center;
+}
+
+.loginRequiredCard h1 {
+  margin: 14px 0 0;
+  font-size: 28px;
+}
+
+.loginRequiredCard p {
+  margin: 12px 0 22px;
+  color: #64748b;
+}
+
+.loginRequiredButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 900;
+  text-decoration: none;
 }
 
 .fab {
@@ -318,6 +395,43 @@
   color: #9a3412;
   padding: 10px 12px;
   font-weight: 800;
+}
+
+.formLabel {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.formLabel input,
+.formLabel select {
+  height: 40px;
+  border: 1px solid #d8e0ec;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.primaryWideButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.primaryWideButton:disabled {
+  background: #cbd5e1;
 }
 
 .stack {
@@ -961,7 +1075,7 @@
 }
 .taskQueueHeader {
   display: grid;
-  grid-template-columns: 26px minmax(240px, 1fr) 96px 82px 58px 96px 22px;
+  grid-template-columns: 26px minmax(220px, 1fr) 96px 112px 58px 96px 22px;
   padding: 9px 12px;
   gap: 8px;
   font-size: 12px;
@@ -973,7 +1087,7 @@
 }
 .taskQueueRow {
   display: grid;
-  grid-template-columns: 26px minmax(240px, 1fr) 96px 82px 58px 96px 22px;
+  grid-template-columns: 26px minmax(220px, 1fr) 96px 112px 58px 96px 22px;
   padding: 11px 12px;
   gap: 8px;
   align-items: center;
@@ -1032,11 +1146,21 @@
 .taskStatusPill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   padding: 3px 8px;
   border-radius: 99px;
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
+  width: fit-content;
+}
+.taskStatusStack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 112px;
 }
 .taskDeadlineUrgent {
   font-size: 13px;

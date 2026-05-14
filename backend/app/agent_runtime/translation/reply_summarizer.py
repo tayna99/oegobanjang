@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from backend.app.agent_runtime.translation.schemas import (
+from .schemas import (
     WorkerReplySummaryRequest,
     WorkerReplySummaryResult,
 )
-from backend.app.agent_runtime.translation.translator import (
+from .translator import (
     TranslationProvider,
     translate_text,
 )

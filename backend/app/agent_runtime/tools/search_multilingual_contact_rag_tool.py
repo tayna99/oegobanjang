@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from backend.app.agent_runtime.rag_hyunhee.retriever import (
+from ..rag_hyunhee.retriever import (
     RetrievedContext,
     search_multilingual_contact_docs,
 )

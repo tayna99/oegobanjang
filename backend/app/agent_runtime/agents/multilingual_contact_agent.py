@@ -9,25 +9,25 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from backend.app.agent_runtime.translation.quality_checker import (
+from ..tools.search_multilingual_contact_rag_tool import (
+    SearchMultilingualContactRagInput,
+    search_multilingual_contact_rag_tool,
+)
+from ..translation.quality_checker import (
     check_translation_quality,
 )
-from backend.app.agent_runtime.translation.reply_interpreter import (
+from ..translation.reply_interpreter import (
     interpret_worker_reply,
 )
-from backend.app.agent_runtime.translation.reply_summarizer import (
+from ..translation.reply_summarizer import (
     translate_and_summarize_worker_reply,
 )
-from backend.app.agent_runtime.translation.schemas import (
+from ..translation.schemas import (
     ReplyInterpretationRequest,
     TranslationQualityCheckRequest,
     WorkerReplySummaryRequest,
 )
-from backend.app.agent_runtime.translation.translator import TranslationProvider
-from backend.app.agent_runtime.tools.search_multilingual_contact_rag_tool import (
-    SearchMultilingualContactRagInput,
-    search_multilingual_contact_rag_tool,
-)
+from ..translation.translator import TranslationProvider
 
 
 ROOT_DIR = Path(__file__).resolve().parents[4]
@@ -129,6 +129,7 @@ class MultilingualContactAgent:
             )
 
         values = request.model_dump()
+        translated_values = _localized_template_values(values, request.language_code)
         missing_fields = _missing_required_fields(template, values)
         if missing_fields:
             return MessageDraftOutput(
@@ -154,7 +155,10 @@ class MultilingualContactAgent:
         risk_flags.extend(rag_output.risk_flags)
 
         korean_text = self.render_template(template["korean_text"], values)
-        translated_text = self.render_template(template["translated_text"], values)
+        translated_text = self.render_template(
+            template["translated_text"],
+            translated_values,
+        )
         review_status = str(template.get("review_status", "")).strip()
         if review_status in TRANSLATION_REVIEW_STATUSES or not translated_text.strip():
             risk_flags.append("TRANSLATION_REVIEW_REQUIRED")
@@ -363,6 +367,46 @@ def _template_fields(template: str) -> set[str]:
 
 def _contains_any(text: str, keywords: tuple[str, ...]) -> bool:
     return any(keyword.lower() in text for keyword in keywords)
+
+
+def _localized_template_values(
+    values: dict[str, Any],
+    language_code: str,
+) -> dict[str, Any]:
+    localized = dict(values)
+    localized["privacy_purpose"] = _localized_privacy_purpose(
+        localized.get("privacy_purpose"),
+        language_code,
+    )
+    localized["contact_person"] = _localized_contact_person(
+        localized.get("contact_person"),
+        language_code,
+    )
+    return localized
+
+
+def _localized_privacy_purpose(value: Any, language_code: str) -> str:
+    text = "" if value is None else str(value).strip()
+    if language_code == "vi":
+        return "kiểm tra hồ sơ và thủ tục liên quan đến việc tuyển dụng lao động nước ngoài"
+    if language_code == "id":
+        return "pemeriksaan dokumen dan administrasi terkait perekrutan tenaga kerja asing"
+    return text
+
+
+def _localized_contact_person(value: Any, language_code: str) -> str:
+    text = "" if value is None else str(value).strip()
+    if not text:
+        return text
+    if language_code == "vi" and _contains_hangul(text):
+        return "người phụ trách"
+    if language_code == "id" and _contains_hangul(text):
+        return "penanggung jawab"
+    return text
+
+
+def _contains_hangul(text: str) -> bool:
+    return bool(re.search(r"[가-힣]", text))
 
 
 def _dedupe(items: list[str]) -> list[str]:

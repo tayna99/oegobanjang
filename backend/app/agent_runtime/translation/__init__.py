@@ -1,13 +1,13 @@
-from backend.app.agent_runtime.translation.quality_checker import (
+from .quality_checker import (
     check_translation_quality,
 )
-from backend.app.agent_runtime.translation.reply_interpreter import (
+from .reply_interpreter import (
     interpret_worker_reply,
 )
-from backend.app.agent_runtime.translation.reply_summarizer import (
+from .reply_summarizer import (
     translate_and_summarize_worker_reply,
 )
-from backend.app.agent_runtime.translation.translator import (
+from .translator import (
     LLMTranslationProvider,
     MockTranslationProvider,
     RuleBasedTranslationProvider,

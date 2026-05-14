@@ -2,41 +2,83 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BriefcaseBusiness, ShieldCheck } from "lucide-react";
+import { BriefcaseBusiness, ShieldCheck, UserRound } from "lucide-react";
 
-import {
-  defaultOperatorContext,
-  setOperatorContext,
-  type OperatorContext,
-  type OperatorRole,
-} from "../../lib/operatorContext";
+import { defaultOperatorContext, setOperatorContext, type OperatorRole } from "../../lib/operatorContext";
 
-const roleOptions: Array<{ label: string; value: OperatorRole; description: string }> = [
-  { label: "담당자", value: "manager", description: "브리핑 확인, 승인 요청, 초안 검토" },
-  { label: "관리자", value: "admin", description: "CSV 원천 데이터와 운영 지표 관리" },
-  { label: "조회자", value: "viewer", description: "대시보드와 기록 조회 중심" },
+type LoginUser = {
+  id: string;
+  email?: string;
+  display_name?: string;
+  role: "ADMIN" | "WORKER" | string;
+  company_id?: string;
+  worker_id?: string | null;
+  must_change_password?: boolean;
+};
+
+type LoginResponse = {
+  user: LoginUser;
+  access_token: string;
+  redirect_to: string;
+};
+
+const quickAccounts = [
+  {
+    label: "관리자",
+    email: "admin@oegobanjang.local",
+    password: "admin1234",
+    description: "오늘 할 일, 채용 준비, 근로자, 메시지 관리",
+  },
+  {
+    label: "근로자",
+    email: "potenup3@gmail.com",
+    password: "worker1234",
+    description: "본인 요청 서류와 회사 메시지 확인",
+  },
 ];
 
 export function OperatorLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [companyId, setCompanyId] = useState(defaultOperatorContext.companyId);
-  const [userId, setUserId] = useState(defaultOperatorContext.userId);
-  const [role, setRole] = useState<OperatorRole>(defaultOperatorContext.role);
+  const [email, setEmail] = useState(quickAccounts[0].email);
+  const [password, setPassword] = useState(quickAccounts[0].password);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const returnTo = useMemo(() => {
     const from = searchParams.get("from");
-    return from && from.startsWith("/") ? from : "/dashboard";
+    return from && from.startsWith("/") ? from : "";
   }, [searchParams]);
 
-  function submit() {
-    const context: OperatorContext = {
-      companyId: companyId.trim() || defaultOperatorContext.companyId,
-      userId: userId.trim() || defaultOperatorContext.userId,
-      role,
-    };
-    setOperatorContext(context);
-    router.push(returnTo);
+  async function submit() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!response.ok) {
+        setError("이메일 또는 비밀번호를 확인해주세요.");
+        return;
+      }
+      const data = (await response.json()) as LoginResponse;
+      const role = data.user.role === "WORKER" ? "worker" : ("admin" as OperatorRole);
+      setOperatorContext({
+        companyId: data.user.company_id || defaultOperatorContext.companyId,
+        userId: data.user.id,
+        role,
+        email: data.user.email,
+        displayName: data.user.display_name,
+        workerId: data.user.worker_id,
+        accessToken: data.access_token,
+        mustChangePassword: Boolean(data.user.must_change_password),
+      });
+      router.push(returnTo || data.redirect_to || "/dashboard");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -46,45 +88,56 @@ export function OperatorLoginPage() {
           <span>반</span>
           <div>
             <strong>외고반장</strong>
-            <p>운영자 컨텍스트 선택</p>
+            <p>관리자/근로자 로그인</p>
           </div>
         </div>
 
         <div className="operator-login-hero">
           <ShieldCheck size={24} aria-hidden="true" />
           <div>
-            <h1>실제 인증이 아닌 MVP 작업 컨텍스트입니다.</h1>
-            <p>선택한 회사와 역할은 프론트 API 헤더에만 반영됩니다.</p>
+            <h1>DB 사용자 정보로 역할을 분리합니다.</h1>
+            <p>관리자는 기존 운영 화면으로, 근로자는 본인 포털로 이동합니다.</p>
           </div>
         </div>
 
         <label className="operator-login-field">
-          Company ID
-          <input value={companyId} onChange={(event) => setCompanyId(event.target.value)} />
+          이메일
+          <input autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} />
         </label>
 
         <label className="operator-login-field">
-          User ID
-          <input value={userId} onChange={(event) => setUserId(event.target.value)} />
+          비밀번호
+          <input
+            autoComplete="current-password"
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
         </label>
 
-        <div className="operator-role-grid" aria-label="역할 선택">
-          {roleOptions.map((option) => (
+        <div className="operator-role-grid" aria-label="데모 계정 선택">
+          {quickAccounts.map((account) => (
             <button
-              className={role === option.value ? "active" : ""}
-              key={option.value}
-              onClick={() => setRole(option.value)}
+              className={email === account.email ? "active" : ""}
+              key={account.email}
+              onClick={() => {
+                setEmail(account.email);
+                setPassword(account.password);
+              }}
               type="button"
             >
-              <strong>{option.label}</strong>
-              <span>{option.description}</span>
+              <strong>{account.label}</strong>
+              <span>{account.email}</span>
+              <span>{account.description}</span>
             </button>
           ))}
         </div>
 
-        <button className="operator-login-submit" onClick={submit} type="button">
-          <BriefcaseBusiness size={16} aria-hidden="true" />
-          컨텍스트 저장 후 이동
+        {error ? <p style={{ color: "#DC2626", fontSize: 13, fontWeight: 700 }}>{error}</p> : null}
+
+        <button className="operator-login-submit" disabled={loading} onClick={submit} type="button">
+          {email === quickAccounts[1].email ? <UserRound size={16} aria-hidden="true" /> : <BriefcaseBusiness size={16} aria-hidden="true" />}
+          로그인
         </button>
       </section>
     </main>

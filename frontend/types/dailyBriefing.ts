@@ -22,7 +22,8 @@ export type DailyBriefingItem = {
     | "contract_visa_conflict"
     | "reporting_deadline"
     | "quota_review"
-    | "candidate_readiness";
+    | "candidate_readiness"
+    | "worker_reply";
   severity: RiskSeverity;
   d_day: number | null;
   expired: boolean;

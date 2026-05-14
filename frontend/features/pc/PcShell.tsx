@@ -4,11 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bell,
   BriefcaseBusiness,
   CalendarCheck,
   Clock3,
   FileCheck2,
+  LogOut,
   MessageSquare,
   Search,
   UserRoundPlus,
@@ -30,6 +30,7 @@ import {
 import type { DailyBriefingResult, NextAction } from "../../types/dailyBriefing";
 import { DailyBriefingChatPanel } from "../dashboard/DailyBriefingChatPanel";
 import { useDailyBriefingWorkflow } from "../dashboard/useDailyBriefingWorkflow";
+import { clearOperatorContext, getOperatorContext, type OperatorContext } from "../../lib/operatorContext";
 
 const routes: Array<{ key: PcViewKey; href: string; label: string; icon: React.ElementType }> = [
   { key: "today", href: "/dashboard", label: "오늘 할 일", icon: CalendarCheck },
@@ -88,10 +89,26 @@ export function PcShell({
   const workflow = useDailyBriefingWorkflow();
   const [chatOpen, setChatOpen] = useState(false);
   const [panel, setPanel] = useState<InfoPanel | null>(null);
+  const [operator, setOperator] = useState<OperatorContext | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [workerRegisterOpen, setWorkerRegisterOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
-    void workflow.runBriefing();
-  }, [workflow.runBriefing]);
+    if (operator?.accessToken) {
+      void workflow.runBriefing();
+    }
+  }, [operator?.accessToken, workflow.runBriefing]);
+
+  useEffect(() => {
+    const refreshOperator = () => {
+      setOperator(getOperatorContext());
+      setAuthReady(true);
+    };
+    refreshOperator();
+    window.addEventListener("workbridge-operator-context-change", refreshOperator);
+    return () => window.removeEventListener("workbridge-operator-context-change", refreshOperator);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("ai") === "1") {
@@ -143,16 +160,7 @@ export function PcShell({
     }
     setPanel({
       title: "검토 자료 미리보기",
-      body: (
-        <div className={styles.modalStack}>
-          <p>행정사 검토용 초안입니다. 승인 후에도 정부 포털 제출은 자동 수행하지 않습니다.</p>
-          <ul>
-            <li>근로자: Nguyen V. / Dang T.</li>
-            <li>검토 항목: 체류기간, 누락 서류, 이전 요청 이력</li>
-            <li>상태: 담당자 검토 대기</li>
-          </ul>
-        </div>
-      ),
+      body: <HandoffReadablePreview />,
     });
   }
 
@@ -220,7 +228,7 @@ export function PcShell({
       return;
     }
     if (action.kind === "handoff-preview") {
-      await openHandoffPreview(handoffAction);
+      await openHandoffPreview(null);
       return;
     }
     if (action.kind === "approval-preview") {
@@ -239,16 +247,70 @@ export function PcShell({
       return;
     }
     if (action.kind === "worker-register") {
-      setPanel({
-        title: "근로자 등록",
-        body: <p>근로자 등록 폼은 후속 구현 영역입니다. 현재 화면에서는 기존 근로자 상태 확인만 제공합니다.</p>,
-      });
+      setWorkerRegisterOpen(true);
       return;
     }
     setPanel({
       title: action.label,
       body: <p>응답 요약과 이전 대화 기록을 확인하는 검토용 화면입니다.</p>,
     });
+  }
+
+  function logout() {
+    clearOperatorContext();
+    router.push("/login");
+  }
+
+  function submitSearch(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+    const lower = query.toLowerCase();
+    if (query.includes("메시지") || lower.includes("message") || lower.includes("nguyen")) {
+      router.push(`/contacts?search=${encodeURIComponent(query)}`);
+      return;
+    }
+    if (query.includes("서류") || lower.includes("document") || query.includes("여권")) {
+      router.push(`/workers?search=${encodeURIComponent(query)}`);
+      return;
+    }
+    router.push(`/workers?search=${encodeURIComponent(query)}`);
+  }
+
+  const isLoggedIn = Boolean(operator?.accessToken);
+  const displayName = operator?.displayName || company.manager;
+  const displayRole = operator?.role === "worker" ? "근로자" : "관리자";
+
+  if (!authReady) {
+    return <div className={styles.shell} />;
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <div className={styles.topbar}>
+            <Link className={styles.brand} href="/" aria-label="외고반장 홈">
+              <span className={styles.brandMark}>반</span>
+              <span className={styles.brandName}>외고반장</span>
+            </Link>
+            <Link className={styles.loginButton} href="/login">
+              로그인
+            </Link>
+          </div>
+        </header>
+        <main className={styles.loginRequiredMain}>
+          <section className={styles.loginRequiredCard}>
+            <span className={styles.brandMark}>반</span>
+            <h1>외고반장</h1>
+            <p>로그인 후 사용 가능합니다.</p>
+            <Link className={styles.loginRequiredButton} href="/login">
+              로그인
+            </Link>
+          </section>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -268,23 +330,35 @@ export function PcShell({
             </button>
           </div>
 
-          <div className={styles.search} aria-label="검색">
+          <form className={styles.search} onSubmit={submitSearch} aria-label="검색">
             <Search size={16} />
-            <span>근로자, 서류, 메시지 검색</span>
-          </div>
+            <input
+              aria-label="근로자, 서류, 메시지 검색"
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="근로자, 서류, 메시지 검색"
+              value={searchQuery}
+            />
+          </form>
 
           <div className={styles.rightCluster}>
-            <button className={styles.iconButton} type="button" aria-label="알림">
-              <Bell size={20} />
-              <span className={styles.noticeCount}>12</span>
-            </button>
-            <div className={styles.person}>
-              <span className={styles.avatar}>김</span>
-              <span>
-                <span className={styles.manager}>{company.manager}</span>
-                <span className={styles.role}>{company.role}</span>
-              </span>
-            </div>
+            {isLoggedIn ? (
+              <>
+                <div className={styles.person}>
+                  <span className={styles.avatar}>{displayName.slice(0, 1)}</span>
+                  <span>
+                    <span className={styles.manager}>{displayName}</span>
+                    <span className={styles.role}>{displayRole}</span>
+                  </span>
+                </div>
+                <button className={styles.loginButton} onClick={logout} type="button">
+                  <LogOut size={14} /> 로그아웃
+                </button>
+              </>
+            ) : (
+              <Link className={styles.loginButton} href="/login">
+                로그인
+              </Link>
+            )}
           </div>
         </div>
 
@@ -348,6 +422,13 @@ export function PcShell({
         </PcDrawer>
       ) : null}
 
+      {workerRegisterOpen ? (
+        <WorkerRegisterDrawer
+          companyId={operator?.companyId || workflow.companyId}
+          onClose={() => setWorkerRegisterOpen(false)}
+        />
+      ) : null}
+
       {chatOpen ? (
         <div className={styles.drawerOverlay}>
           <button className={styles.drawerBackdrop} aria-label="AI 반장 닫기" onClick={() => setChatOpen(false)} type="button" />
@@ -371,11 +452,140 @@ export function PcShell({
   );
 }
 
+function WorkerRegisterDrawer({ companyId, onClose }: { companyId: string; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("worker1234");
+  const [nationality, setNationality] = useState("베트남");
+  const [preferredLanguage, setPreferredLanguage] = useState("vi");
+  const [visaType, setVisaType] = useState("E-9");
+  const [message, setMessage] = useState("");
+  const [working, setWorking] = useState(false);
+
+  async function submit() {
+    setWorking(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/v1/workers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          temporary_password: temporaryPassword,
+          company_id: companyId,
+          nationality,
+          preferred_language: preferredLanguage,
+          visa_type: visaType,
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setMessage(data.detail || "근로자 등록에 실패했습니다.");
+        return;
+      }
+      const data = await response.json();
+      setMessage(
+        `${data.worker?.name ?? name} 등록과 근로자 계정 생성이 완료됐습니다. 임시 비밀번호로 최초 로그인 후 비밀번호를 변경해야 합니다.`,
+      );
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <PcDrawer title="근로자 등록" onClose={onClose}>
+      <div className={styles.modalStack}>
+        <label className={styles.formLabel}>
+          근로자 이름
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nguyen Van B" />
+        </label>
+        <label className={styles.formLabel}>
+          로그인 이메일
+          <input value={email} onChange={(event) => setEmail(event.target.value)} />
+        </label>
+        <label className={styles.formLabel}>
+          국적
+          <input value={nationality} onChange={(event) => setNationality(event.target.value)} />
+        </label>
+        <label className={styles.formLabel}>
+          언어
+          <select value={preferredLanguage} onChange={(event) => setPreferredLanguage(event.target.value)}>
+            <option value="vi">Tiếng Việt</option>
+            <option value="id">Bahasa Indonesia</option>
+            <option value="ko">한국어</option>
+          </select>
+        </label>
+        <label className={styles.formLabel}>
+          체류자격
+          <input value={visaType} onChange={(event) => setVisaType(event.target.value)} />
+        </label>
+        <label className={styles.formLabel}>
+          임시 비밀번호
+          <input value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} />
+        </label>
+        <p className={styles.safeNotice}>등록과 동시에 근로자 로그인 계정이 생성됩니다. 비밀번호는 DB에 원문이 아닌 PBKDF2 해시로 저장됩니다.</p>
+        {message ? <p className={styles.safeNotice}>{message}</p> : null}
+        <button className={styles.primaryWideButton} disabled={working || !name || !email} onClick={submit} type="button">
+          근로자 등록
+        </button>
+      </div>
+    </PcDrawer>
+  );
+}
+
 function findAction(actions: NextAction[], actionType: NextAction["action_type"]) {
   return (
     actions.find((action) => action.action_type === actionType && action.status === "pending_approval") ??
     actions.find((action) => action.action_type === actionType) ??
     null
+  );
+}
+
+function HandoffReadablePreview() {
+  const rowStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "150px minmax(0, 1fr)",
+    gap: 12,
+    padding: "9px 0",
+    borderBottom: "1px solid #EEF2F7",
+  };
+  return (
+    <div className={styles.modalStack}>
+      <p className={styles.safeNotice}>
+        행정사에게 전달하기 전 담당자가 확인할 검토 문서입니다. 개인정보는 필요한 범위만 포함하고, 정부 포털 제출이나 외부 전달은 자동 수행하지 않습니다.
+      </p>
+      <section>
+        <h3>체류기간 연장 검토 요청서</h3>
+        <div style={rowStyle}><span className={styles.subtle}>수신</span><strong>담당 행정사</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>요청 목적</span><strong>E-9 근로자 체류기간 연장 가능 일정과 준비 서류 검토</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>대상 근로자</span><strong>Nguyen V. / 베트남 / E-9</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>사업장</span><strong>삼성전자 부산공장 · 부산공장 조립라인</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>현재 상태</span><strong>체류만료일 및 제출 서류 확인 필요, 여권 사본은 근로자 제출 완료</strong></div>
+      </section>
+      <section>
+        <h3>요청 내용</h3>
+        <p style={{ lineHeight: 1.8, margin: 0 }}>
+          아래 근로자의 체류기간 연장 준비와 관련하여 현재 일정, 제출 서류, 추가 보완 필요 항목을 검토해 주세요.
+          검토 결과는 담당자가 내부 승인 후 후속 안내에 사용할 예정이며, 본 요청만으로 정부 포털 제출이나 대외 발송은 진행하지 않습니다.
+        </p>
+      </section>
+      <section>
+        <h3>검토 요청 항목</h3>
+        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
+          <li>체류기간 연장 신청 가능 일정과 준비 마감일 확인</li>
+          <li>여권 사본 제출본의 식별 가능 여부와 보완 필요 여부 확인</li>
+          <li>외국인등록증 사본, 표준근로계약서 등 추가 제출 필요 서류 확인</li>
+          <li>회사 담당자가 준비해야 할 사업장 또는 고용 관련 확인 자료 목록 회신</li>
+        </ol>
+      </section>
+      <section>
+        <h3>첨부 및 참고 근거</h3>
+        <div style={rowStyle}><span className={styles.subtle}>제출 서류</span><strong>여권 사본 제출됨</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>공식 근거</span><strong>출입국관리법 제25조, HiKorea 체류기간 연장허가 신청 안내</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>처리 원칙</span><strong>행정사 검토 후 담당자 승인 전까지 외부 제출 없음</strong></div>
+      </section>
+    </div>
   );
 }
 

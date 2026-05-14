@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.app.db.base import Base
+from ..db.base import Base
+
+
+if __name__ == "backend.app.models.worker":
+    sys.modules.setdefault("app.models.worker", sys.modules[__name__])
+elif __name__ == "app.models.worker":
+    sys.modules.setdefault("backend.app.models.worker", sys.modules[__name__])
 
 
 def _now() -> datetime:
@@ -26,6 +33,8 @@ class Worker(Base):
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     nationality: Mapped[str | None] = mapped_column(String(80), nullable=True)
     preferred_language: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    contact_channel: Mapped[str | None] = mapped_column(String(40), nullable=True, default="email")
     visa_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
     visa_expires_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     contract_starts_at: Mapped[str | None] = mapped_column(String(40), nullable=True)

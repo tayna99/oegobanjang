@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from backend.app.agent_runtime.translation.schemas import (
+from .schemas import (
     TranslationQualityCheckRequest,
     TranslationQualityCheckResult,
 )

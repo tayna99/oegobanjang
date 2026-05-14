@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any, Protocol
 
-from backend.app.agent_runtime.translation.schemas import (
+from .schemas import (
     TranslationRequest,
     TranslationResult,
 )

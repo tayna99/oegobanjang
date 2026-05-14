@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from backend.app.db.base import Base
+from ..db.base import Base
+
+
+if __name__ == "backend.app.models.company":
+    sys.modules.setdefault("app.models.company", sys.modules[__name__])
+elif __name__ == "app.models.company":
+    sys.modules.setdefault("backend.app.models.company", sys.modules[__name__])
 
 
 def _now() -> datetime:

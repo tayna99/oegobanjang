@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
@@ -11,22 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-ROOT_DIR = Path(__file__).resolve().parents[3]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
-
-try:
-    from app.db.session import SessionLocal
-    from app.models.company import Company
-    from app.models.document import DocumentRequirement, WorkerDocument
-    from app.models.hiring import Candidate, CandidatePreEntryPackage
-    from app.models.worker import Worker
-except ModuleNotFoundError:
-    from backend.app.db.session import SessionLocal
-    from backend.app.models.company import Company
-    from backend.app.models.document import DocumentRequirement, WorkerDocument
-    from backend.app.models.hiring import Candidate, CandidatePreEntryPackage
-    from backend.app.models.worker import Worker
+from ..db.session import SessionLocal
+from ..models.company import Company
+from ..models.document import DocumentRequirement, WorkerDocument
+from ..models.hiring import Candidate, CandidatePreEntryPackage
+from ..models.worker import Worker
 
 
 SEED_DIR = Path(__file__).resolve().parents[3] / "data-pipeline" / "seed"
@@ -157,6 +145,8 @@ def get_worker_profile_data(worker_id: str, *, db: Session | None = None) -> dic
         "name",
         "nationality",
         "preferred_language",
+        "email",
+        "contact_channel",
         "visa_type",
         "visa_expires_at",
         "contract_starts_at",

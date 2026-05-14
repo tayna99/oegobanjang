@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.app.agent_runtime.translation.schemas import (
+from .schemas import (
     ReplyInterpretationRequest,
     ReplyInterpretationResult,
     StatusUpdateCandidateDraft,
