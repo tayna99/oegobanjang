@@ -1,7 +1,12 @@
-from .embeddings import get_embedding_model
-from .vector_store import get_chroma_store
+try:
+    from app.agent_runtime.rag.embeddings import get_embedding_model
+    from app.agent_runtime.rag.vector_store import get_chroma_store
+    from app.agent_runtime.rag.citation import build_citations
+except ModuleNotFoundError:
+    from backend.app.agent_runtime.rag.embeddings import get_embedding_model
+    from backend.app.agent_runtime.rag.vector_store import get_chroma_store
+    from backend.app.agent_runtime.rag.citation import build_citations
 from .retriever import RAGRetriever, RetrievalResult, retrieve_policy_documents
-from .citation import build_citations
 from .chunking import maybe_split
 
 __all__ = [

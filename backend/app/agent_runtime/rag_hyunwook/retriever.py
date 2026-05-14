@@ -1,9 +1,14 @@
 from dataclasses import dataclass, field
 from langchain_core.documents import Document
 
-from .vector_store import get_chroma_store
-from .citation import build_citations
-from app.agent_runtime.schemas.tool import Citation
+try:
+    from app.agent_runtime.rag.vector_store import get_chroma_store
+    from app.agent_runtime.rag.citation import build_citations
+    from app.agent_runtime.schemas.tool import Citation
+except ModuleNotFoundError:
+    from backend.app.agent_runtime.rag.vector_store import get_chroma_store
+    from backend.app.agent_runtime.rag.citation import build_citations
+    from backend.app.agent_runtime.schemas.tool import Citation
 
 CONFIDENCE_THRESHOLD = 0.4
 

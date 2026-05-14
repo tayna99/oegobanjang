@@ -42,6 +42,7 @@ Thumbs.db
 # =========================
 # Generated artifacts (regeneratable)
 # =========================
+logs/
 data-pipeline/cache/
 data-pipeline/index/
 !data-pipeline/index/

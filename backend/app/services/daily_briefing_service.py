@@ -1852,10 +1852,14 @@ class DailyBriefingService:
         }
 
     def _briefing_for_case(self, case_id: str) -> DailyBriefingResult | None:
-        for briefing in self.repository.briefings.values():
-            if any(item.case_id == case_id for item in briefing.items):
-                return briefing
-        return None
+        matches = [
+            briefing
+            for briefing in self.repository.briefings.values()
+            if any(item.case_id == case_id for item in briefing.items)
+        ]
+        if not matches:
+            return None
+        return min(matches, key=lambda briefing: briefing.date)
 
     def _with_display_fields(self, briefing: DailyBriefingResult) -> DailyBriefingResult:
         workers_by_id = {worker.worker_id: worker for worker in self.repository.workers}

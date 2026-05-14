@@ -16,6 +16,24 @@ class DailyBriefingPlan(BaseModel):
 
 
 INTENT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "worker_reply_interpretation": (
+        "근로자 답변",
+        "답변 보고",
+        "답했는데",
+        "요약해줘",
+        "상태 업데이트",
+        "상태 반영",
+    ),
+    "contact_onboarding": (
+        "안전교육 일정",
+        "안전교육 안내",
+        "교육 일정",
+        "교육 안내",
+        "상담센터 안내",
+        "숙소 안내",
+        "생활 안내",
+        "온보딩",
+    ),
     "document_request_message": (
         "다국어 서류 요청",
         "서류 요청 메시지",
@@ -26,8 +44,6 @@ INTENT_KEYWORDS: dict[str, tuple[str, ...]] = {
         "서류 요청 초안",
         "안내 메시지",
         "안내문",
-        "교육 안내",
-        "안전교육",
         "베트남어",
         "네팔어",
         "번역",
@@ -126,6 +142,8 @@ INTENT_KEYWORDS: dict[str, tuple[str, ...]] = {
 
 
 INTENT_PRIORITY: tuple[str, ...] = (
+    "worker_reply_interpretation",
+    "contact_onboarding",
     "document_request_message",
     "candidate_readiness",
     "evidence_audit_review",
@@ -190,6 +208,18 @@ PLAN_STEPS_BY_INTENT: dict[str, list[str]] = {
         "mark_external_send_as_approval_required",
         "return_preview_only_message_action",
     ],
+    "contact_onboarding": [
+        "extract_contact_context",
+        "prepare_multilingual_onboarding_draft",
+        "mark_external_send_as_approval_required",
+        "return_preview_only_message_action",
+    ],
+    "worker_reply_interpretation": [
+        "extract_worker_reply",
+        "summarize_worker_reply",
+        "create_status_update_candidates",
+        "mark_status_update_as_approval_required",
+    ],
     "candidate_readiness": [
         "load_candidate_document_state",
         "check_required_candidate_documents",
@@ -213,6 +243,8 @@ REQUIRED_CONTEXT_BY_INTENT: dict[str, list[str]] = {
     "quota_review": ["company", "quota", "workers", "citations"],
     "handoff_preview": ["company", "cases", "actions", "citations", "approvals"],
     "document_request_message": ["company", "workers", "documents", "messages", "approvals"],
+    "contact_onboarding": ["company", "workers", "messages", "approvals"],
+    "worker_reply_interpretation": ["company", "workers", "messages", "approvals"],
     "candidate_readiness": ["company", "candidates", "candidate_documents", "citations"],
     "evidence_audit_review": ["company", "cases", "citations", "evidence_events"],
 }

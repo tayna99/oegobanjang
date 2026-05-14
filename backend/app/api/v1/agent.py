@@ -571,24 +571,60 @@ async def run_agent(
             db.rollback()
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    handoff_response = build_handoff_response(state.handoff_package_draft, handoff_persistence)
+    persistence_response = _build_persistence_response(
+        enabled=request.persist_result,
+        handoff_persistence=handoff_persistence,
+        contact_message_persistence=contact_message_persistence,
+        status_update_persistence=status_update_persistence,
+        contact_artifacts=contact_artifacts,
+    )
+    approval_required = _effective_approval_required(
+        state_approval_required=state.approval.required,
+        state_approval_status=state.approval.status,
+        handoff_response=handoff_response,
+        persistence_response=persistence_response,
+    )
+    approval_status = state.approval.status
+    if approval_required and str(approval_status).upper() in {"", "NOT_REQUIRED", "NONE"}:
+        approval_status = "PENDING"
+
     return AgentRunResponse(
         request_id=state.request_id,
         final_response=state.final_response,
         detected_intents=[i.value for i in state.detected_intents],
         risk_flags=state.risk_flags,
-        approval_required=state.approval.required,
-        approval_status=state.approval.status,
-        handoff=build_handoff_response(state.handoff_package_draft, handoff_persistence),
-        persistence=_build_persistence_response(
-            enabled=request.persist_result,
-            handoff_persistence=handoff_persistence,
-            contact_message_persistence=contact_message_persistence,
-            status_update_persistence=status_update_persistence,
-            contact_artifacts=contact_artifacts,
-        ),
+        approval_required=approval_required,
+        approval_status=approval_status,
+        handoff=handoff_response,
+        persistence=persistence_response,
         evidence_event_count=len(state.evidence_events),
         rag_context_count=len(state.rag_contexts),
     ).model_dump()
+
+
+def _effective_approval_required(
+    *,
+    state_approval_required: bool,
+    state_approval_status: str | None,
+    handoff_response: HandoffResponse,
+    persistence_response: dict[str, Any],
+) -> bool:
+    if state_approval_required:
+        return True
+    if str(state_approval_status or "").upper() == "PENDING":
+        return True
+    if handoff_response.available:
+        return True
+
+    handoff = persistence_response.get("handoff", {})
+    contact_message = persistence_response.get("contact_message", {})
+    status_update_candidates = persistence_response.get("status_update_candidates", {})
+    return bool(
+        handoff.get("saved")
+        or contact_message.get("saved")
+        or status_update_candidates.get("saved")
+    )
 
 
 def _save_contact_message_artifact(

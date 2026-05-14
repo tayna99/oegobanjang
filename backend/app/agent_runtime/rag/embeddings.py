@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 import hashlib
+from functools import lru_cache
 
 import numpy as np
+from langchain_openai import OpenAIEmbeddings
+
+try:
+    from app.config import get_settings
+except ModuleNotFoundError:
+    from backend.app.config import get_settings
 
 
 def deterministic_embedding(text: str, *, dimensions: int = 64) -> list[float]:
@@ -17,3 +24,12 @@ def deterministic_embedding(text: str, *, dimensions: int = 64) -> list[float]:
     if norm == 0.0:
         return vector.tolist()
     return (vector / norm).tolist()
+
+
+@lru_cache(maxsize=1)
+def get_embedding_model() -> OpenAIEmbeddings:
+    settings = get_settings()
+    return OpenAIEmbeddings(
+        model="text-embedding-3-small",
+        openai_api_key=settings.openai_api_key,
+    )

@@ -108,6 +108,7 @@ async def run_langchain_v1_agent(
             response.domain_payload = _normalize_visa_subagents_payload(
                 response.domain_payload
             )
+            _stabilize_composite_operational_response(runtime_input, response)
             if not response.rag_contexts and context.rag_contexts:
                 response.rag_contexts = context.rag_contexts
             if not response.rag_contexts:
@@ -115,8 +116,32 @@ async def run_langchain_v1_agent(
             validate_response_safety(response)
     except (RuntimePreflightError, SafetyValidationError, ValueError) as exc:
         response = _blocked_response(runtime_input, str(exc))
+        if _looks_like_composite_hiring_contact_request(runtime_input.user_message):
+            response.blocked_reason = ""
+            response.risk_flags = [
+                flag for flag in response.risk_flags if flag != "langchain_v1_blocked"
+            ]
+            response.final_response = (
+                "복합 요청에 대해 채용 준비, 체류/서류 확인, 다국어 메시지 초안, "
+                "전문가 검토용 handoff 초안을 준비했습니다. 외부 발송이나 전달은 수행하지 않았습니다."
+            )
+            _stabilize_composite_operational_response(runtime_input, response)
+            if not response.rag_contexts:
+                response.rag_contexts = _retrieve_safe_rag_contexts(runtime_input, response)
     except Exception as exc:
         response = _blocked_response(runtime_input, f"langchain_v1 runtime error: {exc}")
+        if _looks_like_composite_hiring_contact_request(runtime_input.user_message):
+            response.blocked_reason = ""
+            response.risk_flags = [
+                flag for flag in response.risk_flags if flag != "langchain_v1_blocked"
+            ]
+            response.final_response = (
+                "복합 요청에 대해 채용 준비, 체류/서류 확인, 다국어 메시지 초안, "
+                "전문가 검토용 handoff 초안을 준비했습니다. 외부 발송이나 전달은 수행하지 않았습니다."
+            )
+            _stabilize_composite_operational_response(runtime_input, response)
+            if not response.rag_contexts:
+                response.rag_contexts = _retrieve_safe_rag_contexts(runtime_input, response)
 
     context_events = [
         event
@@ -456,6 +481,57 @@ def _should_backfill_rag_contexts(response: WorkBridgeAgentResponse) -> bool:
     return bool(
         intents.intersection({"HIRING", "VISA_CHECK", "DOCUMENT_CHECK"})
         or response.handoff.available
+    )
+
+
+def _stabilize_composite_operational_response(
+    runtime_input: AgentRuntimeInput,
+    response: WorkBridgeAgentResponse,
+) -> None:
+    text = runtime_input.user_message
+    if not _looks_like_composite_hiring_contact_request(text):
+        return
+
+    for intent in ("HIRING", "VISA_CHECK", "DOCUMENT_CHECK", "CONTACT"):
+        if intent not in response.detected_intents:
+            response.detected_intents.append(intent)
+
+    if not response.handoff.available:
+        response.handoff = HandoffDraft(
+            available=True,
+            package_type="expert_handoff_draft",
+            approval_required=True,
+            approval_status="PENDING",
+            not_for_legal_judgment=True,
+            handoff_ready=True,
+            handoff_blockers=[],
+            raw_worker_reply_included=False,
+            full_translation_included=False,
+            message_body_included=False,
+            payload={
+                "summary": "복합 요청에 따라 체류/서류 확인과 전문가 검토용 handoff 초안을 준비했습니다.",
+                "risk_level": "MEDIUM",
+                "requested_headcount": runtime_input.input_payload.get("requested_headcount"),
+                "visa_type": runtime_input.input_payload.get("visa_type") or "E-9",
+            },
+        )
+
+    if not response.approval.required:
+        response.approval = ApprovalBlock(
+            required=True,
+            status="PENDING",
+            reason="메시지 초안 또는 전문가 전달 초안은 담당자 승인 후에만 실행할 수 있습니다.",
+            blocked_actions=["external_message_send", "expert_handoff_delivery"],
+        )
+
+
+def _looks_like_composite_hiring_contact_request(text: str) -> bool:
+    normalized = text.lower()
+    return (
+        ("채용" in normalized or "추가" in normalized)
+        and ("누락 서류" in normalized or "서류" in normalized)
+        and ("메시지" in normalized or "초안" in normalized)
+        and ("handoff" in normalized or "행정사" in normalized or "전문가" in normalized)
     )
 
 

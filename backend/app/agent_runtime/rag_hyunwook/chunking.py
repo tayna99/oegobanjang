@@ -5,12 +5,20 @@ import re
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.agent_runtime.rag.domain_splitters import (
-    FORM_HEADING_RE,
-    LAW_HEADING_RE,
-    PROCEDURE_HEADING_RE,
-    SAFETY_HEADING_RE,
-)
+try:
+    from app.agent_runtime.rag.domain_splitters import (
+        FORM_HEADING_RE,
+        LAW_HEADING_RE,
+        PROCEDURE_HEADING_RE,
+        SAFETY_HEADING_RE,
+    )
+except ModuleNotFoundError:
+    from backend.app.agent_runtime.rag.domain_splitters import (
+        FORM_HEADING_RE,
+        LAW_HEADING_RE,
+        PROCEDURE_HEADING_RE,
+        SAFETY_HEADING_RE,
+    )
 
 MAX_CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100
