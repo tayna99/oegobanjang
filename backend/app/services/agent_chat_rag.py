@@ -593,13 +593,54 @@ def run_agent_chat_rag_first(
         policy_text=policy_answer_text,
         force_policy=_is_faq,
     )
-    answer = planner.grounded_answer(
-        message=message,
-        normalized_plan=normalized_plan,
-        fallback_answer=fallback_answer,
-        rag_results=results,
-        executed_tools=executed_tools,
-    )
+
+    # 인텐트별 전담 에이전트 디스패치 (visa / multilingual / hiring)
+    agent_used: str = ""
+    agent_rag_collections: list[str] = []
+    agent_sub_agents: list[str] = []
+    try:
+        from app.services.agent_dispatcher import dispatch_to_agent
+        dispatch_result = dispatch_to_agent(
+            intent=intent,
+            message=message,
+            company_id=context.company_id,
+            daily_briefing=daily_briefing,
+            selected_items=selected_items,
+            context=context,
+        )
+        if not dispatch_result.skipped:
+            answer = dispatch_result.answer
+            agent_used = dispatch_result.agent_used
+            agent_rag_collections = dispatch_result.rag_collections_used
+            agent_sub_agents = dispatch_result.sub_agents
+            executed_tools = executed_tools + [
+                {
+                    "name": dispatch_result.agent_used,
+                    "intent": intent,
+                    "result_count": len(selected_items),
+                    "action_count": len(actions),
+                    "source_count": len(sources),
+                    "rag_hit_count": dispatch_result.tool_calls_count,
+                }
+            ]
+        else:
+            answer = planner.grounded_answer(
+                message=message,
+                normalized_plan=normalized_plan,
+                fallback_answer=fallback_answer,
+                rag_results=results,
+                executed_tools=executed_tools,
+            )
+    except Exception as exc:
+        logger.warning("agent_dispatcher 실패, fallback 사용: %s", exc)
+        answer = planner.grounded_answer(
+            message=message,
+            normalized_plan=normalized_plan,
+            fallback_answer=fallback_answer,
+            rag_results=results,
+            executed_tools=executed_tools,
+        )
+
     display_context = _display_context(selected_items, actions, sources)
     structured_plan = AgentChatStructuredPlan(
         intent=intent,
@@ -694,6 +735,9 @@ def run_agent_chat_rag_first(
         "llm_provider": preflight.llm_provider,
         "fallback_used": False,
         "fallback_reason": preflight.llm_error,
+        "agent_used": agent_used,
+        "rag_collections_used": agent_rag_collections,
+        "agent_sub_agents": agent_sub_agents,
     }
 
 

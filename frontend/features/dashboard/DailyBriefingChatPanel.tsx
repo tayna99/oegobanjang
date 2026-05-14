@@ -185,6 +185,7 @@ function ChatMetadata({
   const chips = [
     labelRoute(response.route),
     labelIntent(response.normalized_intent ?? response.structured_plan.intent),
+    response.agent_used ? labelAgent(response.agent_used) : null,
     firstSource ? "근거 확인됨" : null,
     response.approval_required ? "승인 필요" : null,
   ].filter((chip): chip is string => Boolean(chip));
@@ -247,6 +248,15 @@ function labelRoute(route: string) {
     unsupported: "지원 범위 확인",
   };
   return labels[route] ?? "AI 응답";
+}
+
+function labelAgent(agentUsed: string) {
+  const labels: Record<string, string> = {
+    visa_agent: "비자/체류 에이전트",
+    multilingual_contact_agent: "다국어 에이전트",
+    hiring_agent: "인력확보 에이전트",
+  };
+  return labels[agentUsed] ?? agentUsed;
 }
 
 function labelIntent(intent?: string | null) {
