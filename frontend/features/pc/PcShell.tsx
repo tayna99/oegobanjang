@@ -35,7 +35,7 @@ const routes: Array<{ key: PcViewKey; href: string; label: string; icon: React.E
   { key: "today", href: "/dashboard", label: "오늘 할 일", icon: CalendarCheck },
   { key: "hiring", href: "/hiring", label: "채용 준비", icon: UserRoundPlus },
   { key: "workers", href: "/workers", label: "근로자", icon: Users },
-  { key: "contact", href: "/contacts", label: "컨택", icon: MessageSquare },
+  { key: "contact", href: "/contacts", label: "메시지 관리", icon: MessageSquare },
   { key: "admin", href: "/documents", label: "행정사 검토", icon: FileCheck2 },
   { key: "judgment", href: "/evidence", label: "판단 기록", icon: Clock3 },
 ];

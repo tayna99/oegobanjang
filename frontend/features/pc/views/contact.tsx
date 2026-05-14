@@ -161,7 +161,7 @@ export function ContactView({ onAction }: PcViewProps = {}) {
         {/* 왼쪽 컨택 목록 */}
         <aside className={styles.contactList}>
           <div style={{ padding: "12px 16px", fontSize: 12, fontWeight: 600, color: "#70737C", borderBottom: "1px solid rgba(112,115,124,0.12)" }}>
-            컨택 목록 · {contactItems.length}건
+            메시지 목록 · {contactItems.length}건
           </div>
           {contactItems.map((item, index) => {
             const sc = statusConfig[item.status] ?? statusConfig["초안"];

@@ -1,5 +1,11 @@
+import { Suspense } from "react";
+
 import { PcRoutePage } from "@/features/pc/PcRoutePage";
 
 export default function ContactsPage() {
-  return <PcRoutePage />;
+  return (
+    <Suspense fallback={null}>
+      <PcRoutePage />
+    </Suspense>
+  );
 }
