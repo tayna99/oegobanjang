@@ -218,6 +218,9 @@ export type AgentChatResponse = {
   fallback_reason?: string | null;
   contact_preview?: AgentChatContactPreview | null;
   contact_subagents?: Record<string, AgentChatContactSubagentSummary>;
+  agent_used?: string;
+  rag_collections_used?: string[];
+  agent_sub_agents?: string[];
 };
 
 export type HandoffPreview = {
