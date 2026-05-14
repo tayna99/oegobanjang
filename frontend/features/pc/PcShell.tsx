@@ -132,7 +132,7 @@ export function PcShell() {
         <div className={styles.modalStack}>
           <p>행정사 검토용 초안입니다. 승인 후에도 정부 포털 제출은 자동 수행하지 않습니다.</p>
           <ul>
-            <li>근로자: Bayar M. / Nguyen V.</li>
+            <li>근로자: Nguyen V. / Dang T.</li>
             <li>검토 항목: 체류기간, 누락 서류, 이전 요청 이력</li>
             <li>상태: 담당자 검토 대기</li>
           </ul>
