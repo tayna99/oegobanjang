@@ -1,6 +1,4 @@
-import { CircleCheck, FileText, MoreHorizontal, ShieldCheck, Sparkles } from "lucide-react";
-
-import { ActionButton } from "./ActionButton";
+import { CheckCircle2, FileText, MoreHorizontal, Shield, Sparkles } from "lucide-react";
 import { demoTask, type MobileDemoStep } from "./demoTask";
 import { BrandHeader, PageTitle } from "./MobileShell";
 import { MobileCard } from "./MobileCard";
@@ -29,7 +27,7 @@ export function MobileAgentProcessScreen({ go }: { go: (step: MobileDemoStep) =>
           {steps.map(([no, title, desc, done]) => (
             <div className="mobile-demo-step" key={no}>
               <span className={done ? "done" : ""}>{no}</span>
-              <i className={done ? "done" : ""}>{done ? <CircleCheck /> : <MoreHorizontal />}</i>
+              <i className={done ? "done" : ""}>{done ? <CheckCircle2 /> : <MoreHorizontal />}</i>
               <div>
                 <strong>{title}</strong>
                 <p>{desc}</p>
@@ -38,15 +36,22 @@ export function MobileAgentProcessScreen({ go }: { go: (step: MobileDemoStep) =>
           ))}
         </MobileCard>
 
-        <MobileCard className="mobile-demo-safe-note">
-          <ShieldCheck aria-hidden="true" />
-          <p>AI는 실제 전달을 자동으로 실행하지 않습니다.</p>
-        </MobileCard>
+        <div className="mobile-demo-safety-strip" style={{ justifyContent: "center", margin: "0 0 8px" }}>
+          <Shield size={11} aria-hidden="true" />
+          AI는 실제 전달을 자동으로 실행하지 않습니다.
+        </div>
 
-        <ActionButton data-testid="mobile-process-draft" onClick={() => go("draft")}>
-          <FileText aria-hidden="true" />
-          초안 확인하기
-        </ActionButton>
+        <div className="mobile-demo-approval-actions" style={{ margin: "0 0 8px" }}>
+          <button
+            className="mobile-demo-approve-btn"
+            data-testid="mobile-process-draft"
+            onClick={() => go("draft")}
+            type="button"
+          >
+            <FileText size={13} aria-hidden="true" />
+            초안 확인하기
+          </button>
+        </div>
       </div>
     </div>
   );

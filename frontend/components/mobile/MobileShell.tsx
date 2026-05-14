@@ -1,14 +1,23 @@
 import type { ReactNode } from "react";
-import { CalendarDays, ShieldCheck } from "lucide-react";
-
+import { Bell, CalendarDays, ChevronLeft } from "lucide-react";
 import { BottomNav } from "./BottomNav";
 
-export function MobileShell({ children }: { children: ReactNode }) {
+type TabId = "home" | "workers" | "contact" | "cases" | "more";
+
+export function MobileShell({
+  activeTab = "home",
+  children,
+  onTabChange,
+}: {
+  activeTab?: TabId;
+  children: ReactNode;
+  onTabChange?: (id: TabId) => void;
+}) {
   return (
     <div className="mobile-demo-phone">
       <PhoneStatusBar />
       {children}
-      <BottomNav />
+      <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
     </div>
   );
 }
@@ -19,20 +28,44 @@ export function PhoneStatusBar() {
       <span>9:41</span>
       <div>
         <span className="mobile-demo-signal" />
-        <span>⌁</span>
+        <span>⧳</span>
         <span className="mobile-demo-battery" />
       </div>
     </div>
   );
 }
 
-export function BrandHeader() {
+export function BrandHeader({ noticeCount = 0 }: { noticeCount?: number }) {
   return (
     <div className="mobile-demo-brand">
-      <span>
-        <ShieldCheck aria-hidden="true" />
+      <span className="mobile-demo-brand-mark" aria-hidden="true">만</span>
+      <strong>외고반장</strong>
+      <div style={{ flex: 1 }} />
+      <span style={{ position: "relative", display: "inline-flex", padding: 4 }}>
+        <Bell size={22} color="var(--semantic-label-neutral)" aria-hidden="true" />
+        {noticeCount > 0 ? (
+          <span
+            aria-label={`알림 ${noticeCount}건`}
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              minWidth: 15,
+              height: 15,
+              borderRadius: 999,
+              background: "#EF4444",
+              color: "#fff",
+              fontSize: 9,
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {noticeCount}
+          </span>
+        ) : null}
       </span>
-      <strong>AI 반장</strong>
     </div>
   );
 }
@@ -53,7 +86,7 @@ export function PageTitle({
       <div>
         {back ? (
           <button aria-label="뒤로" onClick={onBack} type="button">
-            ←
+            <ChevronLeft size={22} aria-hidden="true" />
           </button>
         ) : null}
         <h1>{title}</h1>

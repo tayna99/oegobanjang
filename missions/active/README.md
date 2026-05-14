@@ -5,9 +5,9 @@
 ## Active
 
 - `005-frontend-dashboard.md`
-  - 상태: blocked
-  - 이유: route 폴더는 존재하지만 `frontend/package.json`이 없어 build/test 명령을 확정할 수 없다.
-  - 다음 작업: frontend package/runtime 기준을 정한 뒤 dashboard route, mock cards, approval/evidence 화면, build/test를 검증한다.
+  - 상태: active
+  - 이유: `frontend/package.json`과 Next.js runtime 기준이 존재하며 `npm run test`는 `tsc --noEmit`로 확인된다.
+  - 다음 작업: PC/모바일 UI 확장, CSV 운영 화면, 근로자 상세, build/test/browser 검증을 현재 화면 기준으로 닫는다.
 
 ## Completed 처리 기준
 

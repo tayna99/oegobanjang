@@ -241,8 +241,6 @@ export function useDailyBriefingWorkflow(initialCompanyId = "") {
     setCitationChunk,
     setCitationSource,
     setCitationValidation,
-    setCompanyId,
-    setDate,
     setDeliveryJob,
     setDocumentDraft,
     setPreview,
