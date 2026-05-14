@@ -1,6 +1,7 @@
 import {
   Check,
   CheckCircle,
+  Clock3,
   Download,
   FileText,
   MessageSquare,
@@ -11,18 +12,17 @@ import {
   UserRoundPlus,
   X,
 } from "lucide-react";
+import { useState } from "react";
 import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "./data";
 import { Badge, Button, Card, cn, IconTile, PillButton, textToneClass, toneClass } from "./ui";
 import styles from "./PcShell.module.css";
 
 const summary = [
-  { title: "체류기간 임박", value: "4명", tone: "red" as Tone, icon: FileText },
-  { title: "서류 보완 필요", value: "7건", tone: "orange" as Tone, icon: FileText },
-  { title: "신규 채용 준비", value: "1건", tone: "green" as Tone, icon: UserRoundPlus },
-  { title: "컨택 대기", value: "4건", tone: "purple" as Tone, icon: MessageSquare },
-  { title: "응답 도착", value: "2건", tone: "blue" as Tone, icon: MessageSquare },
-  { title: "승인 대기", value: "5건", tone: "orange" as Tone, icon: Shield },
-  { title: "행정사 검토 준비", value: "2건", tone: "blue" as Tone, icon: FileText },
+  { id: "stay", title: "체류기간 임박", value: "2건", detail: "즉시 1, 우선 1", tone: "red" as Tone, icon: FileText, workerId: "w_nguyen" },
+  { id: "docs", title: "서류 보완 필요", value: "2건", detail: "필수 2, 선택 0", tone: "orange" as Tone, icon: FileText, workerId: "w_nguyen" },
+  { id: "contract", title: "계약 종료 임박", value: "1건", detail: "D-30 이내 0건", tone: "blue" as Tone, icon: Clock3, workerId: "w_tran" },
+  { id: "approval", title: "승인 대기", value: "5건", detail: "담당자 검토 5건", tone: "orange" as Tone, icon: Shield, workerId: "w_nguyen" },
+  { id: "admin", title: "행정사 검토 준비", value: "1건", detail: "초안 완료 1건", tone: "blue" as Tone, icon: FileText, workerId: "w_bayar" },
 ];
 const totalRiskCaseCount = riskCases.length;
 
@@ -54,84 +54,279 @@ function actionForNext(next: string): PcActionKind {
   return "handoff-preview";
 }
 
+function workerTestId(workerId: string) {
+  return `worker-row-${workerId.replace("w_", "")}`;
+}
+
 export function TodayTasksView({ onAction }: PcViewProps = {}) {
+  const [selectedWorkerId, setSelectedWorkerId] = useState("w_nguyen");
+  const [selectedSummaryId, setSelectedSummaryId] = useState("stay");
+  const [detailOpen, setDetailOpen] = useState(true);
+  const selectedWorker = workers.find((worker) => worker.id === selectedWorkerId) ?? workers[0];
+
+  function selectSummary(item: (typeof summary)[number]) {
+    setSelectedSummaryId(item.id);
+    setSelectedWorkerId(item.workerId);
+    setDetailOpen(true);
+  }
+
+  function selectWorker(workerId: string) {
+    setSelectedSummaryId("");
+    setSelectedWorkerId(workerId);
+    setDetailOpen(true);
+  }
+
   return (
-    <div className={styles.stack}>
-      <Card className={styles.briefing}>
-        <div className={styles.row}>
-          <span className={styles.gradientMark}>반</span>
-          <div>
-            <strong>오늘 브리핑이 준비되었습니다</strong>
-            <p className={styles.subtle}>
-              외고반장이 {totalRiskCaseCount}개 케이스를 정리했습니다. 즉시 확인 1건, 우선 확인 3건, 승인 대기 5건.
-            </p>
+    <div className={cn(styles.todayDashboard, !detailOpen && styles.todayDashboardCollapsed)}>
+      <section className={styles.stack}>
+        <Card className={styles.briefing}>
+          <div className={styles.row}>
+            <span className={styles.gradientMark}>반</span>
+            <div>
+              <strong>오늘 브리핑이 준비되었습니다</strong>
+              <p className={styles.subtle}>
+                외고반장이 {totalRiskCaseCount}개 케이스를 정리했습니다. 즉시 확인 1건, 우선 확인 3건, 승인 대기 5건. 모든 판단의 근거는 항목 클릭으로 확인할 수 있습니다.
+              </p>
+            </div>
           </div>
-        </div>
-        <div className={styles.buttonRow}>
-          <span className={styles.subtle}>오늘 08:00</span>
-          <Button variant="secondary" onClick={() => onAction?.({ kind: "refresh", label: "다시 생성" })}>
-            <RefreshCcw size={16} /> 다시 생성
-          </Button>
-        </div>
-      </Card>
-
-      <div className={styles.summaryGrid}>
-        {summary.map((item) => (
-          <Card className={styles.statCard} key={item.title}>
-            <IconTile icon={item.icon} tone={item.tone} />
-            <div className={styles.subtle}>{item.title}</div>
-            <div className={cn(styles.statValue, textToneClass(item.tone))}>{item.value}</div>
-          </Card>
-        ))}
-      </div>
-
-      <section>
-        <div className={styles.sectionTitle}>
-          <h1 className={styles.headline}>오늘의 업무 큐 <Badge>4건</Badge></h1>
           <div className={styles.buttonRow}>
-            <Button variant="secondary">필터</Button>
-            <Button variant="secondary">기한 임박 순</Button>
+            <span className={styles.subtle}>오늘 08:00</span>
+            <Button variant="secondary" onClick={() => onAction?.({ kind: "refresh", label: "다시 생성" })}>
+              <RefreshCcw size={16} /> 다시 생성
+            </Button>
+          </div>
+        </Card>
+
+        <div className={styles.summaryGrid}>
+          {summary.map((item) => (
+            <button
+              className={cn(styles.card, styles.statCard, styles.summaryButton, selectedSummaryId === item.id && styles.summaryButtonActive)}
+              data-testid={`summary-${item.id}`}
+              key={item.title}
+              onClick={() => selectSummary(item)}
+              type="button"
+            >
+              <div className={styles.sectionTitle}>
+                <IconTile icon={item.icon} tone={item.tone} />
+                <span className={styles.muted}>↗</span>
+              </div>
+              <div className={styles.subtle}>{item.title}</div>
+              <div className={cn(styles.statValue, textToneClass(item.tone))}>{item.value}</div>
+              <div className={styles.subtle}>{item.detail}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className={styles.sectionTitle}>
+          <div className={styles.buttonRow}>
+            <Button>전체</Button>
+            <Button variant="secondary">즉시 확인 <Badge tone="gray">1</Badge></Button>
+            <Button variant="secondary">우선 확인 <Badge tone="gray">3</Badge></Button>
+            <Button variant="secondary">확인 필요 <Badge tone="gray">2</Badge></Button>
+            <Button variant="secondary">참고 <Badge tone="gray">1</Badge></Button>
+          </div>
+          <div className={styles.buttonRow}>
+            <Button variant="secondary">전체 라인</Button>
+            <Button variant="secondary">승인 대기만</Button>
+            <Button variant="secondary">서류 보완 필요</Button>
           </div>
         </div>
+
         <Card className={styles.tableWrap}>
           <table className={styles.table}>
             <thead>
               <tr>
-                <th><input type="checkbox" aria-label="전체 선택" /></th>
-                <th>업무</th>
-                <th>대상</th>
-                <th>상태</th>
-                <th>기한</th>
+                <th>근로자</th>
+                <th>국적·체류</th>
+                <th>체류만료 / D-day</th>
+                <th>계약 종료</th>
+                <th>서류</th>
+                <th>위험도 / 케이스</th>
                 <th>다음 처리</th>
-                <th aria-label="더보기" />
               </tr>
             </thead>
             <tbody>
-              {todaysTasks.map((task) => (
-                <tr key={task.title}>
-                  <td><input type="checkbox" aria-label={`${task.title} 선택`} /></td>
+              {[workers[1], workers[0], workers[2], workers[3], workers[4]].map((worker) => (
+                <tr
+                  className={selectedWorkerId === worker.id ? styles.selectedRow : undefined}
+                  data-testid={workerTestId(worker.id)}
+                  key={worker.id}
+                  onClick={() => selectWorker(worker.id)}
+                >
                   <td>
                     <div className={styles.row}>
-                      <IconTile icon={task.kind === "hiring" ? UserRoundPlus : task.kind === "message" ? MessageSquare : FileText} tone={task.tone} />
-                      <strong>{task.title}</strong>
+                      <span className={styles.workerAvatar}>{worker.initials}</span>
+                      <div>
+                        <strong>{worker.name}</strong>
+                        <span className={styles.muted}> · {worker.localName}</span>
+                        <div className={styles.subtle}>{worker.line}</div>
+                      </div>
                     </div>
                   </td>
-                  <td>{task.target}</td>
-                  <td><Badge tone={task.tone}>{task.status}</Badge></td>
-                  <td><strong>{task.deadline}</strong></td>
+                  <td><strong>{worker.nationalityCode} {worker.nationality}</strong><div className={styles.subtle}>{worker.visaType}</div></td>
+                  <td><strong>{worker.visaExpiry}</strong><div className={cn(styles.subtle, worker.dday.includes("+") ? styles.textRed : styles.textOrange)}>{worker.dday}</div></td>
+                  <td><strong>{worker.contractEnd}</strong><div className={styles.subtle}>{worker.id === "w_nguyen" ? "D-145" : worker.dday}</div></td>
+                  <td><div className={styles.buttonRow}>{worker.docs.map((doc) => <span className={styles.docChip} key={doc}>{doc}</span>)}{worker.docExtra && <strong className={styles.textOrange}>{worker.docExtra} 보완</strong>}</div></td>
+                  <td><Badge tone={worker.statusTone}>{worker.status} · {worker.dday}</Badge><div className={styles.subtle}>{worker.id === "w_nguyen" ? "체류만료 임박 외 1건" : worker.status}</div></td>
                   <td>
-                    <PillButton onClick={() => onAction?.({ kind: actionForNext(task.next), label: task.next })}>
-                      {task.next}
+                    <PillButton onClick={(event) => { event.stopPropagation(); selectWorker(worker.id); }}>
+                      처리
                     </PillButton>
                   </td>
-                  <td>⋮</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </Card>
       </section>
+
+      {detailOpen ? (
+        <TodayWorkerDetail onAction={onAction} onClose={() => setDetailOpen(false)} worker={selectedWorker} />
+      ) : null}
     </div>
+  );
+}
+
+function TodayWorkerDetail({
+  onAction,
+  onClose,
+  worker,
+}: {
+  onAction?: (action: PcViewAction) => void;
+  onClose: () => void;
+  worker: (typeof workers)[number];
+}) {
+  const isNguyen = worker.id === "w_nguyen";
+  const isBayar = worker.id === "w_bayar";
+  const risks = isNguyen
+    ? [
+        {
+          title: "체류만료 임박",
+          desc: "체류만료까지 30일 남았습니다. 연장 신청 또는 자진 출국 검토가 필요합니다.",
+          basis: ["출입국관리법 제25조", "체류기간 연장허가 신청 안내"],
+        },
+        {
+          title: "필수서류 누락",
+          desc: "여권 사본, 외국인등록증 사본 보완이 필요합니다.",
+          basis: ["외국인근로자 고용 시 보유 서류"],
+        },
+      ]
+    : [
+        {
+          title: isBayar ? "체류만료 초과" : "확인 필요",
+          desc: isBayar ? "체류만료일이 지났습니다. 담당자 확인과 검토 자료 정리가 필요합니다." : "계약·체류·서류 상태를 담당자가 확인해야 합니다.",
+          basis: isBayar ? ["출입국관리법 제25조", "제94조 벌칙"] : ["근로자 프로필", "체류 정보"],
+        },
+      ];
+  const docs: Array<[string, string, Tone]> = isNguyen
+    ? [
+        ["여권사본", "보완 필요", "orange" as Tone],
+        ["외국인등록증", "보완 필요", "orange" as Tone],
+        ["근로계약서", "확보됨", "green" as Tone],
+        ["건강진단서", "확보됨", "green" as Tone],
+      ]
+    : [
+        ["여권사본", "확보됨", "green" as Tone],
+        ["외국인등록증", "확보됨", "green" as Tone],
+        ["근로계약서", "확보됨", "green" as Tone],
+        ["건강진단서", isBayar ? "만료" : "확보됨", isBayar ? "orange" as Tone : "green" as Tone],
+      ];
+
+  return (
+    <aside className={styles.todayDetail} data-testid="dashboard-detail-panel">
+      <div className={styles.pageHead}>
+        <div className={styles.subtle}>근로자 상세</div>
+        <button className={styles.closeButton} data-testid="dashboard-detail-close" onClick={onClose} type="button" aria-label="상세 패널 닫기">×</button>
+      </div>
+
+      <div className={styles.detailHeader}>
+        <span className={styles.bigAvatar}>{worker.initials}</span>
+        <div>
+          <h2>{worker.name}</h2>
+          <p className={styles.subtle}>{worker.nationalityCode} {worker.nationality} · {worker.visaType} · 근속 {worker.tenure}</p>
+          <p className={styles.subtle}>{worker.line} · 외등록 950***-5******</p>
+        </div>
+      </div>
+
+      <section className={styles.detailSection}>
+        <h3>현재 리스크 <Badge tone="gray">{risks.length}</Badge></h3>
+        <div className={styles.stack}>
+          {risks.map((risk) => (
+            <Card className={styles.riskCard} key={risk.title}>
+              <div className={styles.sectionTitle}>
+                <strong>{risk.title}</strong>
+                <Badge tone={worker.statusTone}>{worker.status}</Badge>
+              </div>
+              <p>{risk.desc}</p>
+              <div className={styles.buttonRow}>
+                {risk.basis.map((basis, index) => <Badge key={basis} tone={index === 0 ? "blue" : "gray"}>{basis}</Badge>)}
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.detailSection}>
+        <h3>체류 / 계약</h3>
+        <div className={styles.infoGrid}>
+          <Card className={styles.panel}><div className={styles.subtle}>체류만료일</div><strong>{worker.visaExpiry}</strong><div className={styles.textOrange}>{worker.dday}</div></Card>
+          <Card className={styles.panel}><div className={styles.subtle}>계약종료일</div><strong>{worker.contractEnd}</strong><div className={styles.subtle}>{isNguyen ? "D-145" : worker.dday}</div></Card>
+        </div>
+      </section>
+
+      <section className={styles.detailSection}>
+        <h3>제출 서류 <Badge tone="gray">{docs.length}</Badge></h3>
+        <div className={styles.stack}>
+          {docs.map(([name, status, tone]) => (
+            <div className={cn(styles.docRow, styles.panel)} key={name}>
+              <span><FileText size={16} /> {name}</span>
+              <Badge tone={tone}>{status}</Badge>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.detailSection}>
+        <h3>추천 액션 <Badge tone="gray">3</Badge></h3>
+        <div className={styles.stack}>
+          <Card className={styles.actionCard}>
+            <div>
+              <strong>서류 요청 초안 보기 (베트남어 포함)</strong>
+              <p className={styles.subtle}>대상: {worker.name}</p>
+            </div>
+            <div className={styles.buttonRow}>
+              <Button data-testid="action-draft" variant="secondary" onClick={() => onAction?.({ kind: "document-draft", label: "초안 보기" })}>초안 보기</Button>
+              <Button data-testid="action-approval" onClick={() => onAction?.({ kind: "approval-preview", label: "승인" })}>승인</Button>
+            </div>
+          </Card>
+          <Card className={styles.actionCard}>
+            <div>
+              <strong>체류기간 연장 검토 자료 만들기</strong>
+              <p className={styles.subtle}>대상: {worker.name}</p>
+            </div>
+            <Button data-testid="action-handoff" variant="secondary" onClick={() => onAction?.({ kind: "handoff-preview", label: "검토 자료 보기" })}>검토 자료 보기</Button>
+          </Card>
+        </div>
+      </section>
+
+      <section className={styles.detailSection}>
+        <h3>근거 자료 <Badge tone="gray">3</Badge></h3>
+        <div className={styles.stack}>
+          <Evidence source="국가법령정보센터" text="출입국관리법 제25조 (체류기간 연장허가)" grade="A" />
+          <Evidence source="HiKorea" text="체류기간 연장허가 신청 안내" grade="B" />
+          <Evidence source="EPS 고용허가제" text="외국인근로자 고용 시 보유 서류" grade="B" />
+        </div>
+      </section>
+
+      <section className={styles.detailSection}>
+        <h3>업무 기록</h3>
+        <div className={styles.timeline}>
+          {["Bayar M. 케이스 승인 요청", "오늘 브리핑 7건 생성", `${worker.name} 리스크 플래그`, "CSV 업로드 — 24명 동기화"].map((item, index) => (
+            <div className={styles.row} key={item}><span className={cn(styles.dot, index === 0 ? styles.toneBlue : styles.toneGray)} /><div><strong>{item}</strong><div className={styles.subtle}>{index === 0 ? "08:14 · 김민수 차장" : index === 1 ? "08:01 · 시스템" : "08:00 · 시스템"}</div></div></div>
+          ))}
+        </div>
+      </section>
+    </aside>
   );
 }
 

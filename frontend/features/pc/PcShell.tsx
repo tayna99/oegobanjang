@@ -28,7 +28,6 @@ import {
   WorkersView,
   type PcViewAction,
 } from "./views";
-import { demoTask } from "../../components/mobile/demoTask";
 import type { NextAction } from "../../types/dailyBriefing";
 import { DailyBriefingChatPanel } from "../dashboard/DailyBriefingChatPanel";
 import { useDailyBriefingWorkflow } from "../dashboard/useDailyBriefingWorkflow";
@@ -102,12 +101,20 @@ export function PcShell() {
       title: "서류 요청 초안",
       body: (
         <div className={styles.modalStack}>
-          <p>백엔드 action이 아직 연결되지 않아 데모 초안을 표시합니다. 실제 발송은 수행하지 않습니다.</p>
+          <p>화면 기준 서류 요청 초안 미리보기입니다. 실제 발송은 수행하지 않습니다.</p>
           <div className={styles.previewBox}>
-            <strong>VN</strong>
-            <p>{demoTask.draft.vi}</p>
+            <strong>Tiếng Việt</strong>
+            <p>
+              Xin chào anh Nguyen V.,
+              <br />
+              Đây là Oegobanjang.
+              <br />
+              Chúng tôi đang chuẩn bị gia hạn thời gian cư trú.
+              <br />
+              Vui lòng gửi bản sao hộ chiếu và bản sao thẻ đăng ký người nước ngoài trước ngày 20 tháng 5.
+            </p>
             <strong>KR</strong>
-            <p>{demoTask.draft.ko}</p>
+            <p>안녕하세요 Nguyen 씨, 체류기간 연장 준비를 위해 여권 사본과 외국인등록증 사본을 보내주세요.</p>
           </div>
         </div>
       ),
@@ -142,7 +149,7 @@ export function PcShell() {
         body: (
           <div className={styles.modalStack}>
             <p>{result ? `승인 상태가 ${result.status}로 반영됐습니다.` : "승인 요청 처리 중 오류가 발생했습니다."}</p>
-            <p>외부 발송은 자동 실행하지 않고, mock/manual dispatch 상태만 사용합니다.</p>
+            <p>외부 발송은 자동 실행하지 않고, 담당자 확인 대기 상태만 표시합니다.</p>
           </div>
         ),
       });
@@ -205,7 +212,7 @@ export function PcShell() {
     if (action.kind === "worker-register") {
       setPanel({
         title: "근로자 등록",
-        body: <p>근로자 등록 폼은 후속 구현 영역입니다. 현재 데모에서는 기존 근로자 상태 확인만 제공합니다.</p>,
+        body: <p>근로자 등록 폼은 후속 구현 영역입니다. 현재 화면에서는 기존 근로자 상태 확인만 제공합니다.</p>,
       });
       return;
     }
@@ -269,7 +276,7 @@ export function PcShell() {
 
       <main className={styles.main}>{renderView(activeView, (action) => void handleAction(action))}</main>
 
-      <button className={styles.fab} onClick={() => setChatOpen(true)} type="button">
+      <button className={styles.fab} data-testid="ai-fab" onClick={() => setChatOpen(true)} type="button">
         <BriefcaseBusiness size={16} /> AI 반장
       </button>
 

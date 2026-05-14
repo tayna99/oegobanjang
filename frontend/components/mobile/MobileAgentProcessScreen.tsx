@@ -43,7 +43,7 @@ export function MobileAgentProcessScreen({ go }: { go: (step: MobileDemoStep) =>
           <p>AI는 실제 전달을 자동으로 실행하지 않습니다.</p>
         </MobileCard>
 
-        <ActionButton onClick={() => go("draft")}>
+        <ActionButton data-testid="mobile-process-draft" onClick={() => go("draft")}>
           <FileText aria-hidden="true" />
           초안 확인하기
         </ActionButton>
