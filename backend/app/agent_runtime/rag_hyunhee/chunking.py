@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 
-DEFAULT_MAX_CHARS = 1200
+DEFAULT_MAX_CHARS = 1000
+DEFAULT_OVERLAP_CHARS = 150
 RAG_DOMAIN = "multilingual_contact"
 OWNER_AGENT = "multilingual_contact_agent"
 NON_LEGAL_BASIS_SOURCE_TYPES = {
@@ -33,38 +34,123 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 
-def split_text(text: str, max_chars: int = DEFAULT_MAX_CHARS) -> list[str]:
+def split_sentences(text: str) -> list[str]:
     text = normalize_text(text)
     if not text:
         return []
+    pattern = re.compile(r".+?(?:니다\.|다\.|요\.|[.!?](?:\s+|$)|$)", re.DOTALL)
+    sentences = [match.group(0).strip() for match in pattern.finditer(text)]
+    return [sentence for sentence in sentences if sentence]
 
+
+def _split_by_chars(text: str, max_chars: int) -> list[str]:
+    return [text[i : i + max_chars].strip() for i in range(0, len(text), max_chars) if text[i : i + max_chars].strip()]
+
+
+def _split_long_unit(unit: str, max_chars: int) -> list[str]:
+    if len(unit) <= max_chars:
+        return [unit]
+
+    pieces: list[str] = []
+    current = ""
+    for sentence in split_sentences(unit):
+        if len(sentence) > max_chars:
+            if current:
+                pieces.append(current)
+                current = ""
+            pieces.extend(_split_by_chars(sentence, max_chars))
+            continue
+
+        separator = " " if current else ""
+        if len(current) + len(separator) + len(sentence) <= max_chars:
+            current = f"{current}{separator}{sentence}"
+        else:
+            if current:
+                pieces.append(current)
+            current = sentence
+    if current:
+        pieces.append(current)
+    return pieces or _split_by_chars(unit, max_chars)
+
+
+def _tail_overlap(text: str, overlap_chars: int) -> str:
+    if overlap_chars <= 0:
+        return ""
+    if len(text) <= overlap_chars:
+        return text
+    return text[-overlap_chars:].strip()
+
+
+def split_text(
+    text: str,
+    max_chars: int = DEFAULT_MAX_CHARS,
+    overlap_chars: int = DEFAULT_OVERLAP_CHARS,
+) -> list[str]:
+    text = normalize_text(text)
+    if not text:
+        return []
+    if max_chars <= 0:
+        raise ValueError("max_chars must be positive")
+    if overlap_chars >= max_chars:
+        raise ValueError("overlap_chars must be smaller than max_chars")
+
+    target_chars = max_chars if overlap_chars <= 0 else max_chars - overlap_chars - 2
+    target_chars = max(1, target_chars)
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+    units: list[str] = []
+    for paragraph in paragraphs:
+        units.extend(_split_long_unit(paragraph, target_chars))
+
     chunks: list[str] = []
     current = ""
 
-    for paragraph in paragraphs:
+    for unit in units:
         if not current:
-            current = paragraph
+            current = unit
             continue
 
-        if len(current) + 2 + len(paragraph) <= max_chars:
-            current = f"{current}\n\n{paragraph}"
+        separator = "\n\n" if "\n" in current or "\n" in unit else " "
+        if len(current) + len(separator) + len(unit) <= target_chars:
+            current = f"{current}{separator}{unit}"
         else:
             chunks.append(current)
-            current = paragraph
+            current = unit
 
     if current:
         chunks.append(current)
 
-    final_chunks: list[str] = []
-    for chunk in chunks:
-        if len(chunk) <= max_chars:
-            final_chunks.append(chunk)
-            continue
-        for i in range(0, len(chunk), max_chars):
-            final_chunks.append(chunk[i : i + max_chars].strip())
+    if overlap_chars <= 0:
+        return [chunk for chunk in chunks if chunk]
 
-    return [chunk for chunk in final_chunks if chunk]
+    overlapped: list[str] = []
+    previous = ""
+    for chunk in chunks:
+        if not previous:
+            overlapped.append(chunk)
+            previous = chunk
+            continue
+        overlap = _tail_overlap(previous, overlap_chars)
+        combined = f"{overlap}\n\n{chunk}" if overlap else chunk
+        if len(combined) > max_chars:
+            combined = combined[-max_chars:].strip()
+        overlapped.append(combined)
+        previous = chunk
+
+    return [chunk for chunk in overlapped if chunk]
+
+
+def to_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list | tuple | set):
+        output: list[str] = []
+        for item in value:
+            output.extend(to_list(item))
+        return output
+    if isinstance(value, str):
+        parts = [part.strip() for part in value.split(",")]
+        return [part for part in parts if part]
+    return [str(value)]
 
 
 def normalize_not_for_legal_basis(record: dict[str, Any]) -> bool:
@@ -72,16 +158,16 @@ def normalize_not_for_legal_basis(record: dict[str, Any]) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
-        return value.strip().lower() == "true"
-    return str(record.get("source_type") or "") in NON_LEGAL_BASIS_SOURCE_TYPES
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y"}:
+            return True
+        if normalized in {"false", "0", "no", "n"}:
+            return False
+    return bool(set(to_list(record.get("source_type"))).intersection(NON_LEGAL_BASIS_SOURCE_TYPES))
 
 
 def format_list(value: Any) -> str:
-    if isinstance(value, list):
-        return ", ".join(str(item) for item in value if item is not None)
-    if value is None:
-        return ""
-    return str(value)
+    return ", ".join(to_list(value))
 
 
 def build_context_prefix(metadata: dict[str, Any]) -> str:
@@ -115,13 +201,13 @@ def normalize_metadata(
         "source_id": record.get("source_id") or stable_id(relative_path),
         "title": record.get("title", ""),
         "publisher": record.get("publisher", ""),
-        "source_type": record.get("source_type", ""),
+        "source_type": to_list(record.get("source_type")),
         "url": record.get("url", ""),
         "retrieved_at": record.get("retrieved_at") or now_iso_date(),
         "doc_type": record.get("doc_type", ""),
-        "evidence_grade": record.get("evidence_grade", ""),
-        "use_case": record.get("use_case", []),
-        "language": record.get("language", []),
+        "evidence_grade": (to_list(record.get("evidence_grade")) or [""])[0],
+        "use_case": to_list(record.get("use_case")),
+        "language": to_list(record.get("language")),
         "raw_path": record.get("raw_path") or relative_path,
         "file_type": record.get("file_type") or "",
         "rag_domain": RAG_DOMAIN,
@@ -141,8 +227,9 @@ def make_chunks(
     text: str,
     metadata: dict[str, Any],
     max_chars: int = DEFAULT_MAX_CHARS,
+    overlap_chars: int = DEFAULT_OVERLAP_CHARS,
 ) -> list[dict[str, Any]]:
-    chunks = split_text(text, max_chars=max_chars)
+    chunks = split_text(text, max_chars=max_chars, overlap_chars=overlap_chars)
     if not chunks:
         return []
 
@@ -150,10 +237,11 @@ def make_chunks(
     page_number = metadata.get("page_number")
     context = build_context_prefix(metadata)
     for index, chunk_text in enumerate(chunks):
+        chunk_hash = stable_id(chunk_text)[:8]
         if page_number in (None, ""):
-            chunk_id = f"{metadata['source_id']}_chunk_{index:04d}"
+            chunk_id = f"{metadata['source_id']}_chunk_{index:04d}_{chunk_hash}"
         else:
-            chunk_id = f"{metadata['source_id']}_page_{int(page_number):04d}_chunk_{index:04d}"
+            chunk_id = f"{metadata['source_id']}_page_{int(page_number):04d}_chunk_{index:04d}_{chunk_hash}"
 
         contextual_text = f"{context}\n\n{chunk_text}"
         output.append(
@@ -197,10 +285,24 @@ def validate_chunk(record: dict[str, Any]) -> list[str]:
             reasons.append("contextual_text_invalid")
         if len(contextual_text) <= len(text):
             reasons.append("contextual_text_not_longer_than_text")
+    else:
+        reasons.append("contextual_text_invalid")
 
     if metadata.get("rag_domain") != RAG_DOMAIN:
         reasons.append("invalid_rag_domain")
     if metadata.get("owner_agent") != OWNER_AGENT:
         reasons.append("invalid_owner_agent")
+    if not isinstance(metadata.get("not_for_legal_basis"), bool):
+        reasons.append("invalid_metadata_not_for_legal_basis")
+    if not isinstance(metadata.get("contains_personal_data"), bool):
+        reasons.append("invalid_metadata_contains_personal_data")
+
+    if set(to_list(metadata.get("source_type"))).intersection(NON_LEGAL_BASIS_SOURCE_TYPES):
+        if metadata.get("not_for_legal_basis") is not True:
+            reasons.append("non_legal_source_requires_not_for_legal_basis")
+
+    if isinstance(text, str):
+        if metadata.get("chunk_char_length") != len(text):
+            reasons.append("invalid_chunk_char_length")
 
     return reasons

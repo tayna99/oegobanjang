@@ -3,7 +3,9 @@ from .chunking import (
     make_chunks,
     normalize_metadata,
     normalize_text,
+    split_sentences,
     split_text,
+    to_list,
     validate_chunk,
 )
 from .retriever import (
@@ -18,6 +20,8 @@ __all__ = [
     "normalize_text",
     "RetrievedContext",
     "search_multilingual_contact_docs",
+    "split_sentences",
     "split_text",
+    "to_list",
     "validate_chunk",
 ]
