@@ -485,6 +485,31 @@ def prepare_agent_chat_rag_first(
     )
     blocked = bool(blocked_actions)
     if not rag_results:
+        # 정적 RAG 청크 토큰 매칭 실패 시 구어체 예시 문구로 인텐트 직접 분류
+        phrase_intent = _exact_phrase_intent(message) or _exact_phrase_intent(llm_query.query)
+        if phrase_intent and phrase_intent != "unsupported":
+            synthetic_chunk = _chunk(
+                chunk_id=f"phrase_{phrase_intent}",
+                title=_generic_title(phrase_intent),
+                text=f"{_generic_title(phrase_intent)} {_domain_terms(phrase_intent)}",
+                source_type="action_draft" if phrase_intent in {"document_request_message", "handoff_preview"} else "operational_case",
+                intent=phrase_intent,
+                risk_type=phrase_intent,
+                case_id="phrase_match",
+                citation_ids=[],
+                action_ids=[],
+                approval_required=True,
+            )
+            return RAGFirstPreflight(
+                llm_query=llm_query,
+                rag_results=[{**synthetic_chunk, "score": 1.0}],
+                intent=phrase_intent,
+                llm_used=planner.enabled(),
+                llm_provider=planner.provider_name() if planner.enabled() else None,
+                llm_error=llm_error,
+                blocked=blocked,
+                blocked_actions=blocked_actions,
+            )
         return RAGFirstPreflight(
             llm_query=llm_query,
             rag_results=[],
@@ -1656,6 +1681,30 @@ def _is_policy_faq(query: str) -> bool:
     return False
 
 
+_KEYWORD_INTENT_MAP: list[tuple[tuple[str, ...], str]] = [
+    (("비자", "체류", "만료", "갱신", "끝나는", "기간"), "visa_expiry"),
+    (("서류", "누락", "빠진", "미제출", "안낸", "제출"), "document_gap"),
+    (("계약", "날짜", "안맞", "충돌", "맞지"), "contract_visa_conflict"),
+    (("베트남어", "네팔어", "인도네시아어", "캄보디아어", "다국어", "번역", "메시지", "안내문"), "document_request_message"),
+    (("신고", "변동", "기한", "고용변동"), "reporting_deadline"),
+    (("후보자", "입국", "새로", "뽑", "채용", "쿼터", "인원"), "quota_review"),
+    (("오늘", "급한", "먼저", "브리핑", "우선순위"), "daily_briefing"),
+    (("행정사", "전문가", "검토패키지", "묶음"), "handoff_preview"),
+    (("근거", "로그", "판단", "기록", "왜"), "evidence_audit_review"),
+]
+
+
+def _keyword_intent(query: str) -> str | None:
+    best_intent: str | None = None
+    best_count = 0
+    for keywords, intent in _KEYWORD_INTENT_MAP:
+        count = sum(1 for kw in keywords if kw in query)
+        if count > best_count:
+            best_count = count
+            best_intent = intent
+    return best_intent if best_count >= 1 else None
+
+
 def _exact_phrase_intent(query: str) -> str | None:
     normalized_query = _normalize_for_phrase(query)
     matches: list[tuple[int, str]] = []
@@ -1664,6 +1713,7 @@ def _exact_phrase_intent(query: str) -> str | None:
             normalized_phrase = _normalize_for_phrase(phrase)
             if normalized_phrase and normalized_phrase in normalized_query:
                 matches.append((len(normalized_phrase), intent))
-    if not matches:
-        return None
-    return max(matches, key=lambda match: match[0])[1]
+    if matches:
+        return max(matches, key=lambda match: match[0])[1]
+    # 예시 문구 미매칭 시 키워드 기반 폴백
+    return _keyword_intent(query)
