@@ -158,7 +158,6 @@ export function WorkerPortalPage() {
             <button className={styles.company} type="button">
               <span className={styles.companyMark}>근</span>
               근로자 포털
-              <span className={styles.muted}>· 본인 업무</span>
             </button>
           </div>
 

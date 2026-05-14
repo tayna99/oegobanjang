@@ -2875,82 +2875,95 @@ def seed_daily_briefing_source_tables_if_empty(
     silently serving source state from process memory after the first build.
     """
 
-    if db.query(DailyBriefingCompanySource).count() == 0:
-        for company in source_repository.companies.values():
-            db.merge(
-                DailyBriefingCompanySource(
-                    id=company.company_id,
-                    company_name=company.company_name,
-                    timezone=company.timezone,
-                    quota_limit=(
-                        str(company.quota_limit)
-                        if company.quota_limit is not None
-                        else None
-                    ),
-                    current_foreign_worker_count=(
-                        str(company.current_foreign_worker_count)
-                        if company.current_foreign_worker_count is not None
-                        else None
-                    ),
-                )
+    for company in source_repository.companies.values():
+        if db.get(DailyBriefingCompanySource, company.company_id) is not None:
+            continue
+        db.add(
+            DailyBriefingCompanySource(
+                id=company.company_id,
+                company_name=company.company_name,
+                timezone=company.timezone,
+                quota_limit=(
+                    str(company.quota_limit)
+                    if company.quota_limit is not None
+                    else None
+                ),
+                current_foreign_worker_count=(
+                    str(company.current_foreign_worker_count)
+                    if company.current_foreign_worker_count is not None
+                    else None
+                ),
             )
-        for worker in source_repository.workers:
-            db.merge(
-                DailyBriefingWorkerSource(
-                    id=worker.worker_id,
-                    company_id=worker.company_id,
-                    display_name_masked=worker.display_name_masked,
-                    raw_name=worker.raw_name,
-                    visa_expiry_date=worker.visa_expiry_date,
-                    contract_end_date=worker.contract_end_date,
-                )
+        )
+    for worker in source_repository.workers:
+        if db.get(DailyBriefingWorkerSource, worker.worker_id) is not None:
+            continue
+        db.add(
+            DailyBriefingWorkerSource(
+                id=worker.worker_id,
+                company_id=worker.company_id,
+                display_name_masked=worker.display_name_masked,
+                raw_name=worker.raw_name,
+                visa_expiry_date=worker.visa_expiry_date,
+                contract_end_date=worker.contract_end_date,
             )
-        for candidate in source_repository.candidates:
-            db.merge(
-                DailyBriefingCandidateSource(
-                    id=candidate.candidate_id,
-                    company_id=candidate.company_id,
-                    display_name_masked=candidate.display_name_masked,
-                    raw_name=candidate.raw_name,
-                    status=candidate.status,
-                )
+        )
+    for candidate in source_repository.candidates:
+        if db.get(DailyBriefingCandidateSource, candidate.candidate_id) is not None:
+            continue
+        db.add(
+            DailyBriefingCandidateSource(
+                id=candidate.candidate_id,
+                company_id=candidate.company_id,
+                display_name_masked=candidate.display_name_masked,
+                raw_name=candidate.raw_name,
+                status=candidate.status,
             )
-        for document in source_repository.documents:
-            db.merge(
-                DailyBriefingDocumentSource(
-                    id=f"{document.worker_id}:{document.document_type}",
-                    worker_id=document.worker_id,
-                    document_type=document.document_type,
-                    status=document.status,
-                    required=document.required,
-                    due_date=document.due_date,
-                )
+        )
+    for document in source_repository.documents:
+        document_id = f"{document.worker_id}:{document.document_type}"
+        if db.get(DailyBriefingDocumentSource, document_id) is not None:
+            continue
+        db.add(
+            DailyBriefingDocumentSource(
+                id=document_id,
+                worker_id=document.worker_id,
+                document_type=document.document_type,
+                status=document.status,
+                required=document.required,
+                due_date=document.due_date,
             )
-        for document in source_repository.candidate_documents:
-            db.merge(
-                DailyBriefingCandidateDocumentSource(
-                    id=f"{document.candidate_id}:{document.document_type}",
-                    candidate_id=document.candidate_id,
-                    document_type=document.document_type,
-                    status=document.status,
-                    required=document.required,
-                    due_date=document.due_date,
-                )
+        )
+    for document in source_repository.candidate_documents:
+        document_id = f"{document.candidate_id}:{document.document_type}"
+        if db.get(DailyBriefingCandidateDocumentSource, document_id) is not None:
+            continue
+        db.add(
+            DailyBriefingCandidateDocumentSource(
+                id=document_id,
+                candidate_id=document.candidate_id,
+                document_type=document.document_type,
+                status=document.status,
+                required=document.required,
+                due_date=document.due_date,
             )
-        for event in source_repository.reporting_events:
-            db.merge(
-                DailyBriefingReportingEventSource(
-                    id=event.event_id,
-                    company_id=event.company_id,
-                    worker_id=event.worker_id,
-                    event_type=event.event_type,
-                    occurred_at=event.occurred_at,
-                    discovered_at=event.discovered_at,
-                    reporting_due_date=event.reporting_due_date,
-                    reported_at=event.reported_at,
-                    status=event.status,
-                )
+        )
+    for event in source_repository.reporting_events:
+        if db.get(DailyBriefingReportingEventSource, event.event_id) is not None:
+            continue
+        db.add(
+            DailyBriefingReportingEventSource(
+                id=event.event_id,
+                company_id=event.company_id,
+                worker_id=event.worker_id,
+                event_type=event.event_type,
+                occurred_at=event.occurred_at,
+                discovered_at=event.discovered_at,
+                reporting_due_date=event.reporting_due_date,
+                reported_at=event.reported_at,
+                status=event.status,
             )
+        )
 
     for citation in source_repository.citations.values():
         if db.get(DailyBriefingCitationSource, citation.citation_id) is not None:

@@ -212,11 +212,19 @@ def accept_worker_document_request(
     ).scalar_one_or_none()
     if row is None:
         raise ValueError("document request not found")
+    if row.status == "ACCEPTED":
+        return _request_payload(row, _definition_for(doc_type), worker_id, row.company_id)
     if row.status != "SUBMITTED":
         raise ValueError("document is not submitted")
     row.status = "ACCEPTED"
     row.reviewed_at = datetime.now(timezone.utc).isoformat()
     row.notes = "담당자 확인 완료"
+    _create_acceptance_thread_message(
+        db,
+        worker_id=worker_id,
+        company_id=row.company_id,
+        doc_type=doc_type,
+    )
     db.commit()
     return _request_payload(row, _definition_for(doc_type), worker_id, row.company_id)
 
@@ -443,6 +451,64 @@ def _create_revision_request_thread_message(
     )
     db.add(message)
     thread.status = "보완 요청"
+    thread.last_message_at = datetime.now(timezone.utc)
+
+
+def _create_acceptance_thread_message(
+    db: Session,
+    *,
+    worker_id: str,
+    company_id: str | None,
+    doc_type: str,
+) -> None:
+    worker = get_worker_profile_data(worker_id, db=db) or {"id": worker_id}
+    worker_name = _display_worker_name(worker)
+    definition = _definition_for(doc_type)
+    language_code = str(worker.get("preferred_language") or "ko")
+    thread = db.execute(
+        select(ContactThread)
+        .where(ContactThread.worker_id == worker_id)
+        .order_by(ContactThread.created_at.desc())
+    ).scalars().first()
+    if thread is None:
+        thread = ContactThread(
+            id=f"thr_{uuid4().hex[:12]}",
+            company_id=company_id or worker.get("company_id"),
+            worker_id=worker_id,
+            channel="portal",
+            status="승인 완료",
+            title=f"{worker_name} · {definition['label']} 승인 완료",
+        )
+        db.add(thread)
+        db.flush()
+    body_ko = (
+        f"{definition['label']}이 승인 처리됐습니다.\n"
+        "제출해 주신 파일을 담당자가 확인했습니다."
+    )
+    if language_code == "vi":
+        localized_label = _localized_doc_label(doc_type, language_code)
+        body_original = (
+            f"{localized_label} đã được phê duyệt.\n"
+            "Người phụ trách đã kiểm tra tệp bạn gửi."
+        )
+    else:
+        body_original = body_ko
+    db.add(
+        ContactThreadMessage(
+            id=f"msg_{uuid4().hex[:12]}",
+            thread_id=thread.id,
+            company_id=thread.company_id or company_id,
+            worker_id=worker_id,
+            direction="OUTBOUND",
+            source="MANAGER_REVIEW",
+            language_code=language_code,
+            body_original=body_original,
+            body_ko=body_ko,
+            status="승인 완료",
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+    thread.status = "승인 완료"
     thread.last_message_at = datetime.now(timezone.utc)
 
 

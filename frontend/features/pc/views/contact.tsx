@@ -99,7 +99,7 @@ export function ContactView({ onAction }: PcViewProps = {}) {
       ]);
       const workerData = await workerResponse.json();
       const threadData = await threadResponse.json();
-      const nextWorkers = workerData.workers ?? [];
+      const nextWorkers = uniqueWorkers(workerData.workers ?? []);
       const nextThreads = threadData.threads ?? [];
       setWorkers(nextWorkers);
       setThreads(nextThreads);
@@ -337,6 +337,17 @@ export function ContactView({ onAction }: PcViewProps = {}) {
       ) : null}
     </div>
   );
+}
+
+function uniqueWorkers(workers: WorkerOption[]) {
+  const seen = new Set<string>();
+  return workers.filter((worker) => {
+    const key = worker.email?.trim().toLowerCase()
+      || `${worker.full_name || worker.name}:${worker.nationality || ""}:${worker.visa_type || ""}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function MessageBubble({

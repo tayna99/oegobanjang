@@ -88,6 +88,7 @@ _VISA_INTENTS = frozenset({"visa_expiry", "document_gap", "contract_visa_conflic
 _MULTILINGUAL_INTENTS = frozenset({"document_request_message"})
 _HIRING_INTENTS = frozenset({"quota_review", "candidate_readiness", "reporting_deadline", "handoff_preview"})
 _AGENT_DISPATCHABLE_INTENTS = _VISA_INTENTS | _MULTILINGUAL_INTENTS | _HIRING_INTENTS
+_ENABLE_PRE_RAG_AGENT_DISPATCH = False
 
 _KEYWORD_MAP: list[tuple[tuple[str, ...], str]] = [
     (("비자", "체류", "만료", "갱신", "끝나는", "기간 만료"), "visa_expiry"),
@@ -312,6 +313,24 @@ async def chat_agent(
     # 1단계: 구어체 인텐트 직접 분류 → 에이전트 디스패치 (RAG 실패 우회)
     quick_intent = _classify_intent_from_message(request.message)
     if quick_intent in _AGENT_DISPATCHABLE_INTENTS:
+        from app.services.agent_chat_rag import _is_hiring_start_question, _is_policy_faq
+
+        should_skip_quick_dispatch = (
+            bool(request.selected_case_id or request.selected_action_id)
+            or quick_intent in _HIRING_INTENTS
+            and (
+                _is_hiring_start_question(request.message)
+                or _is_policy_faq(request.message)
+            )
+        )
+    else:
+        should_skip_quick_dispatch = False
+
+    if (
+        _ENABLE_PRE_RAG_AGENT_DISPATCH
+        and quick_intent in _AGENT_DISPATCHABLE_INTENTS
+        and not should_skip_quick_dispatch
+    ):
         try:
             _svc = build_sqlalchemy_daily_briefing_service(db)
             _briefing = _svc.run_daily_briefing(
