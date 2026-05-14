@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -76,6 +79,85 @@ from app.services.daily_briefing_service import build_sqlalchemy_daily_briefing_
 
 
 router = APIRouter(prefix="/agent", tags=["agent"])
+
+# ---------------------------------------------------------------------------
+# 인텐트 분류 (RAG 없이 구어체 직접 매칭)
+# ---------------------------------------------------------------------------
+
+_VISA_INTENTS = frozenset({"visa_expiry", "document_gap", "contract_visa_conflict"})
+_MULTILINGUAL_INTENTS = frozenset({"document_request_message"})
+_HIRING_INTENTS = frozenset({"quota_review", "candidate_readiness", "reporting_deadline", "handoff_preview"})
+_AGENT_DISPATCHABLE_INTENTS = _VISA_INTENTS | _MULTILINGUAL_INTENTS | _HIRING_INTENTS
+
+_KEYWORD_MAP: list[tuple[tuple[str, ...], str]] = [
+    (("비자", "체류", "만료", "갱신", "끝나는", "기간 만료"), "visa_expiry"),
+    (("서류", "누락", "빠진", "미제출", "제출 안"), "document_gap"),
+    (("계약", "날짜", "안 맞", "안맞", "충돌"), "contract_visa_conflict"),
+    (("베트남어", "네팔어", "인도네시아어", "다국어", "번역", "메시지 만들", "안내문"), "document_request_message"),
+    (("신고", "변동", "기한", "고용변동"), "reporting_deadline"),
+    (("후보자", "채용", "뽑", "쿼터", "인원"), "quota_review"),
+    (("행정사", "전문가", "검토패키지", "검토 패키지"), "handoff_preview"),
+]
+
+
+def _classify_intent_from_message(message: str) -> str:
+    from app.services.agent_chat_rag import _exact_phrase_intent
+    phrase = _exact_phrase_intent(message)
+    if phrase and phrase != "unsupported":
+        return phrase
+    best, best_count = "daily_briefing", 0
+    for keywords, intent in _KEYWORD_MAP:
+        count = sum(1 for kw in keywords if kw in message)
+        if count > best_count:
+            best_count, best = count, intent
+    return best
+
+
+def _agent_dispatch_response(
+    dispatch: Any,
+    briefing: Any,
+    intent: str,
+) -> dict[str, Any]:
+    selected_items = _select_daily_briefing_items(briefing.items, intent)
+    actions = _selected_actions(briefing.recommended_actions, selected_items)
+    sources = _selected_sources(briefing.citation_summaries, selected_items)
+    return {
+        "answer": dispatch.answer,
+        "final_response": dispatch.answer,
+        "route": "rag_first_chat",
+        "orchestration_version": "agent_dispatch_v1",
+        "normalized_intent": intent,
+        "agent_used": dispatch.agent_used,
+        "rag_collections_used": dispatch.rag_collections_used,
+        "agent_sub_agents": dispatch.sub_agents,
+        "llm_used": False,
+        "latency_mode": "agent_dispatch",
+        "tool_calls": [{"name": dispatch.agent_used, "route": "rag_first_chat",
+                        "intent": intent, "result_count": len(selected_items),
+                        "action_count": len(actions), "source_count": len(sources)}],
+        "rag_hits": [],
+        "retrieval_source_types": dispatch.rag_collections_used,
+        "llm_provider": None,
+        "fallback_used": False,
+        "fallback_reason": None,
+        "actions": [a.model_dump() for a in actions],
+        "sources": [s.model_dump() for s in sources],
+        "detected_intents": [intent],
+        "approval_required": True,
+        "approval_status": "pending",
+        "daily_briefing": briefing.model_dump(),
+        "structured_plan": {
+            "should_run": True,
+            "intent": intent,
+            "plan_steps": [],
+            "required_context": [],
+            "entities": {},
+            "blocked_actions": [],
+            "approval_required": True,
+            "execution_allowed": True,
+            "target_service": "agent_dispatch",
+        },
+    }
 
 
 RISK_TYPES_BY_INTENT: dict[str, tuple[str, ...]] = {
@@ -222,10 +304,48 @@ async def chat_agent(
             "structured_plan": daily_briefing_plan.model_dump(),
         }
 
+    # 1단계: 구어체 인텐트 직접 분류 → 에이전트 디스패치 (RAG 실패 우회)
+    quick_intent = _classify_intent_from_message(request.message)
+    if quick_intent in _AGENT_DISPATCHABLE_INTENTS:
+        try:
+            _svc = build_sqlalchemy_daily_briefing_service(db)
+            _briefing = _svc.run_daily_briefing(
+                company_id=request.company_id,
+                date=request.date,
+                user_role=x_user_role,
+                allowed_company_ids=[x_company_id] if x_company_id else None,
+            )
+            db.commit()
+            from app.services.agent_dispatcher import dispatch_to_agent
+            from app.services.agent_chat_rag import RAGFirstChatContext as _RCtx
+            _selected = _select_daily_briefing_items(_briefing.items, quick_intent)
+            _ctx = _RCtx(
+                company_id=request.company_id,
+                user_role=x_user_role,
+                fallback_plan={},
+                date=request.date,
+                workspace_id=request.workspace_id,
+                active_tab=request.active_tab,
+                selected_case_id=request.selected_case_id,
+                selected_action_id=request.selected_action_id,
+            )
+            _dispatch = dispatch_to_agent(
+                intent=quick_intent,
+                message=request.message,
+                company_id=request.company_id,
+                daily_briefing=_briefing,
+                selected_items=_selected,
+                context=_ctx,
+            )
+            if not _dispatch.skipped:
+                return _agent_dispatch_response(_dispatch, _briefing, quick_intent)
+        except Exception as _exc:
+            logger.warning("에이전트 디스패치 실패, RAG-first 폴백: %s", _exc)
+
     preflight = prepare_agent_chat_rag_first(request.message)
     if preflight.blocked:
         return rag_first_forbidden_response(message=request.message, preflight=preflight)
-    if not preflight.rag_results:
+    if not preflight.rag_results and preflight.intent == "unsupported":
         return rag_first_not_found_response(message=request.message, preflight=preflight)
 
     try:

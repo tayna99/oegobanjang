@@ -68,7 +68,7 @@ export async function fetchCompanyList(): Promise<{ id: string; name: string }[]
 
 export async function runDailyBriefing(
   companyId: string,
-  date = "2026-05-08",
+  date = new Date().toISOString().slice(0, 10),
 ): Promise<DailyBriefingResult> {
   const response = await fetch(`${API_BASE_URL}/daily-briefings/run`, {
     method: "POST",
@@ -90,7 +90,7 @@ export async function runDailyBriefing(
 
 export async function sendAgentChatMessage({
   message,
-  companyId = "company_001",
+  companyId = "",
   workspaceId,
   activeTab = "today",
   date,
@@ -136,7 +136,7 @@ export async function sendAgentChatMessage({
 
 export async function approveAction(
   approvalId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<ApprovalActionResult> {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/approve`, {
     method: "POST",
@@ -157,7 +157,7 @@ export async function approveAction(
 export async function rejectAction(
   approvalId: string,
   reason: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<ApprovalActionResult> {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/reject`, {
     method: "POST",
@@ -180,7 +180,7 @@ export async function rejectAction(
 export async function requestRevision(
   approvalId: string,
   reason: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<ApprovalActionResult> {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/request-revision`, {
     method: "POST",
@@ -202,7 +202,7 @@ export async function requestRevision(
 
 export async function getHandoffPreview(
   actionId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<HandoffPreview> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/handoff-preview`, {
     headers: {
@@ -219,7 +219,7 @@ export async function getHandoffPreview(
 
 export async function getDocumentRequestDraft(
   actionId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<DocumentRequestDraft> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/document-request-draft`, {
     headers: {
@@ -236,7 +236,7 @@ export async function getDocumentRequestDraft(
 
 export async function getCaseEvidenceEvents(
   caseId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<EvidenceEvent[]> {
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/evidence-events`, {
     headers: {
@@ -335,7 +335,7 @@ export async function uploadDailyBriefingSourceCsv(
 }
 
 export async function getDailyBriefingHistory(
-  companyId = "company_001",
+  companyId = "",
 ): Promise<DailyBriefingHistory> {
   const response = await fetch(
     `${API_BASE_URL}/daily-briefings/history/list?company_id=${encodeURIComponent(companyId)}`,
@@ -353,7 +353,7 @@ export async function getDailyBriefingHistory(
 }
 
 export async function getDailyBriefingDataQualitySummary(
-  companyId = "company_001",
+  companyId = "",
 ): Promise<DailyBriefingDataQualitySummary> {
   const response = await fetch(
     `${API_BASE_URL}/daily-briefings/quality/summary?company_id=${encodeURIComponent(companyId)}`,
@@ -371,7 +371,7 @@ export async function getDailyBriefingDataQualitySummary(
 }
 
 export async function getDailyBriefingPilotMetrics(
-  companyId = "company_001",
+  companyId = "",
 ): Promise<DailyBriefingPilotMetrics> {
   const response = await fetch(
     `${API_BASE_URL}/daily-briefings/metrics/summary?company_id=${encodeURIComponent(companyId)}`,
@@ -389,8 +389,8 @@ export async function getDailyBriefingPilotMetrics(
 }
 
 export async function createDailyBriefingMetricsSnapshot(
-  companyId = "company_001",
-  date = "2026-05-08",
+  companyId = "",
+  date = new Date().toISOString().slice(0, 10),
 ): Promise<DailyBriefingMetricsSnapshot> {
   const response = await fetch(`${API_BASE_URL}/daily-briefings/metrics/snapshot`, {
     method: "POST",
@@ -409,7 +409,7 @@ export async function createDailyBriefingMetricsSnapshot(
 }
 
 export async function getDailyBriefingSchedulerHistory(
-  companyId = "company_001",
+  companyId = "",
 ): Promise<DailyBriefingSchedulerHistory> {
   const response = await fetch(
     `${API_BASE_URL}/daily-briefings/scheduler/history?company_id=${encodeURIComponent(companyId)}`,
@@ -428,7 +428,7 @@ export async function getDailyBriefingSchedulerHistory(
 
 export async function getHandoffExportDraft(
   actionId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<HandoffExportDraft> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/handoff-export-draft`, {
     headers: {
@@ -448,7 +448,7 @@ export function getHandoffExportPdfUrl(actionId: string): string {
 
 export async function downloadHandoffExportPdf(
   actionId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<Blob> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/handoff-export.pdf`, {
     headers: {
@@ -464,7 +464,7 @@ export async function downloadHandoffExportPdf(
 
 export async function createExternalDeliveryJob(
   actionId: string,
-  companyId = "company_001",
+  companyId = "",
   provider = "manual",
 ): Promise<ExternalDeliveryJob> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/external-delivery-jobs`, {
@@ -486,7 +486,7 @@ export async function createExternalDeliveryJob(
 
 export async function dispatchExternalDeliveryJob(
   jobId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<ExternalDeliveryJob> {
   const response = await fetch(`${API_BASE_URL}/external-delivery-jobs/${jobId}/dispatch`, {
     method: "POST",
@@ -505,7 +505,7 @@ export async function dispatchExternalDeliveryJob(
 
 export async function getHandoffExportArtifacts(
   actionId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<HandoffExportArtifact[]> {
   const response = await fetch(`${API_BASE_URL}/actions/${actionId}/handoff-exports`, {
     headers: {
@@ -521,7 +521,7 @@ export async function getHandoffExportArtifacts(
 
 export async function getCaseAuditReview(
   caseId: string,
-  companyId = "company_001",
+  companyId = "",
 ): Promise<CaseAuditReview> {
   const response = await fetch(`${API_BASE_URL}/cases/${caseId}/audit-review`, {
     headers: {
