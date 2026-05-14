@@ -71,7 +71,17 @@
       "Bash(.venv/Scripts/python.exe -c \"import sys,json; d=json.loads\\(sys.stdin.read\\(\\)\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k != 'content'}, ensure_ascii=False, indent=2\\)\\)\")",
       "Bash(.venv/Scripts/python.exe *)",
       "Bash(Select-Object -First 80)",
-      "Bash(pip show *)"
+      "Bash(pip show *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://127.0.0.1:8000/api/v1/daily-briefings/run\" -Method POST -ContentType \"application/json\" -Body '{\"company_id\":\"company_001\",\"date\":\"2026-05-13\"}' -UseBasicParsing 2>&1 | Select-Object StatusCode, Content)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://127.0.0.1:8000/api/v1/proto/companies\" -UseBasicParsing 2>&1 | Select-Object -ExpandProperty Content)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://127.0.0.1:3000/api/v1/proto/companies\" -UseBasicParsing 2>&1 | Select-Object StatusCode)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:3000/api/v1/proto/companies\" -UseBasicParsing; $r.StatusCode } catch { $_.Exception.Message })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:8000/api/v1/daily-briefings/run\" -Method POST -ContentType \"application/json\" -Body '{\"company_id\":\"550e8400-e29b-41d4-a716-446655440001\",\"date\":\"2026-05-13\"}' -UseBasicParsing; $r.Content } catch { $_.Exception.Response.StatusCode; $reader = [System.IO.StreamReader]::new\\($_.Exception.Response.GetResponseStream\\(\\)\\); $reader.ReadToEnd\\(\\) })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://127.0.0.1:8000/api/v1/daily-briefings/run\" -Method POST -ContentType \"application/json\" -Body '{\"company_id\":\"550e8400-e29b-41d4-a716-446655440001\",\"date\":\"2026-05-13\"}' -UseBasicParsing; $r.Content } catch { $stream = $_.Exception.Response.GetResponseStream\\(\\); $reader = New-Object System.IO.StreamReader\\($stream\\); $reader.ReadToEnd\\(\\) })",
+      "PowerShell(Get-WmiObject *)",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell(netstat *)"
     ]
   },
   "statusLine": {
