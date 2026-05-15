@@ -12,7 +12,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
 import type { AgentReviewResult } from "../../../lib/api";
-import { createMessageDraftForAction, runAgentReview, SCRIVENER_WORKER_ID } from "../../../lib/api";
+import { createMessageDraftForAction, runAgentReview } from "../../../lib/api";
 import { adminPackage, contactItems, judgmentRows, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -682,7 +682,7 @@ function TodayWorkerDetail({
         "체류 연장 신청 검토 및 서류 준비를 도와주시기 바랍니다.",
       ].filter(Boolean).join("\n");
       const thread = await createMessageDraftForAction({
-        workerId: SCRIVENER_WORKER_ID,
+        workerId: realWorkerId,
         companyId,
         messagePurpose: "handoff_notification",
         sourceActionId: actionId,

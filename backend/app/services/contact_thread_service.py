@@ -221,19 +221,23 @@ def _get_or_create_thread(
     source_action_id: str | None = None,
 ) -> ContactThread:
     worker_id = str(worker.get("id"))
-    # action_id가 있으면 해당 action에 연결된 기존 스레드를 재사용
+    # action_id + title 조합으로 근로자용/행정사용 thread를 별도 구분
     if source_action_id:
         existing = db.execute(
             select(ContactThread)
             .where(ContactThread.source_action_id == source_action_id)
             .where(ContactThread.worker_id == worker_id)
+            .where(ContactThread.title == title)
             .order_by(ContactThread.created_at.desc())
         ).scalars().first()
         if existing is not None:
             return existing
     else:
         thread = db.execute(
-            select(ContactThread).where(ContactThread.worker_id == worker_id).order_by(ContactThread.created_at.desc())
+            select(ContactThread)
+            .where(ContactThread.worker_id == worker_id)
+            .where(ContactThread.title == title)
+            .order_by(ContactThread.created_at.desc())
         ).scalars().first()
         if thread is not None:
             return thread
