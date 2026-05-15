@@ -1257,6 +1257,24 @@
   color: rgba(46, 47, 51, 0.88);
   margin-top: 6px;
 }
+.agentRunButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid #3b82f6;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.agentRunButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .nextTaskItem {
   display: flex;
   align-items: center;
