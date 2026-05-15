@@ -61,25 +61,31 @@ def _find_tool_result(tool_results: list[dict], tool_name: str) -> dict:
     return {}
 
 
-def _build_action_plan(result: dict, missing_critical_codes: list[str]) -> list[str]:
+def _build_action_plan(
+    risk_flags: list[str],
+    missing_critical_codes: list[str],
+    handoff_triggered: bool,
+    visa_d_day: int | None,
+) -> list[str]:
     plan: list[str] = []
     if missing_critical_codes:
         docs_ko = _doc_codes_to_ko(missing_critical_codes)
         plan.append(f"근로자에게 서류 요청: {', '.join(docs_ko)}")
-    if result.get("handoff_triggered"):
-        plan.append("행정사에게 체류 연장 검토 패키지 전달")
-    if any("계약" in f and "비자" in f for f in result.get("risk_flags", [])):
+    if any("계약" in f for f in risk_flags):
         plan.append("계약 기간 연장 또는 비자 만료일 전 계약 조정 검토")
-    for sub in result.get("sub_agents", []):
-        if "visa_risk" in sub.get("name", ""):
-            for tr in sub.get("tool_results", []):
-                d_day = (tr.get("output") or {}).get("visa_d_day")
-                if d_day is not None:
-                    try:
-                        if int(d_day) <= 14:
-                            plan.append("체류기간 연장 신청 즉시 준비 필요 (D-14 이내)")
-                    except (ValueError, TypeError):
-                        pass
+    if visa_d_day is not None:
+        try:
+            d = int(visa_d_day)
+            if d < 0:
+                plan.append(f"체류기간 초과 {abs(d)}일 — 즉시 조치 필요")
+            elif d <= 14:
+                plan.append("체류기간 연장 신청 즉시 준비 필요 (D-14 이내)")
+            elif d <= 30:
+                plan.append(f"체류기간 연장 신청 준비 시작 (D-{d})")
+        except (ValueError, TypeError):
+            pass
+    if handoff_triggered:
+        plan.append("행정사에게 체류 연장 검토 패키지 전달")
     return plan or ["현재 긴급 처리 항목 없음 — 정기 모니터링 유지"]
 
 
@@ -133,6 +139,14 @@ def run_agent_review(
 
     visa_sub = next((s for s in result.get("sub_agents", []) if "visa_risk" in s.get("name", "")), {})
     doc_sub = next((s for s in result.get("sub_agents", []) if "document_priority" in s.get("name", "")), {})
+
+    # 비자 위험도 툴 결과에서 d_day, risk_level 추출
+    visa_tool = _find_tool_result(visa_sub.get("tool_results", []), "assess_visa_risk")
+    visa_output = visa_tool.get("output", {})
+    visa_d_day: int | None = visa_output.get("visa_d_day")
+    visa_risk_level: str = visa_output.get("risk_level", "")
+
+    # 서류 우선순위 툴 결과에서 누락 서류 추출
     doc_tool = _find_tool_result(doc_sub.get("tool_results", []), "assess_document_priority")
     doc_output = doc_tool.get("output", {})
 
@@ -146,16 +160,29 @@ def run_agent_review(
     ]
     submission_readiness: str = doc_output.get("submission_readiness", "")
 
+    # handoff는 비자 D-30 이내 + 필수 서류 누락 동시 충족 시에만 트리거
+    handoff_triggered: bool = False
+    if missing_critical_codes and visa_d_day is not None:
+        try:
+            if int(visa_d_day) <= 30:
+                handoff_triggered = True
+        except (ValueError, TypeError):
+            pass
+    # 에이전트가 handoff를 트리거했고 위 조건도 충족하는 경우 유지
+    if result.get("handoff_triggered") and missing_critical_codes:
+        handoff_triggered = True
+
     structured: dict = {
-        "visa_risk": risk_flags[0] if risk_flags else "",
+        "visa_risk": visa_risk_level or (risk_flags[0] if risk_flags else ""),
+        "visa_d_day": visa_d_day,
         "doc_priority": f"필수 서류 누락 {len(missing_critical_codes)}건" if missing_critical_codes else "",
         "missing_critical": _doc_codes_to_ko(missing_critical_codes),
         "visa_risk_flags": visa_sub.get("risk_flags", []),
         "doc_risk_flags": doc_sub.get("risk_flags", []),
         "missing_supplementary": _doc_codes_to_ko(missing_supplementary_codes),
         "submission_readiness": submission_readiness,
-        "action_plan": _build_action_plan(result, missing_critical_codes),
-        "handoff_triggered": result.get("handoff_triggered", False),
+        "action_plan": _build_action_plan(risk_flags, missing_critical_codes, handoff_triggered, visa_d_day),
+        "handoff_triggered": handoff_triggered,
     }
 
     review = AgentReviewResult(

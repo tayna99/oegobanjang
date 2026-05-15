@@ -517,6 +517,7 @@ export type AgentReviewResult = {
   summary: string;
   summary_structured: {
     visa_risk?: string;
+    visa_d_day?: number | null;
     doc_priority?: string;
     missing_critical?: string[];
     missing_supplementary?: string[];

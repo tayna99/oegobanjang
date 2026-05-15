@@ -342,8 +342,18 @@ def run_visa_agent(state: ForeignHiringState, worker_id: str | None = None) -> d
     agent_result = {
         "agent": "visa_document_agent",
         "sub_agents": [
-            {"name": risk_result.get("sub_agent"), "tool_calls": risk_result.get("tool_calls", 0), "risk_flags": risk_result.get("risk_flags", [])},
-            {"name": doc_result.get("sub_agent"), "tool_calls": doc_result.get("tool_calls", 0), "risk_flags": doc_result.get("risk_flags", [])},
+            {
+                "name": risk_result.get("sub_agent"),
+                "tool_calls": risk_result.get("tool_calls", 0),
+                "risk_flags": risk_result.get("risk_flags", []),
+                "tool_results": risk_result.get("tool_results", []),
+            },
+            {
+                "name": doc_result.get("sub_agent"),
+                "tool_calls": doc_result.get("tool_calls", 0),
+                "risk_flags": doc_result.get("risk_flags", []),
+                "tool_results": doc_result.get("tool_results", []),
+            },
         ],
         "handoff_triggered": handoff_triggered,
         "handoff": handoff_result,
