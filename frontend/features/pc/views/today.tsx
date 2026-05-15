@@ -11,6 +11,8 @@
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
+import type { AgentReviewResult } from "../../../lib/api";
+import { runAgentReview } from "../../../lib/api";
 import { adminPackage, contactItems, judgmentRows, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -445,6 +447,100 @@ export function TodayTasksView({ briefing, loading = false, onAction }: TodayTas
   );
 }
 
+const DOC_CODE_TO_KO: Record<string, string> = {
+  work_permit: "고용허가서 사본",
+  alien_registration: "외국인등록증 사본",
+  employment_contract: "표준근로계약서",
+  labor_contract: "표준근로계약서",
+  passport_copy: "여권 사본",
+  passport: "여권 사본",
+  health_certificate: "건강검진 결과서",
+  criminal_record: "범죄경력 조회서",
+  standard_contract: "표준근로계약서",
+};
+
+function docCodeToKo(code: string): string {
+  return DOC_CODE_TO_KO[code.toLowerCase()] ?? code;
+}
+
+const SEVERITY_COLOR: Record<string, Tone> = {
+  CRITICAL: "red",
+  HIGH: "orange",
+  MEDIUM: "orange",
+  LOW: "gray",
+};
+
+function buildRisksFromBriefingItem(item: DailyBriefingItem) {
+  const risks: Array<{ title: string; desc: string; severity: string; basis: string[] }> = [];
+  const basis = item.source_labels.length > 0 ? item.source_labels : ["근로자 프로필", "체류 정보"];
+
+  if (item.risk_type === "visa_expiry") {
+    const label = item.expired
+      ? `체류기간 초과 ${item.days_overdue ?? 0}일`
+      : `체류만료 D-${item.d_day}`;
+    risks.push({
+      title: item.expired ? "체류기간 초과" : "체류만료 임박",
+      desc: item.case_summary ?? label,
+      severity: item.severity,
+      basis,
+    });
+  } else if (item.risk_type === "contract_visa_conflict") {
+    risks.push({
+      title: "계약·체류 충돌",
+      desc: item.case_summary ?? "계약종료일이 비자만료일보다 늦습니다. 체류 연장 또는 계약 조정이 필요합니다.",
+      severity: item.severity,
+      basis,
+    });
+  } else if (item.risk_type === "missing_document") {
+    const docs = item.missing_documents.length > 0
+      ? item.missing_documents.map(docCodeToKo).join(", ")
+      : "서류 확인 필요";
+    risks.push({
+      title: "서류 보완 필요",
+      desc: item.case_summary ?? `누락 서류: ${docs}`,
+      severity: item.severity,
+      basis,
+    });
+  } else if (item.risk_type === "reporting_deadline") {
+    risks.push({
+      title: "고용변동 신고 기한",
+      desc: item.case_summary ?? `신고 기한이 임박했습니다 (D-${item.d_day}).`,
+      severity: item.severity,
+      basis,
+    });
+  } else {
+    risks.push({
+      title: item.case_title ?? "확인 필요",
+      desc: item.case_summary ?? "담당자가 확인해야 합니다.",
+      severity: item.severity,
+      basis,
+    });
+  }
+  return risks;
+}
+
+function AgentPrepSummary({ result }: { result: AgentReviewResult }) {
+  const s = result.summary_structured;
+  const items: string[] = [];
+  if (s.visa_risk) items.push(`비자 위험도: ${s.visa_risk}`);
+  if (s.doc_priority) items.push(`서류 우선순위: ${s.doc_priority}`);
+  if (s.missing_critical && s.missing_critical.length > 0)
+    items.push(`필수 누락: ${s.missing_critical.join(", ")}`);
+  if (items.length === 0 && result.summary) items.push(result.summary);
+  return (
+    <>
+      {items.map((item) => (
+        <div className={styles.aiPrepItem} key={item}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8l3.5 3.5 6.5-7" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {item}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function TodayWorkerDetail({
   onAction,
   onClose,
@@ -457,41 +553,37 @@ function TodayWorkerDetail({
   briefingItems?: DailyBriefingItem[];
 }) {
   const workerBriefingItem = briefingItems?.find((i) => i.subject_id === worker.id) ?? null;
-  const isNguyen = worker.id === "w_nguyen";
-  const isBayar = worker.id === "w_bayar";
-  const risks = isNguyen
-    ? [
-        {
-          title: "체류만료 임박",
-          desc: "체류만료까지 30일 남았습니다. 연장 신청 또는 자진 출국 검토가 필요합니다.",
-          basis: ["출입국관리법 제25조", "체류기간 연장허가 신청 안내"],
-        },
-        {
-          title: "필수서류 누락",
-          desc: "여권 사본, 외국인등록증 사본 보완이 필요합니다.",
-          basis: ["외국인근로자 고용 시 보유 서류"],
-        },
-      ]
-    : [
-        {
-          title: isBayar ? "체류만료 초과" : "확인 필요",
-          desc: isBayar ? "체류만료일이 지났습니다. 담당자 확인과 검토 자료 정리가 필요합니다." : "계약·체류·서류 상태를 담당자가 확인해야 합니다.",
-          basis: isBayar ? ["출입국관리법 제25조", "제94조 벌칙"] : ["근로자 프로필", "체류 정보"],
-        },
-      ];
-  const docs: Array<[string, string, Tone]> = isNguyen
-    ? [
-        ["여권사본", "보완 필요", "orange" as Tone],
-        ["외국인등록증", "보완 필요", "orange" as Tone],
-        ["근로계약서", "확보됨", "green" as Tone],
-        ["건강진단서", "확보됨", "green" as Tone],
-      ]
-    : [
-        ["여권사본", "확보됨", "green" as Tone],
-        ["외국인등록증", "확보됨", "green" as Tone],
-        ["근로계약서", "확보됨", "green" as Tone],
-        ["건강진단서", isBayar ? "만료" : "확보됨", isBayar ? "orange" as Tone : "green" as Tone],
-      ];
+  const [agentResult, setAgentResult] = useState<AgentReviewResult | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+
+  async function handleRunAnalysis() {
+    const actionId = workerBriefingItem?.primary_action?.action_id;
+    if (!actionId) return;
+    setAgentLoading(true);
+    try {
+      const result = await runAgentReview(actionId);
+      setAgentResult(result);
+    } finally {
+      setAgentLoading(false);
+    }
+  }
+
+  const risks = workerBriefingItem
+    ? buildRisksFromBriefingItem(workerBriefingItem)
+    : [{ title: "확인 필요", desc: "계약·체류·서류 상태를 담당자가 확인해야 합니다.", severity: "MEDIUM", basis: ["근로자 프로필"] }];
+
+  const missingSet = new Set(workerBriefingItem?.missing_documents ?? []);
+  const allDocCodes = ["passport_copy", "alien_registration", "employment_contract", "health_certificate"];
+  const agentMissingCodes = agentResult?.summary_structured?.missing_critical ?? [];
+  const effectiveMissingSet = agentMissingCodes.length > 0
+    ? new Set([...missingSet, ...agentMissingCodes])
+    : missingSet;
+
+  const docs: Array<[string, string, Tone]> = allDocCodes.map((code) => [
+    docCodeToKo(code),
+    effectiveMissingSet.has(code) ? "보완 필요" : "확보됨",
+    (effectiveMissingSet.has(code) ? "orange" : "green") as Tone,
+  ]);
 
   return (
     <aside className={styles.todayDetail} data-testid="dashboard-detail-panel">
@@ -534,14 +626,18 @@ function TodayWorkerDetail({
           </svg>
           AI가 준비한 일
         </div>
-        {["필수 서류 체크리스트 검토 완료", "유사 케이스 기반 보완 포인트 도출 완료"].map((item) => (
-          <div className={styles.aiPrepItem} key={item}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M3 8l3.5 3.5 6.5-7" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            {item}
-          </div>
-        ))}
+        {agentResult ? (
+          <AgentPrepSummary result={agentResult} />
+        ) : (
+          <button
+            type="button"
+            className={styles.agentRunButton}
+            disabled={agentLoading || !workerBriefingItem?.primary_action?.action_id}
+            onClick={handleRunAnalysis}
+          >
+            {agentLoading ? "분석 중…" : "에이전트 분석 실행"}
+          </button>
+        )}
       </section>
 
       <section className={styles.detailSection}>
@@ -551,7 +647,7 @@ function TodayWorkerDetail({
             <Card className={styles.riskCard} key={risk.title}>
               <div className={styles.sectionTitle}>
                 <strong>{risk.title}</strong>
-                <Badge tone={worker.statusTone}>{worker.status}</Badge>
+                <Badge tone={SEVERITY_COLOR[risk.severity] ?? "gray"}>{risk.severity}</Badge>
               </div>
               <p>{risk.desc}</p>
               <div className={styles.buttonRow}>
@@ -566,7 +662,7 @@ function TodayWorkerDetail({
         <h3>체류 / 계약</h3>
         <div className={styles.infoGrid}>
           <Card className={styles.panel}><div className={styles.subtle}>체류만료일</div><strong>{worker.visaExpiry}</strong><div className={styles.textOrange}>{worker.dday}</div></Card>
-          <Card className={styles.panel}><div className={styles.subtle}>계약종료일</div><strong>{worker.contractEnd}</strong><div className={styles.subtle}>{isNguyen ? "D-145" : worker.dday}</div></Card>
+          <Card className={styles.panel}><div className={styles.subtle}>계약종료일</div><strong>{worker.contractEnd}</strong><div className={styles.subtle}>{worker.dday}</div></Card>
         </div>
       </section>
 
