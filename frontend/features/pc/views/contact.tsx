@@ -63,6 +63,7 @@ export function ContactView({ onAction }: PcViewProps = {}) {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const requestedWorkerId = searchParams.get("worker_id");
+  const requestedThreadId = searchParams.get("thread_id");
   const requestedActionLabel = searchParams.get("label");
 
   const selectedWorker = useMemo(
@@ -83,12 +84,17 @@ export function ContactView({ onAction }: PcViewProps = {}) {
   }, [selectedThread?.id]);
 
   useEffect(() => {
-    if (!requestedWorkerId || threads.length === 0) return;
-    const found = threads.find((thread) => thread.worker.id === requestedWorkerId);
-    if (found) {
-      void selectThread(found.id);
+    if (threads.length === 0) return;
+    if (requestedThreadId) {
+      const found = threads.find((thread) => thread.id === requestedThreadId);
+      if (found) void selectThread(found.id);
+      return;
     }
-  }, [requestedWorkerId, threads]);
+    if (requestedWorkerId) {
+      const found = threads.find((thread) => thread.worker.id === requestedWorkerId);
+      if (found) void selectThread(found.id);
+    }
+  }, [requestedThreadId, requestedWorkerId, threads]);
 
   async function loadInitial() {
     setLoading(true);

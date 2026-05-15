@@ -39,6 +39,7 @@ class Worker(Base):
     visa_expires_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     contract_starts_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     contract_ends_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    worker_type: Mapped[str] = mapped_column(String(40), nullable=False, default="foreign_worker")
     status: Mapped[str] = mapped_column(String(60), nullable=False, default="ACTIVE")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

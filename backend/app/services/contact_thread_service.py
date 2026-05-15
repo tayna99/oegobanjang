@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -39,6 +39,17 @@ CONTACT_TABLES = [
 
 def ensure_contact_thread_tables(db: Session) -> None:
     Base.metadata.create_all(bind=db.get_bind(), tables=CONTACT_TABLES)
+    _migrate_contact_thread_columns(db)
+
+
+def _migrate_contact_thread_columns(db: Session) -> None:
+    inspector = inspect(db.get_bind())
+    if not inspector.has_table("contact_threads"):
+        return
+    existing = {col["name"] for col in inspector.get_columns("contact_threads")}
+    if "source_action_id" not in existing:
+        db.execute(text("ALTER TABLE contact_threads ADD COLUMN source_action_id VARCHAR(120)"))
+        db.commit()
 
 
 def list_message_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
@@ -85,6 +96,8 @@ def create_message_draft(
     due_date: str | None,
     user_id: str | None,
     db: Session,
+    source_action_id: str | None = None,
+    extra_context: str | None = None,
 ) -> dict[str, Any]:
     ensure_contact_thread_tables(db)
     worker = get_worker_profile_data(worker_id, db=db)
@@ -94,24 +107,37 @@ def create_message_draft(
     resolved_purpose = message_purpose or determine_message_purpose_for_worker(worker_id, db)
     language_code = str(worker.get("preferred_language") or "ko")
     worker_name = _display_worker_name(worker)
-    request = AgentRunRequest(
-        user_request=f"{worker_name}에게 필요한 서류 요청 메시지 초안을 만들어줘.",
-        input_payload={
-            "worker_id": worker_id,
-            "company_id": company_id or worker.get("company_id"),
-            "language_code": language_code,
-            "message_purpose": resolved_purpose,
-            "due_date": due_date,
-            "worker_name": worker_name,
-            "contact_person": "김대리",
-            "created_by": user_id,
-            "persist_result": False,
-        },
-    )
-    result = run_agent(request, db=None)
-    agent_payload = result.agent_results.get("multilingual_contact_agent", {})
-    korean_text = str(agent_payload.get("korean_text") or "담당자 확인이 필요한 메시지 초안입니다.")
-    translated_text = str(agent_payload.get("translated_text") or korean_text)
+
+    if resolved_purpose == "handoff_notification":
+        korean_text = (
+            f"[행정사 전달 알림] {worker_name} 근로자 건에 대해 담당자 검토가 완료되었습니다. "
+            "관련 서류 및 검토 자료를 확인하여 처리해 주시기 바랍니다."
+        )
+        if extra_context:
+            korean_text += f"\n\n{extra_context}"
+        translated_text = korean_text
+    else:
+        user_request = f"{worker_name}에게 필요한 서류 요청 메시지 초안을 만들어줘."
+        if extra_context:
+            user_request += f"\n\n추가 맥락:\n{extra_context}"
+        request = AgentRunRequest(
+            user_request=user_request,
+            input_payload={
+                "worker_id": worker_id,
+                "company_id": company_id or worker.get("company_id"),
+                "language_code": language_code,
+                "message_purpose": resolved_purpose,
+                "due_date": due_date,
+                "worker_name": worker_name,
+                "contact_person": "김대리",
+                "created_by": user_id,
+                "persist_result": False,
+            },
+        )
+        result = run_agent(request, db=None)
+        agent_payload = result.agent_results.get("multilingual_contact_agent", {})
+        korean_text = str(agent_payload.get("korean_text") or "담당자 확인이 필요한 메시지 초안입니다.")
+        translated_text = str(agent_payload.get("translated_text") or korean_text)
 
     ensure_document_requests_for_purpose(
         worker_id=worker_id,
@@ -128,6 +154,7 @@ def create_message_draft(
         title=f"{worker_name} · {title}",
         status="초안",
         company_id=company_id or worker.get("company_id"),
+        source_action_id=source_action_id,
     )
     duplicate = _find_duplicate_outbound_message(
         db,
@@ -191,13 +218,29 @@ def _get_or_create_thread(
     title: str,
     status: str,
     company_id: str | None,
+    source_action_id: str | None = None,
 ) -> ContactThread:
     worker_id = str(worker.get("id"))
-    thread = db.execute(
-        select(ContactThread).where(ContactThread.worker_id == worker_id).order_by(ContactThread.created_at.desc())
-    ).scalars().first()
-    if thread is not None:
-        return thread
+    # action_id + title 조합으로 근로자용/행정사용 thread를 별도 구분
+    if source_action_id:
+        existing = db.execute(
+            select(ContactThread)
+            .where(ContactThread.source_action_id == source_action_id)
+            .where(ContactThread.worker_id == worker_id)
+            .where(ContactThread.title == title)
+            .order_by(ContactThread.created_at.desc())
+        ).scalars().first()
+        if existing is not None:
+            return existing
+    else:
+        thread = db.execute(
+            select(ContactThread)
+            .where(ContactThread.worker_id == worker_id)
+            .where(ContactThread.title == title)
+            .order_by(ContactThread.created_at.desc())
+        ).scalars().first()
+        if thread is not None:
+            return thread
     thread = ContactThread(
         id=_id("thr"),
         company_id=company_id or worker.get("company_id"),
@@ -205,6 +248,7 @@ def _get_or_create_thread(
         channel="portal",
         status=status,
         title=title,
+        source_action_id=source_action_id,
     )
     db.add(thread)
     db.flush()
@@ -237,6 +281,7 @@ def _thread_payload(thread: ContactThread, db: Session, include_messages: bool =
         },
         "title": thread.title,
         "status": thread.status,
+        "source_action_id": thread.source_action_id,
         "last_message_at": thread.last_message_at.isoformat() if thread.last_message_at else None,
         "last_message_preview": (latest.body_ko or latest.body_original)[:90] if latest else "",
         "message_count": len(messages),
@@ -309,6 +354,7 @@ def _load_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
                     "contact_channel": row.contact_channel,
                     "visa_type": row.visa_type,
                     "status": row.status,
+                    "worker_type": getattr(row, "worker_type", "foreign_worker"),
                 }
                 for row in rows
             ]
@@ -362,6 +408,8 @@ def _purpose_label(purpose: str) -> str:
         "photo_request": "증명사진 요청",
         "arc_request": "외국인등록증 사본 요청",
         "safety_training_notice": "안전교육 안내",
+        "missing_document_request": "서류 요청",
+        "handoff_notification": "행정사 전달 알림",
     }.get(purpose, "메시지 초안")
 
 

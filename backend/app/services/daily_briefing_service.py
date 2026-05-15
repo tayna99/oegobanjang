@@ -2172,15 +2172,36 @@ class DailyBriefingService:
             "events": events,
         }
 
+    def _action_types_for_item(self, item: DailyBriefingItem) -> list[str]:
+        """risk_type + 심각도 + 서류 상태 조합으로 액션 조합 결정."""
+        rt = item.risk_type
+        if rt == "visa_expiry":
+            # 만료됐거나 D-14 이하 → 즉시 행정사만
+            if item.expired or (item.d_day is not None and item.d_day <= 14):
+                return ["create_handoff"]
+            # 아직 여유 있고 누락 서류 있음 → 둘 다
+            if item.missing_documents:
+                return ["request_document", "create_handoff"]
+            return ["create_handoff"]
+        if rt == "missing_document":
+            # CRITICAL 누락 → 둘 다, SUPPLEMENTARY → 근로자만
+            if item.severity in ("CRITICAL", "HIGH"):
+                return ["request_document", "create_handoff"]
+            return ["request_document"]
+        if rt == "contract_visa_conflict":
+            return ["create_handoff"]
+        if rt == "candidate_readiness":
+            return ["request_document"]
+        # reporting_deadline, quota_review 등 기타
+        return ["create_handoff"]
+
     def _actions_for_item(
         self,
         item: DailyBriefingItem,
         worker: WorkerRecord,
         citation_ids: list[str],
     ) -> list[NextAction]:
-        action_types = ["create_handoff"]
-        if item.risk_type == "missing_document":
-            action_types.insert(0, "request_document")
+        action_types = self._action_types_for_item(item)
         actions = []
         for action_type in action_types:
             action_id = _stable_id("action", item.case_id, action_type)

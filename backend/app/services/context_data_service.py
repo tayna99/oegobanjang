@@ -152,6 +152,7 @@ def get_worker_profile_data(worker_id: str, *, db: Session | None = None) -> dic
         "contract_starts_at",
         "contract_ends_at",
         "status",
+        "worker_type",
     ]
     with _session_scope(db) as session:
         try:

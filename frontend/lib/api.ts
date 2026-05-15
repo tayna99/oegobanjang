@@ -483,6 +483,88 @@ export async function getHandoffExportArtifacts(
   return response.json();
 }
 
+export const SCRIVENER_WORKER_ID = "750e8400-e29b-41d4-a716-446655440001";
+
+export async function createMessageDraftForAction(payload: {
+  workerId: string;
+  companyId: string;
+  messagePurpose: "missing_document_request" | "handoff_notification";
+  sourceActionId: string;
+  extraContext?: string;
+}): Promise<{ id: string; worker: { id: string }; title: string; status: string }> {
+  const response = await fetch(`${API_BASE_URL}/contact/messages/draft`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...companyHeaders(payload.companyId),
+    },
+    body: JSON.stringify({
+      worker_id: payload.workerId,
+      company_id: payload.companyId,
+      message_purpose: payload.messagePurpose,
+      source_action_id: payload.sourceActionId,
+      extra_context: payload.extraContext,
+    }),
+  });
+  if (!response.ok) throw new Error("메시지 초안 생성 실패");
+  return response.json();
+}
+
+export type AgentReviewResult = {
+  action_id: string;
+  worker_id: string | null;
+  risk_flags: string[];
+  summary: string;
+  summary_structured: {
+    visa_risk?: string;
+    visa_d_day?: number | null;
+    doc_priority?: string;
+    missing_critical?: string[];
+    missing_supplementary?: string[];
+    visa_risk_flags?: string[];
+    doc_risk_flags?: string[];
+    submission_readiness?: string;
+    action_plan?: string[];
+    handoff_triggered?: boolean;
+  };
+};
+
+export async function runAgentReview(
+  actionId: string,
+  companyId = "",
+): Promise<AgentReviewResult> {
+  const response = await fetch(`${API_BASE_URL}/actions/${actionId}/agent-review`, {
+    method: "POST",
+    headers: companyHeaders(companyId),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Agent review failed with ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export type ActionContactThread = {
+  id: string;
+  worker_id: string;
+  title: string;
+  status: string;
+  source_action_id: string | null;
+  last_message_at: string | null;
+};
+
+export async function getActionContactThreads(
+  actionId: string,
+  companyId = "",
+): Promise<ActionContactThread[]> {
+  const response = await fetch(`${API_BASE_URL}/actions/${actionId}/contact-threads`, {
+    headers: companyHeaders(companyId),
+  });
+  if (!response.ok) return [];
+  return response.json();
+}
+
 export async function getCaseAuditReview(
   caseId: string,
   companyId = "",

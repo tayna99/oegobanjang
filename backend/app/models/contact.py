@@ -80,6 +80,7 @@ class ContactThread(Base):
     channel: Mapped[str] = mapped_column(String(40), nullable=False, default="portal")
     status: Mapped[str] = mapped_column(String(40), nullable=False, default="DRAFT")
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    source_action_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     last_message_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
