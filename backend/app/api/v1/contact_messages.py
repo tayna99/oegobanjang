@@ -23,6 +23,8 @@ class DraftMessageRequest(BaseModel):
     message_purpose: str | None = None
     due_date: str | None = None
     user_id: str | None = "user-demo-001"
+    source_action_id: str | None = None
+    extra_context: str | None = None
 
 
 @router.get("/workers")
@@ -62,6 +64,8 @@ def create_contact_message_draft(
             due_date=body.due_date,
             user_id=body.user_id,
             db=db,
+            source_action_id=body.source_action_id,
+            extra_context=body.extra_context,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -12,7 +12,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
 import type { AgentReviewResult } from "../../../lib/api";
-import { runAgentReview } from "../../../lib/api";
+import { createMessageDraftForAction, runAgentReview, SCRIVENER_WORKER_ID } from "../../../lib/api";
 import { adminPackage, contactItems, judgmentRows, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -72,6 +72,7 @@ export type PcViewProps = {
 type TodayTasksViewProps = PcViewProps & {
   briefing?: DailyBriefingResult | null;
   loading?: boolean;
+  onNavigateToMessages?: (threadId: string) => void;
 };
 
 const TASK_STATUS_MAP: Record<string, { label: string; bg: string; fg: string }> = {
@@ -236,7 +237,7 @@ function groupItemsBySubject(items: DailyBriefingItem[]) {
   });
 }
 
-export function TodayTasksView({ briefing, loading = false, onAction }: TodayTasksViewProps = {}) {
+export function TodayTasksView({ briefing, loading = false, onAction, onNavigateToMessages }: TodayTasksViewProps = {}) {
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [selectedSummaryId, setSelectedSummaryId] = useState("all");
   const [detailOpen, setDetailOpen] = useState(false);
@@ -441,7 +442,7 @@ export function TodayTasksView({ briefing, loading = false, onAction }: TodayTas
       </section>
 
       {detailOpen && selectedWorker ? (
-        <TodayWorkerDetail onAction={onAction} onClose={() => setDetailOpen(false)} worker={selectedWorker} briefingItems={briefing?.items} />
+        <TodayWorkerDetail onAction={onAction} onClose={() => setDetailOpen(false)} onNavigateToMessages={onNavigateToMessages} worker={selectedWorker} briefingItems={briefing?.items} />
       ) : null}
     </div>
   );
@@ -519,7 +520,17 @@ function buildRisksFromBriefingItem(item: DailyBriefingItem) {
   return risks;
 }
 
-function AgentPrepSummary({ result }: { result: AgentReviewResult }) {
+function AgentPrepSummary({
+  result,
+  onSendToWorker,
+  onSendToScrivener,
+  sending,
+}: {
+  result: AgentReviewResult;
+  onSendToWorker?: () => void;
+  onSendToScrivener?: () => void;
+  sending?: "worker" | "scrivener" | null;
+}) {
   const s = result.summary_structured;
   const readinessTone = s.submission_readiness === "신청 가능" ? "green" : s.submission_readiness === "부분 준비" ? "orange" : "red";
   return (
@@ -566,6 +577,33 @@ function AgentPrepSummary({ result }: { result: AgentReviewResult }) {
           ))}
         </details>
       )}
+
+      {/* 메시지 생성 버튼 */}
+      {((s.missing_critical && s.missing_critical.length > 0) || s.handoff_triggered) && (
+        <div className={styles.agentSection}>
+          <div className={styles.agentSectionTitle}>메시지 보내기</div>
+          {s.missing_critical && s.missing_critical.length > 0 && onSendToWorker && (
+            <button
+              type="button"
+              className={styles.agentMsgButton}
+              disabled={sending === "worker"}
+              onClick={onSendToWorker}
+            >
+              {sending === "worker" ? "생성 중…" : "근로자에게 서류 요청 메시지 만들기"}
+            </button>
+          )}
+          {s.handoff_triggered && onSendToScrivener && (
+            <button
+              type="button"
+              className={cn(styles.agentMsgButton, styles.agentMsgButtonScrivener)}
+              disabled={sending === "scrivener"}
+              onClick={onSendToScrivener}
+            >
+              {sending === "scrivener" ? "생성 중…" : "행정사에게 검토 패키지 메시지 만들기"}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -573,17 +611,23 @@ function AgentPrepSummary({ result }: { result: AgentReviewResult }) {
 function TodayWorkerDetail({
   onAction,
   onClose,
+  onNavigateToMessages,
   worker,
   briefingItems,
 }: {
   onAction?: (action: PcViewAction) => void;
   onClose: () => void;
+  onNavigateToMessages?: (threadId: string) => void;
   worker: (typeof workers)[number];
   briefingItems?: DailyBriefingItem[];
 }) {
   const workerBriefingItem = briefingItems?.find((i) => i.subject_id === worker.id) ?? null;
   const [agentResult, setAgentResult] = useState<AgentReviewResult | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
+  const [msgSending, setMsgSending] = useState<"worker" | "scrivener" | null>(null);
+
+  const realWorkerId = workerBriefingItem?.subject_id ?? worker.id;
+  const companyId = "550e8400-e29b-41d4-a716-446655440001";
 
   async function handleRunAnalysis() {
     const actionId = workerBriefingItem?.primary_action?.action_id;
@@ -594,6 +638,59 @@ function TodayWorkerDetail({
       setAgentResult(result);
     } finally {
       setAgentLoading(false);
+    }
+  }
+
+  async function handleSendToWorker() {
+    const actionId = workerBriefingItem?.primary_action?.action_id;
+    if (!actionId || !agentResult) return;
+    setMsgSending("worker");
+    try {
+      const missingDocs = agentResult.summary_structured.missing_critical ?? [];
+      const extraContext = missingDocs.length > 0
+        ? `누락 서류: ${missingDocs.join(", ")}. 빠른 시일 내 제출 부탁드립니다.`
+        : undefined;
+      const thread = await createMessageDraftForAction({
+        workerId: realWorkerId,
+        companyId,
+        messagePurpose: "missing_document_request",
+        sourceActionId: actionId,
+        extraContext,
+      });
+      onNavigateToMessages?.(thread.id);
+    } finally {
+      setMsgSending(null);
+    }
+  }
+
+  async function handleSendToScrivener() {
+    const actionId = workerBriefingItem?.primary_action?.action_id;
+    if (!actionId || !agentResult) return;
+    setMsgSending("scrivener");
+    try {
+      const s = agentResult.summary_structured;
+      const lines = [
+        "■ 상황 요약",
+        s.visa_risk ? `- 위험도: ${s.visa_risk}` : null,
+        s.missing_critical?.length
+          ? `- 누락 필수 서류: ${s.missing_critical.join(", ")}`
+          : null,
+        s.submission_readiness
+          ? `- 신청 가능 여부: ${s.submission_readiness}`
+          : null,
+        "\n■ 요청 사항",
+        "체류 연장 신청 검토 및 서류 준비를 도와주시기 바랍니다.",
+      ].filter(Boolean).join("\n");
+      const thread = await createMessageDraftForAction({
+        workerId: SCRIVENER_WORKER_ID,
+        companyId,
+        messagePurpose: "handoff_notification",
+        sourceActionId: actionId,
+        extraContext: lines,
+      });
+      onNavigateToMessages?.(thread.id);
+    } finally {
+      setMsgSending(null);
     }
   }
 
@@ -656,7 +753,12 @@ function TodayWorkerDetail({
           AI가 준비한 일
         </div>
         {agentResult ? (
-          <AgentPrepSummary result={agentResult} />
+          <AgentPrepSummary
+            result={agentResult}
+            onSendToWorker={handleSendToWorker}
+            onSendToScrivener={handleSendToScrivener}
+            sending={msgSending}
+          />
         ) : (
           <button
             type="button"

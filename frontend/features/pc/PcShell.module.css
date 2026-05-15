@@ -1359,6 +1359,31 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+.agentMsgButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 14px;
+  border-radius: 8px;
+  border: 1px solid #10b981;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+.agentMsgButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.agentMsgButtonScrivener {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
 .nextTaskItem {
   display: flex;
   align-items: center;

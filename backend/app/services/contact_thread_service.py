@@ -97,6 +97,7 @@ def create_message_draft(
     user_id: str | None,
     db: Session,
     source_action_id: str | None = None,
+    extra_context: str | None = None,
 ) -> dict[str, Any]:
     ensure_contact_thread_tables(db)
     worker = get_worker_profile_data(worker_id, db=db)
@@ -112,10 +113,15 @@ def create_message_draft(
             f"[행정사 전달 알림] {worker_name} 근로자 건에 대해 담당자 검토가 완료되었습니다. "
             "관련 서류 및 검토 자료를 확인하여 처리해 주시기 바랍니다."
         )
+        if extra_context:
+            korean_text += f"\n\n{extra_context}"
         translated_text = korean_text
     else:
+        user_request = f"{worker_name}에게 필요한 서류 요청 메시지 초안을 만들어줘."
+        if extra_context:
+            user_request += f"\n\n추가 맥락:\n{extra_context}"
         request = AgentRunRequest(
-            user_request=f"{worker_name}에게 필요한 서류 요청 메시지 초안을 만들어줘.",
+            user_request=user_request,
             input_payload={
                 "worker_id": worker_id,
                 "company_id": company_id or worker.get("company_id"),

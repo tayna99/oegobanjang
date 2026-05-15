@@ -85,6 +85,7 @@ function renderView(
   onAction: (action: PcViewAction) => void,
   briefing: DailyBriefingResult | null,
   loading: boolean,
+  onNavigateToMessages?: (threadId: string) => void,
 ) {
   if (view === "hiring") return <HiringPreparationView onAction={onAction} />;
   if (view === "workers") return <WorkersView onAction={onAction} />;
@@ -92,7 +93,7 @@ function renderView(
   if (view === "cases") return <CasesView onAction={onAction} />;
   if (view === "admin") return <AdminReviewView onAction={onAction} />;
   if (view === "judgment") return <JudgmentLogView onAction={onAction} />;
-  return <TodayTasksView briefing={briefing} loading={loading} onAction={onAction} />;
+  return <TodayTasksView briefing={briefing} loading={loading} onAction={onAction} onNavigateToMessages={onNavigateToMessages} />;
 }
 
 type InfoPanel = {
@@ -416,7 +417,11 @@ export function PcShell({
       </header>
 
       <main className={styles.main}>
-        {children ?? renderView(activeView, (action) => void handleAction(action), workflow.briefing, workflow.loading)}
+        {children ?? renderView(activeView, (action) => void handleAction(action), workflow.briefing, workflow.loading, (threadId) => {
+          const params = new URLSearchParams();
+          params.set("thread_id", threadId);
+          router.push(`/contacts?${params.toString()}`);
+        })}
       </main>
 
       <button className={styles.fab} data-testid="ai-fab" onClick={() => setChatOpen(true)} type="button">
