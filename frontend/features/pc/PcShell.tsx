@@ -802,15 +802,19 @@ function HandoffReadablePreview({
     borderBottom: "1px solid #EEF2F7",
   };
 
-  useEffect(() => {
+  async function handleRunAgentReview() {
     if (!action) return;
     setAgentLoading(true);
     setAgentError(null);
-    runAgentReview(action.action_id, companyId)
-      .then((result) => setAgentResult(result))
-      .catch((err) => setAgentError(err instanceof Error ? err.message : "분석 실패"))
-      .finally(() => setAgentLoading(false));
-  }, [action?.action_id, companyId]);
+    try {
+      const result = await runAgentReview(action.action_id, companyId);
+      setAgentResult(result);
+    } catch (err) {
+      setAgentError(err instanceof Error ? err.message : "분석 실패");
+    } finally {
+      setAgentLoading(false);
+    }
+  }
 
   async function handleDocumentDraftOpen() {
     if (!documentAction) return;
@@ -832,13 +836,21 @@ function HandoffReadablePreview({
 
       {action ? (
         <div>
-          {agentLoading ? (
-            <div style={{ fontSize: 13, color: "#64748B", padding: "8px 0" }}>에이전트 분석 중…</div>
-          ) : agentResult ? (
+          {agentResult ? (
             <AgentSummaryBox result={agentResult} />
           ) : agentError ? (
             <p style={{ color: "#EF4444", fontSize: 12 }}>{agentError}</p>
           ) : null}
+          {!agentResult && (
+            <button
+              type="button"
+              disabled={agentLoading}
+              onClick={handleRunAgentReview}
+              style={{ border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: agentLoading ? "not-allowed" : "pointer", opacity: agentLoading ? 0.6 : 1, background: "#F1F5F9", color: "#1E293B" }}
+            >
+              {agentLoading ? "에이전트 분석 중…" : "에이전트 분석 실행"}
+            </button>
+          )}
         </div>
       ) : null}
 
