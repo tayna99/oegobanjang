@@ -1384,6 +1384,33 @@
   background: #eff6ff;
   color: #1d4ed8;
 }
+.agentDocPresent {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: #065f46;
+}
+.agentDraftBanner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 11px 14px;
+  margin-top: 8px;
+  border-radius: 10px;
+  border: 1px solid #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.agentDraftBanner:hover {
+  background: #dbeafe;
+}
 .nextTaskItem {
   display: flex;
   align-items: center;

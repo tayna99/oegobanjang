@@ -85,6 +85,11 @@ def assess_document_priority(
 
     critical_missing: list[dict[str, str]] = []
     supplementary_missing: list[dict[str, str]] = []
+    present_docs: list[dict[str, str]] = []
+
+    for doc_code in result.get("present", []):
+        code = str(doc_code)
+        present_docs.append({"doc_type": code, "label": _doc_code_to_ko(code)})
 
     for item in result.get("missing", []):
         doc_type = str(item.get("doc_type") or "")
@@ -125,6 +130,7 @@ def assess_document_priority(
             "worker_id": worker_id,
             "case_type": case_type,
             "visa_type": worker.get("visa_type"),
+            "present_docs": present_docs,
             "critical_missing": critical_missing,
             "critical_missing_count": critical_count,
             "supplementary_missing": supplementary_missing,

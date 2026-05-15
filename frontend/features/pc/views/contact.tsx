@@ -46,10 +46,20 @@ type ContactThread = {
   worker: WorkerOption;
   title: string;
   status: string;
+  message_type?: string | null;
   last_message_at?: string;
   last_message_preview?: string;
   message_count: number;
   messages?: ContactMessage[];
+};
+
+type FilterType = "all" | "worker_message" | "scrivener_handoff" | "pending_approval";
+
+const FILTER_LABELS: Record<FilterType, string> = {
+  all: "전체",
+  worker_message: "근로자 메시지",
+  scrivener_handoff: "행정사 메시지",
+  pending_approval: "승인 대기",
 };
 
 export function ContactView({ onAction }: PcViewProps = {}) {
@@ -62,6 +72,7 @@ export function ContactView({ onAction }: PcViewProps = {}) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const requestedWorkerId = searchParams.get("worker_id");
   const requestedThreadId = searchParams.get("thread_id");
   const requestedActionLabel = searchParams.get("label");
@@ -162,6 +173,12 @@ export function ContactView({ onAction }: PcViewProps = {}) {
     }
   }
 
+  const filteredThreads = useMemo(() => {
+    if (activeFilter === "all") return threads;
+    if (activeFilter === "pending_approval") return threads.filter((t) => t.status === "초안" || t.status === "DRAFT");
+    return threads.filter((t) => t.message_type === activeFilter);
+  }, [threads, activeFilter]);
+
   const detailWorker = selectedThread?.worker;
   const messages = selectedThread?.messages ?? [];
   const workerLanguageLabel = detailWorker?.language_label ?? selectedWorker?.language_label ?? "원문";
@@ -184,17 +201,39 @@ export function ContactView({ onAction }: PcViewProps = {}) {
       <div style={{ display: "grid", gridTemplateColumns: "260px minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
         <aside className={styles.contactList}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid #E5EAF3" }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: "#64748B" }}>
-              메시지 목록 · {threads.length}건
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#64748B", marginBottom: 8 }}>
+              메시지 목록 · {filteredThreads.length}건
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {(Object.keys(FILTER_LABELS) as FilterType[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setActiveFilter(key)}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: 6,
+                    border: "1px solid",
+                    borderColor: activeFilter === key ? "#2563EB" : "#CBD5E1",
+                    background: activeFilter === key ? "#2563EB" : "#fff",
+                    color: activeFilter === key ? "#fff" : "#475569",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {FILTER_LABELS[key]}
+                </button>
+              ))}
             </div>
           </div>
 
           {loading ? (
             <div style={emptyStyle}>불러오는 중입니다.</div>
-          ) : threads.length === 0 ? (
+          ) : filteredThreads.length === 0 ? (
             <div style={emptyStyle}>메시지가 없습니다.</div>
           ) : (
-            threads.map((thread) => {
+            filteredThreads.map((thread) => {
               const selected = selectedThread?.id === thread.id;
               return (
                 <button

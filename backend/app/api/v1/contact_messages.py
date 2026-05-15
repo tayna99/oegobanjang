@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -38,9 +38,13 @@ def get_contact_workers(
 @router.get("/threads")
 def get_contact_threads(
     company_id: str | None = None,
+    message_type: str | None = Query(default=None),
     db: Session = Depends(get_sync_db),
 ) -> dict[str, Any]:
-    return {"threads": list_threads(company_id, db)}
+    threads = list_threads(company_id, db)
+    if message_type:
+        threads = [t for t in threads if t.get("message_type") == message_type]
+    return {"threads": threads}
 
 
 @router.get("/threads/{thread_id}")

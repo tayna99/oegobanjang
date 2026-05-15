@@ -3,7 +3,7 @@ id,case_type,visa_type,required_doc,required,source_id,notes,created_at
 850e8400-e29b-41d4-a716-446655440002,stay_extension,E-9,passport_copy,true,MOE-E9-001,여권 사본,2026-05-03
 850e8400-e29b-41d4-a716-446655440003,stay_extension,E-9,alien_registration,true,MOE-E9-001,외국인등록증 사본,2026-05-03
 850e8400-e29b-41d4-a716-446655440004,stay_extension,E-9,work_permit,true,MOE-E9-001,고용허가서 사본,2026-05-03
-850e8400-e29b-41d4-a716-446655440005,stay_extension,E-9,labor_contract,true,MOE-E9-002,근로계약서,2026-05-03
+850e8400-e29b-41d4-a716-446655440005,stay_extension,E-9,labor_contract,false,MOE-E9-002,근로계약서(employment_contract 제출 시 선택),2026-05-03
 850e8400-e29b-41d4-a716-446655440006,stay_extension,E-9,health_certificate,false,MOE-E9-003,건강검진 결과서,2026-05-03
 850e8400-e29b-41d4-a716-446655440007,stay_extension,E-9,criminal_record,false,MOE-E9-004,범죄경력 조회서,2026-05-03
 850e8400-e29b-41d4-a716-446655440008,employment_change,E-9,employment_contract,true,MOE-E9-001,신규 근로계약서,2026-05-03

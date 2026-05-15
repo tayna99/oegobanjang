@@ -525,14 +525,19 @@ function AgentPrepSummary({
   onSendToWorker,
   onSendToScrivener,
   sending,
+  createdCount,
+  onGoToMessages,
 }: {
   result: AgentReviewResult;
   onSendToWorker?: () => void;
   onSendToScrivener?: () => void;
   sending?: "worker" | "scrivener" | null;
+  createdCount?: number;
+  onGoToMessages?: () => void;
 }) {
   const s = result.summary_structured;
   const readinessTone = s.submission_readiness === "신청 가능" ? "green" : s.submission_readiness === "부분 준비" ? "orange" : "red";
+  const hasDocSection = (s.present_docs && s.present_docs.length > 0) || (s.missing_critical && s.missing_critical.length > 0) || (s.missing_supplementary && s.missing_supplementary.length > 0);
   return (
     <div className={styles.agentSummaryFull}>
       {s.action_plan && s.action_plan.length > 0 && (
@@ -546,12 +551,17 @@ function AgentPrepSummary({
           ))}
         </div>
       )}
-      {((s.missing_critical && s.missing_critical.length > 0) || (s.missing_supplementary && s.missing_supplementary.length > 0)) && (
+      {hasDocSection && (
         <div className={styles.agentSection}>
           <div className={styles.agentSectionTitle}>서류 현황</div>
+          {s.present_docs?.map((doc) => (
+            <div className={styles.agentDocPresent} key={doc}>
+              <Badge tone="green">확보됨</Badge> {doc}
+            </div>
+          ))}
           {s.missing_critical?.map((doc) => (
             <div className={styles.agentDocMissing} key={doc}>
-              <Badge tone="red">필수</Badge> {doc}
+              <Badge tone="red">필수 누락</Badge> {doc}
             </div>
           ))}
           {s.missing_supplementary?.map((doc) => (
@@ -576,6 +586,17 @@ function AgentPrepSummary({
             <div className={styles.agentFlagItem} key={i}>{flag}</div>
           ))}
         </details>
+      )}
+
+      {/* 초안 생성 완료 배너 */}
+      {createdCount != null && createdCount > 0 && onGoToMessages && (
+        <button
+          type="button"
+          className={styles.agentDraftBanner}
+          onClick={onGoToMessages}
+        >
+          {createdCount}건 초안 생성됨 → 메시지 관리에서 검토하기
+        </button>
       )}
 
       {/* 메시지 생성 버튼 */}
@@ -625,6 +646,8 @@ function TodayWorkerDetail({
   const [agentResult, setAgentResult] = useState<AgentReviewResult | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
   const [msgSending, setMsgSending] = useState<"worker" | "scrivener" | null>(null);
+  const [createdThreadIds, setCreatedThreadIds] = useState<string[]>([]);
+  const [lastCreatedThreadId, setLastCreatedThreadId] = useState<string | null>(null);
 
   const realWorkerId = workerBriefingItem?.subject_id ?? worker.id;
   const companyId = "550e8400-e29b-41d4-a716-446655440001";
@@ -633,6 +656,8 @@ function TodayWorkerDetail({
     const actionId = workerBriefingItem?.primary_action?.action_id;
     if (!actionId) return;
     setAgentLoading(true);
+    setCreatedThreadIds([]);
+    setLastCreatedThreadId(null);
     try {
       const result = await runAgentReview(actionId);
       setAgentResult(result);
@@ -646,10 +671,16 @@ function TodayWorkerDetail({
     if (!actionId || !agentResult) return;
     setMsgSending("worker");
     try {
-      const missingDocs = agentResult.summary_structured.missing_critical ?? [];
-      const extraContext = missingDocs.length > 0
-        ? `누락 서류: ${missingDocs.join(", ")}. 빠른 시일 내 제출 부탁드립니다.`
-        : undefined;
+      const s = agentResult.summary_structured;
+      const missingDocs = s.missing_critical ?? [];
+      const dDay = s.visa_d_day != null ? `D-${s.visa_d_day}` : null;
+      const contextLines = [
+        "누락 서류 목록:",
+        ...missingDocs.map((doc) => `- ${doc} (필수)`),
+        dDay ? `\n제출 기한: ${dDay} 이내` : null,
+        "\n참고: 서류 제출 후 담당자가 확인 연락드립니다.",
+      ].filter(Boolean).join("\n");
+      const extraContext = missingDocs.length > 0 ? contextLines : undefined;
       const thread = await createMessageDraftForAction({
         workerId: realWorkerId,
         companyId,
@@ -657,7 +688,8 @@ function TodayWorkerDetail({
         sourceActionId: actionId,
         extraContext,
       });
-      onNavigateToMessages?.(thread.id);
+      setCreatedThreadIds((prev) => [...prev, thread.id]);
+      setLastCreatedThreadId(thread.id);
     } finally {
       setMsgSending(null);
     }
@@ -671,15 +703,17 @@ function TodayWorkerDetail({
       const s = agentResult.summary_structured;
       const lines = [
         "■ 상황 요약",
+        s.visa_d_day != null ? `- 체류 만료: D-${s.visa_d_day}` : null,
         s.visa_risk ? `- 위험도: ${s.visa_risk}` : null,
-        s.missing_critical?.length
-          ? `- 누락 필수 서류: ${s.missing_critical.join(", ")}`
-          : null,
-        s.submission_readiness
-          ? `- 신청 가능 여부: ${s.submission_readiness}`
-          : null,
+        s.missing_critical?.length ? "\n■ 필수 누락 서류" : null,
+        ...(s.missing_critical?.map((d) => `- ${d} (필수)`) ?? []),
+        s.missing_supplementary?.length ? "\n■ 선택 누락 서류" : null,
+        ...(s.missing_supplementary?.map((d) => `- ${d}`) ?? []),
+        s.present_docs?.length ? "\n■ 보유 확인 서류" : null,
+        ...(s.present_docs?.map((d) => `- ${d} ✓`) ?? []),
+        `\n■ 신청 가능 여부: ${s.submission_readiness ?? ""}`,
         "\n■ 요청 사항",
-        "체류 연장 신청 검토 및 서류 준비를 도와주시기 바랍니다.",
+        "위 내용 확인 후 체류 연장 신청 검토 및 서류 준비를 도와주시기 바랍니다.",
       ].filter(Boolean).join("\n");
       const thread = await createMessageDraftForAction({
         workerId: realWorkerId,
@@ -688,9 +722,16 @@ function TodayWorkerDetail({
         sourceActionId: actionId,
         extraContext: lines,
       });
-      onNavigateToMessages?.(thread.id);
+      setCreatedThreadIds((prev) => [...prev, thread.id]);
+      setLastCreatedThreadId(thread.id);
     } finally {
       setMsgSending(null);
+    }
+  }
+
+  function handleGoToMessages() {
+    if (lastCreatedThreadId) {
+      onNavigateToMessages?.(lastCreatedThreadId);
     }
   }
 
@@ -758,6 +799,8 @@ function TodayWorkerDetail({
             onSendToWorker={handleSendToWorker}
             onSendToScrivener={handleSendToScrivener}
             sending={msgSending}
+            createdCount={createdThreadIds.length}
+            onGoToMessages={handleGoToMessages}
           />
         ) : (
           <button

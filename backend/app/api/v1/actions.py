@@ -120,14 +120,6 @@ def run_agent_review(
     case = service.repository.cases.get(action.case_id)
     worker_id: str | None = case.worker_id if case else None
 
-    all_briefing_items = [
-        item
-        for briefing in service.repository.briefings.values()
-        for item in briefing.items
-    ]
-    item = next((i for i in all_briefing_items if i.case_id == action.case_id), None)
-    item_missing: list[str] = item.missing_documents if item else []
-
     try:
         state = ForeignHiringState(request_id=f"review_{action_id}")
         result = run_visa_agent(state, worker_id=worker_id)
@@ -152,11 +144,17 @@ def run_agent_review(
 
     raw_critical = doc_output.get("critical_missing", [])
     raw_supplementary = doc_output.get("supplementary_missing", [])
+    raw_present = doc_output.get("present_docs", [])
     missing_critical_codes = [
         d["doc_type"] for d in raw_critical if isinstance(d, dict) and d.get("doc_type")
-    ] or item_missing
+    ]
     missing_supplementary_codes = [
         d["doc_type"] for d in raw_supplementary if isinstance(d, dict) and d.get("doc_type")
+    ]
+    present_doc_codes = [
+        d["doc_type"] if isinstance(d, dict) else str(d)
+        for d in raw_present
+        if d
     ]
     submission_readiness: str = doc_output.get("submission_readiness", "")
 
@@ -180,6 +178,7 @@ def run_agent_review(
         "visa_risk_flags": visa_sub.get("risk_flags", []),
         "doc_risk_flags": doc_sub.get("risk_flags", []),
         "missing_supplementary": _doc_codes_to_ko(missing_supplementary_codes),
+        "present_docs": _doc_codes_to_ko(present_doc_codes),
         "submission_readiness": submission_readiness,
         "action_plan": _build_action_plan(risk_flags, missing_critical_codes, handoff_triggered, visa_d_day),
         "handoff_triggered": handoff_triggered,

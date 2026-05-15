@@ -50,6 +50,9 @@ def _migrate_contact_thread_columns(db: Session) -> None:
     if "source_action_id" not in existing:
         db.execute(text("ALTER TABLE contact_threads ADD COLUMN source_action_id VARCHAR(120)"))
         db.commit()
+    if "message_type" not in existing:
+        db.execute(text("ALTER TABLE contact_threads ADD COLUMN message_type VARCHAR(40)"))
+        db.commit()
 
 
 def list_message_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
@@ -148,6 +151,7 @@ def create_message_draft(
     )
 
     title = _purpose_label(resolved_purpose)
+    msg_type = "scrivener_handoff" if resolved_purpose == "handoff_notification" else "worker_message"
     thread = _get_or_create_thread(
         db,
         worker=worker,
@@ -155,6 +159,7 @@ def create_message_draft(
         status="초안",
         company_id=company_id or worker.get("company_id"),
         source_action_id=source_action_id,
+        message_type=msg_type,
     )
     duplicate = _find_duplicate_outbound_message(
         db,
@@ -219,6 +224,7 @@ def _get_or_create_thread(
     status: str,
     company_id: str | None,
     source_action_id: str | None = None,
+    message_type: str | None = None,
 ) -> ContactThread:
     worker_id = str(worker.get("id"))
     # action_id + title 조합으로 근로자용/행정사용 thread를 별도 구분
@@ -249,6 +255,7 @@ def _get_or_create_thread(
         status=status,
         title=title,
         source_action_id=source_action_id,
+        message_type=message_type,
     )
     db.add(thread)
     db.flush()
@@ -282,6 +289,7 @@ def _thread_payload(thread: ContactThread, db: Session, include_messages: bool =
         "title": thread.title,
         "status": thread.status,
         "source_action_id": thread.source_action_id,
+        "message_type": getattr(thread, "message_type", None),
         "last_message_at": thread.last_message_at.isoformat() if thread.last_message_at else None,
         "last_message_preview": (latest.body_ko or latest.body_original)[:90] if latest else "",
         "message_count": len(messages),

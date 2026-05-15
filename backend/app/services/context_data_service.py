@@ -198,8 +198,20 @@ def get_worker_documents_data(worker_id: str, *, db: Session | None = None) -> l
                     select(WorkerDocument).where(WorkerDocument.worker_id == worker_id)
                 )
             )
-            if rows:
+            # DB에 SUBMITTED/APPROVED 상태 레코드가 있으면 DB 데이터 사용
+            # REQUESTED/PENDING 레코드만 있으면 실제 제출 상태를 모르므로 CSV seed와 병합
+            submitted_rows = [r for r in rows if str(getattr(r, "status", "")).upper() in READY_DOCUMENT_STATUSES]
+            if submitted_rows:
                 return [_model_dict(row, fields) for row in rows]
+            if rows:
+                # DB에 레코드는 있지만 모두 비제출 상태 — CSV seed를 추가로 확인해 병합
+                db_result = [_model_dict(row, fields) for row in rows]
+                seed_result = [r for r in _seed_rows("worker_documents.csv") if r.get("worker_id") == worker_id]
+                # CSV SUBMITTED 레코드가 DB 레코드를 override (DB의 REQUESTED 상태 대신 CSV의 SUBMITTED 신뢰)
+                seed_submitted_types = {str(r.get("doc_type")) for r in seed_result if str(r.get("status", "")).upper() in READY_DOCUMENT_STATUSES}
+                merged = [r for r in db_result if str(r.get("doc_type") or "") not in seed_submitted_types]
+                extra = [r for r in seed_result if str(r.get("doc_type")) in seed_submitted_types]
+                return merged + extra
         except SQLAlchemyError:
             pass
 
