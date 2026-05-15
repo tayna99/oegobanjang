@@ -439,7 +439,7 @@ export function TodayTasksView({ briefing, loading = false, onAction }: TodayTas
       </section>
 
       {detailOpen && selectedWorker ? (
-        <TodayWorkerDetail onAction={onAction} onClose={() => setDetailOpen(false)} worker={selectedWorker} />
+        <TodayWorkerDetail onAction={onAction} onClose={() => setDetailOpen(false)} worker={selectedWorker} briefingItems={briefing?.items} />
       ) : null}
     </div>
   );
@@ -449,11 +449,14 @@ function TodayWorkerDetail({
   onAction,
   onClose,
   worker,
+  briefingItems,
 }: {
   onAction?: (action: PcViewAction) => void;
   onClose: () => void;
   worker: (typeof workers)[number];
+  briefingItems?: DailyBriefingItem[];
 }) {
+  const workerBriefingItem = briefingItems?.find((i) => i.subject_id === worker.id) ?? null;
   const isNguyen = worker.id === "w_nguyen";
   const isBayar = worker.id === "w_bayar";
   const risks = isNguyen
@@ -587,7 +590,7 @@ function TodayWorkerDetail({
               <strong>체류기간 연장 검토 자료 만들기</strong>
               <p className={styles.subtle}>행정사에게 전달할 검토 패키지를 사람 읽기 좋은 문서 형태로 확인합니다.</p>
             </div>
-            <Button data-testid="action-handoff" variant="secondary" onClick={() => onAction?.({ kind: "handoff-preview", label: "행정사 전달 문서 보기" })}>검토 자료 보기</Button>
+            <Button data-testid="action-handoff" variant="secondary" onClick={() => onAction?.({ kind: "handoff-preview", label: "행정사 전달 문서 보기", subjectId: worker.id, subjectName: worker.name, riskType: workerBriefingItem?.risk_type ?? null })}>검토 자료 보기</Button>
           </Card>
         </div>
       </section>
