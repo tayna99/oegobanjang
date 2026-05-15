@@ -178,17 +178,24 @@ export function PcShell({
   }
 
   async function openHandoffPreview(action?: NextAction | null) {
-    if (action) {
-      const briefingItem = workflow.briefing?.items?.find((i) => i.case_id === action.case_id) ?? null;
-      setPanel({
-        title: "행정사 검토 자료",
-        body: <HandoffReadablePreview action={action} briefingItem={briefingItem} companyId={workflow.companyId} />,
-      });
-      return;
-    }
+    const briefingItem = action
+      ? (workflow.briefing?.items?.find((i) => i.case_id === action.case_id) ?? null)
+      : null;
+    const documentActionForWorker = action
+      ? (actions.find((a) => a.subject_id === action.subject_id && a.action_type === "request_document") ?? documentAction)
+      : documentAction;
     setPanel({
       title: "행정사 검토 자료",
-      body: <HandoffReadablePreview action={null} briefingItem={null} companyId={workflow.companyId} />,
+      body: (
+        <HandoffReadablePreview
+          action={action ?? null}
+          briefingItem={briefingItem}
+          companyId={workflow.companyId}
+          workflow={workflow}
+          documentAction={documentActionForWorker ?? null}
+          onClose={() => setPanel(null)}
+        />
+      ),
     });
   }
 
@@ -440,6 +447,9 @@ export function PcShell({
             action={handoffAction}
             briefingItem={workflow.briefing?.items?.find((i) => i.case_id === handoffAction?.case_id) ?? null}
             companyId={workflow.companyId}
+            workflow={workflow}
+            documentAction={documentAction}
+            onClose={() => workflow.setPreview(null)}
           />
         </PcDrawer>
       ) : null}
@@ -617,14 +627,168 @@ function AgentSummaryBox({ result }: { result: AgentReviewResult }) {
   );
 }
 
+function ReviewActionBar({
+  action,
+  workflow,
+  documentAction,
+  onDocumentDraftOpen,
+}: {
+  action: NextAction | null;
+  workflow: ReturnType<typeof useDailyBriefingWorkflow>;
+  documentAction: NextAction | null;
+  onDocumentDraftOpen: () => void;
+}) {
+  const [working, setWorking] = useState(false);
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [deliveryCreated, setDeliveryCreated] = useState(false);
+  const [revisionMode, setRevisionMode] = useState(false);
+  const [revisionReason, setRevisionReason] = useState("");
+
+  const status = localStatus ?? action?.status ?? null;
+
+  async function handleApprove() {
+    if (!action) return;
+    setWorking(true);
+    try {
+      const result = await workflow.approve(action);
+      if (result) setLocalStatus("approved");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function handleReject() {
+    if (!action) return;
+    setWorking(true);
+    try {
+      const result = await workflow.reject(action);
+      if (result) setLocalStatus("rejected");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function handleRevision() {
+    if (!action || !revisionReason.trim()) return;
+    setWorking(true);
+    try {
+      const result = await workflow.requestActionRevision(action, revisionReason);
+      if (result) { setLocalStatus("revision_requested"); setRevisionMode(false); }
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function handleDelivery() {
+    if (!action) return;
+    setWorking(true);
+    try {
+      const job = await workflow.createDeliveryJob(action);
+      if (job) setDeliveryCreated(true);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  const btnBase: React.CSSProperties = { border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: working ? "not-allowed" : "pointer", opacity: working ? 0.6 : 1 };
+
+  if (!action) {
+    return <p style={{ fontSize: 13, color: "#94A3B8" }}>연결된 액션이 없습니다.</p>;
+  }
+
+  if (status === "rejected") {
+    return (
+      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#991B1B", fontWeight: 600 }}>
+        거절됨
+      </div>
+    );
+  }
+
+  if (status === "revision_requested") {
+    return (
+      <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#92400E", fontWeight: 600 }}>
+        수정 요청됨
+      </div>
+    );
+  }
+
+  if (status === "approved") {
+    return (
+      <div className={styles.modalStack}>
+        <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#166534", fontWeight: 600 }}>
+          승인됨 ✓
+        </div>
+        {deliveryCreated ? (
+          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#475569" }}>
+            행정사 전달 대기 중 — 수동 발송 준비 완료
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" disabled={working} onClick={handleDelivery} style={{ ...btnBase, background: "#1D4ED8", color: "#fff" }}>
+              행정사에게 전달
+            </button>
+            {documentAction ? (
+              <button type="button" onClick={onDocumentDraftOpen} style={{ ...btnBase, background: "#F1F5F9", color: "#1E293B" }}>
+                서류 요청 초안 보기
+              </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.modalStack}>
+      {revisionMode ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <textarea
+            value={revisionReason}
+            onChange={(e) => setRevisionReason(e.target.value)}
+            placeholder="수정 요청 사유를 입력하세요"
+            rows={3}
+            style={{ fontSize: 13, padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", resize: "vertical" }}
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" disabled={working || !revisionReason.trim()} onClick={handleRevision} style={{ ...btnBase, background: "#F59E0B", color: "#fff" }}>
+              {working ? "처리 중…" : "수정 요청 전송"}
+            </button>
+            <button type="button" onClick={() => setRevisionMode(false)} style={{ ...btnBase, background: "#F1F5F9", color: "#64748B" }}>
+              취소
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button type="button" disabled={working} onClick={handleApprove} style={{ ...btnBase, background: "#16A34A", color: "#fff" }}>
+            {working ? "처리 중…" : "승인"}
+          </button>
+          <button type="button" disabled={working} onClick={() => setRevisionMode(true)} style={{ ...btnBase, background: "#F59E0B", color: "#fff" }}>
+            수정 요청
+          </button>
+          <button type="button" disabled={working} onClick={handleReject} style={{ ...btnBase, background: "#EF4444", color: "#fff" }}>
+            거절
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function HandoffReadablePreview({
   action,
   briefingItem,
   companyId,
+  workflow,
+  documentAction,
+  onClose,
 }: {
   action: NextAction | null;
   briefingItem: DailyBriefingItem | null;
   companyId: string;
+  workflow: ReturnType<typeof useDailyBriefingWorkflow>;
+  documentAction: NextAction | null;
+  onClose: () => void;
 }) {
   const [agentResult, setAgentResult] = useState<AgentReviewResult | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
@@ -638,18 +802,20 @@ function HandoffReadablePreview({
     borderBottom: "1px solid #EEF2F7",
   };
 
-  async function runAnalysis() {
+  useEffect(() => {
     if (!action) return;
     setAgentLoading(true);
     setAgentError(null);
-    try {
-      const result = await runAgentReview(action.action_id, companyId);
-      setAgentResult(result);
-    } catch (err) {
-      setAgentError(err instanceof Error ? err.message : "분석 실패");
-    } finally {
-      setAgentLoading(false);
-    }
+    runAgentReview(action.action_id, companyId)
+      .then((result) => setAgentResult(result))
+      .catch((err) => setAgentError(err instanceof Error ? err.message : "분석 실패"))
+      .finally(() => setAgentLoading(false));
+  }, [action?.action_id, companyId]);
+
+  async function handleDocumentDraftOpen() {
+    if (!documentAction) return;
+    onClose();
+    await workflow.openDocumentDraft(documentAction);
   }
 
   const riskType = briefingItem?.risk_type ?? "visa_expiry";
@@ -666,19 +832,13 @@ function HandoffReadablePreview({
 
       {action ? (
         <div>
-          {agentResult ? (
+          {agentLoading ? (
+            <div style={{ fontSize: 13, color: "#64748B", padding: "8px 0" }}>에이전트 분석 중…</div>
+          ) : agentResult ? (
             <AgentSummaryBox result={agentResult} />
-          ) : (
-            <button
-              type="button"
-              disabled={agentLoading}
-              onClick={runAnalysis}
-              style={{ background: "#1D4ED8", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: agentLoading ? "not-allowed" : "pointer", opacity: agentLoading ? 0.7 : 1 }}
-            >
-              {agentLoading ? "에이전트 분석 중…" : "에이전트 분석 실행"}
-            </button>
-          )}
-          {agentError ? <p style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{agentError}</p> : null}
+          ) : agentError ? (
+            <p style={{ color: "#EF4444", fontSize: 12 }}>{agentError}</p>
+          ) : null}
         </div>
       ) : null}
 
@@ -706,6 +866,16 @@ function HandoffReadablePreview({
         <div style={rowStyle}><span className={styles.subtle}>제출 서류</span><strong>{submittedDocs}</strong></div>
         <div style={rowStyle}><span className={styles.subtle}>공식 근거</span><strong>출입국관리법 제25조, HiKorea 체류기간 연장허가 신청 안내</strong></div>
         <div style={rowStyle}><span className={styles.subtle}>처리 원칙</span><strong>행정사 검토 후 담당자 승인 전까지 외부 제출 없음</strong></div>
+      </section>
+
+      <section>
+        <h3>담당자 검토 액션</h3>
+        <ReviewActionBar
+          action={action}
+          workflow={workflow}
+          documentAction={documentAction}
+          onDocumentDraftOpen={handleDocumentDraftOpen}
+        />
       </section>
     </div>
   );
