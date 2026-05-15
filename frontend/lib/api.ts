@@ -493,6 +493,11 @@ export type AgentReviewResult = {
     doc_priority?: string;
     missing_critical?: string[];
     missing_supplementary?: string[];
+    visa_risk_flags?: string[];
+    doc_risk_flags?: string[];
+    submission_readiness?: string;
+    action_plan?: string[];
+    handoff_triggered?: boolean;
   };
 };
 

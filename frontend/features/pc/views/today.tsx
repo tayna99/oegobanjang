@@ -521,23 +521,52 @@ function buildRisksFromBriefingItem(item: DailyBriefingItem) {
 
 function AgentPrepSummary({ result }: { result: AgentReviewResult }) {
   const s = result.summary_structured;
-  const items: string[] = [];
-  if (s.visa_risk) items.push(`비자 위험도: ${s.visa_risk}`);
-  if (s.doc_priority) items.push(`서류 우선순위: ${s.doc_priority}`);
-  if (s.missing_critical && s.missing_critical.length > 0)
-    items.push(`필수 누락: ${s.missing_critical.join(", ")}`);
-  if (items.length === 0 && result.summary) items.push(result.summary);
+  const readinessTone = s.submission_readiness === "신청 가능" ? "green" : s.submission_readiness === "부분 준비" ? "orange" : "red";
   return (
-    <>
-      {items.map((item) => (
-        <div className={styles.aiPrepItem} key={item}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8l3.5 3.5 6.5-7" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          {item}
+    <div className={styles.agentSummaryFull}>
+      {s.action_plan && s.action_plan.length > 0 && (
+        <div className={styles.agentSection}>
+          <div className={styles.agentSectionTitle}>지금 해야 할 일</div>
+          {s.action_plan.map((item, i) => (
+            <div className={styles.agentActionItem} key={i}>
+              <span className={styles.agentActionIndex}>{i + 1}</span>
+              {item}
+            </div>
+          ))}
         </div>
-      ))}
-    </>
+      )}
+      {((s.missing_critical && s.missing_critical.length > 0) || (s.missing_supplementary && s.missing_supplementary.length > 0)) && (
+        <div className={styles.agentSection}>
+          <div className={styles.agentSectionTitle}>서류 현황</div>
+          {s.missing_critical?.map((doc) => (
+            <div className={styles.agentDocMissing} key={doc}>
+              <Badge tone="red">필수</Badge> {doc}
+            </div>
+          ))}
+          {s.missing_supplementary?.map((doc) => (
+            <div className={styles.agentDocMissing} key={doc}>
+              <Badge tone="orange">보완</Badge> {doc}
+            </div>
+          ))}
+          {s.submission_readiness && (
+            <div style={{ marginTop: 6 }}>
+              <Badge tone={readinessTone as Tone}>{s.submission_readiness}</Badge>
+            </div>
+          )}
+        </div>
+      )}
+      {s.handoff_triggered && (
+        <div className={styles.agentHandoffAlert}>행정사 검토 패키지 준비됨</div>
+      )}
+      {result.risk_flags.length > 0 && (
+        <details className={styles.agentDetails}>
+          <summary>분석 상세 ({result.risk_flags.length}개 플래그)</summary>
+          {result.risk_flags.map((flag, i) => (
+            <div className={styles.agentFlagItem} key={i}>{flag}</div>
+          ))}
+        </details>
+      )}
+    </div>
   );
 }
 

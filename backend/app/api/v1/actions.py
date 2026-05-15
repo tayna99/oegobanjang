@@ -54,6 +54,35 @@ def _error(error_code: str, message: str, trace_id: str = "trace_unavailable") -
     return {"error_code": error_code, "message": message, "trace_id": trace_id}
 
 
+def _find_tool_result(tool_results: list[dict], tool_name: str) -> dict:
+    for tr in tool_results:
+        if tr.get("tool_name") == tool_name:
+            return tr
+    return {}
+
+
+def _build_action_plan(result: dict, missing_critical_codes: list[str]) -> list[str]:
+    plan: list[str] = []
+    if missing_critical_codes:
+        docs_ko = _doc_codes_to_ko(missing_critical_codes)
+        plan.append(f"근로자에게 서류 요청: {', '.join(docs_ko)}")
+    if result.get("handoff_triggered"):
+        plan.append("행정사에게 체류 연장 검토 패키지 전달")
+    if any("계약" in f and "비자" in f for f in result.get("risk_flags", [])):
+        plan.append("계약 기간 연장 또는 비자 만료일 전 계약 조정 검토")
+    for sub in result.get("sub_agents", []):
+        if "visa_risk" in sub.get("name", ""):
+            for tr in sub.get("tool_results", []):
+                d_day = (tr.get("output") or {}).get("visa_d_day")
+                if d_day is not None:
+                    try:
+                        if int(d_day) <= 14:
+                            plan.append("체류기간 연장 신청 즉시 준비 필요 (D-14 이내)")
+                    except (ValueError, TypeError):
+                        pass
+    return plan or ["현재 긴급 처리 항목 없음 — 정기 모니터링 유지"]
+
+
 @router.post("/{action_id}/agent-review")
 def run_agent_review(
     action_id: str,
@@ -102,12 +131,32 @@ def run_agent_review(
     risk_flags: list[str] = result.get("risk_flags", [])
     raw_summary: str = result.get("summary", "")
 
-    structured: dict = {}
-    if risk_flags:
-        structured["visa_risk"] = risk_flags[0]
-    if item_missing:
-        structured["doc_priority"] = f"필수 서류 누락 {len(item_missing)}건"
-        structured["missing_critical"] = _doc_codes_to_ko(item_missing)
+    visa_sub = next((s for s in result.get("sub_agents", []) if "visa_risk" in s.get("name", "")), {})
+    doc_sub = next((s for s in result.get("sub_agents", []) if "document_priority" in s.get("name", "")), {})
+    doc_tool = _find_tool_result(doc_sub.get("tool_results", []), "assess_document_priority")
+    doc_output = doc_tool.get("output", {})
+
+    raw_critical = doc_output.get("critical_missing", [])
+    raw_supplementary = doc_output.get("supplementary_missing", [])
+    missing_critical_codes = [
+        d["doc_type"] for d in raw_critical if isinstance(d, dict) and d.get("doc_type")
+    ] or item_missing
+    missing_supplementary_codes = [
+        d["doc_type"] for d in raw_supplementary if isinstance(d, dict) and d.get("doc_type")
+    ]
+    submission_readiness: str = doc_output.get("submission_readiness", "")
+
+    structured: dict = {
+        "visa_risk": risk_flags[0] if risk_flags else "",
+        "doc_priority": f"필수 서류 누락 {len(missing_critical_codes)}건" if missing_critical_codes else "",
+        "missing_critical": _doc_codes_to_ko(missing_critical_codes),
+        "visa_risk_flags": visa_sub.get("risk_flags", []),
+        "doc_risk_flags": doc_sub.get("risk_flags", []),
+        "missing_supplementary": _doc_codes_to_ko(missing_supplementary_codes),
+        "submission_readiness": submission_readiness,
+        "action_plan": _build_action_plan(result, missing_critical_codes),
+        "handoff_triggered": result.get("handoff_triggered", False),
+    }
 
     review = AgentReviewResult(
         action_id=action_id,

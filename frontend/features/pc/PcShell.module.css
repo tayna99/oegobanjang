@@ -1257,6 +1257,90 @@
   color: rgba(46, 47, 51, 0.88);
   margin-top: 6px;
 }
+.agentSummaryFull {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 4px;
+}
+.agentSection {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f2;
+}
+.agentSection:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.agentSectionTitle {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.agentActionItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: #171719;
+  margin-bottom: 5px;
+  line-height: 1.4;
+}
+.agentActionIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.agentDocMissing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #171719;
+  margin-bottom: 4px;
+}
+.agentHandoffAlert {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #3b82f6;
+  background: #eff6ff;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1d4ed8;
+}
+.agentDetails {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.agentDetails summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #6b7280;
+  user-select: none;
+}
+.agentFlagItem {
+  margin-top: 4px;
+  padding: 3px 6px;
+  background: #f9fafb;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #374151;
+}
 .agentRunButton {
   display: inline-flex;
   align-items: center;
