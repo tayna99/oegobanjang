@@ -401,3 +401,30 @@ def create_external_delivery_job(
             detail=_error(str(exc.args[0]), "External delivery target was not found."),
         ) from exc
     return job.model_dump()
+
+
+@router.get("/{action_id}/contact-threads")
+def list_action_contact_threads(
+    action_id: str,
+    x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    db: Session = Depends(get_sync_db),
+) -> list[dict]:
+    from app.models.contact import ContactThread
+    from sqlalchemy import select
+
+    threads = list(
+        db.execute(
+            select(ContactThread).where(ContactThread.source_action_id == action_id)
+        ).scalars()
+    )
+    return [
+        {
+            "id": t.id,
+            "worker_id": t.worker_id,
+            "title": t.title,
+            "status": t.status,
+            "source_action_id": t.source_action_id,
+            "last_message_at": t.last_message_at.isoformat() if t.last_message_at else None,
+        }
+        for t in threads
+    ]

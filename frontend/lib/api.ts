@@ -512,6 +512,26 @@ export async function runAgentReview(
   return response.json();
 }
 
+export type ActionContactThread = {
+  id: string;
+  worker_id: string;
+  title: string;
+  status: string;
+  source_action_id: string | null;
+  last_message_at: string | null;
+};
+
+export async function getActionContactThreads(
+  actionId: string,
+  companyId = "",
+): Promise<ActionContactThread[]> {
+  const response = await fetch(`${API_BASE_URL}/actions/${actionId}/contact-threads`, {
+    headers: companyHeaders(companyId),
+  });
+  if (!response.ok) return [];
+  return response.json();
+}
+
 export async function getCaseAuditReview(
   caseId: string,
   companyId = "",

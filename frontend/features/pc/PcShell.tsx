@@ -31,7 +31,7 @@ import type { DailyBriefingItem, DailyBriefingResult, NextAction } from "../../t
 import { DailyBriefingChatPanel } from "../dashboard/DailyBriefingChatPanel";
 import { useDailyBriefingWorkflow } from "../dashboard/useDailyBriefingWorkflow";
 import { clearOperatorContext, getOperatorContext, type OperatorContext } from "../../lib/operatorContext";
-import { type AgentReviewResult, runAgentReview } from "../../lib/api";
+import { type AgentReviewResult, type ActionContactThread, runAgentReview, getActionContactThreads } from "../../lib/api";
 
 const DOC_CODE_TO_KO: Record<string, string> = {
   work_permit: "고용허가서 사본",
@@ -632,15 +632,18 @@ function ReviewActionBar({
   workflow,
   documentAction,
   onDocumentDraftOpen,
+  onClose,
 }: {
   action: NextAction | null;
   workflow: ReturnType<typeof useDailyBriefingWorkflow>;
   documentAction: NextAction | null;
   onDocumentDraftOpen: () => void;
+  onClose: () => void;
 }) {
+  const router = useRouter();
   const [working, setWorking] = useState(false);
   const [localStatus, setLocalStatus] = useState<string | null>(null);
-  const [deliveryCreated, setDeliveryCreated] = useState(false);
+  const [threads, setThreads] = useState<ActionContactThread[]>([]);
   const [revisionMode, setRevisionMode] = useState(false);
   const [revisionReason, setRevisionReason] = useState("");
 
@@ -651,7 +654,11 @@ function ReviewActionBar({
     setWorking(true);
     try {
       const result = await workflow.approve(action);
-      if (result) setLocalStatus("approved");
+      if (result) {
+        setLocalStatus("approved");
+        const created = await getActionContactThreads(action.action_id, workflow.companyId);
+        setThreads(created);
+      }
     } finally {
       setWorking(false);
     }
@@ -679,15 +686,11 @@ function ReviewActionBar({
     }
   }
 
-  async function handleDelivery() {
-    if (!action) return;
-    setWorking(true);
-    try {
-      const job = await workflow.createDeliveryJob(action);
-      if (job) setDeliveryCreated(true);
-    } finally {
-      setWorking(false);
-    }
+  function navigateToMessages(threadId?: string) {
+    onClose();
+    const params = new URLSearchParams();
+    if (threadId) params.set("thread_id", threadId);
+    router.push(`/contacts?${params.toString()}`);
   }
 
   const btnBase: React.CSSProperties = { border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: working ? "not-allowed" : "pointer", opacity: working ? 0.6 : 1 };
@@ -718,22 +721,29 @@ function ReviewActionBar({
         <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#166534", fontWeight: 600 }}>
           승인됨 ✓
         </div>
-        {deliveryCreated ? (
-          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#475569" }}>
-            행정사 전달 대기 중 — 수동 발송 준비 완료
-          </div>
-        ) : (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" disabled={working} onClick={handleDelivery} style={{ ...btnBase, background: "#1D4ED8", color: "#fff" }}>
-              행정사에게 전달
-            </button>
-            {documentAction ? (
-              <button type="button" onClick={onDocumentDraftOpen} style={{ ...btnBase, background: "#F1F5F9", color: "#1E293B" }}>
-                서류 요청 초안 보기
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {threads.length > 0 ? (
+            threads.map((thread) => (
+              <button
+                key={thread.id}
+                type="button"
+                onClick={() => navigateToMessages(thread.id)}
+                style={{ ...btnBase, background: "#1D4ED8", color: "#fff", cursor: "pointer", opacity: 1 }}
+              >
+                {thread.title.includes("행정사") ? "행정사 메시지 보기" : "메시지관리에서 보기"}
               </button>
-            ) : null}
-          </div>
-        )}
+            ))
+          ) : (
+            <button type="button" onClick={() => navigateToMessages()} style={{ ...btnBase, background: "#1D4ED8", color: "#fff", cursor: "pointer", opacity: 1 }}>
+              메시지관리에서 보기
+            </button>
+          )}
+          {documentAction ? (
+            <button type="button" onClick={onDocumentDraftOpen} style={{ ...btnBase, background: "#F1F5F9", color: "#1E293B", cursor: "pointer", opacity: 1 }}>
+              서류 요청 초안 보기
+            </button>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -887,6 +897,7 @@ function HandoffReadablePreview({
           workflow={workflow}
           documentAction={documentAction}
           onDocumentDraftOpen={handleDocumentDraftOpen}
+          onClose={onClose}
         />
       </section>
     </div>

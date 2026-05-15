@@ -21,12 +21,35 @@ AUTH_TABLES = [User.__table__]
 WORKER_AUTH_TABLES = [Company.__table__, Worker.__table__, User.__table__]
 DEFAULT_COMPANY_ID = "550e8400-e29b-41d4-a716-446655440001"
 DEFAULT_WORKER_ID = "650e8400-e29b-41d4-a716-446655440001"
+SCRIVENER_WORKER_ID = "750e8400-e29b-41d4-a716-446655440001"
 
 
 def ensure_auth_tables(db: Session) -> None:
     Base.metadata.create_all(bind=db.get_bind(), tables=AUTH_TABLES)
     _ensure_user_columns(db)
     _seed_demo_users(db)
+    _seed_scrivener_worker(db)
+
+
+def _seed_scrivener_worker(db: Session) -> None:
+    try:
+        existing = db.get(Worker, SCRIVENER_WORKER_ID)
+        if existing is None:
+            worker = Worker(
+                id=SCRIVENER_WORKER_ID,
+                company_id=DEFAULT_COMPANY_ID,
+                name="행정사 박과장",
+                nationality="KR",
+                preferred_language="ko",
+                email="scrivener@oegobanjang.local",
+                contact_channel="email",
+                visa_type=None,
+                status="ACTIVE",
+            )
+            db.add(worker)
+            db.commit()
+    except Exception:
+        db.rollback()
 
 
 def authenticate_user(email: str, password: str, db: Session) -> dict[str, Any] | None:
@@ -116,6 +139,16 @@ def _seed_demo_users(db: Session) -> None:
             "company_id": DEFAULT_COMPANY_ID,
             "worker_id": DEFAULT_WORKER_ID,
             "must_change_password": True,
+        },
+        {
+            "id": "user-scrivener-001",
+            "email": "scrivener@oegobanjang.local",
+            "password": "scrivener1234",
+            "display_name": "행정사 박과장",
+            "role": "WORKER",
+            "company_id": DEFAULT_COMPANY_ID,
+            "worker_id": SCRIVENER_WORKER_ID,
+            "must_change_password": False,
         },
     ]
     for item in demo_users:

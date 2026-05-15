@@ -82,5 +82,12 @@ def demo_users(db: Session = Depends(get_sync_db)) -> dict[str, list[dict[str, s
                 "password": "worker1234",
                 "redirect_to": "/worker",
             },
+            {
+                "role": "WORKER",
+                "email": "scrivener@oegobanjang.local",
+                "password": "scrivener1234",
+                "redirect_to": "/worker",
+                "label": "행정사",
+            },
         ]
     }

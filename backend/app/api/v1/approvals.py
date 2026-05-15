@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -21,6 +22,8 @@ from app.services.daily_briefing_service import (
     build_sqlalchemy_daily_briefing_service,
     resolve_daily_briefing_allowed_company_ids,
 )
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
@@ -270,7 +273,57 @@ def _approve_daily_briefing_action(
             status_code=404,
             detail=_daily_error(str(exc.args[0]), "Approval target was not found."),
         ) from exc
+
+    action_id = response.action_id
+    action = service.repository.actions.get(action_id)
+    if action is not None:
+        try:
+            _create_contact_threads_for_action(
+                db=db,
+                action_id=action_id,
+                action_type=action.action_type,
+                subject_id=action.subject_id,
+                company_id=x_company_id or (allowed_company_ids[0] if allowed_company_ids else None),
+                user_id=x_user_id,
+            )
+        except Exception as exc:
+            logger.warning("contact thread creation failed after approval: %s", exc)
+
     return response.model_dump()
+
+
+def _create_contact_threads_for_action(
+    *,
+    db: Session,
+    action_id: str,
+    action_type: str,
+    subject_id: str,
+    company_id: str | None,
+    user_id: str,
+) -> None:
+    from app.services.contact_thread_service import create_message_draft
+    from app.services.auth_service import SCRIVENER_WORKER_ID
+
+    if action_type == "request_document":
+        create_message_draft(
+            worker_id=subject_id,
+            company_id=company_id,
+            message_purpose="missing_document_request",
+            due_date=None,
+            user_id=user_id,
+            db=db,
+            source_action_id=action_id,
+        )
+    elif action_type == "create_handoff":
+        create_message_draft(
+            worker_id=SCRIVENER_WORKER_ID,
+            company_id=company_id,
+            message_purpose="handoff_notification",
+            due_date=None,
+            user_id=user_id,
+            db=db,
+            source_action_id=action_id,
+        )
 
 
 def _reject_daily_briefing_action(
