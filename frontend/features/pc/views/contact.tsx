@@ -56,15 +56,6 @@ type ContactThread = {
   messages?: ContactMessage[];
 };
 
-type FilterType = "all" | "worker_message" | "scrivener_handoff" | "pending_approval";
-
-const FILTER_LABELS: Record<FilterType, string> = {
-  all: "전체",
-  worker_message: "근로자 메시지",
-  scrivener_handoff: "행정사 메시지",
-  pending_approval: "승인 대기",
-};
-
 export function ContactView({ onAction }: PcViewProps = {}) {
   const searchParams = useSearchParams();
   const [workers, setWorkers] = useState<WorkerOption[]>([]);
@@ -75,7 +66,6 @@ export function ContactView({ onAction }: PcViewProps = {}) {
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [languageView, setLanguageView] = useState<"worker" | "ko">("worker");
   const [loading, setLoading] = useState(true);
-  const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [handoffNotice, setHandoffNotice] = useState("");
   const [handoffDraftText, setHandoffDraftText] = useState("");
   const [handoffEditing, setHandoffEditing] = useState(false);
@@ -285,15 +275,9 @@ export function ContactView({ onAction }: PcViewProps = {}) {
     }
   }
 
-  const filteredWorkerThreads = useMemo(() => {
-    if (activeFilter === "all") return threads;
-    if (activeFilter === "pending_approval") return threads.filter((t) => t.status === "초안" || t.status === "DRAFT");
-    return threads.filter((t) => t.message_type === activeFilter);
-  }, [threads, activeFilter]);
-
   const detailWorker = selectedThread?.worker;
   const messages = selectedThread?.messages ?? [];
-  const visibleThreads = activeMessageTab === "worker" ? filteredWorkerThreads : expertThreads;
+  const visibleThreads = activeMessageTab === "worker" ? threads : expertThreads;
   const workerLanguageLabel = detailWorker?.language_label ?? selectedWorker?.language_label ?? "원문";
   const canShowHandoffDraft = activeMessageTab === "worker" && Boolean(detailWorker?.name === "Nguyen V." || selectedWorker?.name === "Nguyen V.");
 
@@ -315,20 +299,6 @@ export function ContactView({ onAction }: PcViewProps = {}) {
               <button onClick={() => switchMessageTab("worker")} style={activeMessageTab === "worker" ? activeTabButtonStyle : tabButtonStyle} type="button">근로자</button>
               <button onClick={() => switchMessageTab("expert")} style={activeMessageTab === "expert" ? activeTabButtonStyle : tabButtonStyle} type="button">행정사</button>
             </div>
-            {activeMessageTab === "worker" ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                {(Object.keys(FILTER_LABELS) as FilterType[]).map((key) => (
-                  <button
-                    key={key}
-                    onClick={() => setActiveFilter(key)}
-                    style={filterChipStyle(activeFilter === key)}
-                    type="button"
-                  >
-                    {FILTER_LABELS[key]}
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
 
           {loading ? (
@@ -480,7 +450,7 @@ export function ContactView({ onAction }: PcViewProps = {}) {
                       ))
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+                  <div style={expertComposerRowStyle}>
                     <label style={attachButtonStyle}>
                       <Paperclip size={15} /> 첨부
                       <input
@@ -497,9 +467,13 @@ export function ContactView({ onAction }: PcViewProps = {}) {
                       style={expertMessageTextareaStyle}
                       value={expertDraft}
                     />
-                    <Button disabled={expertSending || (!expertDraft.trim() && expertFiles.length === 0)} type="submit">
+                    <button
+                      disabled={expertSending || (!expertDraft.trim() && expertFiles.length === 0)}
+                      style={expertSendButtonStyle(expertSending || (!expertDraft.trim() && expertFiles.length === 0))}
+                      type="submit"
+                    >
                       <Send size={15} /> 전송
-                    </Button>
+                    </button>
                   </div>
                 </form>
               ) : null}
@@ -839,21 +813,6 @@ const activeTabButtonStyle: React.CSSProperties = {
   color: "#1D4ED8",
 };
 
-function filterChipStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "3px 8px",
-    borderRadius: 6,
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: active ? "#2563EB" : "#CBD5E1",
-    background: active ? "#2563EB" : "#fff",
-    color: active ? "#fff" : "#475569",
-    fontSize: 11,
-    fontWeight: 700,
-    cursor: "pointer",
-  };
-}
-
 function statusBadge(status: string): React.CSSProperties {
   const isInbound = status.includes("응답");
   const isPending = status.includes("승인");
@@ -887,8 +846,16 @@ const expertComposerStyle: React.CSSProperties = {
   background: "#fff",
 };
 
+const expertComposerRowStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "auto minmax(0, 1fr) 92px",
+  gap: 10,
+  alignItems: "end",
+};
+
 const expertMessageTextareaStyle: React.CSSProperties = {
-  flex: 1,
+  width: "100%",
+  minWidth: 0,
   minHeight: 48,
   maxHeight: 130,
   borderWidth: 1,
@@ -901,6 +868,28 @@ const expertMessageTextareaStyle: React.CSSProperties = {
   lineHeight: 1.55,
   resize: "vertical",
 };
+
+function expertSendButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    width: 92,
+    minHeight: 48,
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: disabled ? "#CBD5E1" : "#2563EB",
+    borderRadius: 10,
+    background: disabled ? "#F1F5F9" : "#2563EB",
+    color: disabled ? "#94A3B8" : "#fff",
+    padding: "0 12px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: disabled ? "not-allowed" : "pointer",
+    whiteSpace: "nowrap",
+  };
+}
 
 const attachButtonStyle: React.CSSProperties = {
   display: "inline-flex",
