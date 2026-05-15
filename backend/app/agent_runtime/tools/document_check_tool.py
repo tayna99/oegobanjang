@@ -29,6 +29,24 @@ SUPPLEMENTARY_DOC_KEYWORDS = {
     "선서", "affidavit",
 }
 
+_DOC_CODE_TO_KO: dict[str, str] = {
+    "work_permit": "고용허가서 사본",
+    "alien_registration": "외국인등록증 사본",
+    "employment_contract": "표준근로계약서",
+    "labor_contract": "표준근로계약서",
+    "passport_copy": "여권 사본",
+    "passport": "여권 사본",
+    "health_certificate": "건강검진 결과서",
+    "criminal_record": "범죄경력 조회서",
+    "standard_contract": "표준근로계약서",
+    "company_approval": "사업장 변경 승인서",
+    "education_cert": "학력 증명서",
+}
+
+
+def _doc_code_to_ko(code: str) -> str:
+    return _DOC_CODE_TO_KO.get(code.lower(), code)
+
 
 def _classify_doc(doc_type: str) -> str:
     lower = doc_type.lower()
@@ -92,11 +110,11 @@ def assess_document_priority(
 
     risk_flags: list[str] = []
     if critical_count > 0:
-        types = [item["doc_type"] for item in critical_missing]
-        risk_flags.append(f"필수 서류 누락 {critical_count}건: {types}")
+        names = list(dict.fromkeys(_doc_code_to_ko(item["doc_type"]) for item in critical_missing))
+        risk_flags.append(f"필수 서류 누락 {critical_count}건: {', '.join(names)}")
     if supplementary_count > 0:
-        types = [item["doc_type"] for item in supplementary_missing]
-        risk_flags.append(f"보조 서류 누락 {supplementary_count}건: {types}")
+        names = list(dict.fromkeys(_doc_code_to_ko(item["doc_type"]) for item in supplementary_missing))
+        risk_flags.append(f"보조 서류 누락 {supplementary_count}건: {', '.join(names)}")
 
     return ToolResult(
         tool_name="assess_document_priority",
