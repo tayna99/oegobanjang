@@ -354,6 +354,7 @@ def _load_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
                     "contact_channel": row.contact_channel,
                     "visa_type": row.visa_type,
                     "status": row.status,
+                    "worker_type": getattr(row, "worker_type", "foreign_worker"),
                 }
                 for row in rows
             ]
