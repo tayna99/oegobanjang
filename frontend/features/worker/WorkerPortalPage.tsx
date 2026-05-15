@@ -40,6 +40,7 @@ type ContactAttachment = {
 
 type ContactThread = {
   id: string;
+  channel?: string;
   title: string;
   worker: WorkerOption;
   messages?: ContactMessage[];
@@ -85,7 +86,7 @@ export function WorkerPortalPage() {
     try {
       const [workerResponse, threadResponse, documentResponse] = await Promise.all([
         fetch(`/api/v1/contact/workers?company_id=${encodeURIComponent(companyId)}`, { cache: "no-store" }),
-        fetch(`/api/v1/contact/threads?company_id=${encodeURIComponent(companyId)}`, { cache: "no-store" }),
+        fetch(`/api/v1/contact/threads?company_id=${encodeURIComponent(companyId)}&channel=portal`, { cache: "no-store" }),
         fetch(`/api/v1/documents/worker-requests?company_id=${encodeURIComponent(companyId)}&worker_id=${encodeURIComponent(workerId)}`, { cache: "no-store" }),
       ]);
       if (!workerResponse.ok || !threadResponse.ok || !documentResponse.ok) return;
@@ -93,11 +94,18 @@ export function WorkerPortalPage() {
       const threadData = await threadResponse.json();
       const documentData = await documentResponse.json();
       const foundWorker = (workerData.workers ?? []).find((item: WorkerOption) => item.id === workerId) ?? null;
-      const workerThreads = (threadData.threads ?? []).filter((thread: ContactThread) => thread.worker.id === workerId);
+      const workerThreads = (threadData.threads ?? []).filter((thread: ContactThread) => (
+        thread.worker.id === workerId && (thread.channel ?? "portal") === "portal"
+      ));
       const detailedThreads = await Promise.all(
         workerThreads.map(async (thread: ContactThread) => {
           const response = await fetch(`/api/v1/contact/threads/${thread.id}`, { cache: "no-store" });
-          return response.ok ? response.json() : thread;
+          if (!response.ok) return thread;
+          const detail = await response.json() as ContactThread;
+          return {
+            ...detail,
+            messages: (detail.messages ?? []).filter((message) => isWorkerVisibleMessage(message)),
+          };
         }),
       );
       setWorker(foundWorker);
@@ -109,7 +117,7 @@ export function WorkerPortalPage() {
   }
 
   const messages = useMemo(
-    () => threads.flatMap((thread) => thread.messages ?? []),
+    () => threads.flatMap((thread) => (thread.messages ?? []).filter((message) => isWorkerVisibleMessage(message))),
     [threads],
   );
 
@@ -381,6 +389,10 @@ function WorkerMessageBubble({
       </div>
     </div>
   );
+}
+
+function isWorkerVisibleMessage(message: ContactMessage) {
+  return !["EXPERT_REVIEW", "EXPERT_REPLY", "MANAGER"].includes(message.source ?? "");
 }
 
 const rowStyle: React.CSSProperties = {

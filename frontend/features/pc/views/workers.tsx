@@ -110,6 +110,18 @@ const CASE_SEV: Record<string, { bg: string; bd: string; fg: string; dot: string
   gray:   { bg: "rgba(112,115,124,0.06)", bd: "rgba(112,115,124,0.20)", fg: "#70737C", dot: "#B0B3BA" },
 };
 
+const COMPANY_ID = "550e8400-e29b-41d4-a716-446655440001";
+const COMPANY_SEED_WORKER_IDS = new Set([
+  "650e8400-e29b-41d4-a716-446655440001",
+  "650e8400-e29b-41d4-a716-446655440002",
+  "650e8400-e29b-41d4-a716-446655440003",
+  "650e8400-e29b-41d4-a716-446655440004",
+  "650e8400-e29b-41d4-a716-446655440005",
+  "650e8400-e29b-41d4-a716-446655440020",
+  "650e8400-e29b-41d4-a716-446655440025",
+  "650e8400-e29b-41d4-a716-446655440026",
+]);
+
 function actionForNext(next: string): PcActionKind {
   if (next.includes("초안")) return "document-draft";
   if (next.includes("요청서")) return "handoff-preview";
@@ -128,9 +140,9 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
   const [documentRequests, setDocumentRequests] = useState<Array<{ worker_id: string; doc_type: string; status: string }>>([]);
   useEffect(() => {
     void Promise.all([
-      fetch("/api/v1/contact/workers?company_id=550e8400-e29b-41d4-a716-446655440001", { cache: "no-store" })
+      fetch(`/api/v1/contact/workers?company_id=${encodeURIComponent(COMPANY_ID)}`, { cache: "no-store" })
         .then((response) => response.ok ? response.json() : { workers: [] }),
-      fetch("/api/v1/documents/worker-requests/all?company_id=550e8400-e29b-41d4-a716-446655440001", { cache: "no-store" })
+      fetch(`/api/v1/documents/worker-requests/all?company_id=${encodeURIComponent(COMPANY_ID)}`, { cache: "no-store" })
         .then((response) => response.ok ? response.json() : { requests: [] }),
     ])
       .then(([workerData, documentData]) => {
@@ -143,7 +155,8 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
       });
   }, []);
   const workerRows = useMemo(() => {
-    const seen = new Set(seedWorkers.map((worker) => worker.id));
+    const companySeedWorkers = seedWorkers.filter((worker) => COMPANY_SEED_WORKER_IDS.has(worker.id));
+    const seen = new Set(companySeedWorkers.map((worker) => worker.id));
     const documentsByWorker = new Map<string, Array<{ doc_type: string; status: string }>>();
     for (const request of documentRequests) {
       const rows = documentsByWorker.get(request.worker_id) ?? [];
@@ -184,7 +197,7 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
         docs: [],
         docExtra: "",
       }));
-    return [...seedWorkers.map(mergeDocumentStatus), ...added];
+    return [...companySeedWorkers.map(mergeDocumentStatus), ...added];
   }, [dbWorkers, documentRequests]);
   const missingDocumentCount = workerRows.reduce((total, worker) => {
     const rawCount = worker.docExtra?.replace("+", "") ?? "0";

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { BriefcaseBusiness, ShieldCheck, UserRound } from "lucide-react";
+import { BriefcaseBusiness, UserRound } from "lucide-react";
 
 import { defaultOperatorContext, setOperatorContext, type OperatorRole } from "../../lib/operatorContext";
 
@@ -28,6 +28,12 @@ const quickAccounts = [
     email: "admin@oegobanjang.local",
     password: "admin1234",
     description: "오늘 할 일, 채용 준비, 근로자, 메시지 관리",
+  },
+  {
+    label: "행정사",
+    email: "expert@oegobanjang.local",
+    password: "expert1234",
+    description: "행정사 검토 자료와 승인 대기 업무 확인",
   },
   {
     label: "근로자",
@@ -64,7 +70,7 @@ export function OperatorLoginPage() {
         return;
       }
       const data = (await response.json()) as LoginResponse;
-      const role = data.user.role === "WORKER" ? "worker" : ("admin" as OperatorRole);
+      const role = data.user.role === "WORKER" ? "worker" : data.user.role === "EXPERT" ? "expert" : ("admin" as OperatorRole);
       setOperatorContext({
         companyId: data.user.company_id || defaultOperatorContext.companyId,
         userId: data.user.id,
@@ -89,14 +95,6 @@ export function OperatorLoginPage() {
           <div>
             <strong>외고반장</strong>
             <p>관리자/근로자 로그인</p>
-          </div>
-        </div>
-
-        <div className="operator-login-hero">
-          <ShieldCheck size={24} aria-hidden="true" />
-          <div>
-            <h1>DB 사용자 정보로 역할을 분리합니다.</h1>
-            <p>관리자는 기존 운영 화면으로, 근로자는 본인 포털로 이동합니다.</p>
           </div>
         </div>
 

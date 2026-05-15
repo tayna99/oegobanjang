@@ -28,7 +28,15 @@ def login(body: LoginRequest, db: Session = Depends(get_sync_db)) -> LoginRespon
     if user is None:
         raise HTTPException(status_code=401, detail="invalid credentials")
     role = user["role"]
-    redirect_to = "/change-password" if user.get("must_change_password") else ("/worker" if role == "WORKER" else "/dashboard")
+    redirect_to = (
+        "/change-password"
+        if user.get("must_change_password")
+        else "/worker"
+        if role == "WORKER"
+        else "/expert"
+        if role == "EXPERT"
+        else "/dashboard"
+    )
     return LoginResponse(
         user=AuthUser(**user),
         access_token=issue_demo_token(user),
@@ -75,6 +83,12 @@ def demo_users(db: Session = Depends(get_sync_db)) -> dict[str, list[dict[str, s
                 "email": "admin@oegobanjang.local",
                 "password": "admin1234",
                 "redirect_to": "/dashboard",
+            },
+            {
+                "role": "EXPERT",
+                "email": "expert@oegobanjang.local",
+                "password": "expert1234",
+                "redirect_to": "/expert",
             },
             {
                 "role": "WORKER",

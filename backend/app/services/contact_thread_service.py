@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sys
+import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 from uuid import uuid4
 
 from sqlalchemy import inspect, select, text
@@ -15,12 +17,14 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 LANGUAGE_LABELS = {"vi": "Tiếng Việt", "id": "Bahasa Indonesia", "ko": "한국어", "en": "English"}
+from ..config import BACKEND_DIR
 from ..db.base import Base
 from ..models.contact import (
     ContactAttachment,
     ContactThread,
     ContactThreadMessage,
 )
+from ..models.document import WorkerDocument
 from ..models.worker import Worker
 from .agent_service import AgentRunRequest, run_agent
 from .context_data_service import _seed_rows, get_worker_profile_data
@@ -35,6 +39,7 @@ CONTACT_TABLES = [
     ContactThreadMessage.__table__,
     ContactAttachment.__table__,
 ]
+CONTACT_UPLOAD_ROOT = BACKEND_DIR / "data" / "uploads" / "contact_attachments"
 
 
 def ensure_contact_thread_tables(db: Session) -> None:
@@ -74,11 +79,13 @@ def list_message_workers(company_id: str | None, db: Session) -> list[dict[str, 
     return _dedupe_worker_options(worker_options)
 
 
-def list_threads(company_id: str | None, db: Session) -> list[dict[str, Any]]:
+def list_threads(company_id: str | None, channel: str | None, db: Session) -> list[dict[str, Any]]:
     ensure_contact_thread_tables(db)
     query = select(ContactThread).order_by(ContactThread.last_message_at.desc())
     if company_id:
         query = query.where(ContactThread.company_id == company_id)
+    if channel:
+        query = query.where(ContactThread.channel == channel)
     threads = list(db.execute(query).scalars())
     return [_thread_payload(thread, db) for thread in threads]
 
@@ -194,6 +201,184 @@ def create_message_draft(
     return _thread_payload(thread, db, include_messages=True)
 
 
+def create_thread_message(
+    *,
+    thread_id: str,
+    body_ko: str,
+    body_original: str | None,
+    language_code: str | None,
+    source: str,
+    status: str,
+    direction: str = "OUTBOUND",
+    attachments: list[dict[str, Any]] | None = None,
+    db: Session,
+) -> dict[str, Any]:
+    ensure_contact_thread_tables(db)
+    thread = db.get(ContactThread, thread_id)
+    if thread is None:
+        raise ValueError("thread not found")
+    body = body_ko.strip()
+    if not body:
+        raise ValueError("message body is required")
+    message = ContactThreadMessage(
+        id=_id("msg"),
+        thread_id=thread.id,
+        company_id=thread.company_id,
+        worker_id=thread.worker_id,
+        direction=direction,
+        source=source,
+        language_code=language_code or "ko",
+        body_original=(body_original or body_ko).strip(),
+        body_ko=body,
+        status=status,
+    )
+    db.add(message)
+    db.flush()
+    for attachment in attachments or []:
+        db.add(
+            ContactAttachment(
+                id=_id("att"),
+                message_id=message.id,
+                filename=str(attachment.get("filename") or "attachment.bin"),
+                mime_type=attachment.get("mime_type"),
+                size=attachment.get("size"),
+                storage_path=attachment.get("storage_path"),
+            )
+        )
+    thread.status = status
+    thread.last_message_at = _now()
+    db.commit()
+    return _thread_payload(thread, db, include_messages=True)
+
+
+def save_contact_attachment_file(
+    *,
+    thread_id: str,
+    original_filename: str,
+    file_obj: BinaryIO,
+    content_type: str | None,
+) -> dict[str, Any]:
+    safe_name = _safe_filename(original_filename or "attachment.bin")
+    upload_dir = CONTACT_UPLOAD_ROOT / thread_id
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid4().hex[:12]}_{safe_name}"
+    target = upload_dir / filename
+    with target.open("wb") as out_file:
+        shutil.copyfileobj(file_obj, out_file)
+    size = target.stat().st_size
+    return {
+        "filename": safe_name,
+        "mime_type": content_type,
+        "size": _format_size(size),
+        "storage_path": str(target.relative_to(BACKEND_DIR.parent)).replace("\\", "/"),
+    }
+
+
+def create_expert_thread(
+    *,
+    worker_id: str,
+    company_id: str | None,
+    body_ko: str,
+    db: Session,
+) -> dict[str, Any]:
+    ensure_contact_thread_tables(db)
+    worker = get_worker_profile_data(worker_id, db=db)
+    if worker is None:
+        raise ValueError("worker not found")
+    body = body_ko.strip()
+    if not body:
+        raise ValueError("message body is required")
+
+    worker_name = _display_worker_name(worker)
+    thread = _get_or_create_thread(
+        db,
+        worker=worker,
+        title=f"행정사 - {worker_name}",
+        status="행정사 검토 요청",
+        company_id=company_id or worker.get("company_id"),
+        source_action_id=f"expert-review:{worker_id}",
+        channel="expert",
+    )
+    duplicate = (
+        db.execute(
+            select(ContactThreadMessage)
+            .where(ContactThreadMessage.thread_id == thread.id)
+            .where(ContactThreadMessage.source == "EXPERT_REVIEW")
+            .where(ContactThreadMessage.body_ko == body)
+            .order_by(ContactThreadMessage.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )
+    if duplicate is None:
+        db.add(
+            ContactThreadMessage(
+                id=_id("msg"),
+                thread_id=thread.id,
+                company_id=thread.company_id,
+                worker_id=worker_id,
+                direction="OUTBOUND",
+                source="EXPERT_REVIEW",
+                language_code="ko",
+                body_original=body,
+                body_ko=body,
+                status="행정사 검토 요청",
+            )
+        )
+    thread.status = "행정사 검토 요청"
+    thread.title = f"행정사 - {worker_name}"
+    thread.last_message_at = _now()
+    db.commit()
+    return _thread_payload(thread, db, include_messages=True)
+
+
+def update_thread_message(
+    *,
+    message_id: str,
+    body_ko: str,
+    body_original: str | None,
+    db: Session,
+) -> dict[str, Any]:
+    ensure_contact_thread_tables(db)
+    message = db.get(ContactThreadMessage, message_id)
+    if message is None:
+        raise ValueError("message not found")
+    if not _is_editable_sender(message):
+        raise ValueError("only sent messages can be edited")
+    target_party = _message_party(message)
+    has_reply = db.execute(
+        select(ContactThreadMessage)
+        .where(ContactThreadMessage.thread_id == message.thread_id)
+        .where(ContactThreadMessage.created_at > message.created_at)
+        .order_by(ContactThreadMessage.created_at.asc())
+    ).scalars().first()
+    while has_reply is not None and _message_party(has_reply) == target_party:
+        has_reply = (
+            db.execute(
+                select(ContactThreadMessage)
+                .where(ContactThreadMessage.thread_id == message.thread_id)
+                .where(ContactThreadMessage.created_at > has_reply.created_at)
+                .order_by(ContactThreadMessage.created_at.asc())
+            )
+            .scalars()
+            .first()
+        )
+    if has_reply is not None:
+        raise ValueError("message already has a reply")
+    body = body_ko.strip()
+    if not body:
+        raise ValueError("message body is required")
+    message.body_ko = body
+    message.body_original = (body_original or body_ko).strip()
+    thread = db.get(ContactThread, message.thread_id)
+    if thread is not None:
+        thread.last_message_at = _now()
+    db.commit()
+    if thread is None:
+        raise ValueError("thread not found")
+    return _thread_payload(thread, db, include_messages=True)
+
+
 def _find_duplicate_outbound_message(
     db: Session,
     *,
@@ -225,6 +410,7 @@ def _get_or_create_thread(
     company_id: str | None,
     source_action_id: str | None = None,
     message_type: str | None = None,
+    channel: str = "portal",
 ) -> ContactThread:
     worker_id = str(worker.get("id"))
     # action_id + title 조합으로 근로자용/행정사용 thread를 별도 구분
@@ -234,6 +420,7 @@ def _get_or_create_thread(
             .where(ContactThread.source_action_id == source_action_id)
             .where(ContactThread.worker_id == worker_id)
             .where(ContactThread.title == title)
+            .where(ContactThread.channel == channel)
             .order_by(ContactThread.created_at.desc())
         ).scalars().first()
         if existing is not None:
@@ -243,6 +430,7 @@ def _get_or_create_thread(
             select(ContactThread)
             .where(ContactThread.worker_id == worker_id)
             .where(ContactThread.title == title)
+            .where(ContactThread.channel == channel)
             .order_by(ContactThread.created_at.desc())
         ).scalars().first()
         if thread is not None:
@@ -251,7 +439,7 @@ def _get_or_create_thread(
         id=_id("thr"),
         company_id=company_id or worker.get("company_id"),
         worker_id=worker_id,
-        channel="portal",
+        channel=channel,
         status=status,
         title=title,
         source_action_id=source_action_id,
@@ -275,6 +463,7 @@ def _thread_payload(thread: ContactThread, db: Session, include_messages: bool =
     payload = {
         "id": thread.id,
         "company_id": thread.company_id,
+        "channel": thread.channel,
         "worker": {
             "id": thread.worker_id,
             "name": _display_worker_name(worker),
@@ -305,6 +494,20 @@ def _message_payload(message: ContactThreadMessage, db: Session) -> dict[str, An
             select(ContactAttachment).where(ContactAttachment.message_id == message.id)
         ).scalars()
     )
+    attachment_payloads = []
+    for attachment in attachments:
+        doc_type = _doc_type_from_storage_path(attachment.storage_path)
+        document_status = _document_status(db, message.worker_id, doc_type)
+        attachment_payloads.append(
+            {
+                "id": attachment.id,
+                "filename": attachment.filename,
+                "mime_type": attachment.mime_type,
+                "size": attachment.size,
+                "doc_type": doc_type,
+                "doc_status": document_status,
+            }
+        )
     return {
         "id": message.id,
         "thread_id": message.thread_id,
@@ -318,17 +521,36 @@ def _message_payload(message: ContactThreadMessage, db: Session) -> dict[str, An
         "sender_email": message.sender_email,
         "received_at": message.received_at.isoformat() if message.received_at else None,
         "created_at": message.created_at.isoformat() if message.created_at else None,
-        "attachments": [
-            {
-                "id": attachment.id,
-                "filename": attachment.filename,
-                "mime_type": attachment.mime_type,
-                "size": attachment.size,
-                "doc_type": _doc_type_from_storage_path(attachment.storage_path),
-            }
-            for attachment in attachments
-        ],
+        "attachments": attachment_payloads,
     }
+
+
+def _document_status(db: Session, worker_id: str, doc_type: str | None) -> str | None:
+    if not doc_type:
+        return None
+    document = (
+        db.execute(
+            select(WorkerDocument)
+            .where(WorkerDocument.worker_id == worker_id)
+            .where(WorkerDocument.doc_type == doc_type)
+            .order_by(WorkerDocument.updated_at.desc())
+        )
+        .scalars()
+        .first()
+    )
+    return document.status if document is not None else None
+
+
+def _is_editable_sender(message: ContactThreadMessage) -> bool:
+    return message.direction == "OUTBOUND" or message.source == "EXPERT_REPLY"
+
+
+def _message_party(message: ContactThreadMessage) -> str:
+    if message.source == "EXPERT_REPLY":
+        return "expert"
+    if message.direction == "INBOUND":
+        return "worker"
+    return "manager"
 
 
 def _doc_type_from_storage_path(storage_path: str | None) -> str | None:
@@ -427,3 +649,16 @@ def _id(prefix: str) -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _safe_filename(filename: str) -> str:
+    name = Path(filename).name.strip() or "attachment.bin"
+    return re.sub(r"[^0-9A-Za-z가-힣._ -]+", "_", name)[:120]
+
+
+def _format_size(size: int) -> str:
+    if size >= 1024 * 1024:
+        return f"{size / (1024 * 1024):.1f}MB"
+    if size >= 1024:
+        return f"{size / 1024:.1f}KB"
+    return f"{size}B"

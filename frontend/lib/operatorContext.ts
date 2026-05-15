@@ -1,4 +1,4 @@
-export type OperatorRole = "viewer" | "manager" | "admin" | "system" | "worker";
+export type OperatorRole = "viewer" | "manager" | "admin" | "system" | "worker" | "expert";
 
 export type OperatorContext = {
   companyId: string;
@@ -20,7 +20,7 @@ export const defaultOperatorContext: OperatorContext = {
 };
 
 function isOperatorRole(value: unknown): value is OperatorRole {
-    return value === "viewer" || value === "manager" || value === "admin" || value === "system" || value === "worker";
+    return value === "viewer" || value === "manager" || value === "admin" || value === "system" || value === "worker" || value === "expert";
 }
 
 export function getOperatorContext(): OperatorContext {

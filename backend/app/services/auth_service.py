@@ -149,6 +149,16 @@ def _seed_demo_users(db: Session) -> None:
             "must_change_password": False,
         },
         {
+            "id": "user-expert-001",
+            "email": "expert@oegobanjang.local",
+            "password": "expert1234",
+            "display_name": "박행정사",
+            "role": "EXPERT",
+            "company_id": DEFAULT_COMPANY_ID,
+            "worker_id": None,
+            "must_change_password": False,
+        },
+        {
             "id": "user-worker-nguyen",
             "email": "potenup3@gmail.com",
             "password": "worker1234",

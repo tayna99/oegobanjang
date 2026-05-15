@@ -353,6 +353,7 @@ def _create_upload_thread_message(
     thread = db.execute(
         select(ContactThread)
         .where(ContactThread.worker_id == worker_id)
+        .where(ContactThread.channel == "portal")
         .order_by(ContactThread.created_at.desc())
     ).scalars().first()
     if thread is None:
@@ -410,6 +411,7 @@ def _create_revision_request_thread_message(
     thread = db.execute(
         select(ContactThread)
         .where(ContactThread.worker_id == worker_id)
+        .where(ContactThread.channel == "portal")
         .order_by(ContactThread.created_at.desc())
     ).scalars().first()
     if thread is None:
@@ -468,6 +470,7 @@ def _create_acceptance_thread_message(
     thread = db.execute(
         select(ContactThread)
         .where(ContactThread.worker_id == worker_id)
+        .where(ContactThread.channel == "portal")
         .order_by(ContactThread.created_at.desc())
     ).scalars().first()
     if thread is None:
