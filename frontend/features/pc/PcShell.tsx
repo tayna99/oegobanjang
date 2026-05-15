@@ -27,10 +27,34 @@ import {
   WorkersView,
   type PcViewAction,
 } from "./views";
-import type { DailyBriefingResult, NextAction } from "../../types/dailyBriefing";
+import type { DailyBriefingItem, DailyBriefingResult, NextAction } from "../../types/dailyBriefing";
 import { DailyBriefingChatPanel } from "../dashboard/DailyBriefingChatPanel";
 import { useDailyBriefingWorkflow } from "../dashboard/useDailyBriefingWorkflow";
 import { clearOperatorContext, getOperatorContext, type OperatorContext } from "../../lib/operatorContext";
+import { type AgentReviewResult, runAgentReview } from "../../lib/api";
+
+const DOC_CODE_TO_KO: Record<string, string> = {
+  work_permit: "고용허가서 사본",
+  alien_registration: "외국인등록증 사본",
+  employment_contract: "표준근로계약서",
+  labor_contract: "표준근로계약서",
+  passport_copy: "여권 사본",
+  passport: "여권 사본",
+  health_certificate: "건강검진 결과서",
+  criminal_record: "범죄경력 조회서",
+  standard_contract: "표준근로계약서",
+};
+
+function docCodeToKo(code: string): string {
+  return DOC_CODE_TO_KO[code.toLowerCase()] ?? code;
+}
+
+const RISK_TYPE_TITLE: Record<string, string> = {
+  visa_expiry: "체류기간 연장 검토 요청서",
+  contract_visa_conflict: "계약·체류 충돌 검토 요청서",
+  missing_document: "서류 보완 요청서",
+  candidate_readiness: "채용 후보자 검토 요청서",
+};
 
 const routes: Array<{ key: PcViewKey; href: string; label: string; icon: React.ElementType }> = [
   { key: "today", href: "/dashboard", label: "오늘 할 일", icon: CalendarCheck },
@@ -155,12 +179,16 @@ export function PcShell({
 
   async function openHandoffPreview(action?: NextAction | null) {
     if (action) {
-      await workflow.openHandoffPreview(action);
+      const briefingItem = workflow.briefing?.items?.find((i) => i.case_id === action.case_id) ?? null;
+      setPanel({
+        title: "행정사 검토 자료",
+        body: <HandoffReadablePreview action={action} briefingItem={briefingItem} companyId={workflow.companyId} />,
+      });
       return;
     }
     setPanel({
-      title: "검토 자료 미리보기",
-      body: <HandoffReadablePreview />,
+      title: "행정사 검토 자료",
+      body: <HandoffReadablePreview action={null} briefingItem={null} companyId={workflow.companyId} />,
     });
   }
 
@@ -228,7 +256,10 @@ export function PcShell({
       return;
     }
     if (action.kind === "handoff-preview") {
-      await openHandoffPreview(null);
+      const targetAction = action.subjectId
+        ? (actions.find((a) => a.subject_id === action.subjectId && a.action_type === "create_handoff") ?? handoffAction)
+        : handoffAction;
+      await openHandoffPreview(targetAction);
       return;
     }
     if (action.kind === "approval-preview") {
@@ -405,14 +436,11 @@ export function PcShell({
 
       {workflow.preview ? (
         <PcDrawer title="행정사 검토 자료 미리보기" onClose={() => workflow.setPreview(null)}>
-          <div className={styles.modalStack}>
-            <pre className={styles.previewBox}>
-              {typeof workflow.preview.content_redacted === "string"
-                ? workflow.preview.content_redacted
-                : JSON.stringify(workflow.preview.content_redacted, null, 2)}
-            </pre>
-            <p className={styles.safeNotice}>검토용 초안입니다. 외부 전달은 수행하지 않았습니다.</p>
-          </div>
+          <HandoffReadablePreview
+            action={handoffAction}
+            briefingItem={workflow.briefing?.items?.find((i) => i.case_id === handoffAction?.case_id) ?? null}
+            companyId={workflow.companyId}
+          />
         </PcDrawer>
       ) : null}
 
@@ -542,7 +570,66 @@ function findAction(actions: NextAction[], actionType: NextAction["action_type"]
   );
 }
 
-function HandoffReadablePreview() {
+function AgentSummaryBox({ result }: { result: AgentReviewResult }) {
+  const s = result.summary_structured;
+  const rows: Array<{ label: string; value: React.ReactNode }> = [];
+
+  if (s.visa_risk) rows.push({ label: "비자 위험도", value: s.visa_risk });
+  if (s.doc_priority) rows.push({ label: "서류 우선순위", value: s.doc_priority });
+  if (s.missing_critical && s.missing_critical.length > 0) {
+    rows.push({
+      label: "필수 서류 누락",
+      value: (
+        <ul style={{ margin: 0, paddingLeft: 16 }}>
+          {s.missing_critical.map((doc) => <li key={doc}>{doc}</li>)}
+        </ul>
+      ),
+    });
+  }
+  if (s.missing_supplementary && s.missing_supplementary.length > 0) {
+    rows.push({
+      label: "보완 서류",
+      value: (
+        <ul style={{ margin: 0, paddingLeft: 16 }}>
+          {s.missing_supplementary.map((doc) => <li key={doc}>{docCodeToKo(doc)}</li>)}
+        </ul>
+      ),
+    });
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#166534" }}>
+        위험 항목 없음 — 현재 상태 양호
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, overflow: "hidden" }}>
+      {rows.map((row, idx) => (
+        <div key={row.label} style={{ display: "grid", gridTemplateColumns: "130px minmax(0,1fr)", gap: 10, padding: "9px 14px", borderBottom: idx < rows.length - 1 ? "1px solid #EEF2F7" : "none", fontSize: 13 }}>
+          <span style={{ color: "#64748B", fontWeight: 500 }}>{row.label}</span>
+          <span style={{ fontWeight: 600, color: "#1E293B" }}>{row.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HandoffReadablePreview({
+  action,
+  briefingItem,
+  companyId,
+}: {
+  action: NextAction | null;
+  briefingItem: DailyBriefingItem | null;
+  companyId: string;
+}) {
+  const [agentResult, setAgentResult] = useState<AgentReviewResult | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+  const [agentError, setAgentError] = useState<string | null>(null);
+
   const rowStyle: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "150px minmax(0, 1fr)",
@@ -550,18 +637,62 @@ function HandoffReadablePreview() {
     padding: "9px 0",
     borderBottom: "1px solid #EEF2F7",
   };
+
+  async function runAnalysis() {
+    if (!action) return;
+    setAgentLoading(true);
+    setAgentError(null);
+    try {
+      const result = await runAgentReview(action.action_id, companyId);
+      setAgentResult(result);
+    } catch (err) {
+      setAgentError(err instanceof Error ? err.message : "분석 실패");
+    } finally {
+      setAgentLoading(false);
+    }
+  }
+
+  const riskType = briefingItem?.risk_type ?? "visa_expiry";
+  const title = RISK_TYPE_TITLE[riskType] ?? "검토 요청서";
+  const subjectName = briefingItem?.subject_display_name ?? briefingItem?.subject_display_id ?? "—";
+  const missingDocs = briefingItem?.missing_documents ?? [];
+  const submittedDocs = missingDocs.length === 0 ? "서류 보완 없음" : `${missingDocs.map(docCodeToKo).join(", ")} 미제출`;
+
   return (
     <div className={styles.modalStack}>
       <p className={styles.safeNotice}>
         행정사에게 전달하기 전 담당자가 확인할 검토 문서입니다. 개인정보는 필요한 범위만 포함하고, 정부 포털 제출이나 외부 전달은 자동 수행하지 않습니다.
       </p>
+
+      {action ? (
+        <div>
+          {agentResult ? (
+            <AgentSummaryBox result={agentResult} />
+          ) : (
+            <button
+              type="button"
+              disabled={agentLoading}
+              onClick={runAnalysis}
+              style={{ background: "#1D4ED8", color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13, fontWeight: 600, cursor: agentLoading ? "not-allowed" : "pointer", opacity: agentLoading ? 0.7 : 1 }}
+            >
+              {agentLoading ? "에이전트 분석 중…" : "에이전트 분석 실행"}
+            </button>
+          )}
+          {agentError ? <p style={{ color: "#EF4444", fontSize: 12, marginTop: 4 }}>{agentError}</p> : null}
+        </div>
+      ) : null}
+
       <section>
-        <h3>체류기간 연장 검토 요청서</h3>
+        <h3>{title}</h3>
         <div style={rowStyle}><span className={styles.subtle}>수신</span><strong>담당 행정사</strong></div>
-        <div style={rowStyle}><span className={styles.subtle}>요청 목적</span><strong>E-9 근로자 체류기간 연장 가능 일정과 준비 서류 검토</strong></div>
-        <div style={rowStyle}><span className={styles.subtle}>대상 근로자</span><strong>Nguyen V. / 베트남 / E-9</strong></div>
-        <div style={rowStyle}><span className={styles.subtle}>사업장</span><strong>삼성전자 부산공장 · 부산공장 조립라인</strong></div>
-        <div style={rowStyle}><span className={styles.subtle}>현재 상태</span><strong>체류만료일 및 제출 서류 확인 필요, 여권 사본은 근로자 제출 완료</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>요청 목적</span><strong>체류기간 연장 가능 일정과 준비 서류 검토</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>대상 근로자</span><strong>{subjectName}</strong></div>
+        {briefingItem?.severity ? (
+          <div style={rowStyle}><span className={styles.subtle}>현재 상태</span><strong>{briefingItem.severity}</strong></div>
+        ) : null}
+        {missingDocs.length > 0 ? (
+          <div style={rowStyle}><span className={styles.subtle}>누락 서류</span><strong>{missingDocs.map(docCodeToKo).join(", ")}</strong></div>
+        ) : null}
       </section>
       <section>
         <h3>요청 내용</h3>
@@ -571,17 +702,8 @@ function HandoffReadablePreview() {
         </p>
       </section>
       <section>
-        <h3>검토 요청 항목</h3>
-        <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
-          <li>체류기간 연장 신청 가능 일정과 준비 마감일 확인</li>
-          <li>여권 사본 제출본의 식별 가능 여부와 보완 필요 여부 확인</li>
-          <li>외국인등록증 사본, 표준근로계약서 등 추가 제출 필요 서류 확인</li>
-          <li>회사 담당자가 준비해야 할 사업장 또는 고용 관련 확인 자료 목록 회신</li>
-        </ol>
-      </section>
-      <section>
         <h3>첨부 및 참고 근거</h3>
-        <div style={rowStyle}><span className={styles.subtle}>제출 서류</span><strong>여권 사본 제출됨</strong></div>
+        <div style={rowStyle}><span className={styles.subtle}>제출 서류</span><strong>{submittedDocs}</strong></div>
         <div style={rowStyle}><span className={styles.subtle}>공식 근거</span><strong>출입국관리법 제25조, HiKorea 체류기간 연장허가 신청 안내</strong></div>
         <div style={rowStyle}><span className={styles.subtle}>처리 원칙</span><strong>행정사 검토 후 담당자 승인 전까지 외부 제출 없음</strong></div>
       </section>

@@ -13,6 +13,37 @@ from app.db.session import get_sync_db
 
 router = APIRouter(prefix="/actions", tags=["actions"])
 
+DOC_CODE_TO_KO: dict[str, str] = {
+    "work_permit": "고용허가서 사본",
+    "alien_registration": "외국인등록증 사본",
+    "employment_contract": "표준근로계약서",
+    "labor_contract": "표준근로계약서",
+    "passport_copy": "여권 사본",
+    "passport": "여권 사본",
+    "health_certificate": "건강검진 결과서",
+    "criminal_record": "범죄경력 조회서",
+    "standard_contract": "표준근로계약서",
+}
+
+
+def _doc_codes_to_ko(codes: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for code in codes:
+        name = DOC_CODE_TO_KO.get(code.lower(), code)
+        if name not in seen:
+            seen.add(name)
+            result.append(name)
+    return result
+
+
+class AgentReviewResult(BaseModel):
+    action_id: str
+    worker_id: str | None = None
+    risk_flags: list[str] = []
+    summary: str = ""
+    summary_structured: dict = {}
+
 
 class ExternalDeliveryJobRequest(BaseModel):
     channel: str = "admin_scrivener"
@@ -21,6 +52,71 @@ class ExternalDeliveryJobRequest(BaseModel):
 
 def _error(error_code: str, message: str, trace_id: str = "trace_unavailable") -> dict[str, str]:
     return {"error_code": error_code, "message": message, "trace_id": trace_id}
+
+
+@router.post("/{action_id}/agent-review")
+def run_agent_review(
+    action_id: str,
+    x_company_id: str | None = Header(default=None, alias="X-Company-Id"),
+    x_user_id: str | None = Header(default=None, alias="X-User-Id"),
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    db: Session = Depends(get_sync_db),
+) -> dict:
+    from app.agent_runtime.agents.visa_agent import run_visa_agent
+    from app.agent_runtime.schemas.state import ForeignHiringState
+
+    service = build_sqlalchemy_daily_briefing_service(db)
+    allowed_company_ids = resolve_daily_briefing_allowed_company_ids(
+        db,
+        user_id=x_user_id,
+        header_company_id=x_company_id,
+        authorization=authorization,
+    )
+
+    action = service.repository.actions.get(action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail=_error("ACTION_NOT_FOUND", "Action not found."))
+
+    try:
+        service._assert_case_scope(action.case_id, allowed_company_ids)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=_error(str(exc.args[0]), "Permission denied.")) from exc
+
+    case = service.repository.cases.get(action.case_id)
+    worker_id: str | None = case.worker_id if case else None
+
+    all_briefing_items = [
+        item
+        for briefing in service.repository.briefings.values()
+        for item in briefing.items
+    ]
+    item = next((i for i in all_briefing_items if i.case_id == action.case_id), None)
+    item_missing: list[str] = item.missing_documents if item else []
+
+    try:
+        state = ForeignHiringState(request_id=f"review_{action_id}")
+        result = run_visa_agent(state, worker_id=worker_id)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=_error("AGENT_ERROR", str(exc))) from exc
+
+    risk_flags: list[str] = result.get("risk_flags", [])
+    raw_summary: str = result.get("summary", "")
+
+    structured: dict = {}
+    if risk_flags:
+        structured["visa_risk"] = risk_flags[0]
+    if item_missing:
+        structured["doc_priority"] = f"필수 서류 누락 {len(item_missing)}건"
+        structured["missing_critical"] = _doc_codes_to_ko(item_missing)
+
+    review = AgentReviewResult(
+        action_id=action_id,
+        worker_id=worker_id,
+        risk_flags=risk_flags,
+        summary=raw_summary,
+        summary_structured=structured,
+    )
+    return review.model_dump()
 
 
 @router.get("/{action_id}/handoff-preview")

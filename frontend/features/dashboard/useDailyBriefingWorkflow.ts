@@ -134,6 +134,7 @@ export function useDailyBriefingWorkflow(initialCompanyId = "") {
         setPreview(await getHandoffPreview(action.action_id, companyId));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Handoff preview failed");
+        setPreview(null);
       }
     },
     [companyId],

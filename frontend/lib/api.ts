@@ -483,6 +483,35 @@ export async function getHandoffExportArtifacts(
   return response.json();
 }
 
+export type AgentReviewResult = {
+  action_id: string;
+  worker_id: string | null;
+  risk_flags: string[];
+  summary: string;
+  summary_structured: {
+    visa_risk?: string;
+    doc_priority?: string;
+    missing_critical?: string[];
+    missing_supplementary?: string[];
+  };
+};
+
+export async function runAgentReview(
+  actionId: string,
+  companyId = "",
+): Promise<AgentReviewResult> {
+  const response = await fetch(`${API_BASE_URL}/actions/${actionId}/agent-review`, {
+    method: "POST",
+    headers: companyHeaders(companyId),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Agent review failed with ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function getCaseAuditReview(
   caseId: string,
   companyId = "",
