@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.agent_runtime.schemas import ForeignHiringState
+from app.services.context_data_service import DOCUMENT_LABELS
 
 logger = logging.getLogger(__name__)
 
@@ -399,14 +400,6 @@ RISK_LABELS: dict[str, str] = {
 }
 
 
-DOCUMENT_LABELS: dict[str, str] = {
-    "passport_copy": "여권 사본",
-    "alien_registration_copy": "외국인등록증 사본",
-    "alien_registration": "외국인등록증 사본",
-    "standard_labor_contract": "표준근로계약서 사본",
-    "labor_contract": "표준근로계약서 사본",
-    "work_permit": "고용허가서",
-}
 
 
 def _risk_timing(item: Any) -> str:

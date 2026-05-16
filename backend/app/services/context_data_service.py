@@ -20,6 +20,25 @@ from ..models.worker import Worker
 
 SEED_DIR = Path(__file__).resolve().parents[3] / "data-pipeline" / "seed"
 READY_DOCUMENT_STATUSES = {"SUBMITTED", "APPROVED", "ACCEPTED"}
+
+# doc_type 코드 → 사용자 표시 한국어 레이블 (LLM 응답 및 UI 표시 공통 사용)
+DOCUMENT_LABELS: dict[str, str] = {
+    "passport": "여권 원본",
+    "passport_copy": "여권 사본",
+    "alien_registration": "외국인등록증 사본",
+    "alien_registration_copy": "외국인등록증 사본",
+    "arc_copy": "외국인등록증 사본",
+    "employment_contract": "표준근로계약서",
+    "labor_contract": "표준근로계약서",
+    "standard_contract": "표준근로계약서",
+    "standard_labor_contract": "표준근로계약서",
+    "work_permit": "고용허가서",
+    "health_certificate": "건강검진 결과서",
+    "criminal_record": "범죄경력 조회서",
+    "education_cert": "학력 증명서",
+    "company_approval": "사업장 동의서",
+    "technical_cert": "기술 자격증",
+}
 DOCUMENT_TYPE_EQUIVALENTS = {
     "employment_contract": {"employment_contract", "labor_contract", "standard_contract", "standard_labor_contract"},
     "labor_contract": {"employment_contract", "labor_contract", "standard_contract", "standard_labor_contract"},
