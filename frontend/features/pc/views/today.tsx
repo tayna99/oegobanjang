@@ -648,9 +648,37 @@ function TodayWorkerDetail({
   const [msgSending, setMsgSending] = useState<"worker" | "scrivener" | null>(null);
   const [createdThreadIds, setCreatedThreadIds] = useState<string[]>([]);
   const [lastCreatedThreadId, setLastCreatedThreadId] = useState<string | null>(null);
+  const [submittedDocTypes, setSubmittedDocTypes] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    setAgentResult(null);
+    setAgentLoading(false);
+    setCreatedThreadIds([]);
+    setLastCreatedThreadId(null);
+  }, [worker.id]);
 
   const realWorkerId = workerBriefingItem?.subject_id ?? worker.id;
   const companyId = "550e8400-e29b-41d4-a716-446655440001";
+
+  useEffect(() => {
+    async function loadWorkerDocs() {
+      try {
+        const res = await fetch(`/api/v1/documents/worker-requests/all?company_id=${companyId}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        const READY = new Set(["SUBMITTED", "ACCEPTED", "APPROVED"]);
+        const submitted = new Set<string>(
+          (data.requests ?? [])
+            .filter((r: { worker_id: string; status?: string }) => r.worker_id === realWorkerId && READY.has(r.status ?? ""))
+            .map((r: { doc_type: string }) => r.doc_type),
+        );
+        setSubmittedDocTypes(submitted);
+      } catch {
+        setSubmittedDocTypes(new Set());
+      }
+    }
+    void loadWorkerDocs();
+  }, [realWorkerId, companyId]);
 
   async function handleRunAnalysis() {
     const actionId = workerBriefingItem?.primary_action?.action_id;
@@ -739,18 +767,23 @@ function TodayWorkerDetail({
     ? buildRisksFromBriefingItem(workerBriefingItem)
     : [{ title: "확인 필요", desc: "계약·체류·서류 상태를 담당자가 확인해야 합니다.", severity: "MEDIUM", basis: ["근로자 프로필"] }];
 
-  const missingSet = new Set(workerBriefingItem?.missing_documents ?? []);
-  const allDocCodes = ["passport_copy", "alien_registration", "employment_contract", "health_certificate"];
-  const agentMissingCodes = agentResult?.summary_structured?.missing_critical ?? [];
-  const effectiveMissingSet = agentMissingCodes.length > 0
-    ? new Set([...missingSet, ...agentMissingCodes])
-    : missingSet;
+  // 에이전트 결과: 영어 코드 배열 (document_requirements.csv + visa_type 기반 동적 계산)
+  const agentMissingCodes: string[] = agentResult?.summary_structured?.missing_critical_codes ?? [];
+  const agentSupplementaryCodes: string[] = agentResult?.summary_structured?.missing_supplementary_codes ?? [];
+  const agentPresentCodes: string[] = agentResult?.summary_structured?.present_doc_codes ?? [];
+  const hasAgentResult = agentMissingCodes.length > 0 || agentPresentCodes.length > 0;
 
-  const docs: Array<[string, string, Tone]> = allDocCodes.map((code) => [
-    docCodeToKo(code),
-    effectiveMissingSet.has(code) ? "보완 필요" : "확보됨",
-    (effectiveMissingSet.has(code) ? "orange" : "green") as Tone,
-  ]);
+  // 에이전트 실행 후: 에이전트가 반환한 전체 서류 목록을 그대로 표시 (비자 유형별 동적)
+  // 에이전트 실행 전: API 제출 서류만 "확보됨"으로 표시 (누락 서류는 목록에 없음)
+  const docs: Array<[string, string, Tone]> = hasAgentResult
+    ? [
+        ...agentPresentCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "확보됨", "green"]),
+        ...agentMissingCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "보완 필요", "orange"]),
+        ...agentSupplementaryCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "선택 누락", "gray"]),
+      ]
+    : submittedDocTypes === null
+      ? []
+      : [...submittedDocTypes].map((code): [string, string, Tone] => [docCodeToKo(code), "확보됨", "green"]);
 
   return (
     <aside className={styles.todayDetail} data-testid="dashboard-detail-panel">
@@ -841,10 +874,10 @@ function TodayWorkerDetail({
       </section>
 
       <section className={styles.detailSection}>
-        <h3>제출 서류 <Badge tone="gray">{docs.length}</Badge></h3>
+        <h3>제출 서류 {docs.length > 0 && <Badge tone="gray">{docs.length}</Badge>}</h3>
         <div className={styles.stack}>
-          {docs.map(([name, status, tone]) => (
-            <div className={cn(styles.docRow, styles.panel)} key={name}>
+          {docs.map(([name, status, tone], i) => (
+            <div className={cn(styles.docRow, styles.panel)} key={`${i}-${name}`}>
               <span><FileText size={16} /> {name}</span>
               <Badge tone={tone}>{status}</Badge>
             </div>
