@@ -111,6 +111,15 @@ const CASE_SEV: Record<string, { bg: string; bd: string; fg: string; dot: string
 };
 
 const COMPANY_ID = "550e8400-e29b-41d4-a716-446655440001";
+
+const DOC_TYPE_TO_TILE: Record<string, string> = {
+  employment_contract: "근",
+  labor_contract: "근",
+  passport_copy: "여",
+  alien_registration: "외",
+  work_permit: "건",
+  health_certificate: "건",
+};
 const COMPANY_SEED_WORKER_IDS = new Set([
   "650e8400-e29b-41d4-a716-446655440001",
   "650e8400-e29b-41d4-a716-446655440002",
@@ -166,15 +175,23 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
     const mergeDocumentStatus = (worker: (typeof seedWorkers)[number]) => {
       const requests = documentsByWorker.get(worker.id) ?? [];
       if (requests.length === 0) return worker;
-      const requestedCount = requests.filter((request) => request.status === "REQUESTED" || request.status === "MISSING" || request.status === "REJECTED").length;
-      const submittedCount = requests.filter((request) => request.status === "SUBMITTED").length;
-      const hasOpenRequest = requestedCount > 0;
-      const hasSubmitted = submittedCount > 0;
+
+      // SUBMITTED/ACCEPTED 서류 → docs 타일 재구성 (단일 소스 진실)
+      const submittedTiles = requests
+        .filter((r) => r.status === "SUBMITTED" || r.status === "ACCEPTED")
+        .map((r) => DOC_TYPE_TO_TILE[r.doc_type] ?? r.doc_type)
+        .filter((v, i, arr) => arr.indexOf(v) === i);
+
+      const missingCount = requests.filter(
+        (r) => r.status === "MISSING" || r.status === "REQUESTED" || r.status === "REJECTED"
+      ).length;
+
       return {
         ...worker,
-        docExtra: hasOpenRequest ? `+${requestedCount}` : "",
-        status: hasOpenRequest ? worker.status : hasSubmitted ? "서류 제출됨" : worker.status,
-        statusTone: hasOpenRequest ? worker.statusTone : hasSubmitted ? ("green" as Tone) : worker.statusTone,
+        docs: submittedTiles,
+        docExtra: missingCount > 0 ? `+${missingCount}` : "",
+        status: missingCount > 0 ? worker.status : submittedTiles.length > 0 ? "서류 제출됨" : worker.status,
+        statusTone: missingCount > 0 ? worker.statusTone : submittedTiles.length > 0 ? ("green" as Tone) : worker.statusTone,
       };
     };
     const added = dbWorkers
