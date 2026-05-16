@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend-proto",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-s", "C:\\Users\\user\\workspaces\\oegobanjang\\oegobanjang\\frontend-proto", "-l", "3131"],
+      "port": 3131
+    }
+  ]
+}
