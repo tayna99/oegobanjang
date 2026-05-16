@@ -124,7 +124,6 @@ export function OperatorLoginPage() {
           <span>반</span>
           <div>
             <strong>외고반장</strong>
-            <p>관리자/근로자 로그인</p>
           </div>
         </div>
 
