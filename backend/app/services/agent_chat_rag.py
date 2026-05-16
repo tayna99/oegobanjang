@@ -496,13 +496,47 @@ class OpenAIAgentChatQueryPlanner:
         return answer
 
 
+def _chroma_rag_to_policy_chunks(query: str, top_k: int = 8) -> list[dict[str, Any]]:
+    """Chroma workforce 컬렉션을 검색해 PolicyRetriever 호환 형식으로 변환한다."""
+    try:
+        from app.agent_runtime.rag_hyunwook.retriever import RAGRetriever
+        result = RAGRetriever().search(query, k=top_k)
+        if not result.found or not result.documents:
+            return []
+        chunks = []
+        for doc in result.documents:
+            meta = dict(doc.metadata or {})
+            chunk_id = meta.get("chunk_id") or meta.get("source_id") or "chroma_chunk"
+            intent = meta.get("intent") or meta.get("mission_agent") or "daily_briefing"
+            chunks.append(
+                _chunk(
+                    chunk_id=chunk_id,
+                    title=meta.get("title") or meta.get("source_id") or chunk_id,
+                    text=doc.page_content or "",
+                    source_type=meta.get("doc_type") or "official_procedure",
+                    intent=intent,
+                    risk_type=meta.get("risk_type") or intent,
+                    case_id=meta.get("case_id") or "chroma",
+                    citation_ids=meta.get("citation_ids") or [],
+                    action_ids=meta.get("action_ids") or [],
+                    approval_required=bool(meta.get("approval_required", True)),
+                )
+            )
+        return chunks
+    except Exception:
+        return []
+
+
 def prepare_agent_chat_rag_first(
     message: str,
     *,
     llm_planner: OpenAIAgentChatQueryPlanner | None = None,
 ) -> RAGFirstPreflight:
     planner = llm_planner or OpenAIAgentChatQueryPlanner()
-    rag_results = PolicyRetriever(_build_static_rag_chunks()).search(
+    chroma_chunks = _chroma_rag_to_policy_chunks(message, top_k=8)
+    static_chunks = _build_static_rag_chunks()
+    combined_chunks = chroma_chunks + static_chunks if chroma_chunks else static_chunks
+    rag_results = PolicyRetriever(combined_chunks).search(
         message,
         top_k=8,
         answer_evidence_only=False,

@@ -88,7 +88,7 @@ _VISA_INTENTS = frozenset({"visa_expiry", "document_gap", "contract_visa_conflic
 _MULTILINGUAL_INTENTS = frozenset({"document_request_message"})
 _HIRING_INTENTS = frozenset({"quota_review", "candidate_readiness", "reporting_deadline", "handoff_preview"})
 _AGENT_DISPATCHABLE_INTENTS = _VISA_INTENTS | _MULTILINGUAL_INTENTS | _HIRING_INTENTS
-_ENABLE_PRE_RAG_AGENT_DISPATCH = False
+_ENABLE_PRE_RAG_AGENT_DISPATCH = True
 
 _KEYWORD_MAP: list[tuple[tuple[str, ...], str]] = [
     (("비자", "체류", "만료", "갱신", "끝나는", "기간 만료"), "visa_expiry"),
