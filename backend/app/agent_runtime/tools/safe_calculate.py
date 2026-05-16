@@ -6,6 +6,7 @@ from typing import Any
 from langchain_core.tools import tool
 
 from app.agent_runtime.schemas.tool import ToolContractLevel, ToolResult, ToolStatus
+from app.agent_runtime.tools.document_check_tool import _doc_code_to_ko
 from app.services.context_data_service import (
     calculate_candidate_readiness as calculate_candidate_readiness_rows,
     calculate_missing_documents_for_worker,
@@ -99,7 +100,7 @@ def calculate_missing_documents(worker_id: str, case_type: str) -> dict[str, Any
     if result["missing_count"]:
         risk_flags.append(
             f"누락 서류 {result['missing_count']}건: "
-            f"{[item['doc_type'] for item in result['missing']]}"
+            f"{[_doc_code_to_ko(item['doc_type']) for item in result['missing']]}"
         )
 
     return ToolResult(

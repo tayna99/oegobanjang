@@ -5,6 +5,7 @@ from typing import Any
 from langchain_core.tools import tool
 
 from app.agent_runtime.schemas.tool import ToolContractLevel, ToolResult, ToolStatus
+from app.agent_runtime.tools.document_check_tool import _doc_code_to_ko
 from app.services.context_data_service import (
     calculate_missing_documents_for_worker,
     get_company_data,
@@ -368,7 +369,8 @@ def generate_expert_handoff_package_draft(
 
     missing_result = calculate_missing_documents_for_worker(worker_id, case_type)
     submitted_docs = get_worker_documents_data(worker_id)
-    missing = [item["doc_type"] for item in missing_result.get("missing", [])]
+    missing_codes = [item["doc_type"] for item in missing_result.get("missing", [])]
+    missing = [_doc_code_to_ko(code) for code in missing_codes]
     risk_flags = []
     if missing:
         risk_flags.append(f"누락 서류 {len(missing)}건 있음: {missing}")
@@ -384,7 +386,7 @@ def generate_expert_handoff_package_draft(
     package.update(
         {
             "document_summary": {
-                "submitted_documents": [str(doc.get("doc_type")) for doc in submitted_docs],
+                "submitted_documents": [_doc_code_to_ko(str(doc.get("doc_type", ""))) for doc in submitted_docs],
                 "missing_documents": missing,
             },
             "notes": notes,
