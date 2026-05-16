@@ -149,24 +149,28 @@ def create_message_draft(
         korean_text = str(agent_payload.get("korean_text") or "담당자 확인이 필요한 메시지 초안입니다.")
         translated_text = str(agent_payload.get("translated_text") or korean_text)
 
-    ensure_document_requests_for_purpose(
-        worker_id=worker_id,
-        company_id=company_id or worker.get("company_id"),
-        message_purpose=resolved_purpose,
-        due_date=due_date,
-        db=db,
-    )
+    if resolved_purpose != "handoff_notification":
+        ensure_document_requests_for_purpose(
+            worker_id=worker_id,
+            company_id=company_id or worker.get("company_id"),
+            message_purpose=resolved_purpose,
+            due_date=due_date,
+            db=db,
+        )
 
     title = _purpose_label(resolved_purpose)
     msg_type = "scrivener_handoff" if resolved_purpose == "handoff_notification" else "worker_message"
+    channel = "expert" if resolved_purpose == "handoff_notification" else "portal"
+    thread_title = f"행정사 - {worker_name}" if channel == "expert" else f"{worker_name} · {title}"
     thread = _get_or_create_thread(
         db,
         worker=worker,
-        title=f"{worker_name} · {title}",
+        title=thread_title,
         status="초안",
         company_id=company_id or worker.get("company_id"),
         source_action_id=source_action_id,
         message_type=msg_type,
+        channel=channel,
     )
     duplicate = _find_duplicate_outbound_message(
         db,
@@ -176,7 +180,7 @@ def create_message_draft(
     )
     if duplicate is not None:
         thread.status = "초안"
-        thread.title = f"{worker_name} · {title}"
+        thread.title = thread_title
         thread.last_message_at = duplicate.created_at or _now()
         db.commit()
         return _thread_payload(thread, db, include_messages=True)
@@ -195,7 +199,7 @@ def create_message_draft(
     )
     db.add(message)
     thread.status = "초안"
-    thread.title = f"{worker_name} · {title}"
+    thread.title = thread_title
     thread.last_message_at = _now()
     db.commit()
     return _thread_payload(thread, db, include_messages=True)

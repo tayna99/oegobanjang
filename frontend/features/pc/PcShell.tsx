@@ -126,6 +126,14 @@ export function PcShell({
   }, [operator?.accessToken, workflow.runBriefing]);
 
   useEffect(() => {
+    const refreshBriefing = () => {
+      void workflow.runBriefing();
+    };
+    window.addEventListener("workbridge-daily-briefing-refresh", refreshBriefing);
+    return () => window.removeEventListener("workbridge-daily-briefing-refresh", refreshBriefing);
+  }, [workflow.runBriefing]);
+
+  useEffect(() => {
     const refreshOperator = () => {
       setOperator(getOperatorContext());
       setAuthReady(true);

@@ -203,31 +203,41 @@ export function ExpertPortalPage() {
 
       <main className={styles.main}>
         {activeTab === "requests" ? (
-          <div className={styles.split}>
-            <aside className={styles.sideStack}>
-              <section className={styles.card} style={{ padding: 16 }}>
-                <div className={styles.sectionTitle}>
-                  <h1 style={{ margin: 0, fontSize: 18 }}>검토 요청</h1>
-                  <span className={styles.badge}>{requests.length}건</span>
+          <div className={`${styles.todayDashboard} ${!selectedRequest ? styles.todayDashboardCollapsed : ""}`}>
+            <section className={styles.stack}>
+              <div className={styles.taskQueueWrap}>
+                <div className={styles.taskQueueHead}>
+                  검토 요청
+                  <span className={styles.taskQueueHeadCount}>{requests.length}건</span>
                 </div>
                 {requests.length === 0 ? (
                   <EmptyState title="도착한 검토 요청이 없습니다" description="관리자가 행정사 검토 요청을 보내면 근로자별 요청이 표시됩니다." />
                 ) : (
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <div className={styles.taskQueue}>
+                    <div style={expertQueueHeaderStyle}>
+                      <div>요청</div>
+                      <div>근로자</div>
+                      <div>상태</div>
+                      <div>다음 처리</div>
+                    </div>
                     {requests.map((request) => (
-                      <button key={request.id} onClick={() => void selectThread(request.id)} style={requestCardStyle(selectedThreadId === request.id)} type="button">
-                        <strong style={{ display: "block", fontSize: 14 }}>{request.title}</strong>
-                        <span className={styles.subtle} style={{ display: "block", marginTop: 5, fontSize: 12 }}>{request.worker} · {request.due}</span>
-                        <span style={statusChip(request.status)}>{request.status}</span>
+                      <button key={request.id} onClick={() => void selectThread(request.id)} style={expertQueueRowStyle(selectedThreadId === request.id)} type="button">
+                        <div style={{ minWidth: 0 }}>
+                          <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{request.title}</strong>
+                          <span className={styles.subtle} style={{ display: "block", marginTop: 4, fontSize: 12 }}>{request.due}</span>
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 800 }}>{request.worker}</div>
+                        <span style={{ ...statusChip(request.status), marginTop: 0 }}>{request.status}</span>
+                        <span style={expertNextButtonStyle}>상세 보기</span>
                       </button>
                     ))}
                   </div>
                 )}
-              </section>
-            </aside>
+              </div>
+            </section>
 
             {selectedRequest ? (
-              <section className={styles.document}>
+              <aside className={styles.todayDetail}>
                 <div className={styles.pageHead}>
                   <div>
                     <div className={styles.subtle}>{selectedRequest.id}</div>
@@ -250,11 +260,11 @@ export function ExpertPortalPage() {
                 <button className={styles.primaryWideButton} onClick={() => setActiveTab("messages")} style={{ width: "auto", padding: "0 16px" }} type="button">
                   메시지에서 답변하기
                 </button>
-              </section>
+              </aside>
             ) : (
-              <section className={styles.document}>
+              <aside className={styles.todayDetail}>
                 <EmptyState title="선택할 요청이 없습니다" description="관리자가 실제 케이스를 검토 요청하면 요약과 메시지가 여기에 열립니다." />
-              </section>
+              </aside>
             )}
           </div>
         ) : (
@@ -269,9 +279,9 @@ export function ExpertPortalPage() {
                     <button className={styles.contactItem} key={thread.id} onClick={() => void selectThread(thread.id)} style={threadButtonStyle(selectedThread?.id === thread.id)} type="button">
                       <span className={styles.workerAvatar}>{thread.worker.name.slice(0, 1)}</span>
                       <div style={{ minWidth: 0 }}>
-                        <strong style={{ fontSize: 13 }}>{thread.title}</strong>
+                        <strong style={{ fontSize: 13 }}>{expertThreadTitle(thread)}</strong>
                         <div className={styles.subtle} style={{ fontSize: 12, marginTop: 5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {thread.last_message_preview || "메시지 없음"}
+                          {compactPreview(thread.last_message_preview)}
                         </div>
                       </div>
                     </button>
@@ -282,7 +292,7 @@ export function ExpertPortalPage() {
               {selectedThread ? (
                 <MessengerPanel
                   messages={selectedThread.messages ?? []}
-                  title={selectedThread.title}
+                  title={expertThreadTitle(selectedThread)}
                   draftMessage={draftMessage}
                   onDraftChange={setDraftMessage}
                   onApprove={approveManagerRequest}
@@ -416,13 +426,23 @@ function threadToRequest(thread: ContactThread) {
           : "검토 대기";
   return {
     id: thread.id,
-    title: thread.title,
+    title: expertThreadTitle(thread),
     worker: thread.worker.name,
     company: "삼성전자 부산공장",
     due: "담당자 확인 후",
     status,
     summary: firstManagerMessage?.body_ko || thread.last_message_preview || "관리자가 보낸 검토 요청입니다.",
   };
+}
+
+function expertThreadTitle(thread: ContactThread) {
+  return `행정사 - ${thread.worker.name}`;
+}
+
+function compactPreview(value?: string) {
+  const text = (value || "메시지 없음").replace(/\s+/g, " ").trim();
+  if (text.length <= 10) return text;
+  return `${text.slice(0, 9)}…`;
 }
 
 function isExpertMessage(message: ContactMessage) {
@@ -557,6 +577,49 @@ function threadButtonStyle(selected: boolean): React.CSSProperties {
     cursor: "pointer",
   };
 }
+
+const expertQueueHeaderStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "minmax(220px, 1fr) 120px 112px 96px",
+  gap: 10,
+  alignItems: "center",
+  padding: "10px 14px",
+  borderBottom: "1px solid rgba(112, 115, 124, 0.1)",
+  background: "#F7F7F8",
+  color: "#64748B",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+function expertQueueRowStyle(selected: boolean): React.CSSProperties {
+  return {
+    display: "grid",
+    gridTemplateColumns: "minmax(220px, 1fr) 120px 112px 96px",
+    gap: 10,
+    alignItems: "center",
+    width: "100%",
+    minHeight: 68,
+    padding: "12px 14px",
+    border: 0,
+    borderBottom: "1px solid rgba(112, 115, 124, 0.08)",
+    background: selected ? "#EFF6FF" : "#fff",
+    color: "#0F172A",
+    textAlign: "left",
+    cursor: "pointer",
+  };
+}
+
+const expertNextButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: 34,
+  borderRadius: 8,
+  background: "#1D4ED8",
+  color: "#fff",
+  fontSize: 12,
+  fontWeight: 900,
+};
 
 const baseStatusChip: React.CSSProperties = {
   display: "inline-flex",

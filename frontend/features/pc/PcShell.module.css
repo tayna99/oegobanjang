@@ -1145,14 +1145,18 @@
 }
 .taskStatusPill {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3px 8px;
+  min-width: 42px;
+  min-height: 36px;
+  padding: 4px 8px;
   border-radius: 99px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  width: fit-content;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: normal;
+  text-align: center;
 }
 .taskStatusStack {
   display: flex;

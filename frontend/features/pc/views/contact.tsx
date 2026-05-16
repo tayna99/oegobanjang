@@ -578,6 +578,7 @@ function MessageBubble({
     });
     if (response.ok) {
       setReviewMessage("서류가 승인 처리됐습니다. 행정사 검토 요청 초안을 확인할 수 있습니다.");
+      window.dispatchEvent(new Event("workbridge-daily-briefing-refresh"));
       window.setTimeout(onAccepted, 600);
       return;
     }
@@ -596,6 +597,7 @@ function MessageBubble({
     });
     if (response.ok) {
       setReviewMessage("보완 요청 메시지를 근로자에게 다시 보냈습니다.");
+      window.dispatchEvent(new Event("workbridge-daily-briefing-refresh"));
       window.setTimeout(onAccepted, 600);
       return;
     }

@@ -12,13 +12,24 @@ from sqlalchemy.orm import Session
 
 from ..db.session import SessionLocal
 from ..models.company import Company
+from ..models.daily_briefing import DailyBriefingDocumentSource
 from ..models.document import DocumentRequirement, WorkerDocument
 from ..models.hiring import Candidate, CandidatePreEntryPackage
 from ..models.worker import Worker
 
 
 SEED_DIR = Path(__file__).resolve().parents[3] / "data-pipeline" / "seed"
-READY_DOCUMENT_STATUSES = {"SUBMITTED", "APPROVED"}
+READY_DOCUMENT_STATUSES = {"SUBMITTED", "APPROVED", "ACCEPTED"}
+DOCUMENT_TYPE_EQUIVALENTS = {
+    "employment_contract": {"employment_contract", "labor_contract", "standard_contract", "standard_labor_contract"},
+    "labor_contract": {"employment_contract", "labor_contract", "standard_contract", "standard_labor_contract"},
+    "standard_contract": {"employment_contract", "labor_contract", "standard_contract", "standard_labor_contract"},
+    "standard_labor_contract": {"employment_contract", "labor_contract", "standard_contract", "standard_labor_contract"},
+    "alien_registration": {"alien_registration", "arc_copy"},
+    "arc_copy": {"alien_registration", "arc_copy"},
+    "passport_copy": {"passport_copy", "passport"},
+    "passport": {"passport_copy", "passport"},
+}
 READY_CANDIDATE_FIELDS = {
     "passport": "여권",
     "photo": "증명사진",
@@ -198,11 +209,15 @@ def get_worker_documents_data(worker_id: str, *, db: Session | None = None) -> l
                     select(WorkerDocument).where(WorkerDocument.worker_id == worker_id)
                 )
             )
+            daily_rows = _daily_briefing_document_rows(worker_id, session)
             # DB에 SUBMITTED/APPROVED 상태 레코드가 있으면 DB 데이터 사용
             # REQUESTED/PENDING 레코드만 있으면 실제 제출 상태를 모르므로 CSV seed와 병합
             submitted_rows = [r for r in rows if str(getattr(r, "status", "")).upper() in READY_DOCUMENT_STATUSES]
             if submitted_rows:
-                return [_model_dict(row, fields) for row in rows]
+                return _merge_document_rows(
+                    [_model_dict(row, fields) for row in rows],
+                    daily_rows,
+                )
             if rows:
                 # DB에 레코드는 있지만 모두 비제출 상태 — CSV seed를 추가로 확인해 병합
                 db_result = [_model_dict(row, fields) for row in rows]
@@ -211,7 +226,9 @@ def get_worker_documents_data(worker_id: str, *, db: Session | None = None) -> l
                 seed_submitted_types = {str(r.get("doc_type")) for r in seed_result if str(r.get("status", "")).upper() in READY_DOCUMENT_STATUSES}
                 merged = [r for r in db_result if str(r.get("doc_type") or "") not in seed_submitted_types]
                 extra = [r for r in seed_result if str(r.get("doc_type")) in seed_submitted_types]
-                return merged + extra
+                return _merge_document_rows(merged + extra, daily_rows)
+            if daily_rows:
+                return daily_rows
         except SQLAlchemyError:
             pass
 
@@ -265,11 +282,11 @@ def calculate_missing_documents_for_worker(
         if _bool(row.get("required", True))
     ]
     documents = get_worker_documents_data(worker_id, db=db)
-    submitted_types = {
+    submitted_types = _expanded_document_types({
         str(row.get("doc_type"))
         for row in documents
         if str(row.get("status", "")).upper() in READY_DOCUMENT_STATUSES
-    }
+    })
     missing = [
         {"doc_type": str(row.get("required_doc")), "notes": str(row.get("notes") or "")}
         for row in requirements
@@ -291,6 +308,54 @@ def calculate_missing_documents_for_worker(
         "missing": missing,
         "present": present,
     }
+
+
+def _daily_briefing_document_rows(worker_id: str, session: Session) -> list[dict[str, Any]]:
+    rows = list(
+        session.scalars(
+            select(DailyBriefingDocumentSource).where(DailyBriefingDocumentSource.worker_id == worker_id)
+        )
+    )
+    return [
+        {
+            "id": row.id,
+            "company_id": None,
+            "worker_id": row.worker_id,
+            "doc_type": row.document_type,
+            "status": row.status,
+            "file_path": None,
+            "submitted_at": None,
+            "reviewed_at": None,
+            "expires_at": row.due_date,
+            "notes": "daily_briefing_source_documents",
+        }
+        for row in rows
+    ]
+
+
+def _merge_document_rows(*groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for group in groups:
+        for row in group:
+            doc_type = str(row.get("doc_type") or "")
+            if not doc_type:
+                continue
+            current = merged.get(doc_type)
+            if current is None:
+                merged[doc_type] = row
+                continue
+            current_ready = str(current.get("status", "")).upper() in READY_DOCUMENT_STATUSES
+            next_ready = str(row.get("status", "")).upper() in READY_DOCUMENT_STATUSES
+            if next_ready and not current_ready:
+                merged[doc_type] = row
+    return list(merged.values())
+
+
+def _expanded_document_types(doc_types: set[str]) -> set[str]:
+    expanded = set(doc_types)
+    for doc_type in list(doc_types):
+        expanded.update(DOCUMENT_TYPE_EQUIVALENTS.get(doc_type, {doc_type}))
+    return expanded
 
 
 def calculate_candidate_readiness(

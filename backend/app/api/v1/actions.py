@@ -66,12 +66,13 @@ def _build_action_plan(
     missing_critical_codes: list[str],
     handoff_triggered: bool,
     visa_d_day: int | None,
+    risk_type: str | None = None,
 ) -> list[str]:
     plan: list[str] = []
     if missing_critical_codes:
         docs_ko = _doc_codes_to_ko(missing_critical_codes)
         plan.append(f"근로자에게 서류 요청: {', '.join(docs_ko)}")
-    if any("계약" in f for f in risk_flags):
+    if risk_type == "contract_visa_conflict" or any("계약" in f for f in risk_flags):
         plan.append("계약 기간 연장 또는 비자 만료일 전 계약 조정 검토")
     if visa_d_day is not None:
         try:
@@ -119,6 +120,7 @@ def run_agent_review(
 
     case = service.repository.cases.get(action.case_id)
     worker_id: str | None = case.worker_id if case else None
+    case_risk_type = case.risk_type if case else None
 
     try:
         state = ForeignHiringState(request_id=f"review_{action_id}")
@@ -158,16 +160,15 @@ def run_agent_review(
     ]
     submission_readiness: str = doc_output.get("submission_readiness", "")
 
-    # handoff는 비자 D-30 이내 + 필수 서류 누락 동시 충족 시에만 트리거
+    # handoff는 체류만료/계약-체류 충돌이 D-30 이내면 서류 누락 여부와 별개로 검토 대상이다.
     handoff_triggered: bool = False
-    if missing_critical_codes and visa_d_day is not None:
+    if visa_d_day is not None and case_risk_type in {"visa_expiry", "contract_visa_conflict"}:
         try:
             if int(visa_d_day) <= 30:
                 handoff_triggered = True
         except (ValueError, TypeError):
             pass
-    # 에이전트가 handoff를 트리거했고 위 조건도 충족하는 경우 유지
-    if result.get("handoff_triggered") and missing_critical_codes:
+    if result.get("handoff_triggered"):
         handoff_triggered = True
 
     structured: dict = {
@@ -180,7 +181,7 @@ def run_agent_review(
         "missing_supplementary": _doc_codes_to_ko(missing_supplementary_codes),
         "present_docs": _doc_codes_to_ko(present_doc_codes),
         "submission_readiness": submission_readiness,
-        "action_plan": _build_action_plan(risk_flags, missing_critical_codes, handoff_triggered, visa_d_day),
+        "action_plan": _build_action_plan(risk_flags, missing_critical_codes, handoff_triggered, visa_d_day, case_risk_type),
         "handoff_triggered": handoff_triggered,
     }
 

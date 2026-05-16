@@ -225,10 +225,6 @@ export function WorkerPortalPage() {
                 <UserRound size={24} />
               </span>
             </div>
-            <div className={styles.safeNotice} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <ShieldCheck size={17} />
-              제출된 자료는 담당자 확인 전까지 자동 완료 처리되지 않습니다.
-            </div>
           </section>
 
           {activeTab === "documents" ? (
@@ -282,6 +278,10 @@ export function WorkerPortalPage() {
               <div className={styles.sectionTitle}>
                 <h2 style={{ margin: 0, fontSize: 18 }}>회사 메시지</h2>
                 <MessageSquare size={18} color="#2563EB" />
+              </div>
+              <div className={styles.safeNotice} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <ShieldCheck size={17} />
+                제출된 자료는 담당자 확인 전까지 자동 완료 처리되지 않습니다.
               </div>
               {messages.length > 0 ? (
                 <>
