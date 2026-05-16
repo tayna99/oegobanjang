@@ -81,6 +81,29 @@ from app.services.daily_briefing_service import build_sqlalchemy_daily_briefing_
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
+_DEMO_RESPONSES: list[tuple[tuple[str, ...], str]] = [
+    (
+        ("비자 만료", "만료되는 직원", "비자 끝나는", "체류 만료"),
+        "비자 만료가 임박하거나 이미 만료된 직원이 5명 있습니다. Dang T.와 Nguyen V.는 이미 만료 상태이며 누락 서류도 있어 즉시 조치가 필요합니다.",
+    ),
+    (
+        ("사람 더 필요", "인원 더", "채용 필요", "사람이 더", "사람 필요"),
+        "어떤 역할로 몇 명이 필요한지 알려주시면 채용 요청서 초안을 만들어드리겠습니다. 현재 외국인 고용 허가 잔여 쿼터와 숙소 가용 여부도 함께 확인해드립니다.",
+    ),
+    (
+        ("베트남어로", "여권 보내달라", "여권 요청", "베트남어 메시지"),
+        "베트남어 메시지 초안입니다.\n\n[한국어 원문]\n여권 사본을 제출해 주세요.\n\n[베트남어]\nKính gửi,\n\nĐể hoàn tất hồ sơ lao động, vui lòng nộp bản sao hộ chiếu trong vòng 5 ngày làm việc.\n\nCảm ơn sự hợp tác của bạn.",
+    ),
+]
+
+
+def _demo_fixed_response(message: str) -> str | None:
+    for keywords, answer in _DEMO_RESPONSES:
+        if any(kw in message for kw in keywords):
+            return answer
+    return None
+
+
 # ---------------------------------------------------------------------------
 # 인텐트 분류 (RAG 없이 구어체 직접 매칭)
 # ---------------------------------------------------------------------------
@@ -282,6 +305,29 @@ async def chat_agent(
     x_user_role: str = Header(default="viewer", alias="X-User-Role"),
     db: Session = Depends(get_sync_db),
 ) -> dict[str, Any]:
+    # --- 데모 고정 응답 (시현용) ---
+    _demo_answer = _demo_fixed_response(request.message)
+    if _demo_answer:
+        return {
+            "answer": _demo_answer,
+            "final_response": _demo_answer,
+            "route": "demo_fixed",
+            "llm_used": False,
+            "latency_mode": "demo",
+            "tool_calls": [],
+            "rag_hits": [],
+            "retrieval_source_types": [],
+            "llm_provider": None,
+            "fallback_used": False,
+            "fallback_reason": None,
+            "actions": [],
+            "sources": [],
+            "detected_intents": ["demo"],
+            "approval_required": False,
+            "structured_plan": {},
+        }
+    # --- 데모 고정 응답 끝 ---
+
     daily_briefing_plan = plan_daily_briefing_from_message(request.message)
     if not daily_briefing_plan.should_run and daily_briefing_plan.intent == "forbidden":
         return {
