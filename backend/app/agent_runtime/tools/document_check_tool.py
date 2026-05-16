@@ -33,7 +33,7 @@ _DOC_CODE_TO_KO: dict[str, str] = {
     "work_permit": "고용허가서 사본",
     "alien_registration": "외국인등록증 사본",
     "employment_contract": "표준근로계약서",
-    "labor_contract": "표준근로계약서",
+    "labor_contract": "근로계약서",
     "passport_copy": "여권 사본",
     "passport": "여권 사본",
     "health_certificate": "건강검진 결과서",

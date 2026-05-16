@@ -68,8 +68,6 @@ def list_all_worker_document_requests(company_id: str | None, db: Session) -> li
     if company_id:
         query = query.where(WorkerDocument.company_id == company_id)
     db_rows = list(db.execute(query).scalars())
-    db_worker_ids = {row.worker_id for row in db_rows}
-
     # DB 행을 (worker_id, doc_type) 키로 인덱싱
     db_key_set: set[tuple[str, str]] = {(row.worker_id, row.doc_type) for row in db_rows}
 
@@ -79,15 +77,8 @@ def list_all_worker_document_requests(company_id: str | None, db: Session) -> li
     ]
 
     # CSV seed로 보완: DB에 없는 (worker_id, doc_type) 조합만 추가
-    # DB에 SUBMITTED가 없는 근로자의 경우 CSV SUBMITTED 레코드로 보완 (에이전트와 동일 전략)
     seed_docs = _load_seed_worker_documents(company_id)
     READY = {"SUBMITTED", "APPROVED"}
-
-    # worker_id별 DB SUBMITTED 여부
-    db_submitted_workers: set[str] = {
-        row.worker_id for row in db_rows
-        if str(getattr(row, "status", "")).upper() in READY
-    }
 
     for seed_row in seed_docs:
         wid = seed_row.get("worker_id", "")
@@ -95,12 +86,8 @@ def list_all_worker_document_requests(company_id: str | None, db: Session) -> li
         if not wid or not dtype:
             continue
         seed_status = str(seed_row.get("status", "")).upper()
-        # DB에 해당 (worker_id, doc_type) 없고,
-        # DB에 SUBMITTED 레코드 없는 근로자의 SUBMITTED CSV 데이터만 추가
-        if (wid, dtype) not in db_key_set and (
-            wid not in db_submitted_workers and seed_status in READY
-            or wid not in db_worker_ids
-        ):
+        # DB에 해당 (worker_id, doc_type) 조합이 없는 경우에만 seed로 보완
+        if (wid, dtype) not in db_key_set and seed_status in READY:
             result.append(_request_payload_from_seed(seed_row))
 
     return result

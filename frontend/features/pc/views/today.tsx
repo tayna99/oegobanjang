@@ -452,7 +452,7 @@ const DOC_CODE_TO_KO: Record<string, string> = {
   work_permit: "고용허가서 사본",
   alien_registration: "외국인등록증 사본",
   employment_contract: "표준근로계약서",
-  labor_contract: "표준근로계약서",
+  labor_contract: "근로계약서",
   passport_copy: "여권 사본",
   passport: "여권 사본",
   health_certificate: "건강검진 결과서",
@@ -462,6 +462,15 @@ const DOC_CODE_TO_KO: Record<string, string> = {
 
 function docCodeToKo(code: string): string {
   return DOC_CODE_TO_KO[code.toLowerCase()] ?? code;
+}
+
+function dedupeByName(entries: Array<[string, string, Tone]>): Array<[string, string, Tone]> {
+  const seen = new Set<string>();
+  return entries.filter(([name]) => {
+    if (seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
 }
 
 const SEVERITY_COLOR: Record<string, Tone> = {
@@ -649,6 +658,11 @@ function TodayWorkerDetail({
   const [createdThreadIds, setCreatedThreadIds] = useState<string[]>([]);
   const [lastCreatedThreadId, setLastCreatedThreadId] = useState<string | null>(null);
   const [submittedDocTypes, setSubmittedDocTypes] = useState<Set<string> | null>(null);
+  const [preAgentDocStatus, setPreAgentDocStatus] = useState<{
+    present: string[];
+    missingCritical: string[];
+    missingSupplementary: string[];
+  } | null>(null);
 
   useEffect(() => {
     setAgentResult(null);
@@ -663,22 +677,20 @@ function TodayWorkerDetail({
   useEffect(() => {
     async function loadWorkerDocs() {
       try {
-        const res = await fetch(`/api/v1/documents/worker-requests/all?company_id=${companyId}`, { cache: "no-store" });
+        const res = await fetch(`/api/v1/documents/worker-doc-status?worker_id=${realWorkerId}`, { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
-        const READY = new Set(["SUBMITTED", "ACCEPTED", "APPROVED"]);
-        const submitted = new Set<string>(
-          (data.requests ?? [])
-            .filter((r: { worker_id: string; status?: string }) => r.worker_id === realWorkerId && READY.has(r.status ?? ""))
-            .map((r: { doc_type: string }) => r.doc_type),
-        );
-        setSubmittedDocTypes(submitted);
+        setPreAgentDocStatus({
+          present: data.present ?? [],
+          missingCritical: data.missing_critical ?? [],
+          missingSupplementary: data.missing_supplementary ?? [],
+        });
       } catch {
-        setSubmittedDocTypes(new Set());
+        setPreAgentDocStatus({ present: [], missingCritical: [], missingSupplementary: [] });
       }
     }
     void loadWorkerDocs();
-  }, [realWorkerId, companyId]);
+  }, [realWorkerId]);
 
   async function handleRunAnalysis() {
     const actionId = workerBriefingItem?.primary_action?.action_id;
@@ -773,17 +785,20 @@ function TodayWorkerDetail({
   const agentPresentCodes: string[] = agentResult?.summary_structured?.present_doc_codes ?? [];
   const hasAgentResult = agentMissingCodes.length > 0 || agentPresentCodes.length > 0;
 
-  // 에이전트 실행 후: 에이전트가 반환한 전체 서류 목록을 그대로 표시 (비자 유형별 동적)
-  // 에이전트 실행 전: API 제출 서류만 "확보됨"으로 표시 (누락 서류는 목록에 없음)
+  // 에이전트 실행 전/후 모두 비자 요건 기준 서류 목록 표시 (소스만 다름)
   const docs: Array<[string, string, Tone]> = hasAgentResult
-    ? [
+    ? dedupeByName([
         ...agentPresentCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "확보됨", "green"]),
         ...agentMissingCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "보완 필요", "orange"]),
         ...agentSupplementaryCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "선택 누락", "gray"]),
-      ]
-    : submittedDocTypes === null
+      ])
+    : preAgentDocStatus === null
       ? []
-      : [...submittedDocTypes].map((code): [string, string, Tone] => [docCodeToKo(code), "확보됨", "green"]);
+      : dedupeByName([
+          ...preAgentDocStatus.present.map((code): [string, string, Tone] => [docCodeToKo(code), "확보됨", "green"]),
+          ...preAgentDocStatus.missingCritical.map((code): [string, string, Tone] => [docCodeToKo(code), "보완 필요", "orange"]),
+          ...preAgentDocStatus.missingSupplementary.map((code): [string, string, Tone] => [docCodeToKo(code), "선택 누락", "gray"]),
+        ]);
 
   return (
     <aside className={styles.todayDetail} data-testid="dashboard-detail-panel">
@@ -799,23 +814,6 @@ function TodayWorkerDetail({
           <p className={styles.subtle}>{worker.nationalityCode} {worker.nationality} · {worker.visaType} · 근속 {worker.tenure}</p>
           <p className={styles.subtle}>{worker.line} · 외등록 950***-5******</p>
         </div>
-      </div>
-
-      {/* 왜 확인이 필요한가요? */}
-      <div className={styles.reasonBox}>
-        <div className={styles.reasonBoxTitle}>
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6.5" stroke="#1D4ED8" strokeWidth="1.4"/>
-            <path d="M8 7v4M8 5.5h.01" stroke="#1D4ED8" strokeWidth="1.4" strokeLinecap="round"/>
-          </svg>
-          왜 확인이 필요한가요?
-        </div>
-        {risks.slice(0, 2).map((r) => (
-          <div className={styles.reasonItem} key={r.title}>
-            <span className={styles.reasonDot} />
-            <span><strong>{r.title}</strong> — {r.desc}</span>
-          </div>
-        ))}
       </div>
 
       {/* AI가 준비한 일 */}
