@@ -18,6 +18,7 @@ from app.services.agent_chat_contact import (
     CONTACT_CHAT_INTENTS,
     run_agent_chat_contact_subagent,
 )
+from app.services.context_data_service import DOCUMENT_LABELS
 
 
 ORCHESTRATION_VERSION = "semantic_rag_llm_tools_v2"
@@ -87,12 +88,6 @@ RISK_LABELS: dict[str, str] = {
     "candidate_readiness": "후보자 서류 준비상태 확인",
 }
 
-DOCUMENT_LABELS: dict[str, str] = {
-    "passport_copy": "여권 사본",
-    "alien_registration_copy": "외국인등록증 사본",
-    "alien_registration": "외국인등록증 사본",
-    "standard_labor_contract": "표준근로계약서 사본",
-}
 
 FORBIDDEN_ACTION_TERMS: tuple[str, ...] = (
     "정부 포털",
@@ -468,7 +463,15 @@ class OpenAIAgentChatQueryPlanner:
                             "You are an operations assistant for Korean foreign-worker employment workflows. "
                             "Answer in Korean using only the provided RAG hits, tool results, and tool_summary. "
                             "Do not expose raw PII, matching scores, recommendation scores, legal certainty, "
-                            "or any unapproved send/submit/complete action. Keep the answer concise and actionable."
+                            "or any unapproved send/submit/complete action. Keep the answer concise and actionable. "
+                            "IMPORTANT: Never use raw doc_type codes in your answer. "
+                            "Always replace them with Korean labels using this mapping: "
+                            "passport→여권 원본, passport_copy→여권 사본, "
+                            "alien_registration/alien_registration_copy/arc_copy→외국인등록증 사본, "
+                            "employment_contract/labor_contract/standard_contract/standard_labor_contract→표준근로계약서, "
+                            "work_permit→고용허가서, health_certificate→건강검진 결과서, "
+                            "criminal_record→범죄경력 조회서, education_cert→학력 증명서, "
+                            "company_approval→사업장 동의서, technical_cert→기술 자격증."
                         )
                     ),
                     HumanMessage(content=json.dumps(evidence, ensure_ascii=False)),

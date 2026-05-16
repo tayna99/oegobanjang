@@ -74,6 +74,7 @@ from app.services.agent_chat_rag import (
     rag_first_not_found_response,
     run_agent_chat_rag_first,
 )
+from app.services.context_data_service import DOCUMENT_LABELS
 from app.services.daily_briefing_planner import plan_daily_briefing_from_message
 from app.services.daily_briefing_service import build_sqlalchemy_daily_briefing_service
 
@@ -210,14 +211,6 @@ RISK_LABELS: dict[str, str] = {
     "candidate_readiness": "후보자 서류 준비상태 확인",
 }
 
-DOCUMENT_LABELS: dict[str, str] = {
-    "passport_copy": "여권 사본",
-    "alien_registration_copy": "외국인등록증 사본",
-    "alien_registration": "외국인등록증 사본",
-    "standard_labor_contract": "표준근로계약서 사본",
-    "labor_contract": "표준근로계약서 사본",
-    "work_permit": "고용허가서",
-}
 
 
 class AgentRunRequest(BaseModel):
