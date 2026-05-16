@@ -255,7 +255,6 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
   const [detailOpen, setDetailOpen] = useState(false);
   const [replyItems, setReplyItems] = useState<DailyBriefingItem[]>([]);
   const selectedWorker = workers.find((worker) => worker.id === selectedWorkerId) ?? null;
-  const [submittedDocumentWorkerIds, setSubmittedDocumentWorkerIds] = useState<Set<string>>(new Set());
   const [documentRequestsByWorker, setDocumentRequestsByWorker] = useState<Record<string, WorkerDocumentRequest[]>>({});
   useEffect(() => {
     void loadReplyItems();
@@ -332,15 +331,7 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
         return acc;
       }, {});
       setDocumentRequestsByWorker(groupedRequests);
-      setSubmittedDocumentWorkerIds(
-        new Set(
-          requests
-            .filter((request: { status?: string }) => request.status === "SUBMITTED" || request.status === "ACCEPTED")
-            .map((request: { worker_id: string }) => request.worker_id),
-        ),
-      );
     } catch {
-      setSubmittedDocumentWorkerIds(new Set());
       setDocumentRequestsByWorker({});
     }
   }
@@ -348,12 +339,8 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
   const items = useMemo(() => {
     const baseItems = briefing?.items ?? [];
     const existingIds = new Set(baseItems.map((item) => item.item_id));
-    const filteredBaseItems = baseItems.filter((item) => {
-      if (item.risk_type !== "missing_document") return true;
-      return !submittedDocumentWorkerIds.has(item.subject_id);
-    });
-    return [...filteredBaseItems, ...replyItems.filter((item) => !existingIds.has(item.item_id))];
-  }, [briefing?.items, replyItems, submittedDocumentWorkerIds]);
+    return [...baseItems, ...replyItems.filter((item) => !existingIds.has(item.item_id))];
+  }, [briefing?.items, replyItems]);
   const filteredItems = items.filter((item) => itemMatchesSummary(item, selectedSummaryId));
   const groupedItems = groupItemsBySubject(filteredItems);
   const summary = summaryConfig.map((item) => ({
