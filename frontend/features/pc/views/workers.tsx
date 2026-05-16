@@ -12,6 +12,7 @@
   UserRoundPlus,
   X,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import { getOperatorHeaders } from "../../../lib/operatorContext";
 import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers as seedWorkers, type Tone } from "../data";
@@ -196,7 +197,13 @@ function workerTestId(workerId: string) {
   return `worker-row-${workerId.replace("w_", "")}`;
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "").toLowerCase().replace(/\s+/g, "");
+}
+
 export function WorkersView({ onAction }: PcViewProps = {}) {
+  const searchParams = useSearchParams();
+  const searchTerm = searchParams.get("search")?.trim() ?? "";
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<"all" | "attention" | "docs" | "normal">("all");
   const [dbWorkers, setDbWorkers] = useState<DbWorkerRow[]>([]);
@@ -327,7 +334,24 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
     if (activeFilter === "docs") return Number.parseInt(worker.docExtra?.replace("+", "") ?? "0", 10) > 0;
     if (activeFilter === "normal") return worker.statusTone === "green";
     return true;
+  }).filter((worker) => {
+    if (!searchTerm) return true;
+    const haystack = normalizeSearchText([
+      worker.name,
+      worker.localName,
+      worker.nationality,
+      worker.nationalityCode,
+      worker.visaType,
+      worker.visaExpiry,
+      worker.contractEnd,
+      worker.dday,
+      worker.status,
+      worker.docs.join(" "),
+      worker.docExtra,
+    ].join(" "));
+    return haystack.includes(normalizeSearchText(searchTerm));
   });
+  const selectedWorker = workerRows.find((worker) => worker.id === selectedId) ?? null;
 
   const statCards: Array<{ id: typeof activeFilter; title: string; count: number; unit: string; fg: string; bg: string; icon: React.ReactElement }> = [
     { id: "all", title: "전체", count: workerRows.length, unit: "명", fg: "#1D4ED8", bg: "#EFF6FF", icon: <Users size={21} color="#1D4ED8" /> },
@@ -347,8 +371,8 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
   }
 
   return (
-    <div className={styles.stack}>
-
+    <div className={cn(styles.todayDashboard, !selectedWorker && styles.todayDashboardCollapsed)}>
+      <section className={styles.stack}>
       {/* 헤더 */}
       <div className={styles.pageHead}>
         <div>
@@ -402,7 +426,6 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
           <div>계약 종료</div>
           <div>서류</div>
           <div>위험도</div>
-          <div style={{ textAlign: "right" }}>다음 처리</div>
         </div>
 
         {/* 데이터 행 */}
@@ -487,25 +510,69 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
                 </span>
                 <div className={styles.subtle} style={{ fontSize: 11, marginTop: 3 }}>근속 {worker.tenure}</div>
               </div>
-
-              {/* 처리 버튼 */}
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  className={styles.workerProcessBtn}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onAction?.({ kind: "handoff-preview", label: `${worker.name} 처리` });
-                  }}
-                >
-                  처리
-                </button>
-              </div>
             </div>
           );
         })}
       </div>
+      </section>
+
+      {selectedWorker ? <WorkerDetailPanel worker={selectedWorker} onClose={() => setSelectedId(null)} /> : null}
     </div>
+  );
+}
+
+function WorkerDetailPanel({ worker, onClose }: { worker: (typeof seedWorkers)[number]; onClose: () => void }) {
+  const sev = CASE_SEV[worker.statusTone] ?? CASE_SEV.gray;
+  return (
+    <aside className={styles.todayDetail}>
+      <div className={styles.detailHeader} style={{ marginBottom: 18 }}>
+        <span className={styles.bigAvatar} style={{ background: sev.dot }}>{worker.initials}</span>
+        <div>
+          <h2>{worker.name}</h2>
+          <p className={styles.subtle} style={{ margin: 0 }}>
+            {worker.localName} · {worker.nationality} · {worker.visaType} · 근속 {worker.tenure}
+          </p>
+        </div>
+        <span style={{
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "5px 10px",
+          borderRadius: 999,
+          background: sev.bg,
+          border: `1px solid ${sev.bd}`,
+          color: sev.fg,
+          fontSize: 12,
+          fontWeight: 800,
+          marginLeft: "auto",
+        }}>
+          {worker.status}
+        </span>
+        <button className={styles.closeButton} onClick={onClose} type="button" aria-label="상세 패널 닫기">×</button>
+      </div>
+
+      <div className={styles.infoGrid} style={{ gridTemplateColumns: "repeat(2, minmax(0, 1fr))" }}>
+        <Card className={styles.panel}>
+          <div className={styles.subtle}>체류만료일</div>
+          <strong>{worker.visaExpiry}</strong>
+          <div style={{ color: worker.dday.includes("+") ? "#B00C0C" : sev.fg, fontWeight: 800 }}>{worker.dday}</div>
+        </Card>
+        <Card className={styles.panel}>
+          <div className={styles.subtle}>계약종료일</div>
+          <strong>{worker.contractEnd}</strong>
+          <div className={styles.subtle}>계약 기준</div>
+        </Card>
+        <Card className={styles.panel}>
+          <div className={styles.subtle}>근무 라인</div>
+          <strong>{worker.line}</strong>
+          <div className={styles.subtle}>같은 회사 ID 기준</div>
+        </Card>
+        <Card className={styles.panel}>
+          <div className={styles.subtle}>서류 상태</div>
+          <strong>{worker.docExtra && worker.docExtra !== "자료 없음" ? `${worker.docExtra} 보완 필요` : "확인됨"}</strong>
+          <div className={styles.subtle}>{worker.docs.length > 0 ? worker.docs.join(" · ") : "서류 신호 없음"}</div>
+        </Card>
+      </div>
+    </aside>
   );
 }
 function Scenario({ title, desc, tone }: { title: string; desc: string; tone: Tone }) {

@@ -162,8 +162,7 @@ function severityLabel(item: DailyBriefingItem) {
 }
 
 function twoLineStatusLabel(label: string) {
-  const parts = label.includes(" ") ? label.split(" ") : label.split("");
-  return parts.slice(0, 2).map((part, index) => <span key={`${label}-${index}`}>{part}</span>);
+  return label;
 }
 
 function deadlineLabel(item: DailyBriefingItem) {
@@ -396,7 +395,13 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
           </div>
           <div className={styles.taskQueue}>
             <div className={styles.taskQueueHeader}>
-              <div /><div>업무</div><div>대상</div><div>상태</div><div>기한</div><div>다음 처리</div><div />
+              <div />
+              <div>업무</div>
+              <div>대상</div>
+              <div className={styles.taskStatusHeader}>상태</div>
+              <div>기한</div>
+              <div>다음 처리</div>
+              <div />
             </div>
             {groupedItems.map((group) => {
               const item = group.primary;
@@ -454,7 +459,7 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
           onClose={() => setDetailOpen(false)}
           onNavigateToMessages={onNavigateToMessages}
           worker={selectedWorker}
-          briefingItems={briefing?.items}
+          briefingItems={items}
           documentRequests={documentRequestsByWorker[selectedWorker.id] ?? []}
         />
       ) : null}
@@ -466,7 +471,7 @@ const DOC_CODE_TO_KO: Record<string, string> = {
   work_permit: "고용허가서 사본",
   alien_registration: "외국인등록증 사본",
   employment_contract: "표준근로계약서",
-  labor_contract: "근로계약서",
+  labor_contract: "표준근로계약서",
   passport_copy: "여권 사본",
   passport: "여권 사본",
   health_certificate: "건강검진 결과서",
@@ -491,9 +496,16 @@ function docCodeToKo(code: string): string {
   return DOC_CODE_TO_KO[code.toLowerCase()] ?? code;
 }
 
+function displaySummaryText(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  return value.replace(/\b(passport_copy|passport|alien_registration|employment_contract|labor_contract|standard_contract|work_permit|health_certificate|criminal_record)\b/g, (code) => docCodeToKo(normalizeDocCode(code)));
+}
+
 function normalizeDocCode(value: string): string {
   const trimmed = value.trim();
-  return DOC_KO_TO_CODE[trimmed] ?? trimmed.toLowerCase();
+  const normalized = DOC_KO_TO_CODE[trimmed] ?? trimmed.toLowerCase();
+  if (normalized === "labor_contract" || normalized === "standard_contract") return "employment_contract";
+  return normalized;
 }
 
 function formatDday(value: number | null | undefined): string | null {
@@ -530,14 +542,14 @@ function buildRisksFromBriefingItem(item: DailyBriefingItem) {
       : `체류만료 D-${item.d_day}`;
     risks.push({
       title: item.expired ? "체류기간 초과" : "체류만료 임박",
-      desc: item.case_summary ?? label,
+      desc: displaySummaryText(item.case_summary) ?? label,
       severity: item.severity,
       basis,
     });
   } else if (item.risk_type === "contract_visa_conflict") {
     risks.push({
       title: "계약·체류 충돌",
-      desc: item.case_summary ?? "계약종료일이 비자만료일보다 늦습니다. 체류 연장 또는 계약 조정이 필요합니다.",
+      desc: displaySummaryText(item.case_summary) ?? "계약종료일이 비자만료일보다 늦습니다. 체류 연장 또는 계약 조정이 필요합니다.",
       severity: item.severity,
       basis,
     });
@@ -547,21 +559,21 @@ function buildRisksFromBriefingItem(item: DailyBriefingItem) {
       : "서류 확인 필요";
     risks.push({
       title: "서류 보완 필요",
-      desc: item.case_summary ?? `누락 서류: ${docs}`,
+      desc: displaySummaryText(item.case_summary) ?? `누락 서류: ${docs}`,
       severity: item.severity,
       basis,
     });
   } else if (item.risk_type === "reporting_deadline") {
     risks.push({
       title: "고용변동 신고 기한",
-      desc: item.case_summary ?? `신고 기한이 임박했습니다 (D-${item.d_day}).`,
+      desc: displaySummaryText(item.case_summary) ?? `신고 기한이 임박했습니다 (D-${item.d_day}).`,
       severity: item.severity,
       basis,
     });
   } else {
     risks.push({
       title: item.case_title ?? "확인 필요",
-      desc: item.case_summary ?? "담당자가 확인해야 합니다.",
+      desc: displaySummaryText(item.case_summary) ?? "담당자가 확인해야 합니다.",
       severity: item.severity,
       basis,
     });
@@ -719,6 +731,7 @@ function TodayWorkerDetail({
     setAgentLoading(false);
     setCreatedThreadIds([]);
     setLastCreatedThreadId(null);
+    setPreAgentDocStatus(null);
   }, [worker.id]);
 
   const realWorkerId = workerBriefingItem?.subject_id ?? worker.id;
@@ -867,6 +880,11 @@ function TodayWorkerDetail({
     : [{ title: "확인 필요", desc: "계약·체류·서류 상태를 담당자가 확인해야 합니다.", severity: "MEDIUM", basis: ["근로자 프로필"] }];
 
   const missingSet = new Set(workerBriefingItems.flatMap((item) => item.missing_documents.map(normalizeDocCode)));
+  const preMissingSet = new Set([
+    ...(preAgentDocStatus?.missingCritical ?? []),
+    ...(preAgentDocStatus?.missingSupplementary ?? []),
+  ].map(normalizeDocCode));
+  const prePresentSet = new Set((preAgentDocStatus?.present ?? []).map(normalizeDocCode));
   const agentMissingSet = new Set([
     ...(agentResult?.summary_structured?.missing_critical ?? []),
     ...(agentResult?.summary_structured?.missing_supplementary ?? []),
@@ -875,13 +893,15 @@ function TodayWorkerDetail({
   const requestStatusByDoc = new Map((documentRequests ?? []).map((request) => [normalizeDocCode(request.doc_type), request.status ?? ""]));
   const hasAgentAnalysis = Boolean(agentResult);
   const hasAnyDocumentSignal = workerBriefingItems.some((item) => item.risk_type === "missing_document" || item.missing_documents.length > 0)
+    || preMissingSet.size > 0
+    || prePresentSet.size > 0
     || agentMissingSet.size > 0
     || agentPresentSet.size > 0
     || requestStatusByDoc.size > 0;
 
   const docs: Array<[string, string, Tone]> = CORE_DOCUMENT_CODES.map((code) => {
-    if (agentMissingSet.has(code) || missingSet.has(code)) return [docCodeToKo(code), "보완 필요", "orange" as Tone];
-    if (agentPresentSet.has(code)) return [docCodeToKo(code), "확보됨", "green" as Tone];
+    if (agentMissingSet.has(code) || missingSet.has(code) || preMissingSet.has(code)) return [docCodeToKo(code), "보완 필요", "orange" as Tone];
+    if (agentPresentSet.has(code) || prePresentSet.has(code)) return [docCodeToKo(code), "확보됨", "green" as Tone];
     const requestStatus = requestStatusByDoc.get(code);
     if (requestStatus === "ACCEPTED") return [docCodeToKo(code), "확인 완료", "green" as Tone];
     if (requestStatus === "SUBMITTED") return [docCodeToKo(code), "담당자 확인 전", "orange" as Tone];

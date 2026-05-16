@@ -175,21 +175,19 @@ def _format_visa_item_list(selected_items: list[Any], intent: str) -> str:
         )
 
     lines = [
-        f"[비자/체류 에이전트] {intent_ko} 확인 결과",
-        f"확인 필요한 인원은 {len(selected_items)}명입니다.",
+        _visa_list_intro(intent, selected_items, intent_ko),
     ]
     for index, item in enumerate(_dedupe_items(selected_items), start=1):
         name = getattr(item, "subject_display_name", None) or getattr(item, "subject_id", "")
         risk_type = getattr(item, "risk_type", "")
         missing_documents = getattr(item, "missing_documents", []) or []
-        severity = getattr(item, "severity", "")
         lines.append(f"\n{index}. {name}")
         lines.append(f"- 항목: {RISK_LABELS.get(risk_type, risk_type)}")
         lines.append(f"- 기한: {_risk_timing(item)}")
-        lines.append(f"- 누락 서류: {_document_list(missing_documents)}")
-        if severity:
-            lines.append(f"- 우선순위: {severity}")
-    lines.append("\n외부 발송, 정부 제출, 상태 완료 처리는 수행하지 않았습니다.")
+        lines.append(f"- 상태: {_status_label(item)}")
+        if missing_documents:
+            lines.append(f"- 누락 서류: {_document_list(missing_documents)}")
+    lines.append("\n요청 메시지 작성, 외부 발송, 정부 제출은 담당자 확인 전에는 진행하지 않습니다.")
     return "\n".join(lines)
 
 
@@ -423,6 +421,29 @@ def _document_list(documents: list[str]) -> str:
     return ", ".join(DOCUMENT_LABELS.get(document, document) for document in documents)
 
 
+def _visa_list_intro(intent: str, selected_items: list[Any], intent_ko: str) -> str:
+    count = len(_dedupe_items(selected_items))
+    if intent == "document_gap":
+        return f"현재 서류 보완이 필요한 근로자는 {count}명입니다."
+    if intent == "visa_expiry":
+        return f"현재 체류기간 확인이 필요한 근로자는 {count}명입니다."
+    if intent == "contract_visa_conflict":
+        return f"현재 계약과 체류기간을 함께 확인해야 하는 근로자는 {count}명입니다."
+    return f"[비자/체류 에이전트] {intent_ko} 확인 결과"
+
+
+def _status_label(item: Any) -> str:
+    if getattr(item, "risk_type", "") == "missing_document":
+        return "서류 보완 필요"
+    if getattr(item, "expired", False) or getattr(item, "severity", "") == "CRITICAL":
+        return "즉시 확인"
+    if getattr(item, "severity", "") == "HIGH":
+        return "우선 확인"
+    if getattr(item, "severity", "") == "MEDIUM":
+        return "확인 필요"
+    return "참고"
+
+
 def _is_list_query(message: str) -> bool:
     return any(
         keyword in message
@@ -431,10 +452,46 @@ def _is_list_query(message: str) -> bool:
 
 
 def _focus_visa_items_for_query(message: str, selected_items: list[Any]) -> list[Any]:
+    focused_by_subject = _focus_items_by_subject(message, selected_items)
+    if focused_by_subject:
+        selected_items = focused_by_subject
     if any(keyword in message for keyword in ("누락", "빠진", "미제출", "제출 안", "없는")):
         missing = [item for item in selected_items if getattr(item, "risk_type", "") == "missing_document"]
         return missing
     return selected_items
+
+
+def _focus_items_by_subject(message: str, selected_items: list[Any]) -> list[Any]:
+    normalized_message = _normalize_lookup_text(message)
+    if not normalized_message:
+        return []
+    matches = []
+    for item in selected_items:
+        names = [
+            str(getattr(item, "subject_display_name", "") or ""),
+            str(getattr(item, "subject_display_id", "") or ""),
+            str(getattr(item, "subject_id", "") or ""),
+        ]
+        for name in names:
+            normalized_name = _normalize_lookup_text(name)
+            if normalized_name and (normalized_name in normalized_message or normalized_message in normalized_name):
+                matches.append(item)
+                break
+            first_token = _normalize_lookup_text(name.split()[0] if name.split() else "")
+            if len(first_token) >= 2 and first_token in normalized_message:
+                matches.append(item)
+                break
+    return matches
+
+
+def _normalize_lookup_text(value: str) -> str:
+    return (
+        value.lower()
+        .replace(" ", "")
+        .replace(".", "")
+        .replace("-", "")
+        .replace("_", "")
+    )
 
 
 def _dedupe_items(items: list[Any]) -> list[Any]:

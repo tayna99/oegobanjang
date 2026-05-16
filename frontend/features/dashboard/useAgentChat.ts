@@ -31,10 +31,7 @@ export function useAgentChat(context: AgentChatContext) {
       return;
     }
 
-    setMessages((current) => [
-      ...current,
-      { id: `user_${Date.now()}`, role: "user", content: trimmed },
-    ]);
+    setMessages([{ id: `user_${Date.now()}`, role: "user", content: trimmed }]);
     setDraft("");
     setError(null);
     setLoading(true);
@@ -71,12 +68,19 @@ export function useAgentChat(context: AgentChatContext) {
     void sendMessage(draft);
   }
 
+  function resetMessages() {
+    setMessages([]);
+    setDraft("");
+    setError(null);
+  }
+
   return {
     draft,
     error,
     handleSubmit,
     loading,
     messages,
+    resetMessages,
     sendMessage,
     setDraft,
   };

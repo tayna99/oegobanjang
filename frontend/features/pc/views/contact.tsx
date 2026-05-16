@@ -62,6 +62,7 @@ export function ContactView({ onAction }: PcViewProps = {}) {
   const requestedThreadId = searchParams.get("thread_id");
   const requestedActionLabel = searchParams.get("label");
   const requestedTab = searchParams.get("tab");
+  const requestedSearch = searchParams.get("search")?.trim() ?? "";
 
   const [workers, setWorkers] = useState<WorkerOption[]>([]);
   const [threads, setThreads] = useState<ContactThread[]>([]);
@@ -100,6 +101,17 @@ export function ContactView({ onAction }: PcViewProps = {}) {
     }, 3000);
     return () => window.clearInterval(timer);
   }, [selectedThread?.id]);
+
+  useEffect(() => {
+    if (!requestedSearch) return;
+    const workerMatches = filterThreads(threads, requestedSearch);
+    const expertMatches = filterThreads(expertThreads, requestedSearch);
+    const nextTab = workerMatches.length > 0 ? "worker" : expertMatches.length > 0 ? "expert" : activeMessageTab;
+    const nextThread = nextTab === "worker" ? workerMatches[0] : expertMatches[0];
+    if (!nextThread) return;
+    if (activeMessageTab !== nextTab) setActiveMessageTab(nextTab);
+    if (selectedThread?.id !== nextThread.id) void selectThread(nextThread.id);
+  }, [requestedSearch, threads, expertThreads]);
 
   useEffect(() => {
     const visible = activeMessageTab === "worker" ? threads : expertThreads;
@@ -286,7 +298,11 @@ export function ContactView({ onAction }: PcViewProps = {}) {
 
   const detailWorker = selectedThread?.worker;
   const messages = selectedThread?.messages ?? [];
-  const visibleThreads = activeMessageTab === "worker" ? threads : expertThreads;
+  const baseVisibleThreads = activeMessageTab === "worker" ? threads : expertThreads;
+  const visibleThreads = useMemo(
+    () => filterThreads(baseVisibleThreads, requestedSearch),
+    [baseVisibleThreads, requestedSearch],
+  );
   const workerLanguageLabel = detailWorker?.language_label ?? selectedWorker?.language_label ?? "원문";
   const canShowHandoffDraft = activeMessageTab === "worker" && Boolean(detailWorker?.name === "Nguyen V." || selectedWorker?.name === "Nguyen V.");
 
@@ -545,6 +561,32 @@ function uniqueWorkers(workers: WorkerOption[]) {
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
+  });
+}
+
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "").toLowerCase().replace(/\s+/g, "");
+}
+
+function filterThreads(threads: ContactThread[], searchTerm: string) {
+  const needle = normalizeSearchText(searchTerm);
+  if (!needle) return threads;
+  return threads.filter((thread) => {
+    const messageText = (thread.messages ?? [])
+      .map((message) => [message.body_ko, message.body_original, message.status, message.source].join(" "))
+      .join(" ");
+    const haystack = normalizeSearchText([
+      thread.title,
+      thread.status,
+      thread.last_message_preview,
+      thread.worker.name,
+      thread.worker.full_name,
+      thread.worker.nationality,
+      thread.worker.visa_type,
+      thread.worker.email,
+      messageText,
+    ].join(" "));
+    return haystack.includes(needle);
   });
 }
 

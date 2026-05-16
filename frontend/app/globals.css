@@ -1438,6 +1438,28 @@ a {
   font-weight: 900;
 }
 
+.agent-chat-reset {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.agent-chat-reset button {
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 7px 11px;
+}
+
+.agent-chat-reset button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .agent-chat-suggestions {
   display: flex;
   flex-wrap: wrap;

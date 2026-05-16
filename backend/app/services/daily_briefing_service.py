@@ -411,6 +411,17 @@ class CandidateDocumentStatusRecord:
     due_date: str | None = None
 
 
+def _canonical_document_type(document_type: str) -> str:
+    normalized = str(document_type).strip().lower()
+    if normalized in {"labor_contract", "standard_contract", "standard_labor_contract"}:
+        return "employment_contract"
+    if normalized == "arc_copy":
+        return "alien_registration"
+    if normalized == "passport":
+        return "passport_copy"
+    return normalized
+
+
 @dataclass
 class CitationRecord:
     citation_id: str
@@ -2360,12 +2371,31 @@ class DailyBriefingService:
         )
 
     def _missing_documents_for_worker(self, worker_id: str) -> list[DocumentStatusRecord]:
-        return [
+        documents = [
             document
             for document in self.repository.documents
             if document.worker_id == worker_id
-            and str(document.status).strip().lower() == "missing"
         ]
+        grouped: dict[str, list[DocumentStatusRecord]] = {}
+        for document in documents:
+            grouped.setdefault(_canonical_document_type(document.document_type), []).append(document)
+
+        missing: list[DocumentStatusRecord] = []
+        for canonical_type, group in grouped.items():
+            has_present = any(str(document.status).strip().lower() != "missing" for document in group)
+            if has_present:
+                continue
+            first = group[0]
+            missing.append(
+                DocumentStatusRecord(
+                    worker_id=first.worker_id,
+                    document_type=canonical_type,
+                    status=first.status,
+                    required=first.required,
+                    due_date=first.due_date,
+                )
+            )
+        return missing
 
     def _missing_documents_for_candidate(
         self,

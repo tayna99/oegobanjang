@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import type { AgentChatResponse, NextAction } from "../../types/dailyBriefing";
 import { useAgentChat } from "./useAgentChat";
 
@@ -29,7 +31,8 @@ export function DailyBriefingChatPanel({
   onOpenHandoffPreview,
   onOpenCitation,
 }: DailyBriefingChatPanelProps) {
-  const { draft, error, handleSubmit, loading, messages, sendMessage, setDraft } = useAgentChat({
+  const threadRef = useRef<HTMLDivElement | null>(null);
+  const { draft, error, handleSubmit, loading, messages, resetMessages, sendMessage, setDraft } = useAgentChat({
     companyId,
     date,
     workspaceId: "daily_briefing",
@@ -37,6 +40,14 @@ export function DailyBriefingChatPanel({
     selectedCaseId,
     selectedActionId,
   });
+
+  useEffect(() => {
+    const thread = threadRef.current;
+    if (!thread) {
+      return;
+    }
+    thread.scrollTop = thread.scrollHeight;
+  }, [loading, messages]);
 
   return (
     <aside className="agent-chat-card">
@@ -49,6 +60,14 @@ export function DailyBriefingChatPanel({
         <span className="agent-chat-badge">근거 기반</span>
       </div>
 
+      {messages.length > 0 ? (
+        <div className="agent-chat-reset">
+          <button disabled={loading} onClick={resetMessages} type="button">
+            최신 데이터로 다시 시작
+          </button>
+        </div>
+      ) : null}
+
       <div className="agent-chat-suggestions">
         {suggestionPrompts.map((prompt) => (
           <button disabled={loading} key={prompt} onClick={() => void sendMessage(prompt)} type="button">
@@ -57,7 +76,7 @@ export function DailyBriefingChatPanel({
         ))}
       </div>
 
-      <div className="agent-chat-thread">
+      <div className="agent-chat-thread" ref={threadRef}>
         {messages.length === 0 ? (
           <div className="agent-chat-empty">
             <strong>오늘 외국인 고용 업무를 같이 확인할게요.</strong>

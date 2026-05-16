@@ -10,8 +10,9 @@
   UserRoundPlus,
   X,
 } from "lucide-react";
-import React, { useState } from "react";
-import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
+import React, { useEffect, useMemo, useState } from "react";
+import { getCaseAuditReview } from "../../../lib/api";
+import type { CaseAuditReview, DailyBriefingItem, DailyBriefingResult, EvidenceEvent } from "../../../types/dailyBriefing";
 import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -144,6 +145,10 @@ function rowsFromBriefing(briefing?: DailyBriefingResult | null) {
     return {
       id: key,
       displayId: `#${String(index + 1).padStart(3, "0")}`,
+      items,
+      caseIds: [...new Set(items.map((item) => item.case_id).filter(Boolean))],
+      citationIds: [...new Set(items.flatMap((item) => item.citation_ids ?? []))],
+      sourceLabels: [...new Set(items.flatMap((item) => item.source_labels ?? []))],
       worker: primary.subject_display_name ?? primary.subject_display_id ?? primary.subject_id,
       status: statuses[0] ?? "담당자 확인",
       date: briefing?.date ?? "-",
@@ -154,9 +159,62 @@ function rowsFromBriefing(briefing?: DailyBriefingResult | null) {
   });
 }
 
+type ApprovalHistoryRow = Record<string, unknown>;
+
+const APPROVAL_STATUS_LABELS: Record<string, { label: string; bg: string; fg: string }> = {
+  pending: { label: "승인 대기", bg: "rgba(255,146,0,0.10)", fg: "#9C5800" },
+  pending_approval: { label: "승인 대기", bg: "rgba(255,146,0,0.10)", fg: "#9C5800" },
+  approved: { label: "승인 완료", bg: "rgba(0,191,64,0.10)", fg: "#006E25" },
+  rejected: { label: "반려", bg: "rgba(255,66,66,0.10)", fg: "#B00C0C" },
+  revision_requested: { label: "수정 요청", bg: "rgba(255,146,0,0.10)", fg: "#9C5800" },
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  input_received: "요청 수신",
+  state_loaded: "상태 로드",
+  risk_flagged: "리스크 감지",
+  rag_retrieved: "근거 검색",
+  approval_requested: "승인 요청",
+  approval_approved: "승인 완료",
+  approval_rejected: "반려",
+  approval_revision_requested: "수정 요청",
+  tool_executed: "도구 실행",
+  final_response_generated: "응답 생성",
+};
+
+function compactId(value: string | null | undefined) {
+  if (!value) return "";
+  return value.length > 18 ? `${value.slice(0, 10)}...${value.slice(-4)}` : value;
+}
+
+function textValue(row: ApprovalHistoryRow, key: string) {
+  const value = row[key];
+  return typeof value === "string" ? value : "";
+}
+
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function actionLabel(actionType: string | null | undefined) {
+  if (actionType === "request_document") return "누락서류 요청 초안";
+  if (actionType === "create_handoff") return "행정사 검토 자료";
+  return "승인 대상 작업";
+}
+
 export function JudgmentLogView({ onAction, briefing }: JudgmentLogViewProps = {}) {
   const rows = rowsFromBriefing(briefing);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [auditByCaseId, setAuditByCaseId] = useState<Record<string, CaseAuditReview>>({});
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const statusStyle: Record<string, { bg: string; fg: string }> = {
     "승인 완료":    { bg: "rgba(0,191,64,0.10)",  fg: "#006E25" },
@@ -168,6 +226,88 @@ export function JudgmentLogView({ onAction, briefing }: JudgmentLogViewProps = {
   };
 
   const selected = rows.find((r) => r.id === selectedId) ?? rows[0] ?? null;
+  const selectedCaseKey = selected?.caseIds.join("|") ?? "";
+
+  useEffect(() => {
+    if (!selected?.caseIds.length) return;
+    const missingCaseIds = selected.caseIds.filter((caseId) => !auditByCaseId[caseId]);
+    if (!missingCaseIds.length) return;
+
+    let cancelled = false;
+    setAuditLoading(true);
+    Promise.all(
+      missingCaseIds.map(async (caseId) => {
+        try {
+          return await getCaseAuditReview(caseId);
+        } catch {
+          return null;
+        }
+      }),
+    ).then((reviews) => {
+      if (cancelled) return;
+      setAuditByCaseId((prev) => {
+        const next = { ...prev };
+        for (const review of reviews) {
+          if (review) next[review.case.case_id] = review;
+        }
+        return next;
+      });
+    }).finally(() => {
+      if (!cancelled) setAuditLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCaseKey]);
+
+  const selectedAudits = useMemo(
+    () => (selected?.caseIds ?? []).map((caseId) => auditByCaseId[caseId]).filter((review): review is CaseAuditReview => Boolean(review)),
+    [auditByCaseId, selectedCaseKey],
+  );
+
+  const approvalRows = useMemo(() => {
+    const rowsFromAudit = selectedAudits.flatMap((audit) =>
+      audit.approval_history.map((approval) => ({
+        approval,
+        action: audit.actions.find((action) => action.action_id === textValue(approval, "action_id")),
+        caseRiskType: audit.case.risk_type,
+      })),
+    );
+    if (rowsFromAudit.length) return rowsFromAudit;
+    return (selected?.items ?? [])
+      .map((item) => item.primary_action)
+      .filter(Boolean)
+      .map((action) => ({
+        approval: {
+          approval_id: action!.approval_id,
+          action_id: action!.action_id,
+          status: action!.status,
+          updated_at: action!.approved_at,
+          created_at: null,
+        },
+        action,
+        caseRiskType: action!.action_type,
+      }));
+  }, [selectedAudits, selected?.items]);
+
+  const timelineEvents = useMemo(() => {
+    const eventMap = new Map<string, EvidenceEvent>();
+    for (const event of selectedAudits.flatMap((audit) => audit.evidence_events)) {
+      eventMap.set(event.event_id, event);
+    }
+    return [...eventMap.values()].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }, [selectedAudits]);
+
+  const infoTags = useMemo(() => {
+    const citationTitles = selectedAudits.flatMap((audit) => audit.citation_details.map((citation) => citation.title));
+    const tags = [
+      ...(selected?.sourceLabels ?? []),
+      ...citationTitles,
+      ...(selected?.citationIds ?? []).map((id) => compactId(id)),
+    ].filter(Boolean);
+    return [...new Set(tags)].slice(0, 8);
+  }, [selected?.sourceLabels, selected?.citationIds, selectedAudits]);
 
   return (
     <div className={styles.judgmentLayout}>
@@ -303,7 +443,7 @@ export function JudgmentLogView({ onAction, briefing }: JudgmentLogViewProps = {
             <strong style={{ fontSize: 13, fontWeight: 700 }}>사용한 정보</strong>
           </div>
           <div className={styles.badgeLine}>
-            {["근로자 프로필", "체류 정보", "케이스 정보", "이전 대화 기록", "서류 체크리스트"].map((tag) => (
+            {(infoTags.length ? infoTags : ["근로자 프로필", "체류 정보", "케이스 정보"]).map((tag) => (
               <span key={tag} style={{ padding: "3px 9px", borderRadius: 6, fontSize: 11.5, fontWeight: 500, background: "rgba(112,115,124,0.08)", color: "#374151" }}>{tag}</span>
             ))}
           </div>
@@ -315,14 +455,31 @@ export function JudgmentLogView({ onAction, briefing }: JudgmentLogViewProps = {
             <CheckCircle size={14} color="#0066FF" />
             <strong style={{ fontSize: 13, fontWeight: 700 }}>승인 이력</strong>
           </div>
-          <div style={{ padding: "12px 14px", borderRadius: 10, background: "#fff", border: "1px solid rgba(112,115,124,0.12)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <strong style={{ fontSize: 13 }}>대표 (서류 요청 초안)</strong>
-                <p className={styles.subtle} style={{ fontSize: 12, margin: "2px 0 0" }}>김대표 · 2026-05-21 10:42</p>
-              </div>
-              <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 700, background: "rgba(0,191,64,0.10)", color: "#006E25" }}>승인 완료</span>
-            </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {auditLoading && !approvalRows.length ? (
+              <div className={styles.subtle} style={{ padding: "12px 14px", borderRadius: 10, background: "#fff", border: "1px solid rgba(112,115,124,0.12)" }}>승인 이력을 불러오는 중입니다.</div>
+            ) : approvalRows.length ? approvalRows.map(({ approval, action, caseRiskType }) => {
+              const status = textValue(approval, "status").toLowerCase();
+              const statusMeta = APPROVAL_STATUS_LABELS[status] ?? { label: status || "상태 없음", bg: "rgba(112,115,124,0.08)", fg: "#70737C" };
+              const reason = textValue(approval, "revision_reason") || textValue(approval, "rejection_reason");
+              const approvalId = textValue(approval, "approval_id");
+              return (
+                <div key={approvalId || `${caseRiskType}-${textValue(approval, "action_id")}`} style={{ padding: "12px 14px", borderRadius: 10, background: "#fff", border: "1px solid rgba(112,115,124,0.12)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <div>
+                      <strong style={{ fontSize: 13 }}>{action?.label ?? actionLabel(action?.action_type ?? caseRiskType)}</strong>
+                      <p className={styles.subtle} style={{ fontSize: 12, margin: "2px 0 0" }}>
+                        {textValue(approval, "approver_id") || "담당자 승인 대기"} · {formatDateTime(textValue(approval, "updated_at") || textValue(approval, "created_at"))}
+                      </p>
+                    </div>
+                    <span style={{ padding: "3px 10px", borderRadius: 99, fontSize: 11.5, fontWeight: 700, background: statusMeta.bg, color: statusMeta.fg, whiteSpace: "nowrap" }}>{statusMeta.label}</span>
+                  </div>
+                  {reason && <p style={{ margin: "8px 0 0", fontSize: 12.5, lineHeight: 1.5, color: "#64748B" }}>{reason}</p>}
+                </div>
+              );
+            }) : (
+              <div className={styles.subtle} style={{ padding: "12px 14px", borderRadius: 10, background: "#fff", border: "1px solid rgba(112,115,124,0.12)" }}>이 판단에는 아직 승인 이력이 없습니다.</div>
+            )}
           </div>
         </section>
 
@@ -332,7 +489,7 @@ export function JudgmentLogView({ onAction, briefing }: JudgmentLogViewProps = {
             <CheckCircle size={14} color="#0066FF" />
             <strong style={{ fontSize: 13, fontWeight: 700 }}>이벤트 타임라인</strong>
           </div>
-          <Timeline />
+          <Timeline events={timelineEvents} loading={auditLoading} />
         </section>
       </aside>
     </div>
@@ -363,8 +520,26 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
   return <section><h3 className={styles.titleLine}><CheckCircle size={16} /> {title}</h3>{children}</section>;
 }
 
-function Timeline() {
-  const items = ["체류만료일 확인", "누락 서류 감지", "이전 대화 기록 확인", "베트남어 메시지 초안 생성", "대표 승인 요청", "발송 예정 상태로 제한 적용"];
-  return <div className={styles.timeline}>{items.map((item, index) => <div className={styles.row} key={item}><span className={cn(styles.dot, styles.toneGreen)} /><div><strong>{item}</strong><div className={styles.subtle}>2026-05-21 10:{10 + index * 3}</div></div></div>)}</div>;
+function Timeline({ events, loading }: { events: EvidenceEvent[]; loading: boolean }) {
+  if (loading && !events.length) {
+    return <div className={styles.subtle} style={{ padding: "12px 0" }}>이벤트 타임라인을 불러오는 중입니다.</div>;
+  }
+  if (!events.length) {
+    return <div className={styles.subtle} style={{ padding: "12px 0" }}>기록된 이벤트가 없습니다.</div>;
+  }
+  return (
+    <div className={styles.timeline}>
+      {events.map((event) => (
+        <div className={styles.row} key={event.event_id}>
+          <span className={cn(styles.dot, styles.toneGreen)} />
+          <div>
+            <strong>{EVENT_LABELS[event.event_type] ?? event.event_type}</strong>
+            <div className={styles.subtle}>{formatDateTime(event.created_at)} · {event.node_name}</div>
+            <div style={{ fontSize: 12.5, color: "#64748B", lineHeight: 1.45 }}>{event.summary}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 

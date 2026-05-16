@@ -158,6 +158,13 @@ def ensure_document_requests_for_purpose(
             row.status = "REQUESTED"
             row.expires_at = definition["due_date"]
         row.company_id = company_id or row.company_id
+        _sync_daily_briefing_document_source(
+            db,
+            worker_id=worker_id,
+            company_id=row.company_id or company_id,
+            doc_type=doc_type,
+            status="MISSING",
+        )
         requested.append(_request_payload(row, definition, worker_id, company_id))
     db.flush()
     return requested
@@ -216,6 +223,14 @@ def save_worker_document_submission(
         file_size=target_path.stat().st_size,
         storage_path=str(target_path.relative_to(BACKEND_DIR.parent)).replace("\\", "/"),
     )
+    _sync_daily_briefing_document_source(
+        db,
+        worker_id=worker_id,
+        company_id=row.company_id or company_id,
+        doc_type=doc_type,
+        status="SUBMITTED",
+    )
+    _refresh_daily_briefing_after_document_sync(db, row.company_id or company_id)
     db.commit()
 
     definition = _definition_for(doc_type)
@@ -387,7 +402,8 @@ def _sync_daily_briefing_document_source(
     doc_type: str,
     status: str,
 ) -> None:
-    source_status = "MISSING" if status == "MISSING" else "ACCEPTED"
+    status_upper = status.upper()
+    source_status = "MISSING" if status_upper in {"MISSING", "REQUESTED", "REJECTED"} else status_upper
     aliases = DAILY_BRIEFING_DOC_TYPE_ALIASES.get(doc_type, [doc_type])
     matched = False
     for alias in aliases:

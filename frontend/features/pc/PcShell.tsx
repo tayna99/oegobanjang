@@ -113,6 +113,7 @@ export function PcShell({
   const [authReady, setAuthReady] = useState(false);
   const [workerRegisterOpen, setWorkerRegisterOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [chatSessionKey, setChatSessionKey] = useState(0);
 
   useEffect(() => {
     if (operator?.accessToken) {
@@ -254,6 +255,7 @@ export function PcShell({
       }
     }
     if (action.kind === "open-ai") {
+      setChatSessionKey((value) => value + 1);
       setChatOpen(true);
       return;
     }
@@ -308,7 +310,7 @@ export function PcShell({
     const query = searchQuery.trim();
     if (!query) return;
     const lower = query.toLowerCase();
-    if (query.includes("메시지") || lower.includes("message") || lower.includes("nguyen")) {
+    if (activeView === "contact" || query.includes("메시지") || query.includes("행정사") || query.includes("답변") || lower.includes("message")) {
       router.push(`/contacts?search=${encodeURIComponent(query)}`);
       return;
     }
@@ -375,9 +377,9 @@ export function PcShell({
           <form className={styles.search} onSubmit={submitSearch} aria-label="검색">
             <Search size={16} />
             <input
-              aria-label="근로자, 서류, 메시지 검색"
+              aria-label="검색"
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="근로자, 서류, 메시지 검색"
+              placeholder="검색"
               value={searchQuery}
             />
           </form>
@@ -428,7 +430,15 @@ export function PcShell({
         })}
       </main>
 
-      <button className={styles.fab} data-testid="ai-fab" onClick={() => setChatOpen(true)} type="button">
+      <button
+        className={styles.fab}
+        data-testid="ai-fab"
+        onClick={() => {
+          setChatSessionKey((value) => value + 1);
+          setChatOpen(true);
+        }}
+        type="button"
+      >
         <BriefcaseBusiness size={16} /> AI 반장
       </button>
 
@@ -484,6 +494,7 @@ export function PcShell({
               닫기
             </button>
             <DailyBriefingChatPanel
+              key={`agent-chat-${chatSessionKey}-${workflow.briefing?.source_snapshot_hash ?? "no-briefing"}`}
               companyId={workflow.companyId}
               date={workflow.date}
               onOpenDocumentDraft={(action) => void workflow.openDocumentDraft(action)}

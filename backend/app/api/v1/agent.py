@@ -98,9 +98,9 @@ _DEMO_RESPONSES: list[tuple[tuple[str, ...], str]] = [
 
 
 def _demo_fixed_response(message: str) -> str | None:
-    for keywords, answer in _DEMO_RESPONSES:
-        if any(kw in message for kw in keywords):
-            return answer
+    # Demo answers drift from the live DB quickly. Keep the table above only as
+    # reference copy, and always route chat requests through the current
+    # briefing/RAG/agent flow.
     return None
 
 
@@ -189,8 +189,8 @@ def _agent_dispatch_response(
 
 
 RISK_TYPES_BY_INTENT: dict[str, tuple[str, ...]] = {
-    "visa_expiry": ("visa_expiry", "missing_document", "contract_visa_conflict"),
-    "document_gap": ("missing_document", "candidate_readiness"),
+    "visa_expiry": ("visa_expiry",),
+    "document_gap": ("missing_document",),
     "document_request_message": ("missing_document",),
     "contract_visa_conflict": ("contract_visa_conflict",),
     "reporting_deadline": ("reporting_deadline",),
@@ -356,6 +356,7 @@ async def chat_agent(
 
         should_skip_quick_dispatch = (
             bool(request.selected_case_id or request.selected_action_id)
+            or quick_intent == "document_gap"
             or quick_intent in _HIRING_INTENTS
             and (
                 _is_hiring_start_question(request.message)
@@ -952,26 +953,25 @@ def _daily_briefing_answer(
         )
 
     actions_by_id = {action.action_id: action for action in selected_actions}
-    lines = [f"오늘 기준 {label} {len(selected_items)}건입니다."]
+    lines = [_daily_answer_intro(intent, selected_items)]
     for item in selected_items:
         action_labels = [
-            _action_label(actions_by_id[action_id])
+            _action_label(actions_by_id[action_id], item=item)
             for action_id in item.next_action_ids
             if action_id in actions_by_id
         ]
         if action_labels:
-            action_labels.append("담당자 승인 요청")
+            action_labels.append("담당자 확인 후 진행")
         else:
             action_labels.append("담당자 확인")
-        lines.append(
-            "- "
-            f"{item.subject_id}: "
-            f"{RISK_LABELS.get(item.risk_type, item.risk_type)} "
-            f"({_risk_timing(item)}, {item.severity})"
-        )
-        lines.append(f"  누락 서류: {_document_list(item.missing_documents)}")
-        lines.append(f"  다음 처리: {' / '.join(dict.fromkeys(action_labels))}")
-    lines.append("외부 발송, 정부 제출, 상태 완료 처리는 아직 수행하지 않았습니다.")
+        name = getattr(item, "subject_display_name", None) or getattr(item, "subject_display_id", None) or item.subject_id
+        lines.append(f"\n{name}")
+        lines.append(f"- 항목: {RISK_LABELS.get(item.risk_type, item.risk_type)}")
+        lines.append(f"- 상태: {_status_label(item)}")
+        if item.missing_documents:
+            lines.append(f"- 누락 서류: {_document_list(item.missing_documents)}")
+        lines.append(f"- 다음 처리: {' / '.join(dict.fromkeys(action_labels))}")
+    lines.append("\n요청 메시지 작성, 외부 발송, 정부 제출은 담당자 확인 전에는 진행하지 않습니다.")
     return "\n".join(lines)
 
 
@@ -991,11 +991,37 @@ def _document_list(documents: list[str]) -> str:
     return ", ".join(DOCUMENT_LABELS.get(document, document) for document in documents)
 
 
-def _action_label(action: Any) -> str:
+def _daily_answer_intro(intent: str | None, selected_items: list[Any]) -> str:
+    count = len(selected_items)
+    if intent == "document_gap":
+        return f"현재 서류 보완이 필요한 근로자는 {count}명입니다."
+    if intent == "visa_expiry":
+        return f"현재 체류기간 확인이 필요한 근로자는 {count}명입니다."
+    if intent == "contract_visa_conflict":
+        return f"현재 계약과 체류기간을 함께 확인해야 하는 근로자는 {count}명입니다."
+    return f"오늘 기준 {INTENT_LABELS.get(intent or '', INTENT_LABELS['daily_briefing'])} {count}건입니다."
+
+
+def _status_label(item: Any) -> str:
+    if getattr(item, "risk_type", "") == "missing_document":
+        return "서류 보완 필요"
+    if getattr(item, "expired", False) or getattr(item, "severity", "") == "CRITICAL":
+        return "즉시 확인"
+    if getattr(item, "severity", "") == "HIGH":
+        return "우선 확인"
+    if getattr(item, "severity", "") == "MEDIUM":
+        return "확인 필요"
+    return "참고"
+
+
+def _action_label(action: Any, *, item: Any | None = None) -> str:
     if action.action_type == "request_document":
-        return "누락서류 요청 초안 보기"
+        missing_documents = getattr(item, "missing_documents", []) if item is not None else []
+        if missing_documents:
+            return f"{_document_list(missing_documents)} 요청 메시지 초안 생성"
+        return "서류 요청 메시지 초안 생성"
     if action.action_type == "create_handoff":
-        return "전문가 검토 패키지 초안 보기"
+        return "행정사 검토 자료 초안 준비"
     return str(action.label)
 
 
