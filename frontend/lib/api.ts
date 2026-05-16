@@ -520,8 +520,11 @@ export type AgentReviewResult = {
     visa_d_day?: number | null;
     doc_priority?: string;
     missing_critical?: string[];
+    missing_critical_codes?: string[];
     missing_supplementary?: string[];
+    missing_supplementary_codes?: string[];
     present_docs?: string[];
+    present_doc_codes?: string[];
     visa_risk_flags?: string[];
     doc_risk_flags?: string[];
     submission_readiness?: string;
