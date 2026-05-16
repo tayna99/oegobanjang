@@ -129,6 +129,11 @@ def create_message_draft(
         if extra_context:
             korean_text += f"\n\n{extra_context}"
         translated_text = korean_text
+    elif resolved_purpose == "missing_document_request":
+        korean_text = _build_worker_document_request_ko(worker_name, extra_context)
+        translated_text = _build_worker_document_request_translated(
+            worker_name, language_code, extra_context
+        )
     else:
         user_request = f"{worker_name}에게 필요한 서류 요청 메시지 초안을 만들어줘."
         if extra_context:
@@ -675,3 +680,72 @@ def _format_size(size: int) -> str:
     if size >= 1024:
         return f"{size / 1024:.1f}KB"
     return f"{size}B"
+
+
+def _build_worker_document_request_ko(
+    worker_name: str,
+    extra_context: str | None,
+) -> str:
+    lines = [f"{worker_name}님께,", ""]
+    if extra_context:
+        lines.append(extra_context)
+    lines += [
+        "",
+        "위 서류를 기한 내에 제출해 주시기 바랍니다.",
+        "제출 후 담당자가 확인 연락드립니다.",
+        "",
+        "감사합니다.",
+    ]
+    return "\n".join(lines)
+
+
+def _build_worker_document_request_translated(
+    worker_name: str,
+    language_code: str,
+    extra_context: str | None,
+) -> str:
+    if language_code == "vi":
+        return _build_vi_document_request(worker_name, extra_context)
+    if language_code == "id":
+        return _build_id_document_request(worker_name, extra_context)
+    return _build_worker_document_request_ko(worker_name, extra_context)
+
+
+def _build_vi_document_request(worker_name: str, extra_context: str | None) -> str:
+    lines = [
+        f"Kính gửi {worker_name},",
+        "",
+        "Chúng tôi cần xác nhận một số giấy tờ cần thiết cho quá trình gia hạn visa.",
+        "(Danh sách tài liệu cần thiết:)",
+        "",
+    ]
+    if extra_context:
+        lines.append(extra_context)
+    lines += [
+        "",
+        "Vui lòng nộp các giấy tờ trên trước hạn chót.",
+        "Sau khi nộp, chúng tôi sẽ liên hệ xác nhận.",
+        "",
+        "Cảm ơn bạn.",
+    ]
+    return "\n".join(lines)
+
+
+def _build_id_document_request(worker_name: str, extra_context: str | None) -> str:
+    lines = [
+        f"Kepada {worker_name},",
+        "",
+        "Kami perlu mengkonfirmasi beberapa dokumen untuk proses perpanjangan visa.",
+        "(Daftar dokumen yang diperlukan:)",
+        "",
+    ]
+    if extra_context:
+        lines.append(extra_context)
+    lines += [
+        "",
+        "Harap menyerahkan dokumen-dokumen tersebut sebelum batas waktu.",
+        "Setelah pengumpulan, kami akan menghubungi Anda untuk konfirmasi.",
+        "",
+        "Terima kasih.",
+    ]
+    return "\n".join(lines)
