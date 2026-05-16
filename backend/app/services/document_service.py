@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import re
 import shutil
+import sys
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import BinaryIO, Any
 from uuid import uuid4
@@ -13,11 +15,12 @@ from sqlalchemy.orm import Session
 from ..config import BACKEND_DIR
 from ..db.base import Base
 from ..models.contact import ContactAttachment, ContactThread, ContactThreadMessage
+from ..models.daily_briefing import DailyBriefingDocumentSource
 from ..models.document import WorkerDocument
 from .context_data_service import get_worker_profile_data, _seed_rows
 
 
-DOCUMENT_TABLES = [WorkerDocument.__table__]
+DOCUMENT_TABLES = [WorkerDocument.__table__, DailyBriefingDocumentSource.__table__]
 CONTACT_TABLES = [
     ContactThread.__table__,
     ContactThreadMessage.__table__,
@@ -34,6 +37,14 @@ DOCUMENT_DEFINITIONS = {
     "passport_copy": {"doc_type": "passport_copy", "label": "여권 사본", "due_date": "2026-05-20"},
     "arc_copy": {"doc_type": "arc_copy", "label": "외국인등록증 사본", "due_date": "2026-05-20"},
     "id_photo": {"doc_type": "id_photo", "label": "증명사진", "due_date": "-"},
+}
+DAILY_BRIEFING_DOC_TYPE_ALIASES = {
+    "arc_copy": ["arc_copy", "alien_registration"],
+    "passport_copy": ["passport_copy"],
+    "id_photo": ["id_photo"],
+    "work_permit": ["work_permit"],
+    "employment_contract": ["employment_contract", "labor_contract", "standard_labor_contract"],
+    "labor_contract": ["labor_contract", "employment_contract", "standard_labor_contract"],
 }
 
 
@@ -227,18 +238,35 @@ def accept_worker_document_request(
     if row is None:
         raise ValueError("document request not found")
     if row.status == "ACCEPTED":
+        _sync_daily_briefing_document_source(
+            db,
+            worker_id=worker_id,
+            company_id=row.company_id,
+            doc_type=doc_type,
+            status="ACCEPTED",
+        )
+        _refresh_daily_briefing_after_document_sync(db, row.company_id)
+        db.commit()
         return _request_payload(row, _definition_for(doc_type), worker_id, row.company_id)
     if row.status != "SUBMITTED":
         raise ValueError("document is not submitted")
     row.status = "ACCEPTED"
     row.reviewed_at = datetime.now(timezone.utc).isoformat()
     row.notes = "담당자 확인 완료"
+    _sync_daily_briefing_document_source(
+        db,
+        worker_id=worker_id,
+        company_id=row.company_id,
+        doc_type=doc_type,
+        status="ACCEPTED",
+    )
     _create_acceptance_thread_message(
         db,
         worker_id=worker_id,
         company_id=row.company_id,
         doc_type=doc_type,
     )
+    _refresh_daily_briefing_after_document_sync(db, row.company_id)
     db.commit()
     return _request_payload(row, _definition_for(doc_type), worker_id, row.company_id)
 
@@ -264,6 +292,13 @@ def reject_worker_document_request(
     row.status = "REJECTED"
     row.reviewed_at = datetime.now(timezone.utc).isoformat()
     row.notes = reason.strip() if reason else "담당자 보완 요청"
+    _sync_daily_briefing_document_source(
+        db,
+        worker_id=worker_id,
+        company_id=row.company_id,
+        doc_type=doc_type,
+        status="MISSING",
+    )
     _create_revision_request_thread_message(
         db,
         worker_id=worker_id,
@@ -271,6 +306,7 @@ def reject_worker_document_request(
         doc_type=doc_type,
         reason=row.notes,
     )
+    _refresh_daily_briefing_after_document_sync(db, row.company_id)
     db.commit()
     return _request_payload(row, _definition_for(doc_type), worker_id, row.company_id)
 
@@ -341,6 +377,65 @@ def _request_payload(
         "reviewed_at": row.reviewed_at if row else None,
         "notes": row.notes if row else None,
     }
+
+
+def _sync_daily_briefing_document_source(
+    db: Session,
+    *,
+    worker_id: str,
+    company_id: str | None,
+    doc_type: str,
+    status: str,
+) -> None:
+    source_status = "MISSING" if status == "MISSING" else "ACCEPTED"
+    aliases = DAILY_BRIEFING_DOC_TYPE_ALIASES.get(doc_type, [doc_type])
+    matched = False
+    for alias in aliases:
+        row = db.execute(
+            select(DailyBriefingDocumentSource).where(
+                DailyBriefingDocumentSource.worker_id == worker_id,
+                DailyBriefingDocumentSource.document_type == alias,
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            continue
+        row.status = source_status
+        matched = True
+    if not matched and company_id:
+        canonical_doc_type = aliases[-1] if doc_type == "arc_copy" else aliases[0]
+        db.add(
+            DailyBriefingDocumentSource(
+                id=f"{worker_id}:{canonical_doc_type}",
+                worker_id=worker_id,
+                document_type=canonical_doc_type,
+                status=source_status,
+                required=True,
+                due_date=None,
+            )
+        )
+    db.flush()
+
+
+def _refresh_daily_briefing_after_document_sync(db: Session, company_id: str | None) -> None:
+    if not company_id:
+        return
+    try:
+        backend_path = str(BACKEND_DIR)
+        if backend_path not in sys.path:
+            sys.path.insert(0, backend_path)
+        from .daily_briefing_service import build_sqlalchemy_daily_briefing_service
+
+        target_date = datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
+        service = build_sqlalchemy_daily_briefing_service(db)
+        service.run_daily_briefing(
+            company_id=company_id,
+            date=target_date,
+            user_role="admin",
+            allowed_company_ids=[company_id],
+        )
+    except Exception:
+        # Document review must remain durable even if briefing refresh is temporarily unavailable.
+        return
 
 
 def _definition_for(doc_type: str) -> dict[str, str]:

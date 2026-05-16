@@ -593,6 +593,46 @@ def get_daily_briefing_source_summary(
     }
 
 
+@router.get("/sources/documents")
+def list_daily_briefing_source_documents(
+    company_id: str,
+    x_user_role: str = Header(default="viewer", alias="X-User-Role"),
+    db: Session = Depends(get_sync_db),
+) -> dict:
+    if x_user_role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail=_error("UNAUTHORIZED_ROLE", "Only admin can view Daily Briefing source documents."),
+        )
+    worker_ids = {
+        worker.id
+        for worker in db.query(DailyBriefingWorkerSource.id)
+        .filter(DailyBriefingWorkerSource.company_id == company_id)
+        .all()
+    }
+    if not worker_ids:
+        return {"documents": []}
+    rows = (
+        db.query(DailyBriefingDocumentSource)
+        .filter(DailyBriefingDocumentSource.worker_id.in_(worker_ids))
+        .order_by(DailyBriefingDocumentSource.worker_id, DailyBriefingDocumentSource.document_type)
+        .all()
+    )
+    return {
+        "documents": [
+            {
+                "id": row.id,
+                "worker_id": row.worker_id,
+                "document_type": row.document_type,
+                "status": row.status,
+                "required": row.required,
+                "due_date": row.due_date,
+            }
+            for row in rows
+        ]
+    }
+
+
 @router.get("/scheduler/status")
 def get_daily_briefing_scheduler_status(
     request: Request,

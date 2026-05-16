@@ -10,7 +10,8 @@
   UserRoundPlus,
   X,
 } from "lucide-react";
-import React, { useState } from "react";
+import React from "react";
+import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
 import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -74,6 +75,10 @@ export type PcViewProps = {
   onAction?: (action: PcViewAction) => void;
 };
 
+type AdminReviewViewProps = PcViewProps & {
+  briefing?: DailyBriefingResult | null;
+};
+
 const TASK_STATUS_MAP: Record<string, { label: string; bg: string; fg: string }> = {
   "승인 필요": { label: "승인 필요", bg: "#FFF7ED", fg: "#C2410C" },
   "진행 중":   { label: "진행 중",   bg: "#EFF6FF", fg: "#1D4ED8" },
@@ -110,19 +115,53 @@ const CASE_SEV: Record<string, { bg: string; bd: string; fg: string; dot: string
   gray:   { bg: "rgba(112,115,124,0.06)", bd: "rgba(112,115,124,0.20)", fg: "#70737C", dot: "#B0B3BA" },
 };
 
-function actionForNext(next: string): PcActionKind {
-  if (next.includes("초안")) return "document-draft";
-  if (next.includes("요청서")) return "handoff-preview";
-  if (next.includes("승인")) return "approval-preview";
-  if (next.includes("응답")) return "response-summary";
-  return "handoff-preview";
+const DOC_LABELS: Record<string, string> = {
+  passport_copy: "여권 사본",
+  alien_registration: "외국인등록증 사본",
+  employment_contract: "표준근로계약서",
+  labor_contract: "표준근로계약서",
+  standard_contract: "표준근로계약서",
+  work_permit: "고용허가서 사본",
+};
+
+function docLabel(code: string) {
+  return DOC_LABELS[code] ?? code;
 }
 
-function workerTestId(workerId: string) {
-  return `worker-row-${workerId.replace("w_", "")}`;
+function ddayLabel(item: DailyBriefingItem | null) {
+  if (!item) return "-";
+  if (item.expired && item.days_overdue != null) return `만료 후 ${item.days_overdue}일 경과`;
+  if (item.d_day != null) return item.d_day < 0 ? `만료 후 ${Math.abs(item.d_day)}일 경과` : `D-${item.d_day}`;
+  return item.risk_timing_label ?? "-";
 }
 
-export function AdminReviewView({ onAction }: PcViewProps = {}) {
+export function AdminReviewView({ onAction, briefing }: AdminReviewViewProps = {}) {
+  const handoffItem =
+    briefing?.items.find((item) => item.primary_action?.action_type === "create_handoff")
+    ?? briefing?.items.find((item) => item.risk_type === "contract_visa_conflict" || item.risk_type === "visa_expiry")
+    ?? null;
+  const missingItem = handoffItem
+    ? briefing?.items.find((item) => item.subject_id === handoffItem.subject_id && item.risk_type === "missing_document")
+    : null;
+  const workerName = handoffItem?.subject_display_name ?? handoffItem?.subject_display_id ?? "검토 대상 없음";
+  const dynamicPackage = handoffItem ? {
+    title: `${workerName} 행정사 검토 패키지`,
+    createdAt: briefing?.generated_at ? new Date(briefing.generated_at).toLocaleString("ko-KR") : "-",
+    receiver: "행정사",
+    status: handoffItem.primary_action?.status === "pending_approval" ? "승인 대기" : "검토 자료 준비",
+    profile: [
+      ["대상 근로자", workerName],
+      ["케이스", handoffItem.case_title ?? "체류/계약 리스크"],
+      ["위험도", handoffItem.severity],
+    ],
+    stay: [
+      ["체류 상태", ddayLabel(handoffItem)],
+      ["검토 요약", handoffItem.case_summary ?? "-"],
+    ],
+    docs: missingItem?.missing_documents.length
+      ? missingItem.missing_documents.map((doc) => [docLabel(doc), "보완 필요"])
+      : [["누락 서류", "현재 확인된 누락 없음"]],
+  } : adminPackage;
   const docStatusStyle = (val: string): { color: string; bg: string } => {
     if (val.includes("확보")) return { color: "#006E25", bg: "rgba(0,191,64,0.10)" };
     if (val.includes("만료") || val.includes("초과")) return { color: "#B00C0C", bg: "rgba(255,66,66,0.10)" };
@@ -145,9 +184,9 @@ export function AdminReviewView({ onAction }: PcViewProps = {}) {
             <div className={styles.pageHead} style={{ marginBottom: 10 }}>
               <div style={{ flex: 1 }}>
                 <div className={styles.subtle} style={{ fontSize: 11.5, marginBottom: 4 }}>행정사 검토용 자료 · 초안</div>
-                <h1 className={styles.headline} style={{ fontSize: 18, margin: "0 0 4px" }}>{adminPackage.title}</h1>
+                <h1 className={styles.headline} style={{ fontSize: 18, margin: "0 0 4px" }}>{dynamicPackage.title}</h1>
                 <p className={styles.subtle} style={{ fontSize: 12 }}>
-                  생성 {adminPackage.createdAt} · 수신자 {adminPackage.receiver}
+                  생성 {dynamicPackage.createdAt} · 수신자 {dynamicPackage.receiver}
                 </p>
               </div>
               <span style={{
@@ -155,7 +194,7 @@ export function AdminReviewView({ onAction }: PcViewProps = {}) {
                 fontSize: 12, fontWeight: 700,
                 background: "rgba(255,146,0,0.10)", border: "1px solid rgba(255,146,0,0.30)", color: "#9C5800",
               }}>
-                {adminPackage.status}
+                {dynamicPackage.status}
               </span>
             </div>
 
@@ -178,7 +217,7 @@ export function AdminReviewView({ onAction }: PcViewProps = {}) {
               <div style={{ fontSize: 12, fontWeight: 700, color: "#70737C", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 10 }}>
                 근로자 기본 정보
               </div>
-              {adminPackage.profile.map(([key, val]) => (
+              {dynamicPackage.profile.map(([key, val]) => (
                 <div key={key} style={{ display: "flex", padding: "7px 0", borderBottom: "1px solid rgba(112,115,124,0.07)" }}>
                   <span className={styles.subtle} style={{ width: 140, flexShrink: 0, fontSize: 12.5 }}>{key}</span>
                   <strong style={{ fontSize: 13, color: "#171719" }}>{val}</strong>
@@ -191,7 +230,7 @@ export function AdminReviewView({ onAction }: PcViewProps = {}) {
               <div style={{ fontSize: 12, fontWeight: 700, color: "#70737C", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 10 }}>
                 체류 / 계약 상태
               </div>
-              {adminPackage.stay.map(([key, val]) => {
+              {dynamicPackage.stay.map(([key, val]) => {
                 const ds = docStatusStyle(val);
                 return (
                   <div key={key} style={{ display: "flex", alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(112,115,124,0.07)" }}>
@@ -207,7 +246,7 @@ export function AdminReviewView({ onAction }: PcViewProps = {}) {
               <div style={{ fontSize: 12, fontWeight: 700, color: "#70737C", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 10 }}>
                 제출 서류
               </div>
-              {adminPackage.docs.map(([key, val]) => {
+              {dynamicPackage.docs.map(([key, val]) => {
                 const ds = docStatusStyle(val);
                 return (
                   <div key={key} style={{ display: "flex", alignItems: "center", padding: "7px 0", borderBottom: "1px solid rgba(112,115,124,0.07)" }}>

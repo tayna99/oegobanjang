@@ -7,7 +7,6 @@ import {
   BriefcaseBusiness,
   CalendarCheck,
   Clock3,
-  FileCheck2,
   LogOut,
   MessageSquare,
   Search,
@@ -18,7 +17,6 @@ import { company, type PcViewKey } from "./data";
 import { cn } from "./ui";
 import styles from "./PcShell.module.css";
 import {
-  AdminReviewView,
   CasesView,
   ContactView,
   HiringPreparationView,
@@ -61,7 +59,6 @@ const routes: Array<{ key: PcViewKey; href: string; label: string; icon: React.E
   { key: "hiring", href: "/hiring", label: "채용 준비", icon: UserRoundPlus },
   { key: "workers", href: "/workers", label: "근로자", icon: Users },
   { key: "contact", href: "/contacts", label: "메시지 관리", icon: MessageSquare },
-  { key: "admin", href: "/documents", label: "행정사 검토", icon: FileCheck2 },
   { key: "judgment", href: "/evidence", label: "판단 기록", icon: Clock3 },
 ];
 
@@ -71,7 +68,6 @@ const pathToView: Record<string, PcViewKey> = {
   "/workers": "workers",
   "/contacts": "contact",
   "/visa": "cases",
-  "/documents": "admin",
   "/evidence": "judgment",
 };
 
@@ -90,9 +86,8 @@ function renderView(
   if (view === "hiring") return <HiringPreparationView onAction={onAction} />;
   if (view === "workers") return <WorkersView onAction={onAction} />;
   if (view === "contact") return <ContactView onAction={onAction} />;
-  if (view === "cases") return <CasesView onAction={onAction} />;
-  if (view === "admin") return <AdminReviewView onAction={onAction} />;
-  if (view === "judgment") return <JudgmentLogView onAction={onAction} />;
+  if (view === "cases") return <CasesView onAction={onAction} briefing={briefing} />;
+  if (view === "judgment") return <JudgmentLogView onAction={onAction} briefing={briefing} />;
   return <TodayTasksView briefing={briefing} loading={loading} onAction={onAction} onNavigateToMessages={onNavigateToMessages} />;
 }
 
@@ -124,6 +119,14 @@ export function PcShell({
       void workflow.runBriefing();
     }
   }, [operator?.accessToken, workflow.runBriefing]);
+
+  useEffect(() => {
+    const refreshBriefing = () => {
+      void workflow.runBriefing();
+    };
+    window.addEventListener("workbridge-daily-briefing-refresh", refreshBriefing);
+    return () => window.removeEventListener("workbridge-daily-briefing-refresh", refreshBriefing);
+  }, [workflow.runBriefing]);
 
   useEffect(() => {
     const refreshOperator = () => {
@@ -567,7 +570,6 @@ function WorkerRegisterDrawer({ companyId, onClose }: { companyId: string; onClo
           임시 비밀번호
           <input value={temporaryPassword} onChange={(event) => setTemporaryPassword(event.target.value)} />
         </label>
-        <p className={styles.safeNotice}>등록과 동시에 근로자 로그인 계정이 생성됩니다. 비밀번호는 DB에 원문이 아닌 PBKDF2 해시로 저장됩니다.</p>
         {message ? <p className={styles.safeNotice}>{message}</p> : null}
         <button className={styles.primaryWideButton} disabled={working || !name || !email} onClick={submit} type="button">
           근로자 등록

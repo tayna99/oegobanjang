@@ -36,10 +36,40 @@ const quickAccounts = [
     description: "행정사 검토 자료와 승인 대기 업무 확인",
   },
   {
-    label: "근로자",
+    label: "Nguyen V.",
     email: "potenup3@gmail.com",
     password: "worker1234",
-    description: "본인 요청 서류와 회사 메시지 확인",
+    description: "체류만료 경과 · 서류 제출 완료 케이스",
+  },
+  {
+    label: "Dang T.",
+    email: "dang.thi.g@worker.oegobanjang.test",
+    password: "worker1234",
+    description: "체류만료 경과 · 서류 보완 필요 케이스",
+  },
+  {
+    label: "Tran H.",
+    email: "tran.hoa.f@worker.oegobanjang.test",
+    password: "worker1234",
+    description: "체류만료 임박 · 행정사 검토 케이스",
+  },
+  {
+    label: "Pham T.",
+    email: "pham.t.demo@gmail.com",
+    password: "worker1234",
+    description: "체류만료 임박 · 서류 보완 필요 케이스",
+  },
+  {
+    label: "Vu V.",
+    email: "vu.van.h@worker.oegobanjang.test",
+    password: "worker1234",
+    description: "체류만료 D-30 · 승인 대기 케이스",
+  },
+  {
+    label: "Le T.",
+    email: "le.thi.d@worker.oegobanjang.test",
+    password: "worker1234",
+    description: "확인 필요 · 낮은 우선순위 케이스",
   },
 ];
 
@@ -94,7 +124,6 @@ export function OperatorLoginPage() {
           <span>반</span>
           <div>
             <strong>외고반장</strong>
-            <p>관리자/근로자 로그인</p>
           </div>
         </div>
 

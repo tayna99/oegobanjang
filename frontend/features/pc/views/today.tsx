@@ -75,6 +75,15 @@ type TodayTasksViewProps = PcViewProps & {
   onNavigateToMessages?: (threadId: string) => void;
 };
 
+type WorkerDocumentRequest = {
+  worker_id: string;
+  doc_type: string;
+  label?: string;
+  status?: string;
+};
+
+const agentReviewCache = new Map<string, AgentReviewResult>();
+
 const TASK_STATUS_MAP: Record<string, { label: string; bg: string; fg: string }> = {
   "승인 필요": { label: "승인 필요", bg: "#FFF7ED", fg: "#C2410C" },
   "진행 중":   { label: "진행 중",   bg: "#EFF6FF", fg: "#1D4ED8" },
@@ -152,6 +161,11 @@ function severityLabel(item: DailyBriefingItem) {
   return "참고";
 }
 
+function twoLineStatusLabel(label: string) {
+  const parts = label.includes(" ") ? label.split(" ") : label.split("");
+  return parts.slice(0, 2).map((part, index) => <span key={`${label}-${index}`}>{part}</span>);
+}
+
 function deadlineLabel(item: DailyBriefingItem) {
   if (item.expired && item.days_overdue != null) return `D+${item.days_overdue}`;
   if (item.d_day != null) return item.d_day < 0 ? `D+${Math.abs(item.d_day)}` : `D-${item.d_day}`;
@@ -198,7 +212,6 @@ function nextActionForItem(item: DailyBriefingItem, selectedSummaryId: string): 
       kind: "handoff-preview",
       label: "요청서 보기",
       source: "today_queue",
-      targetView: "hiring",
       subjectId: item.subject_id,
       subjectName,
       riskType: item.risk_type,
@@ -208,7 +221,6 @@ function nextActionForItem(item: DailyBriefingItem, selectedSummaryId: string): 
     kind: "handoff-preview",
     label: item.risk_type === "candidate_readiness" ? "요청서 보기" : "요청서 보기",
     source: "today_queue",
-    targetView: "hiring",
     subjectId: item.subject_id,
     subjectName,
     riskType: item.risk_type,
@@ -243,7 +255,7 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
   const [detailOpen, setDetailOpen] = useState(false);
   const [replyItems, setReplyItems] = useState<DailyBriefingItem[]>([]);
   const selectedWorker = workers.find((worker) => worker.id === selectedWorkerId) ?? null;
-  const [submittedDocumentWorkerIds, setSubmittedDocumentWorkerIds] = useState<Set<string>>(new Set());
+  const [documentRequestsByWorker, setDocumentRequestsByWorker] = useState<Record<string, WorkerDocumentRequest[]>>({});
   useEffect(() => {
     void loadReplyItems();
     const timer = window.setInterval(() => {
@@ -313,27 +325,22 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
       const response = await fetch("/api/v1/documents/worker-requests/all?company_id=550e8400-e29b-41d4-a716-446655440001", { cache: "no-store" });
       if (!response.ok) return;
       const data = await response.json();
-      setSubmittedDocumentWorkerIds(
-        new Set(
-          (data.requests ?? [])
-            .filter((request: { status?: string }) => request.status === "SUBMITTED" || request.status === "ACCEPTED")
-            .map((request: { worker_id: string }) => request.worker_id),
-        ),
-      );
+      const requests = (data.requests ?? []) as WorkerDocumentRequest[];
+      const groupedRequests = requests.reduce<Record<string, WorkerDocumentRequest[]>>((acc, request) => {
+        acc[request.worker_id] = [...(acc[request.worker_id] ?? []), request];
+        return acc;
+      }, {});
+      setDocumentRequestsByWorker(groupedRequests);
     } catch {
-      setSubmittedDocumentWorkerIds(new Set());
+      setDocumentRequestsByWorker({});
     }
   }
 
   const items = useMemo(() => {
     const baseItems = briefing?.items ?? [];
     const existingIds = new Set(baseItems.map((item) => item.item_id));
-    const filteredBaseItems = baseItems.filter((item) => {
-      if (item.risk_type !== "missing_document") return true;
-      return !submittedDocumentWorkerIds.has(item.subject_id);
-    });
-    return [...filteredBaseItems, ...replyItems.filter((item) => !existingIds.has(item.item_id))];
-  }, [briefing?.items, replyItems, submittedDocumentWorkerIds]);
+    return [...baseItems, ...replyItems.filter((item) => !existingIds.has(item.item_id))];
+  }, [briefing?.items, replyItems]);
   const filteredItems = items.filter((item) => itemMatchesSummary(item, selectedSummaryId));
   const groupedItems = groupItemsBySubject(filteredItems);
   const summary = summaryConfig.map((item) => ({
@@ -420,7 +427,7 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
                       const statusStyle = TASK_STATUS_MAP[statusLabel] ?? st;
                       return (
                         <span className={styles.taskStatusPill} key={statusLabel} style={{ background: statusStyle.bg, color: statusStyle.fg }}>
-                          {statusLabel}
+                          {twoLineStatusLabel(statusLabel)}
                         </span>
                       );
                     })}
@@ -442,7 +449,14 @@ export function TodayTasksView({ briefing, loading = false, onAction, onNavigate
       </section>
 
       {detailOpen && selectedWorker ? (
-        <TodayWorkerDetail onAction={onAction} onClose={() => setDetailOpen(false)} onNavigateToMessages={onNavigateToMessages} worker={selectedWorker} briefingItems={briefing?.items} />
+        <TodayWorkerDetail
+          onAction={onAction}
+          onClose={() => setDetailOpen(false)}
+          onNavigateToMessages={onNavigateToMessages}
+          worker={selectedWorker}
+          briefingItems={briefing?.items}
+          documentRequests={documentRequestsByWorker[selectedWorker.id] ?? []}
+        />
       ) : null}
     </div>
   );
@@ -460,17 +474,43 @@ const DOC_CODE_TO_KO: Record<string, string> = {
   standard_contract: "표준근로계약서",
 };
 
+const CORE_DOCUMENT_CODES = ["passport_copy", "alien_registration", "employment_contract", "work_permit"];
+
+const DOC_KO_TO_CODE: Record<string, string> = {
+  "고용허가서 사본": "work_permit",
+  고용허가서: "work_permit",
+  "외국인등록증 사본": "alien_registration",
+  외국인등록증: "alien_registration",
+  표준근로계약서: "employment_contract",
+  근로계약서: "employment_contract",
+  "여권 사본": "passport_copy",
+  여권: "passport_copy",
+};
+
 function docCodeToKo(code: string): string {
   return DOC_CODE_TO_KO[code.toLowerCase()] ?? code;
 }
 
-function dedupeByName(entries: Array<[string, string, Tone]>): Array<[string, string, Tone]> {
-  const seen = new Set<string>();
-  return entries.filter(([name]) => {
-    if (seen.has(name)) return false;
-    seen.add(name);
-    return true;
-  });
+function normalizeDocCode(value: string): string {
+  const trimmed = value.trim();
+  return DOC_KO_TO_CODE[trimmed] ?? trimmed.toLowerCase();
+}
+
+function formatDday(value: number | null | undefined): string | null {
+  if (value == null) return null;
+  return value < 0 ? `D+${Math.abs(value)}` : `D-${value}`;
+}
+
+function displayReadinessLabel(value?: string) {
+  if (value === "신청 가능") return "서류 기준 준비됨";
+  if (value === "신청 불가") return "서류 보완 필요";
+  return value ?? "";
+}
+
+function readinessTone(value?: string): Tone {
+  if (value === "신청 가능") return "green";
+  if (value === "부분 준비") return "orange";
+  return "red";
 }
 
 const SEVERITY_COLOR: Record<string, Tone> = {
@@ -545,7 +585,6 @@ function AgentPrepSummary({
   onGoToMessages?: () => void;
 }) {
   const s = result.summary_structured;
-  const readinessTone = s.submission_readiness === "신청 가능" ? "green" : s.submission_readiness === "부분 준비" ? "orange" : "red";
   const hasDocSection = (s.present_docs && s.present_docs.length > 0) || (s.missing_critical && s.missing_critical.length > 0) || (s.missing_supplementary && s.missing_supplementary.length > 0);
   return (
     <div className={styles.agentSummaryFull}>
@@ -580,7 +619,7 @@ function AgentPrepSummary({
           ))}
           {s.submission_readiness && (
             <div style={{ marginTop: 6 }}>
-              <Badge tone={readinessTone as Tone}>{s.submission_readiness}</Badge>
+              <Badge tone={readinessTone(s.submission_readiness)}>{displayReadinessLabel(s.submission_readiness)}</Badge>
             </div>
           )}
         </div>
@@ -644,14 +683,24 @@ function TodayWorkerDetail({
   onNavigateToMessages,
   worker,
   briefingItems,
+  documentRequests,
 }: {
   onAction?: (action: PcViewAction) => void;
   onClose: () => void;
   onNavigateToMessages?: (threadId: string) => void;
   worker: (typeof workers)[number];
   briefingItems?: DailyBriefingItem[];
+  documentRequests?: WorkerDocumentRequest[];
 }) {
-  const workerBriefingItem = briefingItems?.find((i) => i.subject_id === worker.id) ?? null;
+  const workerBriefingItems = useMemo(() => {
+    const matched = (briefingItems ?? []).filter((i) => i.subject_id === worker.id);
+    return [...matched].sort((a, b) => {
+      const statusDelta = (statusPriority[severityLabel(b)] ?? 0) - (statusPriority[severityLabel(a)] ?? 0);
+      if (statusDelta !== 0) return statusDelta;
+      return (b.primary_action?.approval_required ? 1 : 0) - (a.primary_action?.approval_required ? 1 : 0);
+    });
+  }, [briefingItems, worker.id]);
+  const workerBriefingItem = workerBriefingItems[0] ?? null;
   const [agentResult, setAgentResult] = useState<AgentReviewResult | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
   const [msgSending, setMsgSending] = useState<"worker" | "scrivener" | null>(null);
@@ -673,6 +722,37 @@ function TodayWorkerDetail({
 
   const realWorkerId = workerBriefingItem?.subject_id ?? worker.id;
   const companyId = "550e8400-e29b-41d4-a716-446655440001";
+  const actionId = workerBriefingItem?.primary_action?.action_id ?? null;
+  const analysisSignature = useMemo(() => {
+    const briefingSignature = workerBriefingItems.map((item) => ({
+      item_id: item.item_id,
+      risk_type: item.risk_type,
+      severity: item.severity,
+      d_day: item.d_day,
+      expired: item.expired,
+      days_overdue: item.days_overdue,
+      missing_documents: [...item.missing_documents].sort(),
+      action_id: item.primary_action?.action_id ?? null,
+      action_status: item.primary_action?.status ?? null,
+      approved_at: item.primary_action?.approved_at ?? null,
+    }));
+    const documentSignature = [...(documentRequests ?? [])]
+      .map((request) => ({
+        doc_type: normalizeDocCode(request.doc_type),
+        status: request.status ?? "",
+      }))
+      .sort((a, b) => a.doc_type.localeCompare(b.doc_type));
+    return JSON.stringify({ workerId: worker.id, briefing: briefingSignature, documents: documentSignature });
+  }, [documentRequests, worker.id, workerBriefingItems]);
+  const cacheKey = actionId ? `${worker.id}:${actionId}:${analysisSignature}` : null;
+
+  useEffect(() => {
+    setAgentResult(null);
+    setAgentLoading(false);
+    setMsgSending(null);
+    setCreatedThreadIds([]);
+    setLastCreatedThreadId(null);
+  }, [worker.id, actionId, analysisSignature]);
 
   useEffect(() => {
     async function loadWorkerDocs() {
@@ -693,13 +773,18 @@ function TodayWorkerDetail({
   }, [realWorkerId]);
 
   async function handleRunAnalysis() {
-    const actionId = workerBriefingItem?.primary_action?.action_id;
-    if (!actionId) return;
+    if (!actionId || !cacheKey) return;
+    const cached = agentReviewCache.get(cacheKey);
+    if (cached) {
+      setAgentResult(cached);
+      return;
+    }
     setAgentLoading(true);
     setCreatedThreadIds([]);
     setLastCreatedThreadId(null);
     try {
       const result = await runAgentReview(actionId);
+      agentReviewCache.set(cacheKey, result);
       setAgentResult(result);
     } finally {
       setAgentLoading(false);
@@ -713,7 +798,7 @@ function TodayWorkerDetail({
     try {
       const s = agentResult.summary_structured;
       const missingDocs = s.missing_critical ?? [];
-      const dDay = s.visa_d_day != null ? `D-${s.visa_d_day}` : null;
+      const dDay = formatDday(s.visa_d_day);
       const contextLines = [
         "누락 서류 목록:",
         ...missingDocs.map((doc) => `- ${doc} (필수)`),
@@ -736,14 +821,13 @@ function TodayWorkerDetail({
   }
 
   async function handleSendToScrivener() {
-    const actionId = workerBriefingItem?.primary_action?.action_id;
     if (!actionId || !agentResult) return;
     setMsgSending("scrivener");
     try {
       const s = agentResult.summary_structured;
       const lines = [
         "■ 상황 요약",
-        s.visa_d_day != null ? `- 체류 만료: D-${s.visa_d_day}` : null,
+        s.visa_d_day != null ? `- 체류 만료: ${formatDday(s.visa_d_day)}` : null,
         s.visa_risk ? `- 위험도: ${s.visa_risk}` : null,
         s.missing_critical?.length ? "\n■ 필수 누락 서류" : null,
         ...(s.missing_critical?.map((d) => `- ${d} (필수)`) ?? []),
@@ -751,7 +835,7 @@ function TodayWorkerDetail({
         ...(s.missing_supplementary?.map((d) => `- ${d}`) ?? []),
         s.present_docs?.length ? "\n■ 보유 확인 서류" : null,
         ...(s.present_docs?.map((d) => `- ${d} ✓`) ?? []),
-        `\n■ 신청 가능 여부: ${s.submission_readiness ?? ""}`,
+        `\n■ 서류 기준 상태: ${displayReadinessLabel(s.submission_readiness)}`,
         "\n■ 요청 사항",
         "위 내용 확인 후 체류 연장 신청 검토 및 서류 준비를 도와주시기 바랍니다.",
       ].filter(Boolean).join("\n");
@@ -775,30 +859,55 @@ function TodayWorkerDetail({
     }
   }
 
-  const risks = workerBriefingItem
-    ? buildRisksFromBriefingItem(workerBriefingItem)
+  const risks = workerBriefingItems.length > 0
+    ? workerBriefingItems.flatMap(buildRisksFromBriefingItem).slice(0, 4)
     : [{ title: "확인 필요", desc: "계약·체류·서류 상태를 담당자가 확인해야 합니다.", severity: "MEDIUM", basis: ["근로자 프로필"] }];
 
-  // 에이전트 결과: 영어 코드 배열 (document_requirements.csv + visa_type 기반 동적 계산)
-  const agentMissingCodes: string[] = agentResult?.summary_structured?.missing_critical_codes ?? [];
-  const agentSupplementaryCodes: string[] = agentResult?.summary_structured?.missing_supplementary_codes ?? [];
-  const agentPresentCodes: string[] = agentResult?.summary_structured?.present_doc_codes ?? [];
-  const hasAgentResult = agentMissingCodes.length > 0 || agentPresentCodes.length > 0;
+  const missingSet = new Set(workerBriefingItems.flatMap((item) => item.missing_documents.map(normalizeDocCode)));
+  const agentMissingSet = new Set([
+    ...(agentResult?.summary_structured?.missing_critical ?? []),
+    ...(agentResult?.summary_structured?.missing_supplementary ?? []),
+  ].map(normalizeDocCode));
+  const agentPresentSet = new Set((agentResult?.summary_structured?.present_docs ?? []).map(normalizeDocCode));
+  const requestStatusByDoc = new Map((documentRequests ?? []).map((request) => [normalizeDocCode(request.doc_type), request.status ?? ""]));
+  const hasAgentAnalysis = Boolean(agentResult);
+  const hasAnyDocumentSignal = workerBriefingItems.some((item) => item.risk_type === "missing_document" || item.missing_documents.length > 0)
+    || agentMissingSet.size > 0
+    || agentPresentSet.size > 0
+    || requestStatusByDoc.size > 0;
 
-  // 에이전트 실행 전/후 모두 비자 요건 기준 서류 목록 표시 (소스만 다름)
-  const docs: Array<[string, string, Tone]> = hasAgentResult
-    ? dedupeByName([
-        ...agentPresentCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "확보됨", "green"]),
-        ...agentMissingCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "보완 필요", "orange"]),
-        ...agentSupplementaryCodes.map((code): [string, string, Tone] => [docCodeToKo(code), "선택 누락", "gray"]),
-      ])
-    : preAgentDocStatus === null
-      ? []
-      : dedupeByName([
-          ...preAgentDocStatus.present.map((code): [string, string, Tone] => [docCodeToKo(code), "확보됨", "green"]),
-          ...preAgentDocStatus.missingCritical.map((code): [string, string, Tone] => [docCodeToKo(code), "보완 필요", "orange"]),
-          ...preAgentDocStatus.missingSupplementary.map((code): [string, string, Tone] => [docCodeToKo(code), "선택 누락", "gray"]),
-        ]);
+  const docs: Array<[string, string, Tone]> = CORE_DOCUMENT_CODES.map((code) => {
+    if (agentMissingSet.has(code) || missingSet.has(code)) return [docCodeToKo(code), "보완 필요", "orange" as Tone];
+    if (agentPresentSet.has(code)) return [docCodeToKo(code), "확보됨", "green" as Tone];
+    const requestStatus = requestStatusByDoc.get(code);
+    if (requestStatus === "ACCEPTED") return [docCodeToKo(code), "확인 완료", "green" as Tone];
+    if (requestStatus === "SUBMITTED") return [docCodeToKo(code), "담당자 확인 전", "orange" as Tone];
+    if (!hasAnyDocumentSignal) return [docCodeToKo(code), hasAgentAnalysis ? "자료 없음" : "분석 후 확인", "gray" as Tone];
+    return [docCodeToKo(code), "확인 필요", "gray" as Tone];
+  });
+  const hasMissingDocs = agentMissingSet.size > 0 || missingSet.size > 0;
+  const shouldHandoff = Boolean(agentResult?.summary_structured?.handoff_triggered || workerBriefingItem?.primary_action?.action_type === "create_handoff");
+  const visaDeadline = workerBriefingItem ? deadlineLabel(workerBriefingItem) : worker.dday;
+  const recommendedAction = hasMissingDocs
+    ? {
+      title: "근로자에게 서류 보완 요청",
+      desc: "누락된 필수 서류를 먼저 요청하고 제출 상태를 확인합니다.",
+      label: "요청 초안 보기",
+      kind: "document-draft" as PcActionKind,
+    }
+    : shouldHandoff
+      ? {
+        title: "행정사 검토 자료 만들기",
+        desc: "체류 만료와 계약 정보를 묶어 행정사에게 전달할 검토 패키지를 확인합니다.",
+        label: "검토 자료 보기",
+        kind: "handoff-preview" as PcActionKind,
+      }
+      : {
+        title: "상태 재확인",
+        desc: "현재 데이터가 부족하거나 낮은 우선순위 케이스입니다. 최신 서류 상태를 먼저 확인합니다.",
+        label: "상태 보기",
+        kind: "handoff-preview" as PcActionKind,
+      };
 
   return (
     <aside className={styles.todayDetail} data-testid="dashboard-detail-panel">
@@ -814,6 +923,23 @@ function TodayWorkerDetail({
           <p className={styles.subtle}>{worker.nationalityCode} {worker.nationality} · {worker.visaType} · 근속 {worker.tenure}</p>
           <p className={styles.subtle}>{worker.line} · 외등록 950***-5******</p>
         </div>
+      </div>
+
+      {/* 왜 확인이 필요한가요? */}
+      <div className={styles.reasonBox}>
+        <div className={styles.reasonBoxTitle}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6.5" stroke="#1D4ED8" strokeWidth="1.4"/>
+            <path d="M8 7v4M8 5.5h.01" stroke="#1D4ED8" strokeWidth="1.4" strokeLinecap="round"/>
+          </svg>
+          왜 확인이 필요한가요?
+        </div>
+        {risks.slice(0, 2).map((r, index) => (
+          <div className={styles.reasonItem} key={`${r.title}-${index}`}>
+            <span className={styles.reasonDot} />
+            <span><strong>{r.title}</strong> — {r.desc}</span>
+          </div>
+        ))}
       </div>
 
       {/* AI가 준비한 일 */}
@@ -837,7 +963,7 @@ function TodayWorkerDetail({
           <button
             type="button"
             className={styles.agentRunButton}
-            disabled={agentLoading || !workerBriefingItem?.primary_action?.action_id}
+            disabled={agentLoading || !actionId}
             onClick={handleRunAnalysis}
           >
             {agentLoading ? "분석 중…" : "에이전트 분석 실행"}
@@ -848,8 +974,8 @@ function TodayWorkerDetail({
       <section className={styles.detailSection}>
         <h3>현재 리스크 <Badge tone="gray">{risks.length}</Badge></h3>
         <div className={styles.stack}>
-          {risks.map((risk) => (
-            <Card className={styles.riskCard} key={risk.title}>
+          {risks.map((risk, index) => (
+            <Card className={styles.riskCard} key={`${risk.title}-${index}`}>
               <div className={styles.sectionTitle}>
                 <strong>{risk.title}</strong>
                 <Badge tone={SEVERITY_COLOR[risk.severity] ?? "gray"}>{risk.severity}</Badge>
@@ -866,8 +992,8 @@ function TodayWorkerDetail({
       <section className={styles.detailSection}>
         <h3>체류 / 계약</h3>
         <div className={styles.infoGrid}>
-          <Card className={styles.panel}><div className={styles.subtle}>체류만료일</div><strong>{worker.visaExpiry}</strong><div className={styles.textOrange}>{worker.dday}</div></Card>
-          <Card className={styles.panel}><div className={styles.subtle}>계약종료일</div><strong>{worker.contractEnd}</strong><div className={styles.subtle}>{worker.dday}</div></Card>
+          <Card className={styles.panel}><div className={styles.subtle}>체류만료일</div><strong>{worker.visaExpiry}</strong><div className={styles.textOrange}>{visaDeadline}</div></Card>
+          <Card className={styles.panel}><div className={styles.subtle}>계약종료일</div><strong>{worker.contractEnd}</strong><div className={styles.subtle}>계약 기준</div></Card>
         </div>
       </section>
 
@@ -888,29 +1014,47 @@ function TodayWorkerDetail({
         <div className={styles.stack}>
           <Card className={styles.actionCard}>
             <div>
-              <strong>체류기간 연장 검토 자료 만들기</strong>
-              <p className={styles.subtle}>행정사에게 전달할 검토 패키지를 사람 읽기 좋은 문서 형태로 확인합니다.</p>
+              <strong>{recommendedAction.title}</strong>
+              <p className={styles.subtle}>{recommendedAction.desc}</p>
             </div>
-            <Button data-testid="action-handoff" variant="secondary" onClick={() => onAction?.({ kind: "handoff-preview", label: "행정사 전달 문서 보기", subjectId: worker.id, subjectName: worker.name, riskType: workerBriefingItem?.risk_type ?? null })}>검토 자료 보기</Button>
+            <Button data-testid="action-handoff" variant="secondary" onClick={() => onAction?.({ kind: recommendedAction.kind, label: recommendedAction.label, subjectId: worker.id, subjectName: worker.name, riskType: workerBriefingItem?.risk_type ?? null })}>{recommendedAction.label}</Button>
           </Card>
         </div>
       </section>
 
       <section className={styles.detailSection}>
-        <h3>근거 자료 <Badge tone="gray">3</Badge></h3>
+        <h3>근거 자료 <Badge tone="gray">{workerBriefingItem?.citation_ids.length || 3}</Badge></h3>
         <div className={styles.stack}>
-          <Evidence source="국가법령정보센터" text="출입국관리법 제25조 (체류기간 연장허가)" grade="A" />
-          <Evidence source="HiKorea" text="체류기간 연장허가 신청 안내" grade="B" />
-          <Evidence source="EPS 고용허가제" text="외국인근로자 고용 시 보유 서류" grade="B" />
+          {workerBriefingItem?.citation_ids.length ? (
+            workerBriefingItem.citation_ids.map((citationId) => (
+              <Evidence key={citationId} source="브리핑 근거" text={citationId} grade="B" />
+            ))
+          ) : (
+            <>
+              <Evidence source="국가법령정보센터" text="출입국관리법 제25조 (체류기간 연장허가)" grade="A" />
+              <Evidence source="HiKorea" text="체류기간 연장허가 신청 안내" grade="B" />
+              <Evidence source="EPS 고용허가제" text="외국인근로자 고용 시 보유 서류" grade="B" />
+            </>
+          )}
         </div>
       </section>
 
       <section className={styles.detailSection}>
         <h3>업무 기록</h3>
         <div className={styles.timeline}>
-          {["Bayar M. 케이스 승인 요청", "오늘 브리핑 7건 생성", `${worker.name} 리스크 플래그`, "CSV 업로드 — 24명 동기화"].map((item, index) => (
-            <div className={styles.row} key={item}><span className={cn(styles.dot, index === 0 ? styles.toneBlue : styles.toneGray)} /><div><strong>{item}</strong><div className={styles.subtle}>{index === 0 ? "08:14 · 김민수 차장" : index === 1 ? "08:01 · 시스템" : "08:00 · 시스템"}</div></div></div>
-          ))}
+          {workerBriefingItems.length > 0 ? (
+            workerBriefingItems.slice(0, 4).map((item, index) => (
+              <div className={styles.row} key={item.item_id}>
+                <span className={cn(styles.dot, index === 0 ? styles.toneBlue : styles.toneGray)} />
+                <div>
+                  <strong>{item.case_title ?? "리스크 플래그"}</strong>
+                  <div className={styles.subtle}>{deadlineLabel(item)} · 오늘 브리핑</div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className={styles.subtle}>아직 표시할 업무 기록이 없습니다.</div>
+          )}
         </div>
       </section>
     </aside>

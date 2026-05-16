@@ -1,4 +1,5 @@
 ﻿import {
+  AlertTriangle,
   Check,
   CheckCircle,
   Download,
@@ -7,10 +8,12 @@
   MoreHorizontal,
   RefreshCcw,
   Search,
+  Users,
   UserRoundPlus,
   X,
 } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
+import { getOperatorHeaders } from "../../../lib/operatorContext";
 import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers as seedWorkers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -131,6 +134,56 @@ const COMPANY_SEED_WORKER_IDS = new Set([
   "650e8400-e29b-41d4-a716-446655440026",
 ]);
 
+const DOC_TILE_LABELS: Record<string, string> = {
+  passport_copy: "여",
+  passport: "여",
+  alien_registration: "외",
+  employment_contract: "근",
+  labor_contract: "근",
+  standard_contract: "근",
+  work_permit: "건",
+};
+
+type DbWorkerRow = {
+  id: string;
+  name: string;
+  full_name?: string;
+  nationality?: string;
+  language_code?: string;
+  visa_type?: string;
+  visa_expires_at?: string | null;
+  contract_starts_at?: string | null;
+  contract_ends_at?: string | null;
+};
+
+function formatDateDot(value?: string | null) {
+  return value ? value.replaceAll("-", ".") : "-";
+}
+
+function ddayFromDate(value?: string | null) {
+  if (!value) return "-";
+  const target = new Date(`${value}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((target.getTime() - today.getTime()) / 86400000);
+  return days < 0 ? `D+${Math.abs(days)}` : `D-${days}`;
+}
+
+function tenureFromDate(value?: string | null) {
+  if (!value) return "-";
+  const started = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(started.getTime())) return "-";
+  const today = new Date();
+  let months = (today.getFullYear() - started.getFullYear()) * 12 + (today.getMonth() - started.getMonth());
+  if (today.getDate() < started.getDate()) months -= 1;
+  if (months < 0) return "-";
+  const years = Math.floor(months / 12);
+  const restMonths = months % 12;
+  if (years > 0 && restMonths > 0) return `${years}년 ${restMonths}개월`;
+  if (years > 0) return `${years}년`;
+  return `${restMonths}개월`;
+}
+
 function actionForNext(next: string): PcActionKind {
   if (next.includes("초안")) return "document-draft";
   if (next.includes("요청서")) return "handoff-preview";
@@ -145,26 +198,36 @@ function workerTestId(workerId: string) {
 
 export function WorkersView({ onAction }: PcViewProps = {}) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [dbWorkers, setDbWorkers] = useState<Array<{ id: string; name: string; nationality?: string; language_code?: string; visa_type?: string }>>([]);
+  const [activeFilter, setActiveFilter] = useState<"all" | "attention" | "docs" | "normal">("all");
+  const [dbWorkers, setDbWorkers] = useState<DbWorkerRow[]>([]);
   const [documentRequests, setDocumentRequests] = useState<Array<{ worker_id: string; doc_type: string; status: string }>>([]);
+  const [sourceDocuments, setSourceDocuments] = useState<Array<{ worker_id: string; document_type: string; status: string }>>([]);
   useEffect(() => {
     void Promise.all([
       fetch(`/api/v1/contact/workers?company_id=${encodeURIComponent(COMPANY_ID)}`, { cache: "no-store" })
         .then((response) => response.ok ? response.json() : { workers: [] }),
       fetch(`/api/v1/documents/worker-requests/all?company_id=${encodeURIComponent(COMPANY_ID)}`, { cache: "no-store" })
         .then((response) => response.ok ? response.json() : { requests: [] }),
+      fetch(`/api/v1/daily-briefings/sources/documents?company_id=${encodeURIComponent(COMPANY_ID)}`, {
+        cache: "no-store",
+        headers: getOperatorHeaders({ companyId: COMPANY_ID, role: "admin" }),
+      })
+        .then((response) => response.ok ? response.json() : { documents: [] }),
     ])
-      .then(([workerData, documentData]) => {
+      .then(([workerData, documentData, sourceDocumentData]) => {
         setDbWorkers(workerData.workers ?? []);
         setDocumentRequests(documentData.requests ?? []);
+        setSourceDocuments(sourceDocumentData.documents ?? []);
       })
       .catch(() => {
         setDbWorkers([]);
         setDocumentRequests([]);
+        setSourceDocuments([]);
       });
   }, []);
   const workerRows = useMemo(() => {
     const companySeedWorkers = seedWorkers.filter((worker) => COMPANY_SEED_WORKER_IDS.has(worker.id));
+    const dbWorkerById = new Map(dbWorkers.map((worker) => [worker.id, worker]));
     const seen = new Set(companySeedWorkers.map((worker) => worker.id));
     const documentsByWorker = new Map<string, Array<{ doc_type: string; status: string }>>();
     for (const request of documentRequests) {
@@ -172,63 +235,105 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
       rows.push(request);
       documentsByWorker.set(request.worker_id, rows);
     }
-    const mergeDocumentStatus = (worker: (typeof seedWorkers)[number]) => {
-      const requests = documentsByWorker.get(worker.id) ?? [];
-      if (requests.length === 0) return worker;
-
-      // SUBMITTED/ACCEPTED 서류 → docs 타일 재구성 (단일 소스 진실)
-      const submittedTiles = requests
-        .filter((r) => r.status === "SUBMITTED" || r.status === "ACCEPTED")
-        .map((r) => DOC_TYPE_TO_TILE[r.doc_type] ?? r.doc_type)
-        .filter((v, i, arr) => arr.indexOf(v) === i);
-
-      const missingCount = requests.filter(
-        (r) => r.status === "MISSING" || r.status === "REQUESTED" || r.status === "REJECTED"
-      ).length;
-
+    const sourceDocumentsByWorker = new Map<string, Array<{ doc_type: string; status: string }>>();
+    for (const document of sourceDocuments) {
+      const rows = sourceDocumentsByWorker.get(document.worker_id) ?? [];
+      rows.push({ doc_type: document.document_type, status: document.status });
+      sourceDocumentsByWorker.set(document.worker_id, rows);
+    }
+    const mergeWorkerProfile = (worker: (typeof seedWorkers)[number]) => {
+      const dbWorker = dbWorkerById.get(worker.id);
+      if (!dbWorker) return worker;
       return {
         ...worker,
-        docs: submittedTiles,
-        docExtra: missingCount > 0 ? `+${missingCount}` : "",
-        status: missingCount > 0 ? worker.status : submittedTiles.length > 0 ? "서류 제출됨" : worker.status,
-        statusTone: missingCount > 0 ? worker.statusTone : submittedTiles.length > 0 ? ("green" as Tone) : worker.statusTone,
+        initials: (dbWorker.name || worker.name).slice(0, 1).toUpperCase(),
+        name: dbWorker.name || worker.name,
+        localName: dbWorker.full_name || worker.localName,
+        nationalityCode: (dbWorker.language_code || worker.nationalityCode).toUpperCase(),
+        nationality: dbWorker.nationality || worker.nationality,
+        visaType: dbWorker.visa_type || worker.visaType,
+        visaExpiry: formatDateDot(dbWorker.visa_expires_at) || worker.visaExpiry,
+        contractEnd: formatDateDot(dbWorker.contract_ends_at) || worker.contractEnd,
+        dday: ddayFromDate(dbWorker.visa_expires_at) || worker.dday,
+        tenure: tenureFromDate(dbWorker.contract_starts_at) || worker.tenure,
+      };
+    };
+    const mergeDocumentStatus = (baseWorker: (typeof seedWorkers)[number]) => {
+      const worker = mergeWorkerProfile(baseWorker);
+      const requests = [
+        ...(sourceDocumentsByWorker.get(worker.id) ?? []),
+        ...(documentsByWorker.get(worker.id) ?? []),
+      ];
+      if (requests.length === 0) {
+        return {
+          ...worker,
+          docs: [],
+          docExtra: "자료 없음",
+        };
+      }
+      const openDocTypes = new Set(
+        requests
+          .filter((request) => request.status === "REQUESTED" || request.status === "MISSING" || request.status === "REJECTED")
+          .map((request) => request.doc_type),
+      );
+      const visibleDocTypes = new Set(
+        requests
+          .filter((request) => request.status === "ACCEPTED" || request.status === "SUBMITTED")
+          .map((request) => request.doc_type),
+      );
+      const visibleDocs = [
+        ...new Set([...visibleDocTypes].map((docType) => DOC_TILE_LABELS[docType] ?? docType.slice(0, 1).toUpperCase())),
+      ];
+      const requestedCount = openDocTypes.size;
+      const submittedCount = visibleDocTypes.size;
+      const hasOpenRequest = requestedCount > 0;
+      const hasSubmitted = submittedCount > 0;
+      return {
+        ...worker,
+        docs: visibleDocs,
+        docExtra: hasOpenRequest ? `+${requestedCount}` : visibleDocs.length === 0 ? "자료 없음" : "",
+        status: hasOpenRequest ? worker.status : hasSubmitted && worker.statusTone === "green" ? "서류 제출됨" : worker.status,
+        statusTone: worker.statusTone,
       };
     };
     const added = dbWorkers
       .filter((worker) => !seen.has(worker.id))
-      .map((worker) => ({
+      .map((worker) => mergeDocumentStatus({
         id: worker.id,
         initials: (worker.name || "근").slice(0, 1).toUpperCase(),
         name: worker.name || "근로자",
-        localName: "신규 등록",
+        localName: worker.full_name || "신규 등록",
         nationalityCode: (worker.language_code || "VI").toUpperCase(),
         nationality: worker.nationality || "-",
         visaType: worker.visa_type || "E-9",
         line: "등록 정보 확인 필요",
-        visaExpiry: "-",
-        contractEnd: "-",
-        dday: "-",
+        visaExpiry: formatDateDot(worker.visa_expires_at),
+        contractEnd: formatDateDot(worker.contract_ends_at),
+        dday: ddayFromDate(worker.visa_expires_at),
         status: "정상",
         statusTone: "green" as Tone,
-        tenure: "-",
+        tenure: tenureFromDate(worker.contract_starts_at),
         docs: [],
         docExtra: "",
-      }));
+      } as (typeof seedWorkers)[number]));
     return [...companySeedWorkers.map(mergeDocumentStatus), ...added];
-  }, [dbWorkers, documentRequests]);
-  const missingDocumentCount = workerRows.reduce((total, worker) => {
-    const rawCount = worker.docExtra?.replace("+", "") ?? "0";
-    const count = Number.parseInt(rawCount, 10);
-    return total + (Number.isFinite(count) ? count : 0);
-  }, 0);
-  const needsAttentionCount = workerRows.filter((worker) => worker.statusTone === "red" || worker.statusTone === "orange").length;
+  }, [dbWorkers, documentRequests, sourceDocuments]);
+  const missingDocumentWorkerCount = workerRows.filter((worker) => Number.parseInt(worker.docExtra?.replace("+", "") ?? "0", 10) > 0).length;
+  const needsAttentionCount = workerRows.filter((worker) => worker.statusTone === "red" || worker.statusTone === "orange" || worker.statusTone === "blue").length;
   const normalCount = workerRows.filter((worker) => worker.statusTone === "green").length;
 
-  const statCards: Array<[string, string, string, string]> = [
-    ["전체 등록", `${workerRows.length}명`, "#1D4ED8", "#EFF6FF"],
-    ["즉시·우선 확인", `${needsAttentionCount}명`, "#C2410C", "#FFF7ED"],
-    ["서류 보완 필요", `${missingDocumentCount}건`, "#B00C0C", "#FEF2F2"],
-    ["정상", `${normalCount}명`, "#065F46", "#ECFDF5"],
+  const filteredWorkerRows = workerRows.filter((worker) => {
+    if (activeFilter === "attention") return worker.statusTone === "red" || worker.statusTone === "orange" || worker.statusTone === "blue";
+    if (activeFilter === "docs") return Number.parseInt(worker.docExtra?.replace("+", "") ?? "0", 10) > 0;
+    if (activeFilter === "normal") return worker.statusTone === "green";
+    return true;
+  });
+
+  const statCards: Array<{ id: typeof activeFilter; title: string; count: number; unit: string; fg: string; bg: string; icon: React.ReactElement }> = [
+    { id: "all", title: "전체", count: workerRows.length, unit: "명", fg: "#1D4ED8", bg: "#EFF6FF", icon: <Users size={21} color="#1D4ED8" /> },
+    { id: "attention", title: "즉시 우선 확인", count: needsAttentionCount, unit: "명", fg: "#C2410C", bg: "#FFF7ED", icon: <AlertTriangle size={21} color="#C2410C" /> },
+    { id: "docs", title: "서류 보완 필요", count: missingDocumentWorkerCount, unit: "명", fg: "#B00C0C", bg: "#FEF2F2", icon: <FileText size={21} color="#B00C0C" /> },
+    { id: "normal", title: "정상", count: normalCount, unit: "명", fg: "#065F46", bg: "#ECFDF5", icon: <CheckCircle size={21} color="#065F46" /> },
   ];
 
   // doc tile 색상: 근로자 위험도 기준 간이 매핑
@@ -248,7 +353,6 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
       <div className={styles.pageHead}>
         <div>
           <div className={styles.subtle}>근로자 목록</div>
-          <h1 className={styles.headline}>전체 근로자 · {workerRows.length}명</h1>
         </div>
         <Button variant="secondary" onClick={() => onAction?.({ kind: "worker-register", label: "근로자 등록" })}>
           <UserRoundPlus size={15} /> 근로자 등록
@@ -256,12 +360,35 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
       </div>
 
       {/* 요약 지표 카드 */}
-      <div className={styles.metricGrid}>
-        {statCards.map(([title, value, fg, bg]) => (
-          <div key={title} style={{ padding: "14px 16px", borderRadius: 12, border: "1px solid rgba(112,115,124,0.12)", background: "#fff" }}>
-            <div className={styles.subtle} style={{ fontSize: 12, marginBottom: 6 }}>{title}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", color: fg, background: bg, borderRadius: 8, padding: "2px 10px", display: "inline-block" }}>{value}</div>
-          </div>
+      <div className={styles.summaryGrid} style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+        {statCards.map((card) => (
+          <button
+            key={card.id}
+            className={cn(styles.card, styles.summaryButton, activeFilter === card.id && styles.summaryButtonActive)}
+            type="button"
+            onClick={() => {
+              setActiveFilter(card.id);
+              setSelectedId(null);
+            }}
+            style={{
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              textAlign: "left",
+            }}
+          >
+            <div className={styles.summaryIconTile} style={{ background: card.bg }}>
+              {card.icon}
+            </div>
+            <div>
+              <div className={styles.summaryLabel}>{card.title}</div>
+              <div style={{ display: "flex", alignItems: "baseline" }}>
+                <span className={styles.summaryCount} style={{ color: card.fg }}>{card.count}</span>
+                <span className={styles.summaryUnit}>{card.unit}</span>
+              </div>
+            </div>
+          </button>
         ))}
       </div>
 
@@ -279,11 +406,12 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
         </div>
 
         {/* 데이터 행 */}
-        {workerRows.map((worker) => {
+        {filteredWorkerRows.map((worker) => {
           const isCritical = worker.statusTone === "red";
           const isSelected = selectedId === worker.id;
           const sev = CASE_SEV[worker.statusTone] ?? CASE_SEV.gray;
           const hasExtra = !!worker.docExtra;
+          const hasNoDocumentData = worker.docExtra === "자료 없음";
           const docStyle = docTileStyle(worker.statusTone, hasExtra);
           const dDayIsOver = worker.dday.includes("+");
 
@@ -336,13 +464,15 @@ export function WorkersView({ onAction }: PcViewProps = {}) {
                     ? { bg: "rgba(255,66,66,0.12)", color: "#B00C0C" }
                     : docStyle;
                   return (
-                    <span key={doc} className={styles.workerDocTile} style={{ background: tileStyle.bg, color: tileStyle.color }}>
+                    <span key={`${worker.id}-${doc}-${di}`} className={styles.workerDocTile} style={{ background: tileStyle.bg, color: tileStyle.color }}>
                       {doc}
                     </span>
                   );
                 })}
                 {worker.docExtra && (
-                  <span style={{ fontSize: 11, fontWeight: 600, color: "#C2410C", marginLeft: 2 }}>{worker.docExtra} 보완</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: hasNoDocumentData ? "#64748B" : "#C2410C", marginLeft: 2 }}>
+                    {hasNoDocumentData ? "자료 없음" : `${worker.docExtra} 보완`}
+                  </span>
                 )}
               </div>
 

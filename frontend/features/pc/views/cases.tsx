@@ -10,7 +10,8 @@
   UserRoundPlus,
   X,
 } from "lucide-react";
-import React, { useState } from "react";
+import React from "react";
+import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
 import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -74,6 +75,10 @@ export type PcViewProps = {
   onAction?: (action: PcViewAction) => void;
 };
 
+type CasesViewProps = PcViewProps & {
+  briefing?: DailyBriefingResult | null;
+};
+
 const TASK_STATUS_MAP: Record<string, { label: string; bg: string; fg: string }> = {
   "승인 필요": { label: "승인 필요", bg: "#FFF7ED", fg: "#C2410C" },
   "진행 중":   { label: "진행 중",   bg: "#EFF6FF", fg: "#1D4ED8" },
@@ -110,44 +115,75 @@ const CASE_SEV: Record<string, { bg: string; bd: string; fg: string; dot: string
   gray:   { bg: "rgba(112,115,124,0.06)", bd: "rgba(112,115,124,0.20)", fg: "#70737C", dot: "#B0B3BA" },
 };
 
-function actionForNext(next: string): PcActionKind {
-  if (next.includes("초안")) return "document-draft";
-  if (next.includes("요청서")) return "handoff-preview";
-  if (next.includes("승인")) return "approval-preview";
-  if (next.includes("응답")) return "response-summary";
-  return "handoff-preview";
+function severityGroup(item: DailyBriefingItem) {
+  if (item.expired || item.severity === "CRITICAL") return "즉시 확인";
+  if (item.severity === "HIGH") return "우선 확인";
+  if (item.severity === "MEDIUM") return "확인 필요";
+  return "참고";
 }
 
-function workerTestId(workerId: string) {
-  return `worker-row-${workerId.replace("w_", "")}`;
+function caseTone(item: DailyBriefingItem): keyof typeof CASE_SEV {
+  if (item.expired || item.severity === "CRITICAL") return "red";
+  if (item.severity === "HIGH") return "orange";
+  if (item.severity === "MEDIUM") return "blue";
+  return "gray";
 }
 
-export function CasesView({ onAction }: PcViewProps = {}) {
-  const groups = ["즉시 확인", "우선 확인", "확인 필요"];
+function actionForItem(item: DailyBriefingItem): { kind: PcActionKind; label: string } {
+  if (item.primary_action?.approval_required) return { kind: "approval-preview", label: "승인 요청" };
+  if (item.primary_action?.action_type === "request_document" || item.risk_type === "missing_document") {
+    return { kind: "document-draft", label: "메시지 초안" };
+  }
+  if (item.primary_action?.action_type === "create_handoff") return { kind: "handoff-preview", label: "요청서 보기" };
+  if (item.risk_type === "worker_reply") return { kind: "response-summary", label: "응답 확인" };
+  return { kind: "handoff-preview", label: "상세 보기" };
+}
+
+function riskTypeLabel(type: DailyBriefingItem["risk_type"]) {
+  const labels: Record<DailyBriefingItem["risk_type"], string> = {
+    visa_expiry: "체류기간 임박",
+    missing_document: "서류 보완",
+    contract_visa_conflict: "계약·체류 충돌",
+    reporting_deadline: "신고기한",
+    quota_review: "고용한도",
+    candidate_readiness: "채용 준비",
+    worker_reply: "근로자 응답",
+  };
+  return labels[type] ?? type;
+}
+
+export function CasesView({ onAction, briefing }: CasesViewProps = {}) {
+  const items = briefing?.items ?? [];
+  const groups = ["즉시 확인", "우선 확인", "확인 필요", "참고"];
+  const groupedCounts = groups.reduce<Record<string, number>>((acc, group) => {
+    acc[group] = items.filter((item) => severityGroup(item) === group).length;
+    return acc;
+  }, {});
   return (
     <div className={styles.stack}>
 
       {/* 헤더 */}
       <div>
         <div className={styles.subtle}>케이스 목록</div>
-        <h1 className={styles.headline}>리스크 케이스 · {totalRiskCaseCount}건</h1>
+        <h1 className={styles.headline}>리스크 케이스 · {items.length}건</h1>
         <p className={styles.subtle}>AI는 비자 가능 여부를 확정하지 않으며, 담당자 검토용 근거와 초안만 제공합니다.</p>
       </div>
 
       {/* 필터 Chip 바 */}
       <div className={styles.buttonRow}>
         <button className={cn(styles.chip, styles.chipActive)} type="button">전체</button>
-        <button className={styles.chip} type="button">즉시 확인 <span className={styles.chipCount}>1</span></button>
-        <button className={styles.chip} type="button">우선 확인 <span className={styles.chipCount}>3</span></button>
-        <button className={styles.chip} type="button">확인 필요 <span className={styles.chipCount}>2</span></button>
-        <button className={styles.chip} type="button">참고 <span className={styles.chipCount}>1</span></button>
+        {groups.map((group) => (
+          <button className={styles.chip} type="button" key={group}>
+            {group} <span className={styles.chipCount}>{groupedCounts[group] ?? 0}</span>
+          </button>
+        ))}
       </div>
 
       {/* 그룹별 카드 리스트 */}
       {groups.map((group) => {
-        const items = riskCases.filter((item) => item.group === group);
-        if (!items.length) return null;
-        const sev = CASE_SEV[items[0].tone] ?? CASE_SEV.gray;
+        const groupItems = items.filter((item) => severityGroup(item) === group);
+        if (!groupItems.length) return null;
+        const sev = CASE_SEV[caseTone(groupItems[0])] ?? CASE_SEV.gray;
         return (
           <section className={styles.caseGroup} key={group}>
 
@@ -155,15 +191,17 @@ export function CasesView({ onAction }: PcViewProps = {}) {
             <div className={styles.titleLine}>
               <span className={styles.dot} style={{ background: sev.dot, flexShrink: 0 }} />
               <strong>{group}</strong>
-              <Badge tone="gray">{items.length}건</Badge>
+              <Badge tone="gray">{groupItems.length}건</Badge>
             </div>
 
             {/* 케이스 카드 */}
-            {items.map((item) => {
-              const s = CASE_SEV[item.tone] ?? CASE_SEV.gray;
+            {groupItems.map((item) => {
+              const s = CASE_SEV[caseTone(item)] ?? CASE_SEV.gray;
+              const action = actionForItem(item);
+              const workerName = item.subject_display_name ?? item.subject_display_id ?? item.subject_id;
               return (
                 <div
-                  key={item.id}
+                  key={item.item_id}
                   className={styles.caseCard}
                   style={{
                     borderRadius: 12,
@@ -186,46 +224,25 @@ export function CasesView({ onAction }: PcViewProps = {}) {
                         }}>
                           {group}
                         </span>
-                        <strong style={{ fontSize: 15, fontWeight: 700 }}>{item.title}</strong>
-                        {item.nationalityCode && (
-                          <span style={{
-                            fontSize: 11, fontWeight: 600, color: "#7C3AED",
-                            background: "rgba(124,58,237,0.08)", padding: "2px 7px", borderRadius: 6,
-                          }}>
-                            {item.nationalityCode}
-                          </span>
-                        )}
-                        <strong className={styles.muted}>{item.worker}</strong>
+                        <strong style={{ fontSize: 15, fontWeight: 700 }}>{item.case_title ?? riskTypeLabel(item.risk_type)}</strong>
+                        <strong className={styles.muted}>{workerName}</strong>
                       </div>
 
                       {/* 설명 */}
                       <p style={{ fontSize: 13.5, color: "#374151", lineHeight: 1.6, margin: "0 0 12px" }}>
-                        {item.desc}
+                        {item.case_summary ?? `${workerName}의 ${riskTypeLabel(item.risk_type)} 케이스입니다.`}
                       </p>
 
                       {/* 액션 Pill 버튼들 */}
                       <div className={styles.buttonRow}>
-                        {item.actions.map((action) => (
-                          <PillButton
-                            key={action}
-                            onClick={() =>
-                              onAction?.({
-                                kind: action.includes("초안")
-                                  ? "document-draft"
-                                  : action.includes("자료") || action.includes("신고서")
-                                    ? "handoff-preview"
-                                    : "response-summary",
-                                label: action,
-                              })
-                            }
-                          >
-                            {action}
-                          </PillButton>
-                        ))}
+                        <PillButton onClick={() => onAction?.(action)}>{action.label}</PillButton>
+                        {item.missing_documents.length > 0 && (
+                          <Badge tone="orange">누락 {item.missing_documents.length}건</Badge>
+                        )}
                       </div>
                     </div>
 
-                    <span className={styles.subtle} style={{ flexShrink: 0 }}>{item.id}</span>
+                    <span className={styles.subtle} style={{ flexShrink: 0 }}>{item.case_id}</span>
                   </div>
                 </div>
               );
