@@ -1,5 +1,5 @@
-import { PcRoutePage } from "@/features/pc/PcRoutePage";
+import { redirect } from "next/navigation";
 
 export default function DocumentsPage() {
-  return <PcRoutePage />;
+  redirect("/dashboard");
 }

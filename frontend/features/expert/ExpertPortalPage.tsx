@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { ClipboardCheck, LogOut, MessageSquare, Pencil, Send, ShieldCheck } from "lucide-react";
+import { ClipboardCheck, FileText, LogOut, MessageSquare, Pencil, Send, ShieldCheck } from "lucide-react";
 
 import { clearOperatorContext, getOperatorContext, type OperatorContext } from "../../lib/operatorContext";
 import styles from "../pc/PcShell.module.css";
@@ -28,8 +28,13 @@ type ContactThread = {
   worker: {
     id: string;
     name: string;
+    full_name?: string;
     nationality?: string;
+    language_code?: string;
     visa_type?: string;
+    visa_expires_at?: string | null;
+    contract_starts_at?: string | null;
+    contract_ends_at?: string | null;
   };
   title: string;
   status: string;
@@ -240,23 +245,13 @@ export function ExpertPortalPage() {
               <aside className={styles.todayDetail}>
                 <div className={styles.pageHead}>
                   <div>
-                    <div className={styles.subtle}>{selectedRequest.id}</div>
+                    <div className={styles.subtle}>검토 요청</div>
                     <h1 className={styles.headline}>{selectedRequest.title}</h1>
                     <p className={styles.subtle}>{selectedRequest.company} · {selectedRequest.worker}</p>
                   </div>
                   <span style={statusChip(selectedRequest.status)}>{selectedRequest.status}</span>
                 </div>
-                <div className={styles.safeNotice} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-                  <ShieldCheck size={17} /> 검토 의견은 담당자 확인용입니다. 정부 제출이나 대외 발송은 이 화면에서 실행하지 않습니다.
-                </div>
-                <section style={{ marginBottom: 22 }}>
-                  <h2 style={{ fontSize: 17 }}>요청 요약</h2>
-                  <p style={{ lineHeight: 1.8, whiteSpace: "pre-line" }}>{selectedRequest.summary}</p>
-                </section>
-                <div className={styles.infoGrid} style={{ marginBottom: 22 }}>
-                  <InfoBlock title="전달 자료" items={["관리자 검토 요청 본문", "근로자 기본 정보", "제출 서류 상태"]} />
-                  <InfoBlock title="검토 기준" items={["가능 여부 확정 금지", "추가 서류와 리스크 중심", "담당자 승인 후 후속 진행"]} />
-                </div>
+                <ExpertReviewPackage thread={selectedThread} request={selectedRequest} />
                 <button className={styles.primaryWideButton} onClick={() => setActiveTab("messages")} style={{ width: "auto", padding: "0 16px" }} type="button">
                   메시지에서 답변하기
                 </button>
@@ -435,6 +430,83 @@ function threadToRequest(thread: ContactThread) {
   };
 }
 
+function ExpertReviewPackage({ thread, request }: { thread?: ContactThread | null; request: ReturnType<typeof threadToRequest> }) {
+  const worker = thread?.worker;
+  const requestBody = request.summary;
+  const docRows = extractDocumentRows(requestBody);
+  const reviewItems = extractReviewItems(requestBody);
+  return (
+    <div>
+      <section style={expertPackageSectionStyle}>
+        <div className={styles.sectionLabelUpper}>근로자 기본 정보</div>
+        <div style={expertPackageGridStyle}>
+          <PackageField label="표시명" value={worker?.name ?? request.worker} />
+          <PackageField label="실명" value={worker?.full_name ?? "-"} />
+          <PackageField label="국적" value={worker?.nationality ?? "-"} />
+          <PackageField label="체류자격" value={worker?.visa_type ?? "-"} />
+        </div>
+      </section>
+
+      <section style={expertPackageSectionStyle}>
+        <div className={styles.sectionLabelUpper}>체류 / 계약 상태</div>
+        <div style={expertPackageGridStyle}>
+          <PackageField label="체류만료일" value={formatDate(worker?.visa_expires_at)} tone={isExpired(worker?.visa_expires_at) ? "danger" : "default"} />
+          <PackageField label="계약 시작일" value={formatDate(worker?.contract_starts_at)} />
+          <PackageField label="계약 종료일" value={formatDate(worker?.contract_ends_at)} />
+          <PackageField label="요청 상태" value={request.status} tone={request.status === "검토 완료" ? "ok" : "warning"} />
+        </div>
+      </section>
+
+      <section style={expertPackageSectionStyle}>
+        <div className={styles.sectionLabelUpper}>제출 서류 상태</div>
+        {docRows.length > 0 ? (
+          <div style={{ display: "grid", gap: 8 }}>
+            {docRows.map((row) => (
+              <div key={row} style={expertDocRowStyle}>
+                <FileText size={14} color="#475569" />
+                <span>{row}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.subtle} style={{ margin: 0 }}>요청 본문에서 별도 서류 목록을 찾지 못했습니다. 메시지 원문을 기준으로 검토해 주세요.</p>
+        )}
+      </section>
+
+      <section style={expertPackageSectionStyle}>
+        <div className={styles.sectionLabelUpper}>담당자 검토 요청</div>
+        {reviewItems.length > 0 ? (
+          <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.75 }}>
+            {reviewItems.map((item) => <li key={item}>{item}</li>)}
+          </ol>
+        ) : (
+          <p style={{ lineHeight: 1.8, whiteSpace: "pre-line", margin: 0 }}>{requestBody}</p>
+        )}
+      </section>
+
+      <section style={expertPackageSectionStyle}>
+        <div className={styles.sectionLabelUpper}>요청 원문</div>
+        <div style={expertOriginalBodyStyle}>{requestBody}</div>
+      </section>
+    </div>
+  );
+}
+
+function PackageField({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "danger" | "warning" | "ok" }) {
+  const palette = {
+    default: { bg: "rgba(248,250,252,0.9)", fg: "#0F172A", bd: "#E2E8F0" },
+    danger: { bg: "#FEF2F2", fg: "#B91C1C", bd: "#FECACA" },
+    warning: { bg: "#FFF7ED", fg: "#C2410C", bd: "#FED7AA" },
+    ok: { bg: "#ECFDF5", fg: "#047857", bd: "#A7F3D0" },
+  }[tone];
+  return (
+    <div style={{ padding: "10px 12px", borderRadius: 9, background: palette.bg, border: `1px solid ${palette.bd}` }}>
+      <div className={styles.subtle} style={{ fontSize: 11, marginBottom: 4 }}>{label}</div>
+      <strong style={{ fontSize: 13, color: palette.fg }}>{value}</strong>
+    </div>
+  );
+}
+
 function expertThreadTitle(thread: ContactThread) {
   return `행정사 - ${thread.worker.name}`;
 }
@@ -539,15 +611,39 @@ function EditMessageModal({ draft, onClose, onDraftChange, onSubmit }: {
   );
 }
 
-function InfoBlock({ title, items }: { title: string; items: string[] }) {
-  return (
-    <section className={styles.card} style={{ padding: 16 }}>
-      <h2 style={{ margin: "0 0 12px", fontSize: 15 }}>{title}</h2>
-      <div style={{ display: "grid", gap: 8 }}>
-        {items.map((item) => <div key={item} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}><span>{item}</span></div>)}
-      </div>
-    </section>
-  );
+function extractDocumentRows(body: string) {
+  const lines = body.split("\n").map((line) => line.trim()).filter(Boolean);
+  const startIndex = lines.findIndex((line) => line.includes("현재 확보된 자료") || line.includes("제출 서류"));
+  if (startIndex < 0) return [];
+  const nextSection = lines.findIndex((line, index) => index > startIndex && (line.includes("검토 요청 사항") || line.includes("요청 사항")));
+  const endIndex = nextSection > startIndex ? nextSection : lines.length;
+  return lines
+    .slice(startIndex + 1, endIndex)
+    .filter((line) => line.startsWith("-") || line.includes(":"))
+    .map((line) => line.replace(/^-\s*/, ""));
+}
+
+function extractReviewItems(body: string) {
+  const lines = body.split("\n").map((line) => line.trim()).filter(Boolean);
+  const startIndex = lines.findIndex((line) => line.includes("검토 요청 사항") || line.includes("요청 사항"));
+  if (startIndex < 0) return [];
+  return lines
+    .slice(startIndex + 1)
+    .filter((line) => /^\d+\./.test(line))
+    .map((line) => line.replace(/^\d+\.\s*/, ""));
+}
+
+function formatDate(value?: string | null) {
+  return value ? value.replaceAll("-", ".") : "-";
+}
+
+function isExpired(value?: string | null) {
+  if (!value) return false;
+  const target = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(target.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return target.getTime() < today.getTime();
 }
 
 function statusChip(status: ExpertStatus): React.CSSProperties {
@@ -619,6 +715,45 @@ const expertNextButtonStyle: React.CSSProperties = {
   color: "#fff",
   fontSize: 12,
   fontWeight: 900,
+};
+
+const expertPackageSectionStyle: React.CSSProperties = {
+  marginBottom: 18,
+  padding: "16px 18px",
+  borderRadius: 12,
+  border: "1px solid rgba(112, 115, 124, 0.12)",
+  background: "#fff",
+};
+
+const expertPackageGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: 10,
+};
+
+const expertDocRowStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "8px 10px",
+  borderRadius: 8,
+  background: "#F8FAFC",
+  border: "1px solid #E2E8F0",
+  fontSize: 13,
+  lineHeight: 1.5,
+};
+
+const expertOriginalBodyStyle: React.CSSProperties = {
+  maxHeight: 260,
+  overflow: "auto",
+  whiteSpace: "pre-line",
+  lineHeight: 1.7,
+  padding: "12px 14px",
+  borderRadius: 10,
+  background: "#F8FAFC",
+  border: "1px solid #E2E8F0",
+  fontSize: 13,
+  color: "#334155",
 };
 
 const baseStatusChip: React.CSSProperties = {

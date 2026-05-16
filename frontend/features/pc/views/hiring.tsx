@@ -126,7 +126,7 @@ const CANDIDATE_ID = "candidate-001";
 const CANDIDATE_PACKAGE_STORAGE_KEY = "oegobanjang:candidate-arrival-package:candidate-001:v1";
 const CANDIDATE_PACKAGE_API_PATH = `/api/v1/hiring/candidates/${CANDIDATE_ID}/pre-entry-package`;
 
-type HiringTab = "new-hiring" | "candidate";
+type HiringTab = "new-hiring" | "new-permit" | "candidate";
 type HiringDraftMode = "edit" | "draft";
 type CandidateMode = "list" | "package";
 type PackageStatus = "미작성" | "작성 중" | "검토 필요" | "준비 완료";
@@ -157,10 +157,9 @@ const initialNewHiringSections: PackageSection[] = [
     rows: [
       { label: "업종", value: "전자부품 제조업" },
       { label: "사업장 소재지", value: "부산광역시 강서구" },
-      { label: "기존 외국인근로자 수", value: "4명" },
-      { label: "요청 인원", value: "2명" },
+      { label: "기존 외국인근로자 수", value: "확인 중" },
+      { label: "요청 인원", value: "1명" },
     ],
-    note: "workforce_templates의 new_hiring industry, region, needed_headcount 항목 기준",
   },
   {
     id: "native-recruitment",
@@ -168,15 +167,14 @@ const initialNewHiringSections: PackageSection[] = [
     title: "내국인 구인노력",
     status: "검토 필요",
     rows: [
-      { label: "구인 등록일", value: "2026-04-15" },
-      { label: "구인 기간", value: "2026-04-15 ~ 2026-05-14 (30일)" },
+      { label: "구인 등록일", value: "2026-05-02" },
+      { label: "구인 기간", value: "2026-05-02 ~ 2026-05-31 (30일)" },
       { label: "모집 직무", value: "전자부품 조립원" },
-      { label: "모집 인원", value: "2명" },
+      { label: "모집 인원", value: "1명" },
       { label: "지원자 수", value: "0명" },
       { label: "미충원 사유", value: "지원자 없음", tone: "warning" },
     ],
     attachments: ["구인공고 캡처.pdf", "고용24 구인신청 확인자료.png"],
-    note: "EPS 신규 고용 절차의 내국인 구인노력 단계 기준",
   },
   {
     id: "working-condition",
@@ -184,13 +182,12 @@ const initialNewHiringSections: PackageSection[] = [
     title: "근로조건",
     status: "미작성",
     rows: [
-      { label: "임금", value: "-", tone: "warning" },
-      { label: "근무시간", value: "-", tone: "warning" },
-      { label: "교대 여부", value: "-", tone: "warning" },
+      { label: "임금", value: "연 4,000만원" },
+      { label: "근무시간", value: "주 40시간" },
+      { label: "교대 여부", value: "주간 고정" },
       { label: "요청 직무", value: "전자부품 조립원" },
       { label: "희망 입사일", value: "-", tone: "warning" },
     ],
-    note: "표준근로계약서 초안 작성을 위해 필요한 사업장 입력값",
   },
   {
     id: "housing-safety",
@@ -204,7 +201,6 @@ const initialNewHiringSections: PackageSection[] = [
       { label: "안전교육 자료", value: "첨부 완료", tone: "ok" },
     ],
     attachments: ["안전교육 안내문.pdf"],
-    note: "workforce_company_requirements의 숙소/근무조건/안전교육 준비 항목 기준",
   },
   {
     id: "permit-docs",
@@ -214,11 +210,10 @@ const initialNewHiringSections: PackageSection[] = [
     rows: [
       { label: "고용허가 신청서", value: "작성 중" },
       { label: "사업자등록증", value: "첨부 완료", tone: "ok" },
-      { label: "업종별 구비서류", value: "검토 중", tone: "warning" },
-      { label: "표준근로계약서", value: "작성 중" },
+      { label: "업종별 구비서류", value: "준비 완료", tone: "ok" },
+      { label: "표준근로계약서", value: "준비 완료", tone: "ok" },
     ],
     attachments: ["사업자등록증.pdf"],
-    note: "고용24 고용허가 신청 안내와 EPS 고용허가 신청 단계 기준",
   },
 ];
 
@@ -282,17 +277,51 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
   const candidateCheckedCount = candidateArrivalChecklist.filter((item) => candidateCheckedItems[item]).length;
   const candidateChecklistComplete = candidateCheckedCount === candidateArrivalChecklist.length;
   const selectedSection = packageSections.find((section) => section.id === selectedSectionId) ?? packageSections[0];
-  const readySectionCount = packageSections.filter((section) => section.status === "준비 완료").length;
-  const missingSectionCount = packageSections.filter((section) => section.status === "미작성").length;
-  const reviewSectionCount = packageSections.filter((section) => section.status === "검토 필요").length;
+  const detailRows = packageSections.flatMap((section) => section.rows);
+  const incompleteDetailRows = detailRows.filter((row) =>
+    row.value === "-"
+    || row.value.includes("미입력"),
+  );
+  const readyDetailPercent = detailRows.length === 0
+    ? 0
+    : Math.round(((detailRows.length - incompleteDetailRows.length) / detailRows.length) * 100);
   const draftMissingRows = packageSections.flatMap((section) =>
     section.rows
-      .filter((row) => row.value === "-" || row.tone === "warning")
+      .filter((row) =>
+        row.value === "-"
+        || row.value.includes("미입력"),
+      )
       .map((row) => `${section.title}: ${row.label}`),
   );
   const requestedWorkerId = searchParams.get("worker_id");
   const requestedWorker = workers.find((worker) => worker.id === requestedWorkerId) ?? null;
   const requestedActionLabel = searchParams.get("label");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCompanyWorkers() {
+      try {
+        const response = await fetch("/api/v1/contact/workers?company_id=550e8400-e29b-41d4-a716-446655440001", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json() as { workers?: unknown[] };
+        if (cancelled) return;
+        const count = data.workers?.length ?? 0;
+        setPackageSections((sections) =>
+          sections.map((section) => section.id !== "company"
+            ? section
+            : {
+                ...section,
+                rows: section.rows.map((row) =>
+                  row.label === "기존 외국인근로자 수" ? { ...row, value: `${count}명` } : row,
+                ),
+              }),
+        );
+      } catch {
+      }
+    }
+    void loadCompanyWorkers();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (searchParams.get("from") !== "today") return;
@@ -371,6 +400,47 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
     );
   }
 
+  function addPackageFiles(sectionId: string, files: FileList | null) {
+    if (!files?.length) return;
+    const filenames = Array.from(files).map((file) => file.name);
+    setPackageSections((sections) =>
+      sections.map((section) => {
+        if (section.id !== sectionId) return section;
+        return {
+          ...section,
+          attachments: [...(section.attachments ?? []), ...filenames],
+        };
+      }),
+    );
+  }
+
+  function downloadMockAttachment(filename: string) {
+    const body = [
+      filename,
+      "",
+      "외고반장 데모용 첨부파일입니다.",
+      "실제 제출/대외 발송용 파일이 아니며, 화면 흐름 확인을 위한 임시 파일입니다.",
+    ].join("\n");
+    const blob = new Blob([body], { type: "text/plain;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  }
+
+  function removePackageFile(sectionId: string, filename: string, targetIndex: number) {
+    setPackageSections((sections) =>
+      sections.map((section) => section.id !== sectionId
+        ? section
+        : {
+            ...section,
+            attachments: (section.attachments ?? []).filter((file, index) => !(file === filename && index === targetIndex)),
+          }),
+    );
+  }
+
   function updateCandidatePackageRow(sectionTitle: string, label: string, value: string) {
     setCandidatePackageDraft((sections) =>
       sections.map((section) => {
@@ -410,12 +480,6 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
 
   return (
     <div className={styles.stack}>
-      <div>
-        <div className={styles.subtle}>채용 준비</div>
-        <h1 className={styles.headline}>신규 고용 준비</h1>
-        <p className={styles.subtle}>신규 고용 준비 상태를 점검합니다. 후보자 점수화나 추천은 하지 않습니다.</p>
-      </div>
-
       {requestedWorker ? (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12, background: "#EFF6FF", border: "1px solid #BFDBFE", color: "#1E3A8A" }}>
           <div>
@@ -426,35 +490,6 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
         </div>
       ) : null}
 
-      <div style={{ display: "inline-flex", gap: 6, padding: 4, borderRadius: 10, background: "#F3F6FB", border: "1px solid #E5EAF3", width: "fit-content" }}>
-        {[
-          { id: "new-hiring" as HiringTab, label: "신규 채용 준비", count: 1 },
-          { id: "candidate" as HiringTab, label: "후보자 관리", count: 1 },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => {
-              setActiveTab(tab.id);
-              setDraftMode("edit");
-              setCandidateMode("list");
-            }}
-            style={{
-              border: 0,
-              borderRadius: 8,
-              padding: "8px 14px",
-              background: activeTab === tab.id ? "#FFFFFF" : "transparent",
-              color: activeTab === tab.id ? "#0F3B8F" : "#64748B",
-              fontWeight: 800,
-              boxShadow: activeTab === tab.id ? "0 1px 4px rgba(15,23,42,0.08)" : "none",
-              cursor: "pointer",
-            }}
-          >
-            {tab.label} <span style={{ fontSize: 12, color: activeTab === tab.id ? "#2563EB" : "#94A3B8" }}>{tab.count}건</span>
-          </button>
-        ))}
-      </div>
-
       {activeTab === "new-hiring" && draftMode === "edit" ? (
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(340px, 0.8fr)", gap: 18, alignItems: "start" }}>
           <div className={styles.stack}>
@@ -462,7 +497,7 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
               <div className={styles.pageHead} style={{ marginBottom: 16 }}>
                 <div>
                   <div className={styles.subtle}>신규 E-9 채용 준비</div>
-                  <h2 style={{ margin: "2px 0 4px", fontSize: 18 }}>고용허가 준비 패키지</h2>
+                  <h2 style={{ margin: "2px 0 4px", fontSize: 18 }}>고용 준비 체크리스트</h2>
                   <p className={styles.subtle} style={{ fontSize: 12.5 }}>EPS/고용24 근거와 사업장 데이터를 기준으로 준비자료를 정리합니다.</p>
                 </div>
                 <Button variant="primary" onClick={() => setDraftMode("draft")}>
@@ -470,13 +505,12 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
                 </Button>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", border: "1px solid #E5EAF3", borderRadius: 10, overflow: "hidden", marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", border: "1px solid #E5EAF3", borderRadius: 10, overflow: "hidden", marginBottom: 16 }}>
                 {[
-                  ["준비율", `${readySectionCount}/${packageSections.length}`, "#2563EB"],
-                  ["누락 자료", `${missingSectionCount}개`, "#F97316"],
-                  ["검토 필요", `${reviewSectionCount}개`, "#D97706"],
+                  ["준비율", `${readyDetailPercent}%`, "#2563EB"],
+                  ["누락 자료", `${incompleteDetailRows.length}개`, "#F97316"],
                 ].map(([label, value, color]) => (
-                  <div key={label} style={{ padding: "14px 16px", borderRight: label === "검토 필요" ? "none" : "1px solid #E5EAF3" }}>
+                  <div key={label} style={{ padding: "14px 16px", borderRight: label === "누락 자료" ? "none" : "1px solid #E5EAF3" }}>
                     <div className={styles.subtle} style={{ fontSize: 12 }}>{label}</div>
                     <strong style={{ fontSize: 20, color }}>{value}</strong>
                   </div>
@@ -485,7 +519,6 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 }}>
                 {packageSections.map((section) => {
-                  const tone = statusTone[section.status];
                   const selected = section.id === selectedSection.id;
                   return (
                     <button
@@ -507,7 +540,6 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
                           <span style={{ width: 22, height: 22, borderRadius: 999, background: "#EAF2FF", color: "#2563EB", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 }}>{section.index}</span>
                           <strong>{section.title}</strong>
                         </div>
-                        <span style={{ padding: "3px 8px", borderRadius: 999, background: tone.bg, color: tone.fg, border: `1px solid ${tone.bd}`, fontSize: 11, fontWeight: 800 }}>{section.status}</span>
                       </div>
                       <div className={styles.stack} style={{ gap: 6 }}>
                         {section.rows.slice(0, 4).map((row) => (
@@ -530,7 +562,6 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
                 <div className={styles.subtle}>상세 입력/증빙</div>
                 <h2 style={{ margin: "2px 0 0", fontSize: 18 }}>{selectedSection.title}</h2>
               </div>
-              <span style={{ padding: "4px 9px", borderRadius: 999, background: statusTone[selectedSection.status].bg, color: statusTone[selectedSection.status].fg, border: `1px solid ${statusTone[selectedSection.status].bd}`, fontSize: 12, fontWeight: 800 }}>{selectedSection.status}</span>
             </div>
             <div className={styles.stack} style={{ gap: 10 }}>
               {selectedSection.rows.map((row) => (
@@ -552,21 +583,99 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
                   />
                 </label>
               ))}
-              <div style={{ display: "grid", gap: 8 }}>
-                <div className={styles.subtle} style={{ fontSize: 12 }}>첨부자료</div>
-                {(selectedSection.attachments ?? []).map((file) => (
-                  <div key={file} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid #E5EAF3", borderRadius: 8, padding: "9px 11px", fontSize: 13 }}>
-                    <span>{file}</span>
-                    <span className={styles.subtle}>첨부됨</span>
-                  </div>
-                ))}
-                <Button variant="secondary" onClick={() => onAction?.({ kind: "document-draft", label: "파일 추가" })}>
-                  <FileText size={14} /> 파일 추가
-                </Button>
-              </div>
-              <div style={{ border: "1px solid #DBEAFE", background: "#EFF6FF", borderRadius: 10, padding: 12, color: "#1E3A8A", fontSize: 12.5 }}>
-                {selectedSection.note}
-              </div>
+              {selectedSection.id !== "company" ? (
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div className={styles.subtle} style={{ fontSize: 12 }}>첨부자료</div>
+                  {(selectedSection.attachments ?? []).map((file, fileIndex) => (
+                    <div
+                      key={`${selectedSection.id}-${file}-${fileIndex}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        border: "1px solid #E5EAF3",
+                        borderRadius: 8,
+                        background: "#fff",
+                        padding: "9px 11px",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => downloadMockAttachment(file)}
+                        style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        minWidth: 0,
+                        border: 0,
+                        background: "transparent",
+                        color: "#1D4ED8",
+                        fontSize: 13,
+                        fontWeight: 800,
+                        textAlign: "left",
+                        textDecoration: "underline",
+                        cursor: "pointer",
+                      }}
+                      >
+                        <FileText size={14} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file}</span>
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`${file} 삭제`}
+                        onClick={() => removePackageFile(selectedSection.id, file, fileIndex)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 26,
+                          height: 26,
+                          border: "1px solid #FECACA",
+                          borderRadius: 999,
+                          background: "#FEF2F2",
+                          color: "#DC2626",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <label style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    minHeight: 38,
+                    borderRadius: 8,
+                    border: "1px solid #D9E2F2",
+                    background: "#fff",
+                    color: "#1F2937",
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}>
+                    <FileText size={14} /> 파일 추가
+                    <input
+                      multiple
+                      type="file"
+                      onChange={(event) => {
+                        addPackageFiles(selectedSection.id, event.target.files);
+                        event.target.value = "";
+                        onAction?.({ kind: "document-draft", label: "파일 추가" });
+                      }}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                </div>
+              ) : null}
+              {selectedSection.note ? (
+                <div style={{ border: "1px solid #DBEAFE", background: "#EFF6FF", borderRadius: 10, padding: 12, color: "#1E3A8A", fontSize: 12.5 }}>
+                  {selectedSection.note}
+                </div>
+              ) : null}
             </div>
           </section>
         </div>
@@ -606,7 +715,6 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
                 <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>AI 확인 결과</h3>
                 <div className={styles.stack} style={{ gap: 8 }}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span>누락/확인 필요</span><strong style={{ color: "#F97316" }}>{draftMissingRows.length}개</strong></div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}><span>검토 필요 섹션</span><strong style={{ color: "#D97706" }}>{reviewSectionCount}개</strong></div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}><span>첨부 완료</span><strong style={{ color: "#047857" }}>4개</strong></div>
                 </div>
               </div>
@@ -800,6 +908,155 @@ export function HiringPreparationView({ onAction }: PcViewProps = {}) {
     </div>
   );
 }
+
+function NewEmploymentPrepTab({ onAction }: PcViewProps = {}) {
+  const cases = [
+    {
+      id: "case-inspection-1",
+      title: "포장/검수 인력 1명",
+      status: "임금 정보 미입력",
+      due: "초안 작성 전",
+      summary: "후보자 미정 · 모집 조건 보완 필요",
+    },
+  ];
+  const selected = cases[0];
+  const statCards = [
+    { label: "요청 인원", value: "1", unit: "명", color: "#1D4ED8", bg: "#EFF6FF" },
+    { label: "입력 누락", value: "3", unit: "개", color: "#B45309", bg: "#FFFBEB" },
+    { label: "첨부 필요", value: "2", unit: "개", color: "#7C3AED", bg: "#F5F3FF" },
+    { label: "검토 단계", value: "전", unit: "단계", color: "#047857", bg: "#ECFDF5" },
+  ];
+  const sections = [
+    {
+      title: "사업장 정보",
+      rows: [
+        ["업종", "전자부품 제조업"],
+        ["소재지", "부산 강서"],
+        ["기존 외국인 근로자 수", "10명"],
+        ["고용 가능 인원", "확인 필요"],
+      ],
+    },
+    {
+      title: "모집 조건",
+      rows: [
+        ["직무", "포장/검수"],
+        ["요청 인원", "1명"],
+        ["임금", "미입력"],
+        ["근무시간", "미입력"],
+        ["숙소 제공", "제공"],
+      ],
+    },
+    {
+      title: "내국인 구인노력",
+      rows: [
+        ["구인 등록일", "2026.05.02"],
+        ["종료 예정일", "2026.05.31"],
+        ["지원자 수", "0명"],
+        ["미충원 사유", "입력 필요"],
+      ],
+    },
+    {
+      title: "신청 서류",
+      rows: [
+        ["사업자등록증", "첨부됨"],
+        ["구인노력 증빙", "첨부 필요"],
+        ["표준근로계약서 초안", "작성 필요"],
+      ],
+    },
+  ];
+  return (
+    <div className={styles.stack}>
+      <div className={styles.summaryGrid} style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+        {statCards.map((card) => (
+          <div className={styles.card} key={card.label} style={{ padding: 16 }}>
+            <div className={styles.summaryIconTile} style={{ background: card.bg }}>
+              <UserRoundPlus size={21} color={card.color} />
+            </div>
+            <div className={styles.summaryLabel} style={{ marginTop: 10 }}>{card.label}</div>
+            <div style={{ display: "flex", alignItems: "baseline" }}>
+              <span className={styles.summaryCount} style={{ color: card.color }}>{card.value}</span>
+              {card.unit ? <span className={styles.summaryUnit}>{card.unit}</span> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "320px minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
+        <section className={styles.card} style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "16px 18px", borderBottom: "1px solid #E2E8F0" }}>
+            <strong>신규 고용 케이스</strong>
+            <p className={styles.subtle} style={{ margin: "6px 0 0", fontSize: 12 }}>현재 재직 근로자 리스크는 표시하지 않습니다.</p>
+          </div>
+          {cases.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              style={{
+                width: "100%",
+                border: 0,
+                borderLeft: index === 0 ? "4px solid #2563EB" : "4px solid transparent",
+                borderBottom: "1px solid #E2E8F0",
+                background: index === 0 ? "#EFF6FF" : "#fff",
+                padding: "15px 18px",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+            >
+              <strong style={{ display: "block", fontSize: 14 }}>{item.title}</strong>
+              <span className={styles.subtle} style={{ display: "block", marginTop: 5, fontSize: 12 }}>{item.summary}</span>
+              <span style={{ display: "inline-flex", marginTop: 10, padding: "3px 8px", borderRadius: 999, background: "#FFF7ED", color: "#C2410C", fontSize: 11, fontWeight: 800 }}>{item.due}</span>
+            </button>
+          ))}
+        </section>
+
+        <section className={styles.card} style={{ padding: 20 }}>
+          <div className={styles.pageHead} style={{ marginBottom: 18 }}>
+            <div>
+              <div className={styles.subtle}>신규 고용 준비안</div>
+              <h2 style={{ margin: "3px 0 4px", fontSize: 22 }}>{selected.title}</h2>
+              <p className={styles.subtle}>{selected.status}</p>
+            </div>
+            <span style={{ padding: "5px 10px", borderRadius: 999, background: "#FFF7ED", color: "#C2410C", fontSize: 12, fontWeight: 800 }}>신청 전 보완</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
+            {sections.map((section) => (
+              <div key={section.title} style={{ border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, background: "#fff" }}>
+                <h3 style={{ margin: "0 0 12px", fontSize: 15 }}>{section.title}</h3>
+                <div style={{ display: "grid", gap: 9 }}>
+                  {section.rows.map(([label, value]) => {
+                    const warning = value.includes("필요") || value.includes("미입력") || value.includes("확인");
+                    return (
+                      <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13 }}>
+                        <span className={styles.subtle}>{label}</span>
+                        <strong style={{ color: warning ? "#C2410C" : "#0F172A", textAlign: "right" }}>{value}</strong>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <section style={{ marginTop: 16, padding: 16, borderRadius: 12, background: "#F8FAFC", border: "1px solid #E2E8F0" }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: 15 }}>AI가 확인한 신청 전 보완 항목</h3>
+            <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8 }}>
+              <li>임금 정보가 입력되지 않았습니다.</li>
+              <li>근무시간 정보가 입력되지 않았습니다.</li>
+              <li>내국인 구인노력 미충원 사유와 증빙 첨부가 필요합니다.</li>
+            </ol>
+          </section>
+
+          <div className={styles.buttonRow} style={{ marginTop: 16, justifyContent: "flex-end" }}>
+            <Button variant="secondary" onClick={() => onAction?.({ kind: "document-draft", label: "자료 입력" })}>자료 입력</Button>
+            <Button variant="primary" onClick={() => onAction?.({ kind: "handoff-preview", label: "전문가 검토 요청" })}>전문가 검토 요청</Button>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function Scenario({ title, desc, tone }: { title: string; desc: string; tone: Tone }) {
   return <div className={cn(styles.panel, toneClass(tone))}><strong>{title}</strong><p>{desc}</p></div>;
 }
