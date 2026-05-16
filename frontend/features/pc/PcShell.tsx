@@ -81,7 +81,7 @@ function renderView(
   onAction: (action: PcViewAction) => void,
   briefing: DailyBriefingResult | null,
   loading: boolean,
-  onNavigateToMessages?: (threadId: string) => void,
+  onNavigateToMessages?: (threadId: string, tab?: "worker" | "expert") => void,
 ) {
   if (view === "hiring") return <HiringPreparationView onAction={onAction} />;
   if (view === "workers") return <WorkersView onAction={onAction} />;
@@ -420,9 +420,10 @@ export function PcShell({
       </header>
 
       <main className={styles.main}>
-        {children ?? renderView(activeView, (action) => void handleAction(action), workflow.briefing, workflow.loading, (threadId) => {
+        {children ?? renderView(activeView, (action) => void handleAction(action), workflow.briefing, workflow.loading, (threadId, tab) => {
           const params = new URLSearchParams();
           params.set("thread_id", threadId);
+          if (tab === "expert") params.set("tab", "expert");
           router.push(`/contacts?${params.toString()}`);
         })}
       </main>
@@ -693,10 +694,11 @@ function ReviewActionBar({
     }
   }
 
-  function navigateToMessages(threadId?: string) {
+  function navigateToMessages(threadId?: string, isExpert?: boolean) {
     onClose();
     const params = new URLSearchParams();
     if (threadId) params.set("thread_id", threadId);
+    if (isExpert) params.set("tab", "expert");
     router.push(`/contacts?${params.toString()}`);
   }
 
@@ -734,7 +736,7 @@ function ReviewActionBar({
               <button
                 key={thread.id}
                 type="button"
-                onClick={() => navigateToMessages(thread.id)}
+                onClick={() => navigateToMessages(thread.id, thread.title.includes("행정사"))}
                 style={{ ...btnBase, background: "#1D4ED8", color: "#fff", cursor: "pointer", opacity: 1 }}
               >
                 {thread.title.includes("행정사") ? "행정사 메시지 보기" : "메시지관리에서 보기"}

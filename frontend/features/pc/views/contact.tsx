@@ -58,11 +58,18 @@ type ContactThread = {
 
 export function ContactView({ onAction }: PcViewProps = {}) {
   const searchParams = useSearchParams();
+  const requestedWorkerId = searchParams.get("worker_id");
+  const requestedThreadId = searchParams.get("thread_id");
+  const requestedActionLabel = searchParams.get("label");
+  const requestedTab = searchParams.get("tab");
+
   const [workers, setWorkers] = useState<WorkerOption[]>([]);
   const [threads, setThreads] = useState<ContactThread[]>([]);
   const [expertThreads, setExpertThreads] = useState<ContactThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<ContactThread | null>(null);
-  const [activeMessageTab, setActiveMessageTab] = useState<"worker" | "expert">("worker");
+  const [activeMessageTab, setActiveMessageTab] = useState<"worker" | "expert">(
+    requestedTab === "expert" ? "expert" : "worker"
+  );
   const [selectedWorkerId, setSelectedWorkerId] = useState("");
   const [languageView, setLanguageView] = useState<"worker" | "ko">("worker");
   const [loading, setLoading] = useState(true);
@@ -76,9 +83,6 @@ export function ContactView({ onAction }: PcViewProps = {}) {
   const [expertDraft, setExpertDraft] = useState("");
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
   const [expertSending, setExpertSending] = useState(false);
-  const requestedWorkerId = searchParams.get("worker_id");
-  const requestedThreadId = searchParams.get("thread_id");
-  const requestedActionLabel = searchParams.get("label");
 
   const selectedWorker = useMemo(
     () => workers.find((worker) => worker.id === selectedWorkerId) ?? workers[0],
@@ -129,8 +133,13 @@ export function ContactView({ onAction }: PcViewProps = {}) {
       setThreads(nextThreads);
       setExpertThreads(nextExpertThreads);
       setSelectedWorkerId(requestedWorkerId || nextWorkers[0]?.id || "");
-      if (nextThreads.length > 0) await selectThread(nextThreads[0].id);
-      else setSelectedThread(null);
+      if (requestedTab === "expert" && nextExpertThreads.length > 0) {
+        await selectThread(nextExpertThreads[0].id);
+      } else if (nextThreads.length > 0) {
+        await selectThread(nextThreads[0].id);
+      } else {
+        setSelectedThread(null);
+      }
     } finally {
       setLoading(false);
     }

@@ -72,7 +72,7 @@ export type PcViewProps = {
 type TodayTasksViewProps = PcViewProps & {
   briefing?: DailyBriefingResult | null;
   loading?: boolean;
-  onNavigateToMessages?: (threadId: string) => void;
+  onNavigateToMessages?: (threadId: string, tab?: "worker" | "expert") => void;
 };
 
 type WorkerDocumentRequest = {
@@ -687,7 +687,7 @@ function TodayWorkerDetail({
 }: {
   onAction?: (action: PcViewAction) => void;
   onClose: () => void;
-  onNavigateToMessages?: (threadId: string) => void;
+  onNavigateToMessages?: (threadId: string, tab?: "worker" | "expert") => void;
   worker: (typeof workers)[number];
   briefingItems?: DailyBriefingItem[];
   documentRequests?: WorkerDocumentRequest[];
@@ -706,6 +706,7 @@ function TodayWorkerDetail({
   const [msgSending, setMsgSending] = useState<"worker" | "scrivener" | null>(null);
   const [createdThreadIds, setCreatedThreadIds] = useState<string[]>([]);
   const [lastCreatedThreadId, setLastCreatedThreadId] = useState<string | null>(null);
+  const [lastCreatedChannel, setLastCreatedChannel] = useState<"worker" | "expert">("worker");
   const [submittedDocTypes, setSubmittedDocTypes] = useState<Set<string> | null>(null);
   const [preAgentDocStatus, setPreAgentDocStatus] = useState<{
     present: string[];
@@ -815,6 +816,7 @@ function TodayWorkerDetail({
       });
       setCreatedThreadIds((prev) => [...prev, thread.id]);
       setLastCreatedThreadId(thread.id);
+      setLastCreatedChannel("worker");
     } finally {
       setMsgSending(null);
     }
@@ -848,6 +850,7 @@ function TodayWorkerDetail({
       });
       setCreatedThreadIds((prev) => [...prev, thread.id]);
       setLastCreatedThreadId(thread.id);
+      setLastCreatedChannel("expert");
     } finally {
       setMsgSending(null);
     }
@@ -855,7 +858,7 @@ function TodayWorkerDetail({
 
   function handleGoToMessages() {
     if (lastCreatedThreadId) {
-      onNavigateToMessages?.(lastCreatedThreadId);
+      onNavigateToMessages?.(lastCreatedThreadId, lastCreatedChannel);
     }
   }
 
