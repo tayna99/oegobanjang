@@ -90,9 +90,9 @@ function renderView(
   if (view === "hiring") return <HiringPreparationView onAction={onAction} />;
   if (view === "workers") return <WorkersView onAction={onAction} />;
   if (view === "contact") return <ContactView onAction={onAction} />;
-  if (view === "cases") return <CasesView onAction={onAction} />;
-  if (view === "admin") return <AdminReviewView onAction={onAction} />;
-  if (view === "judgment") return <JudgmentLogView onAction={onAction} />;
+  if (view === "cases") return <CasesView onAction={onAction} briefing={briefing} />;
+  if (view === "admin") return <AdminReviewView onAction={onAction} briefing={briefing} />;
+  if (view === "judgment") return <JudgmentLogView onAction={onAction} briefing={briefing} />;
   return <TodayTasksView briefing={briefing} loading={loading} onAction={onAction} onNavigateToMessages={onNavigateToMessages} />;
 }
 

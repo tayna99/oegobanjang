@@ -73,6 +73,9 @@ def list_message_workers(company_id: str | None, db: Session) -> list[dict[str, 
             "email": worker.get("email") or _demo_email(worker),
             "contact_channel": worker.get("contact_channel") or "email",
             "visa_type": worker.get("visa_type"),
+            "visa_expires_at": worker.get("visa_expires_at"),
+            "contract_starts_at": worker.get("contract_starts_at"),
+            "contract_ends_at": worker.get("contract_ends_at"),
         }
         for worker in workers
     ]
@@ -587,6 +590,9 @@ def _load_workers(company_id: str | None, db: Session) -> list[dict[str, Any]]:
                     "email": row.email,
                     "contact_channel": row.contact_channel,
                     "visa_type": row.visa_type,
+                    "visa_expires_at": row.visa_expires_at,
+                    "contract_starts_at": row.contract_starts_at,
+                    "contract_ends_at": row.contract_ends_at,
                     "status": row.status,
                     "worker_type": getattr(row, "worker_type", "foreign_worker"),
                 }

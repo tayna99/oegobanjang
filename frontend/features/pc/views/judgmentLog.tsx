@@ -11,6 +11,7 @@
   X,
 } from "lucide-react";
 import React, { useState } from "react";
+import type { DailyBriefingItem, DailyBriefingResult } from "../../../types/dailyBriefing";
 import { adminPackage, contactItems, judgmentRows, riskCases, todaysTasks, workers, type Tone } from "../data";
 import { Badge, Button, Card, cn, PillButton, textToneClass, toneClass } from "../ui";
 import styles from "../PcShell.module.css";
@@ -74,6 +75,10 @@ export type PcViewProps = {
   onAction?: (action: PcViewAction) => void;
 };
 
+type JudgmentLogViewProps = PcViewProps & {
+  briefing?: DailyBriefingResult | null;
+};
+
 const TASK_STATUS_MAP: Record<string, { label: string; bg: string; fg: string }> = {
   "승인 필요": { label: "승인 필요", bg: "#FFF7ED", fg: "#C2410C" },
   "진행 중":   { label: "진행 중",   bg: "#EFF6FF", fg: "#1D4ED8" },
@@ -110,20 +115,48 @@ const CASE_SEV: Record<string, { bg: string; bd: string; fg: string; dot: string
   gray:   { bg: "rgba(112,115,124,0.06)", bd: "rgba(112,115,124,0.20)", fg: "#70737C", dot: "#B0B3BA" },
 };
 
-function actionForNext(next: string): PcActionKind {
-  if (next.includes("초안")) return "document-draft";
-  if (next.includes("요청서")) return "handoff-preview";
-  if (next.includes("승인")) return "approval-preview";
-  if (next.includes("응답")) return "response-summary";
-  return "handoff-preview";
+function judgmentStatus(item: DailyBriefingItem) {
+  if (item.primary_action?.status === "pending_approval") return "승인 대기";
+  if (item.primary_action?.status === "approved") return "승인 완료";
+  if (item.primary_action?.status === "revision_requested") return "수정 요청";
+  if (item.primary_action?.action_type === "create_handoff") return "행정사 검토";
+  return "담당자 확인";
 }
 
-function workerTestId(workerId: string) {
-  return `worker-row-${workerId.replace("w_", "")}`;
+function rowsFromBriefing(briefing?: DailyBriefingResult | null) {
+  const grouped = new Map<string, DailyBriefingItem[]>();
+  for (const item of briefing?.items ?? []) {
+    const key = item.subject_type === "worker" ? item.subject_id : item.case_id || item.item_id;
+    grouped.set(key, [...(grouped.get(key) ?? []), item]);
+  }
+  const statusPriority: Record<string, number> = {
+    "승인 대기": 5,
+    "수정 요청": 4,
+    "행정사 검토": 3,
+    "담당자 확인": 2,
+    "승인 완료": 1,
+  };
+  return [...grouped.entries()].map(([key, items], index) => {
+    const statuses = [...new Set(items.map(judgmentStatus))].sort((a, b) => (statusPriority[b] ?? 0) - (statusPriority[a] ?? 0));
+    const titles = [...new Set(items.map((item) => item.case_title ?? item.risk_type))];
+    const summaries = items.map((item) => item.case_summary ?? item.case_title ?? item.risk_type);
+    const primary = items[0];
+    return {
+      id: key,
+      displayId: `#${String(index + 1).padStart(3, "0")}`,
+      worker: primary.subject_display_name ?? primary.subject_display_id ?? primary.subject_id,
+      status: statuses[0] ?? "담당자 확인",
+      date: briefing?.date ?? "-",
+      title: titles.length > 1 ? `${titles[0]} 외 ${titles.length - 1}건` : titles[0],
+      summary: summaries.join("\n"),
+      caseCount: items.length,
+    };
+  });
 }
 
-export function JudgmentLogView({ onAction }: PcViewProps = {}) {
-  const [selectedId, setSelectedId] = useState("#4789");
+export function JudgmentLogView({ onAction, briefing }: JudgmentLogViewProps = {}) {
+  const rows = rowsFromBriefing(briefing);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const statusStyle: Record<string, { bg: string; fg: string }> = {
     "승인 완료":    { bg: "rgba(0,191,64,0.10)",  fg: "#006E25" },
@@ -134,7 +167,7 @@ export function JudgmentLogView({ onAction }: PcViewProps = {}) {
     "검토 자료 준비": { bg: "rgba(112,115,124,0.08)", fg: "#70737C" },
   };
 
-  const selected = judgmentRows.find((r) => r.id === selectedId) ?? judgmentRows[0];
+  const selected = rows.find((r) => r.id === selectedId) ?? rows[0] ?? null;
 
   return (
     <div className={styles.judgmentLayout}>
@@ -148,9 +181,9 @@ export function JudgmentLogView({ onAction }: PcViewProps = {}) {
         {/* 필터 Chip 바 */}
         <div className={styles.buttonRow} style={{ marginBottom: 8 }}>
           <button className={cn(styles.chip, styles.chipActive)} type="button">전체</button>
-          <button className={styles.chip} type="button">승인 대기 <span className={styles.chipCount}>2</span></button>
-          <button className={styles.chip} type="button">발송 예정 <span className={styles.chipCount}>2</span></button>
-          <button className={styles.chip} type="button">행정사 검토 <span className={styles.chipCount}>1</span></button>
+          <button className={styles.chip} type="button">승인 대기 <span className={styles.chipCount}>{rows.filter((row) => row.status === "승인 대기").length}</span></button>
+          <button className={styles.chip} type="button">담당자 확인 <span className={styles.chipCount}>{rows.filter((row) => row.status === "담당자 확인").length}</span></button>
+          <button className={styles.chip} type="button">행정사 검토 <span className={styles.chipCount}>{rows.filter((row) => row.status === "행정사 검토").length}</span></button>
         </div>
 
         {/* 검색 바 */}
@@ -167,7 +200,7 @@ export function JudgmentLogView({ onAction }: PcViewProps = {}) {
         <div className={styles.workerGrid}>
           {/* 헤더 */}
           <div style={{
-            display: "grid", gridTemplateColumns: "28px 80px 1fr 110px 90px",
+            display: "grid", gridTemplateColumns: "24px 64px minmax(130px, 1fr) 96px 84px",
             padding: "9px 14px", gap: 10,
             fontSize: 11.5, fontWeight: 600, color: "#70737C",
             borderBottom: "1px solid rgba(112,115,124,0.12)", background: "#fafafa",
@@ -180,14 +213,14 @@ export function JudgmentLogView({ onAction }: PcViewProps = {}) {
           </div>
 
           {/* 데이터 행 */}
-          {judgmentRows.map((row) => {
+          {rows.map((row) => {
             const ss = statusStyle[row.status] ?? { bg: "rgba(112,115,124,0.08)", fg: "#70737C" };
             const isSelected = row.id === selectedId;
             return (
               <div
                 key={row.id}
                 style={{
-                  display: "grid", gridTemplateColumns: "28px 80px 1fr 110px 90px",
+                  display: "grid", gridTemplateColumns: "24px 64px minmax(130px, 1fr) 96px 84px",
                   padding: "11px 14px", gap: 10, alignItems: "center",
                   borderBottom: "1px solid rgba(112,115,124,0.08)",
                   background: isSelected ? "rgba(0,102,255,0.04)" : "transparent",
@@ -197,13 +230,17 @@ export function JudgmentLogView({ onAction }: PcViewProps = {}) {
                 onClick={() => setSelectedId(row.id)}
               >
                 <div><input type="checkbox" aria-label={`${row.id} 선택`} onClick={(e) => e.stopPropagation()} /></div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#1D4ED8" }}>{row.id}</div>
-                <div style={{ fontSize: 13 }}>{row.worker}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#1D4ED8" }}>{row.displayId}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.worker}</div>
+                  <div className={styles.subtle} style={{ fontSize: 11.5, marginTop: 2 }}>{row.caseCount}건</div>
+                </div>
                 <div>
                   <span style={{
-                    display: "inline-flex", padding: "2px 9px", borderRadius: 99,
+                    display: "inline-flex", padding: "2px 8px", borderRadius: 99,
                     fontSize: 11.5, fontWeight: 700,
                     background: ss.bg, color: ss.fg,
+                    whiteSpace: "nowrap",
                   }}>{row.status}</span>
                 </div>
                 <div style={{ fontSize: 12, color: "#70737C" }}>{row.date}</div>
@@ -218,13 +255,13 @@ export function JudgmentLogView({ onAction }: PcViewProps = {}) {
         {/* 헤더 */}
         <div className={styles.pageHead} style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>판단 기록 {selected.id}</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>판단 기록 {selected?.displayId ?? "-"}</h2>
             <span style={{
               display: "inline-flex", padding: "3px 10px", borderRadius: 99,
               fontSize: 11.5, fontWeight: 700,
-              background: (statusStyle[selected.status] ?? { bg: "rgba(112,115,124,0.08)" }).bg,
-              color: (statusStyle[selected.status] ?? { fg: "#70737C" }).fg,
-            }}>{selected.status}</span>
+              background: (statusStyle[selected?.status ?? ""] ?? { bg: "rgba(112,115,124,0.08)" }).bg,
+              color: (statusStyle[selected?.status ?? ""] ?? { fg: "#70737C" }).fg,
+            }}>{selected?.status ?? "기록 없음"}</span>
           </div>
           <div className={styles.buttonRow}>
             <Button variant="secondary" onClick={() => onAction?.({ kind: "response-summary", label: "판단 기록 메뉴" })}>
@@ -238,7 +275,7 @@ export function JudgmentLogView({ onAction }: PcViewProps = {}) {
 
         {/* 기본 정보 그리드 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
-          {[["담당자", "김대리 (인사팀)"], ["대상 근로자", "Nguyen V."], ["관련 케이스", "체류기간 연장 서류 요청"]].map(([label, val]) => (
+          {[["담당자", "김대리 (인사팀)"], ["대상 근로자", selected?.worker ?? "-"], ["관련 케이스", selected?.title ?? "-"]].map(([label, val]) => (
             <div key={label} style={{ padding: "10px 12px", borderRadius: 9, background: "rgba(112,115,124,0.05)", border: "1px solid rgba(112,115,124,0.10)" }}>
               <div className={styles.subtle} style={{ fontSize: 11, marginBottom: 3 }}>{label}</div>
               <strong style={{ fontSize: 13 }}>{val}</strong>
@@ -254,8 +291,8 @@ export function JudgmentLogView({ onAction }: PcViewProps = {}) {
             <CheckCircle size={14} color="#0066FF" />
             <strong style={{ fontSize: 13, fontWeight: 700 }}>판단 요약</strong>
           </div>
-          <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(0,102,255,0.05)", border: "1px solid rgba(0,102,255,0.15)", fontSize: 13.5, lineHeight: 1.65, color: "#374151" }}>
-            체류만료일이 45일 이내로 확인되어, 누락된 서류 요청 초안을 만들고 실제 전달 전 대표 승인이 완료됐습니다.
+          <div style={{ padding: "12px 14px", borderRadius: 10, background: "rgba(0,102,255,0.05)", border: "1px solid rgba(0,102,255,0.15)", fontSize: 13.5, lineHeight: 1.65, color: "#374151", whiteSpace: "pre-line" }}>
+            {selected?.summary ?? "현재 DB 브리핑 기준 판단 기록이 없습니다."}
           </div>
         </section>
 
