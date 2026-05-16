@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ...db.session import get_sync_db
+from ...services.context_data_service import calculate_missing_documents_for_worker
 from ...services.document_service import (
     accept_worker_document_request,
     get_contact_attachment_download,
@@ -40,6 +41,37 @@ def get_all_worker_document_requests(
     db: Session = Depends(get_sync_db),
 ) -> dict[str, list[dict[str, object]]]:
     return {"requests": list_all_worker_document_requests(company_id, db)}
+
+
+_CRITICAL_DOC_KEYWORDS = {
+    "여권", "passport", "고용허가", "work_permit",
+    "고용계약", "employment_contract", "labor_contract",
+    "외국인등록", "alien_registration", "건강검진", "health_certificate",
+    "범죄경력", "criminal_record", "표준근로계약", "standard_contract",
+}
+
+
+def _classify_doc_critical(doc_type: str) -> bool:
+    lower = doc_type.lower()
+    return any(kw in lower for kw in _CRITICAL_DOC_KEYWORDS)
+
+
+@router.get("/worker-doc-status")
+def get_worker_doc_status(
+    worker_id: str,
+    case_type: str = "stay_extension",
+    db: Session = Depends(get_sync_db),
+) -> dict[str, list[str]]:
+    result = calculate_missing_documents_for_worker(worker_id, case_type, db=db)
+    missing: list[str] = [item["doc_type"] for item in result.get("missing", [])]
+    present: list[str] = result.get("present", [])
+    missing_critical = [d for d in missing if _classify_doc_critical(d)]
+    missing_supplementary = [d for d in missing if not _classify_doc_critical(d)]
+    return {
+        "present": present,
+        "missing_critical": missing_critical,
+        "missing_supplementary": missing_supplementary,
+    }
 
 
 @router.post("/worker-submissions")

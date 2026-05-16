@@ -114,6 +114,15 @@ const CASE_SEV: Record<string, { bg: string; bd: string; fg: string; dot: string
 };
 
 const COMPANY_ID = "550e8400-e29b-41d4-a716-446655440001";
+
+const DOC_TYPE_TO_TILE: Record<string, string> = {
+  employment_contract: "근",
+  labor_contract: "근",
+  passport_copy: "여",
+  alien_registration: "외",
+  work_permit: "건",
+  health_certificate: "건",
+};
 const COMPANY_SEED_WORKER_IDS = new Set([
   "650e8400-e29b-41d4-a716-446655440001",
   "650e8400-e29b-41d4-a716-446655440002",

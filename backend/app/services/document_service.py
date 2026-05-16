@@ -17,7 +17,7 @@ from ..db.base import Base
 from ..models.contact import ContactAttachment, ContactThread, ContactThreadMessage
 from ..models.daily_briefing import DailyBriefingDocumentSource
 from ..models.document import WorkerDocument
-from .context_data_service import get_worker_profile_data
+from .context_data_service import get_worker_profile_data, _seed_rows
 
 
 DOCUMENT_TABLES = [WorkerDocument.__table__, DailyBriefingDocumentSource.__table__]
@@ -78,16 +78,30 @@ def list_all_worker_document_requests(company_id: str | None, db: Session) -> li
     query = select(WorkerDocument).order_by(WorkerDocument.worker_id.asc(), WorkerDocument.doc_type.asc())
     if company_id:
         query = query.where(WorkerDocument.company_id == company_id)
-    rows = list(db.execute(query).scalars())
-    return [
-        _request_payload(
-            row,
-            _definition_for(row.doc_type),
-            row.worker_id,
-            row.company_id or company_id,
-        )
-        for row in rows
+    db_rows = list(db.execute(query).scalars())
+    # DB 행을 (worker_id, doc_type) 키로 인덱싱
+    db_key_set: set[tuple[str, str]] = {(row.worker_id, row.doc_type) for row in db_rows}
+
+    result: list[dict[str, object]] = [
+        _request_payload(row, _definition_for(row.doc_type), row.worker_id, row.company_id or company_id)
+        for row in db_rows
     ]
+
+    # CSV seed로 보완: DB에 없는 (worker_id, doc_type) 조합만 추가
+    seed_docs = _load_seed_worker_documents(company_id)
+    READY = {"SUBMITTED", "APPROVED"}
+
+    for seed_row in seed_docs:
+        wid = seed_row.get("worker_id", "")
+        dtype = seed_row.get("doc_type", "")
+        if not wid or not dtype:
+            continue
+        seed_status = str(seed_row.get("status", "")).upper()
+        # DB에 해당 (worker_id, doc_type) 조합이 없는 경우에만 seed로 보완
+        if (wid, dtype) not in db_key_set and seed_status in READY:
+            result.append(_request_payload_from_seed(seed_row))
+
+    return result
 
 
 def determine_message_purpose_for_worker(worker_id: str, db: Session) -> str:
@@ -429,6 +443,53 @@ def _definition_for(doc_type: str) -> dict[str, str]:
         doc_type,
         {"doc_type": doc_type, "label": doc_type, "due_date": "-"},
     )
+
+
+_DOC_TYPE_LABELS: dict[str, str] = {
+    "employment_contract": "표준근로계약서",
+    "labor_contract": "근로계약서",
+    "passport_copy": "여권 사본",
+    "alien_registration": "외국인등록증 사본",
+    "work_permit": "고용허가서 사본",
+    "health_certificate": "건강검진 결과서",
+    "criminal_record": "범죄경력 조회서",
+}
+
+
+def _doc_type_to_label(doc_type: str) -> str:
+    return _DOC_TYPE_LABELS.get(doc_type, doc_type)
+
+
+def _load_seed_worker_documents(company_id: str | None) -> list[dict[str, str]]:
+    all_docs = _seed_rows("worker_documents.csv")
+    if not company_id:
+        return all_docs
+    # workers.csv에서 company_id 매핑
+    worker_company: dict[str, str] = {
+        r["id"]: r.get("company_id", "")
+        for r in _seed_rows("workers.csv")
+    }
+    return [
+        row for row in all_docs
+        if worker_company.get(row.get("worker_id", ""), "") == company_id
+    ]
+
+
+def _request_payload_from_seed(row: dict[str, str]) -> dict[str, object]:
+    doc_type = row.get("doc_type", "")
+    return {
+        "id": row.get("id", ""),
+        "company_id": row.get("company_id", ""),
+        "worker_id": row.get("worker_id", ""),
+        "doc_type": doc_type,
+        "label": _doc_type_to_label(doc_type),
+        "due_date": row.get("expires_at", ""),
+        "status": row.get("status", "MISSING"),
+        "file_path": row.get("file_path") or None,
+        "submitted_at": row.get("submitted_at") or None,
+        "reviewed_at": row.get("reviewed_at") or None,
+        "notes": row.get("notes") or None,
+    }
 
 
 def _create_upload_thread_message(

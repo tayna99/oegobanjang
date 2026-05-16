@@ -72,7 +72,7 @@ export type PcViewProps = {
 type TodayTasksViewProps = PcViewProps & {
   briefing?: DailyBriefingResult | null;
   loading?: boolean;
-  onNavigateToMessages?: (threadId: string) => void;
+  onNavigateToMessages?: (threadId: string, tab?: "worker" | "expert") => void;
 };
 
 type WorkerDocumentRequest = {
@@ -466,7 +466,7 @@ const DOC_CODE_TO_KO: Record<string, string> = {
   work_permit: "고용허가서 사본",
   alien_registration: "외국인등록증 사본",
   employment_contract: "표준근로계약서",
-  labor_contract: "표준근로계약서",
+  labor_contract: "근로계약서",
   passport_copy: "여권 사본",
   passport: "여권 사본",
   health_certificate: "건강검진 결과서",
@@ -687,7 +687,7 @@ function TodayWorkerDetail({
 }: {
   onAction?: (action: PcViewAction) => void;
   onClose: () => void;
-  onNavigateToMessages?: (threadId: string) => void;
+  onNavigateToMessages?: (threadId: string, tab?: "worker" | "expert") => void;
   worker: (typeof workers)[number];
   briefingItems?: DailyBriefingItem[];
   documentRequests?: WorkerDocumentRequest[];
@@ -706,6 +706,20 @@ function TodayWorkerDetail({
   const [msgSending, setMsgSending] = useState<"worker" | "scrivener" | null>(null);
   const [createdThreadIds, setCreatedThreadIds] = useState<string[]>([]);
   const [lastCreatedThreadId, setLastCreatedThreadId] = useState<string | null>(null);
+  const [lastCreatedChannel, setLastCreatedChannel] = useState<"worker" | "expert">("worker");
+  const [submittedDocTypes, setSubmittedDocTypes] = useState<Set<string> | null>(null);
+  const [preAgentDocStatus, setPreAgentDocStatus] = useState<{
+    present: string[];
+    missingCritical: string[];
+    missingSupplementary: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    setAgentResult(null);
+    setAgentLoading(false);
+    setCreatedThreadIds([]);
+    setLastCreatedThreadId(null);
+  }, [worker.id]);
 
   const realWorkerId = workerBriefingItem?.subject_id ?? worker.id;
   const companyId = "550e8400-e29b-41d4-a716-446655440001";
@@ -740,6 +754,24 @@ function TodayWorkerDetail({
     setCreatedThreadIds([]);
     setLastCreatedThreadId(null);
   }, [worker.id, actionId, analysisSignature]);
+
+  useEffect(() => {
+    async function loadWorkerDocs() {
+      try {
+        const res = await fetch(`/api/v1/documents/worker-doc-status?worker_id=${realWorkerId}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        setPreAgentDocStatus({
+          present: data.present ?? [],
+          missingCritical: data.missing_critical ?? [],
+          missingSupplementary: data.missing_supplementary ?? [],
+        });
+      } catch {
+        setPreAgentDocStatus({ present: [], missingCritical: [], missingSupplementary: [] });
+      }
+    }
+    void loadWorkerDocs();
+  }, [realWorkerId]);
 
   async function handleRunAnalysis() {
     if (!actionId || !cacheKey) return;
@@ -784,6 +816,7 @@ function TodayWorkerDetail({
       });
       setCreatedThreadIds((prev) => [...prev, thread.id]);
       setLastCreatedThreadId(thread.id);
+      setLastCreatedChannel("worker");
     } finally {
       setMsgSending(null);
     }
@@ -817,6 +850,7 @@ function TodayWorkerDetail({
       });
       setCreatedThreadIds((prev) => [...prev, thread.id]);
       setLastCreatedThreadId(thread.id);
+      setLastCreatedChannel("expert");
     } finally {
       setMsgSending(null);
     }
@@ -824,7 +858,7 @@ function TodayWorkerDetail({
 
   function handleGoToMessages() {
     if (lastCreatedThreadId) {
-      onNavigateToMessages?.(lastCreatedThreadId);
+      onNavigateToMessages?.(lastCreatedThreadId, lastCreatedChannel);
     }
   }
 
@@ -967,10 +1001,10 @@ function TodayWorkerDetail({
       </section>
 
       <section className={styles.detailSection}>
-        <h3>제출 서류 <Badge tone="gray">{docs.length}</Badge></h3>
+        <h3>제출 서류 {docs.length > 0 && <Badge tone="gray">{docs.length}</Badge>}</h3>
         <div className={styles.stack}>
-          {docs.map(([name, status, tone]) => (
-            <div className={cn(styles.docRow, styles.panel)} key={name}>
+          {docs.map(([name, status, tone], i) => (
+            <div className={cn(styles.docRow, styles.panel)} key={`${i}-${name}`}>
               <span><FileText size={16} /> {name}</span>
               <Badge tone={tone}>{status}</Badge>
             </div>
