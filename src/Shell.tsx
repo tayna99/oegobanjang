@@ -39,7 +39,7 @@ export function Shell() {
     <div className="min-h-dvh bg-canvas text-ink">
       <header className="hidden h-16 items-center gap-6 border-b border-hairline px-6 lg:flex">
         <span className="text-base font-bold">외고반장</span>
-        <nav className="flex gap-4">
+        <nav aria-label="주 메뉴" className="flex gap-4">
           {TABS.map(({ to, label }) => (
             <NavLink
               key={label}
@@ -55,13 +55,13 @@ export function Shell() {
         </nav>
       </header>
 
-      <main className="pb-[62px] lg:pb-0">
+      <main className="pb-tabbar lg:pb-0">
         <Outlet />
       </main>
 
       <nav
         aria-label="모바일 탭바"
-        className="fixed inset-x-0 bottom-0 z-10 flex h-[62px] border-t border-hairline bg-canvas lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 flex h-tabbar border-t border-hairline bg-canvas lg:hidden"
       >
         {TABS.map(({ to, label, Icon }) => (
           <NavLink
@@ -70,7 +70,7 @@ export function Shell() {
             end={to === ROUTES.home}
             className={({ isActive }) =>
               cn(
-                'flex flex-1 flex-col items-center justify-center gap-1 text-[11px] font-semibold',
+                'flex flex-1 flex-col items-center justify-center gap-1 text-tabbar-label font-semibold',
                 isActive ? 'text-primary' : 'text-faint',
               )
             }

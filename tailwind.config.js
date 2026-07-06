@@ -27,6 +27,15 @@ export default {
         card: 'var(--r-card)',
         sheet: 'var(--r-sheet)',
       },
+      spacing: {
+        // 탭바 높이(62px) — h-tabbar/pb-tabbar 양쪽에서 씀(height는 기본적으로
+        // spacing 스케일을 상속하므로 여기 한 번만 등록하면 둘 다 사용 가능).
+        tabbar: 'var(--tabbar-h)',
+      },
+      fontSize: {
+        // 탭바 라벨 폰트 크기(11px, 탭별기획 §0.2 "라벨 11/600").
+        'tabbar-label': 'var(--tabbar-label-fs)',
+      },
       boxShadow: {
         card: 'var(--sh-card)',
         lift: 'var(--sh-lift)',

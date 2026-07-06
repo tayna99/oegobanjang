@@ -13,7 +13,7 @@
 |---|---|
 | 라우팅·딥링크 | `src/router.tsx` — 딥링크 맵은 스펙 `2단계_알림카탈로그` §3과 1:1 |
 | 화면 셸(탭바/헤더) | `src/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
-| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래 |
+| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래 (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
 | 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
 | 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |

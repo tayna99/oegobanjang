@@ -3,14 +3,16 @@
 // (문자열 경로 하드코딩 금지, rules/frontend.md).
 export const ROUTES = {
   home: '/',
-  cases: (filter?: string) => (filter ? `/cases?filter=${filter}` : '/cases'),
+  cases: (filter?: string) =>
+    filter ? `/cases?filter=${encodeURIComponent(filter)}` : '/cases',
   case: (caseId: string) => `/case/${caseId}`,
   caseDraft: (caseId: string) => `/case/${caseId}/draft`,
   caseApprove: (caseId: string) => `/case/${caseId}/approve`,
   run: (runId: string) => `/run/${runId}`,
   messages: '/messages',
   thread: (threadId: string) => `/thread/${threadId}`,
-  evidence: (ref?: string) => (ref ? `/evidence?ref=${ref}` : '/evidence'),
+  evidence: (ref?: string) =>
+    ref ? `/evidence?ref=${encodeURIComponent(ref)}` : '/evidence',
   package: (packageId: string) => `/package/${packageId}`,
   done: '/done',
   onboardingWorkers: '/onboarding/workers',

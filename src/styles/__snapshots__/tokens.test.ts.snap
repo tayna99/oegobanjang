@@ -30,6 +30,8 @@ exports[`tokens.css의 디자인 토큰이 v3 :root와 일치한다 1`] = `
   "success": "#00913A",
   "surface": "#f2f3f8",
   "surface-dim": "#f5f5f5",
+  "tabbar-h": "62px",
+  "tabbar-label-fs": "11px",
   "warning": "#F97316",
 }
 `;

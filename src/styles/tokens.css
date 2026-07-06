@@ -10,5 +10,7 @@
   --sh-card:0 4px 8px rgba(0,0,0,.10); --sh-lift:0 8px 16px rgba(0,0,0,.10); --sh-sheet:0 -6px 24px rgba(0,0,0,.12);
   --fast:150ms; --std:240ms; --slow:360ms;
   --e-in:cubic-bezier(.2,0,0,1); --e-std:cubic-bezier(.4,0,.2,1);
+  /* 탭바 치수 — 탭별기획 §0.2 "탭바 62px", "라벨 11/600" (GOTCHAS §4: 임의값 금지) */
+  --tabbar-h:62px; --tabbar-label-fs:11px;
 }
 @media (prefers-reduced-motion:reduce){:root{--fast:0ms;--std:0ms;--slow:0ms}}
