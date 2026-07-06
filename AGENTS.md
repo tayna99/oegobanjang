@@ -32,15 +32,25 @@ AI는 다음을 하지 않는다.
 
 ## 3. 현재 아키텍처
 
+현재 PR/브랜치의 운영 대상은 루트의 모바일 우선 Vite + React MVP다.
+
 ```txt
-backend/
-= FastAPI 기반 제품 API + DB + Agent Runtime + RAG + Evidence Log
+src/
+= 현재 제품 UI, 라우팅, 화면 상태, 데모 런 엔진
+
+docs/, plans/, rules/
+= 현재 프론트 MVP의 사양, 로드맵, 작업 규칙
+
+legacy/
+= 이전 FastAPI 백엔드, 데이터 파이프라인, Agent Runtime, eval, 기존 문서 보관 영역
 ```
 
-Agent 관련 코드는 아래 경로에서 관리한다.
+루트에는 더 이상 운영 대상 `backend/` 디렉터리가 없다. `legacy/backend/`는 이전 백엔드와 Agent Runtime을 보존한 경로이며, 새 프론트 MVP 작업의 production import 대상이 아니다.
+
+Agent Runtime 관련 코드는 legacy 영역에 남아 있다.
 
 ```txt
-backend/app/agent_runtime/
+legacy/backend/app/agent_runtime/
 ├─ langchain_v1/
 ├─ legacy_graph/
 ├─ agents/
@@ -49,31 +59,32 @@ backend/app/agent_runtime/
 └─ schemas/
 ```
 
-현재 production Agent Runtime은 LangChain 1.0 `create_agent(response_format=...)` 중심의
-`langchain_v1/` 경로를 우선한다. `legacy_graph/`는 legacy/custom LangGraph 경로이며,
-production import 대상이 아니다. LangGraph 패키지 의존성은 `create_agent` 내부 실행을 위해 유지한다.
+Agent Runtime 또는 기존 백엔드 복구/이관 mission이 명시된 경우에만 `legacy/backend/`를 수정한다. 그 외 일반 MVP 화면 작업은 `src/`, `docs/`, `plans/`, `rules/`를 중심으로 진행한다.
 
 ---
 
 ## 4. 작업 전 읽을 문서
 
+현재 루트 MVP 작업자는 아래 문서를 먼저 확인한다.
+
 ```txt
 README.md
-docs/PROJECT_BRIEF.md
 docs/ARCHITECTURE.md
-docs/AI_OS_DESIGN.md
-docs/RAG_STRATEGY.md
-docs/TOOL_CONTRACT.md
-docs/SECURITY_GUARDRAILS.md
-docs/EVAL_HARNESS.md
+docs/SPEC_INDEX.md
+docs/GOTCHAS.md
+plans/ROADMAP.md
+plans/HANDOFF.md
+rules/design.md
+rules/frontend.md
+rules/safety.md
 ```
 
-Agent Runtime 작업자는 추가로 아래 문서를 확인한다.
+legacy 백엔드 또는 Agent Runtime 작업자는 추가로 아래 문서를 확인한다.
 
 ```txt
-docs/GRAPH_STATE.md
-docs/EVIDENCE_LOG_SCHEMA.md
-missions/active/*.md
+legacy/docs/*
+legacy/missions/active/*.md
+legacy/backend/app/agent_runtime/**
 ```
 
 ---
@@ -81,11 +92,11 @@ missions/active/*.md
 ## 5. 작업 방식
 
 1. 관련 문서 확인
-2. 관련 mission 확인
+2. 관련 mission 또는 roadmap 항목 확인
 3. 변경 범위 확인
 4. 작은 단위로 구현
 5. 테스트 작성 또는 수정
-6. eval 데이터 추가 또는 확인
+6. 필요한 경우 eval 데이터 추가 또는 확인
 7. Evidence Log 영향 확인
 8. PR 작성
 
@@ -93,16 +104,25 @@ missions/active/*.md
 
 ## 6. 작업 범위 제한
 
-mission에 적힌 Scope 밖 작업은 하지 않는다.
+mission 또는 roadmap에 적힌 Scope 밖 작업은 하지 않는다.
 
-예를 들어 비자·서류 Agent 작업 중에는 아래 영역을 중심으로 수정한다.
+프론트 MVP 작업 중에는 주로 아래 영역을 수정한다.
 
 ```txt
-backend/app/agent_runtime/agents/visa_agent.py
-backend/app/agent_runtime/tools/visa_risk_tool.py
-backend/app/agent_runtime/tools/document_check_tool.py
-backend/tests/test_visa_document_agent.py
-evals/datasets/document_gap_cases.jsonl
+src/
+docs/
+plans/
+rules/
+```
+
+legacy 백엔드/Agent 작업이 명시된 경우에는 아래 영역을 중심으로 수정한다.
+
+```txt
+legacy/backend/app/agent_runtime/
+legacy/backend/tests/
+legacy/evals/
+legacy/missions/
+legacy/docs/
 ```
 
 ---
@@ -133,7 +153,7 @@ evals/datasets/document_gap_cases.jsonl
 - 대외 제출용 문서 export
 - 카톡/문자 푸시 발송
 
-Agent는 이런 작업을 만나면 `approval_required=true`를 반환해야 한다.
+Agent 또는 UI 플로우는 이런 작업을 만나면 `approval_required=true`를 반환하거나 승인 대기 상태로 표시해야 한다.
 
 ---
 
@@ -157,19 +177,26 @@ Agent는 이런 작업을 만나면 `approval_required=true`를 반환해야 한
 
 ## 10. 검증 명령
 
+현재 루트 MVP 검증은 아래 명령을 우선 사용한다.
+
 ```bash
-bash scripts/verify_all.sh
-bash scripts/run_backend_tests.sh
-bash scripts/run_agent_tests.sh
-bash scripts/run_frontend_tests.sh
-python scripts/run_evals.py --dataset safety_guardrail_cases
+npm run verify
+```
+
+legacy 백엔드/Agent Runtime을 수정한 경우에는 해당 legacy 검증도 함께 수행한다.
+
+```bash
+bash legacy/scripts/verify_all.sh
+bash legacy/scripts/run_backend_tests.sh
+bash legacy/scripts/run_agent_tests.sh
+python legacy/scripts/run_evals.py --dataset safety_guardrail_cases
 ```
 
 ---
 
 ## 11. PR 완료 기준
 
-- [ ] mission의 Acceptance Criteria를 만족했는가?
+- [ ] mission 또는 roadmap Acceptance Criteria를 만족했는가?
 - [ ] 테스트가 통과했는가?
 - [ ] 필요한 eval case를 추가했는가?
 - [ ] 승인 필요한 작업을 자동 실행하지 않는가?
