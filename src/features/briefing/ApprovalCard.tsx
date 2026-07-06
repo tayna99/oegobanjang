@@ -12,12 +12,15 @@ export interface ApprovalCardProps {
   layout: 'hero' | 'compact';
   recommendReason?: string;
   onOpen: () => void;
+  // 오프라인일 때만 쓴다 — 승인이 필요한 CTA(외부 발송 등)만 잠그고, 초안 보기 같은
+  // 읽기 전용 액션은 계속 오프라인에서도 가능해야 한다(GOTCHAS §3, SafetyNotice와 동일 원칙).
+  offlineDisabled?: boolean;
 }
 
 // 1단계 스펙 §M1 ApprovalCard — 배지 렌더 순서 고정: [D-day] [누락 N건] [승인 필요] [severity].
 // hero만 그림자(카드 자체가 interactive=true로 tap 애니메이션 겸용), compact는 hairline 보더
 // (Card의 variant prop이 이미 그 두 시각을 표현한다 — 탭별기획 §1.2).
-export function ApprovalCard({ data, layout, recommendReason, onOpen }: ApprovalCardProps) {
+export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDisabled }: ApprovalCardProps) {
   const handleAction = useNextAction();
 
   return (
@@ -59,6 +62,7 @@ export function ApprovalCard({ data, layout, recommendReason, onOpen }: Approval
       <div className="mt-4 flex gap-2.5">
         <Button
           variant="outline"
+          disabled={offlineDisabled && data.secondaryAction.requiresApproval}
           onClick={(e) => {
             e.stopPropagation();
             handleAction(data.caseId, data.secondaryAction);
@@ -69,6 +73,7 @@ export function ApprovalCard({ data, layout, recommendReason, onOpen }: Approval
         </Button>
         <Button
           variant="primary"
+          disabled={offlineDisabled && data.primaryAction.requiresApproval}
           onClick={(e) => {
             e.stopPropagation();
             handleAction(data.caseId, data.primaryAction);
