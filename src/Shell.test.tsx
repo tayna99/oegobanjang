@@ -48,24 +48,10 @@ describe('Shell', () => {
     expect(router.state.location.key).toBe('default');
   });
 
-  // 알려진 환경 버그로 인해 현재 이 테스트는 통과하지 못한다(it.fails로 명시적
-  // 표시 — 검증 로직 자체는 브리프 원문과 동일하며 약화하지 않았다):
-  // Node 24 + jsdom + vitest 3.x 조합에서 vitest의 jsdom 환경이 AbortController/
-  // AbortSignal 전역을 jsdom 자체 구현으로 교체하는데, Node 내장 fetch/Request
-  // (undici)는 내부적으로 브랜드 체크된 자기 자신의 AbortSignal 클래스만 허용해
-  // "RequestInit: Expected signal ... to be an instance of AbortSignal" 에러가
-  // 난다. react-router v7 데이터 라우터는 POP 내비게이션(go/navigate(-1))마다
-  // createClientSideRequest에서 새 Request를 만들어 이 경로를 반드시 타므로,
-  // 테스트 파일 안에서 대기 방식을 바꾸는 것만으로는 우회할 수 없음을 별도
-  // 프로브로 확인했다(await 유무와 무관하게 동일하게 실패, fire-and-forget
-  // 방식은 내비게이션 자체가 아예 일어나지 않음을 확인).
-  // 참고: 업스트림 이슈 https://github.com/vitest-dev/vitest/issues/8374 —
-  // vitest 4.x(현재 안정 버전, 이 저장소는 3.2.6 사용 중)에서 수정됨.
-  // Shell의 백스택 합성 로직(replace('/') 후 push(target)) 자체는 위
-  // waitFor(위치가 '/case/nguyen/approve') 단언이 통과하는 것으로 이미 검증됨 —
-  // 깨지는 지점은 오직 테스트가 "뒤로가기"를 흉내 내려고 호출하는
-  // router.navigate(-1)(POP 내비게이션) 내부의 라이브러리/런타임 조합 버그다.
-  it.fails('딥링크로 바로 진입하면 뒤로가기가 M1(홈)으로 떨어진다', async () => {
+  // vitest 3.x + Node 24 + jsdom 조합에서 router.navigate(-1)(POP 내비게이션)이
+  // AbortSignal 브랜드 체크 문제로 예외를 던지던 환경 버그가 있었다(vitest#8374).
+  // vitest 4.x로 업그레이드하며 수정되어 정상 통과한다.
+  it('딥링크로 바로 진입하면 뒤로가기가 M1(홈)으로 떨어진다', async () => {
     const { router } = renderShell('/case/nguyen/approve');
     await screen.findByText('M4 자리');
     await waitFor(() =>
