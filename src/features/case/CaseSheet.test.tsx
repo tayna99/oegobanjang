@@ -75,4 +75,10 @@ describe('CaseSheet', () => {
     renderSheet({ ...SHEET, readinessPercent: 62 });
     expect(screen.getByText('준비도 62%')).toBeInTheDocument();
   });
+
+  it('activity가 비어 있어도 nextWake가 있으면 렌더한다', () => {
+    renderSheet({ ...SHEET, activity: [], nextWake: '다음: 요청 발송 승인 시 제출 기한 D-7 리마인드가 예약됩니다' });
+    expect(screen.getByText(/요청 발송 승인 시 제출 기한 D-7 리마인드가 예약됩니다/)).toBeInTheDocument();
+    expect(screen.queryByText('서류요청 준비')).not.toBeInTheDocument();
+  });
 });

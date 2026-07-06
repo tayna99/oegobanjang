@@ -106,18 +106,19 @@ export function CaseSheet({ card, sheet, open, onClose }: CaseSheetProps) {
       </div>
 
       {/* 5. AgentActivityBlock */}
-      {sheet.activity.length > 0 && (
+      {(sheet.activity.length > 0 || sheet.nextWake) && (
         <div className="mb-5">
           <div className="mb-2 text-xs font-semibold text-muted">이 케이스의 에이전트 활동</div>
-          {sheet.activity.map((a) => (
-            <div key={a.label} className="flex gap-2.5 py-2 text-sm">
-              <span className="min-w-16 shrink-0 text-xs text-muted tabular-nums">{a.at}</span>
-              <span>
-                <b className="block font-semibold">{a.label}</b>
-                <span className="text-xs text-muted">{a.detail}</span>
-              </span>
-            </div>
-          ))}
+          {sheet.activity.length > 0 &&
+            sheet.activity.map((a) => (
+              <div key={a.label} className="flex gap-2.5 py-2 text-sm">
+                <span className="min-w-16 shrink-0 text-xs text-muted tabular-nums">{a.at}</span>
+                <span>
+                  <b className="block font-semibold">{a.label}</b>
+                  <span className="text-xs text-muted">{a.detail}</span>
+                </span>
+              </div>
+            ))}
           {sheet.nextWake && <div className="mt-1.5 rounded-in bg-surface px-3 py-2.5 text-xs text-muted">{sheet.nextWake}</div>}
         </div>
       )}
