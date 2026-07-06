@@ -53,3 +53,31 @@ export interface Citation {
   source: string;
   updatedAt: string;
 }
+
+// --- 스토어 계약 (M0.4) ---
+
+export interface Approval {
+  actionId: string;
+  status: ApprovalStatus;
+  idempotencyKey: string; // 중복 승인 차단 키 (GOTCHAS §2)
+}
+
+// Evidence Log 이벤트 타입 (AGENTS.md §9). 원문·PII 필드는 두지 않는다 — 해시만.
+export type EvidenceType =
+  | 'intent_classified'
+  | 'plan_created'
+  | 'tool_executed'
+  | 'rag_retrieved'
+  | 'risk_flagged'
+  | 'approval_requested'
+  | 'approval_decided'
+  | 'final_response_generated';
+
+export interface EvidenceEvent {
+  id: string;
+  type: EvidenceType;
+  at: string; // ISO timestamp (주입 가능)
+  caseId?: string;
+  actionId?: string;
+  hash?: string; // 민감정보는 원문 대신 해시만
+}
