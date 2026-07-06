@@ -11,8 +11,8 @@
 
 | 무엇을 찾을 때 | 여기서 시작 |
 |---|---|
-| 라우팅·딥링크 | `src/app/router.tsx` — 딥링크 맵은 스펙 `2단계_알림카탈로그` §3과 1:1 |
-| 화면 셸(탭바/헤더) | `src/app/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
+| 라우팅·딥링크 | `src/router.tsx` — 딥링크 맵은 스펙 `2단계_알림카탈로그` §3과 1:1 |
+| 화면 셸(탭바/헤더) | `src/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
 | 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래 |
 | 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
 | 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore |
@@ -25,6 +25,7 @@
 |---|---|---|
 | `/` | M1 브리핑 홈 | 1단계 M1, 탭별기획 §1 |
 | `/cases` `?filter=` | M7 케이스 목록 (+M2 시트) | 1단계 M2·M7, 탭별기획 §2 |
+| `/case/:caseId` (bare) | M2 케이스 바텀시트 (M1 위에 오버레이) | 2단계 딥링크맵 §3 (N03 등) |
 | `/case/:id/draft` | M3 초안 | 1단계 M3 |
 | `/case/:id/approve` | M4 승인 직전 (런 화면 mode=approval) | 1단계 M4 |
 | `/run/:id` | M9 런 / 재생 | 1단계 M9 (v1.2) |
@@ -32,6 +33,7 @@
 | `/evidence` `?ref=` | M8 판단 기록 | 1단계 M8, 탭별기획 §4 |
 | `/package/:id` | 행정사 패키지 | 프로토타입 v3 pkg 화면 |
 | `/done` | M5 완료 (라우트보다 push 화면) | 1단계 M5 |
+| `/onboarding/workers` | O1 근로자 등록 (3단계 온보딩) | 2단계 딥링크맵 §3 (N21) |
 
 ## 4. 데이터 흐름 (단방향)
 
