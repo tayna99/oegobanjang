@@ -4,6 +4,8 @@ import { Shell } from '@/Shell';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { RunPage } from '@/features/run/RunPage';
+import { DraftPage } from '@/features/draft/DraftPage';
+import { DonePage } from '@/features/done/DonePage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -24,7 +26,7 @@ export const routeConfig: RouteObject[] = [
       {
         path: ROUTE_PATHS.caseDraft,
         loader: validateIdParam('caseId'),
-        element: <PlaceholderScreen name="M3 초안" />,
+        element: <DraftPage />,
       },
       {
         path: ROUTE_PATHS.caseApprove,
@@ -48,7 +50,7 @@ export const routeConfig: RouteObject[] = [
         loader: validateIdParam('packageId'),
         element: <PlaceholderScreen name="행정사 패키지" />,
       },
-      { path: ROUTE_PATHS.done, element: <PlaceholderScreen name="M5 완료" /> },
+      { path: ROUTE_PATHS.done, element: <DonePage /> },
       {
         path: ROUTE_PATHS.onboardingWorkers,
         element: <PlaceholderScreen name="근로자 등록" />,

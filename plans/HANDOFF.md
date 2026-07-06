@@ -18,6 +18,14 @@
 
 ---
 
+### [2026-07-07] 1.6 — 완료
+- 한 일: M3/M4/M5 승인 해피패스 루프 구현. `src/features/draft/DraftPage.tsx`를 추가해 `/case/:caseId/draft`에서 DRAFT fixture 기반 초안, 언어 토글, 수정 요청 BottomSheet, 수정 반영 후 승인 검토 이동을 제공. `src/features/run/RunPage.tsx`의 approval mode 승인 버튼을 `approvalStore.requestApproval/decide` + `caseStore.transition(caseId, 'human_approved')` + `evidenceStore.append(approval_decided)`에 연결하고 `/done`으로 이동. `src/features/done/DonePage.tsx`를 추가해 “발송 승인 완료” 전용 완료 화면을 렌더하되 실제 카톡/문자/정부 제출은 실행하지 않음을 명시. `ApprovalCard`는 `human_approved` 상태에서 “승인 완료” 배지를 표시. 실제 라우터 기반 통합 테스트 `src/features/approvalFlow.test.tsx`를 추가해 `/case/nguyen` → M2 → M3 → M4 → M5 → M1 상태 반영을 검증.
+- 남은 일 / 중단 지점: Playwright 패키지/스크립트는 현재 프로젝트에 없어 ROADMAP의 “playwright E2E”는 Vitest 라우터 통합 테스트로 대체했다. 진짜 브라우저 E2E가 필요하면 Playwright 의존성과 `npm run test:e2e` 스크립트를 별도 태스크로 추가해야 한다. 수정 요청 시트는 고정 “부드럽게 다듬기” 프리셋 1개만 제공한다(자연어 수정 요청/다중 프리셋은 범위 밖).
+- 결정 사항: M4 승인 후에도 외부 발송 함수는 만들지 않는다. 승인 결정과 상태 전파만 수행하고, 완료 화면 문구는 “발송 승인 완료”를 사용한다. Evidence 이벤트 타입은 기존 타입 계약에 맞춰 `approval_decided`를 사용한다.
+- verify 상태: PASS (`npm run verify`: typecheck 0, lint 0, test 36 files/184 tests passed, build OK).
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` §2·§5·§7에 M3/M5 위치와 1.6 승인 상태 전파를 반영.
+
+---
 ### [2026-07-06] 1.5 — 완료
 - 한 일: L3(협업) 태스크라 `superpowers:brainstorming`으로 시작 — 범위(3모드 한번에 vs approval만 먼저)와 M4/M9 화면 공유 여부를 질문으로 확정한 뒤 설계 스펙(`docs/superpowers/specs/2026-07-06-run-engine-steptimeline-design.md`) 작성·커밋, 구현 계획(`docs/superpowers/plans/2026-07-06-run-engine-steptimeline.md`, 9태스크) 작성 후 subagent-driven-development로 실행. `src/mocks/runs.ts`의 `RunStepKind`를 공식 5종(thinking/tool_call/guardrail/handoff/replan)으로 정리하고 M0.5의 로컬 `'wait'` 확장 제거("승인 대기"는 RunStep이 아니라 런의 종착점), command(#4790)·replay(#4788) config 2건 추가. `src/lib/runEngine.ts`(React 비의존 `executeRun` — 430ms*(i+1) 스텝 스트리밍, replay는 즉시 전체 emit) + `src/lib/useRunEngine.ts`(React 훅 래퍼). `src/features/run/`: `StepTimeline`(guardrail만 경고 톤 구분) + `RunScreen`(5상태 프레젠테이션, 스트리밍 미완료 시 승인 버튼 disabled) + `RunPage`(컨테이너 — `/case/:caseId/approve`·`/run/:runId` 두 라우트를 하나로 공유). 기존 no-op였던 `CommandBar` 제출(→ command 데모 런)과 `ApprovalCard` 프로액티브 행 클릭(→ preparedRunRef 재생)을 실제 네비게이션으로 배선. 최종 전체 리뷰(opus)에서 Critical/Important 0건, Minor 2건 중 1건(RunPage 레벨 스트리밍-disabled 통합 테스트 부재)만 수정 — 픽스 서브에이전트가 fake timer 아래 `findByRole`(waitFor 기반, 실시간 폴링 필요)을 써서 타임아웃 나는 걸 컨트롤러가 직접 `getByRole`(버튼은 스트리밍 여부와 무관하게 항상 동기 렌더됨)로 교체해 해결.
 - 남은 일 / 중단 지점: 없음. approvalStore.decide() 등 승인 결정 영속화·caseStore 상태 전이는 명시적으로 1.6(M3~M5 루프) 몫으로 남김 — 지금 `RunPage.onApprove`는 `/done`으로 이동만 한다. `RunViewState.default.mode` 필드는 RunScreen이 아직 안 읽음(1.6에서 command/replay UI 차이가 더 생기면 쓰일 수 있음, 지금은 무해한 미사용 필드로 남김 — 최종 리뷰 Minor, 고치지 않기로 함). command 모드는 자연어 파싱 없이 항상 고정 데모 런(#4790)으로 매핑(실 파싱은 백엔드 단계). 다음은 ROADMAP 1.6(M3 초안 + M4 승인 + M5 완료 + 상태 전파, E2E) — L2.

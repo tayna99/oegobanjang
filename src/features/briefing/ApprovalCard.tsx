@@ -13,14 +13,9 @@ export interface ApprovalCardProps {
   layout: 'hero' | 'compact';
   recommendReason?: string;
   onOpen: () => void;
-  // 오프라인일 때만 쓴다 — 승인이 필요한 CTA(외부 발송 등)만 잠그고, 초안 보기 같은
-  // 읽기 전용 액션은 계속 오프라인에서도 가능해야 한다(GOTCHAS §3, SafetyNotice와 동일 원칙).
   offlineDisabled?: boolean;
 }
 
-// 1단계 스펙 §M1 ApprovalCard — 배지 렌더 순서 고정: [D-day] [누락 N건] [승인 필요] [severity].
-// hero만 그림자(카드 자체가 interactive=true로 tap 애니메이션 겸용), compact는 hairline 보더
-// (Card의 variant prop이 이미 그 두 시각을 표현한다 — 탭별기획 §1.2).
 export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDisabled }: ApprovalCardProps) {
   const handleAction = useNextAction();
   const nav = useNav();
@@ -30,16 +25,20 @@ export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDis
       variant={layout === 'hero' ? 'hero' : 'default'}
       interactive
       onClick={onOpen}
+      data-case-id={data.caseId}
       className="mb-3 cursor-pointer"
     >
       <h3 className="mb-2 pr-2 text-base font-semibold leading-snug">{data.title}</h3>
       <div className="mb-3 flex flex-wrap gap-1.5">
-        {/* DDayTone('critical'|'warning'|'info'|'neutral')은 BadgeTone의 부분집합이라 구조적으로 그대로 대입 가능 — 변환 불필요. */}
         {data.dDay !== undefined && <Badge tone={dDayTone(data.dDay)}>{dDayLabel(data.dDay)}</Badge>}
         {data.missingDocCount !== undefined && data.missingDocCount > 0 && (
           <Badge tone="critical">누락 {data.missingDocCount}건</Badge>
         )}
-        {data.approvalRequired && <Badge tone="pending">승인 필요</Badge>}
+        {data.state === 'human_approved' ? (
+          <Badge tone="success">승인 완료</Badge>
+        ) : (
+          data.approvalRequired && <Badge tone="pending">승인 필요</Badge>
+        )}
         <Badge tone={severityTone(data.severity)}>{data.severity}</Badge>
       </div>
 

@@ -61,7 +61,7 @@ runEngine.execute(config: RunConfig)
 
 - MVP의 런은 **각본 기반**(fixtures의 step 배열 재생). 실 LLM 연결은 백엔드 단계 — 인터페이스(RunConfig)를 바꾸지 않고 교체 가능해야 한다
 - 프로액티브 런 = `startedBy:'event'` + 도구 화이트리스트(읽기+초안) + 종착점 승인 요청
-- **구현(1.5):** `src/lib/runEngine.ts`의 `executeRun(config, onStep, onDone)`이 React 비의존 순수 함수로 위 계약을 구현 — approval/command는 `430ms * (index+1)` 간격 스텝 emit, replay는 지연 없이 전체 즉시 emit. `src/lib/useRunEngine.ts`가 React 훅으로 감싸 `{steps, status, currentIndex}`를 노출. M4(`/case/:caseId/approve`)와 M9(`/run/:runId`)는 같은 `RunPage`/`RunScreen`을 공유(§2). approvalStore 연동(승인 결정 영속화)은 1.6 몫 — 1.5는 UI/엔진 계약만 다룬다.
+- **구현(1.5):** `src/lib/runEngine.ts`의 `executeRun(config, onStep, onDone)`이 React 비의존 순수 함수로 위 계약을 구현 — approval/command는 `430ms * (index+1)` 간격 스텝 emit, replay는 지연 없이 전체 즉시 emit. `src/lib/useRunEngine.ts`가 React 훅으로 감싸 `{steps, status, currentIndex}`를 노출. M4(`/case/:caseId/approve`)와 M9(`/run/:runId`)는 같은 `RunPage`/`RunScreen`을 공유(§2). 1.6부터 approval mode 승인 버튼은 pprovalStore.decide() → caseStore.transition(..., 'human_approved') → evidenceStore.append('approval_decided') → /done으로 이어진다.
 
 ## 6. 의존 방향 (위반 금지)
 
@@ -79,6 +79,6 @@ M1 카드 [보내기 승인]
 → runEngine(mode:approval) 스트리밍 → 완료 후 승인 버튼 enable
 → approvalStore.decide(approved, idempotencyKey)
 → caseStore 전이(approval_pending→human_approved)
-→ evidenceStore.append(approval_granted)
+→ evidenceStore.append(approval_decided)
 → M5 push-in → 복귀 시 M1 카드 상태 반영
 ```
