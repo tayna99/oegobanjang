@@ -1,0 +1,72 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`routeConfig > 딥링크 맵과 1:1 대응하는 경로 구조를 유지한다 1`] = `
+[
+  {
+    "children": [
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "(index)",
+      },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "cases",
+      },
+      {
+        "children": undefined,
+        "hasLoader": true,
+        "path": "case/:caseId",
+      },
+      {
+        "children": undefined,
+        "hasLoader": true,
+        "path": "case/:caseId/draft",
+      },
+      {
+        "children": undefined,
+        "hasLoader": true,
+        "path": "case/:caseId/approve",
+      },
+      {
+        "children": undefined,
+        "hasLoader": true,
+        "path": "run/:runId",
+      },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "messages",
+      },
+      {
+        "children": undefined,
+        "hasLoader": true,
+        "path": "thread/:threadId",
+      },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "evidence",
+      },
+      {
+        "children": undefined,
+        "hasLoader": true,
+        "path": "package/:packageId",
+      },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "done",
+      },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "onboarding/workers",
+      },
+    ],
+    "hasLoader": false,
+    "path": "(layout)",
+  },
+]
+`;

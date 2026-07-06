@@ -1,9 +1,57 @@
 import { createBrowserRouter } from 'react-router-dom';
-import { App } from '@/App';
+import type { RouteObject } from 'react-router-dom';
+import { Shell } from '@/Shell';
+import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
+import { ROUTE_PATHS } from '@/lib/routes';
+import { validateIdParam } from '@/lib/deeplink';
 
-export const router = createBrowserRouter([
+// 라우트 ↔ 스펙 매핑: docs/ARCHITECTURE.md §3.
+// 딥링크 경로: reference/specs/2단계_알림카탈로그_딥링크맵_v1.md §3과 1:1.
+export const routeConfig: RouteObject[] = [
   {
-    path: '/',
-    element: <App />,
+    element: <Shell />,
+    children: [
+      { index: true, element: <PlaceholderScreen name="M1 오늘 브리핑" /> },
+      { path: ROUTE_PATHS.cases, element: <PlaceholderScreen name="M7 케이스 목록" /> },
+      {
+        path: ROUTE_PATHS.case,
+        loader: validateIdParam('caseId'),
+        element: <PlaceholderScreen name="M2 케이스 시트" />,
+      },
+      {
+        path: ROUTE_PATHS.caseDraft,
+        loader: validateIdParam('caseId'),
+        element: <PlaceholderScreen name="M3 초안" />,
+      },
+      {
+        path: ROUTE_PATHS.caseApprove,
+        loader: validateIdParam('caseId'),
+        element: <PlaceholderScreen name="M4 승인 직전" />,
+      },
+      {
+        path: ROUTE_PATHS.run,
+        loader: validateIdParam('runId'),
+        element: <PlaceholderScreen name="M9 에이전트 런" />,
+      },
+      { path: ROUTE_PATHS.messages, element: <PlaceholderScreen name="메시지" /> },
+      {
+        path: ROUTE_PATHS.thread,
+        loader: validateIdParam('threadId'),
+        element: <PlaceholderScreen name="M6 응답 해석" />,
+      },
+      { path: ROUTE_PATHS.evidence, element: <PlaceholderScreen name="M8 판단 기록" /> },
+      {
+        path: ROUTE_PATHS.package,
+        loader: validateIdParam('packageId'),
+        element: <PlaceholderScreen name="행정사 패키지" />,
+      },
+      { path: ROUTE_PATHS.done, element: <PlaceholderScreen name="M5 완료" /> },
+      {
+        path: ROUTE_PATHS.onboardingWorkers,
+        element: <PlaceholderScreen name="근로자 등록" />,
+      },
+    ],
   },
-]);
+];
+
+export const router = createBrowserRouter(routeConfig);
