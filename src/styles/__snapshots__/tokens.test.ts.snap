@@ -1,0 +1,35 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`tokens.css의 디자인 토큰이 v3 :root와 일치한다 1`] = `
+{
+  "canvas": "#ffffff",
+  "critical": "#EF4444",
+  "e-in": "cubic-bezier(.2,0,0,1)",
+  "e-std": "cubic-bezier(.4,0,.2,1)",
+  "faint": "#b4bbcb",
+  "fast": "150ms",
+  "hairline": "#e5e8ef",
+  "info": "#2563EB",
+  "ink": "#354153",
+  "muted": "#8b93a7",
+  "neutral": "#6B7280",
+  "pendbg": "rgba(245,158,11,.10)",
+  "pending": "#B45309",
+  "primary": "#0066FF",
+  "primary-press": "#005EEB",
+  "r-card": "16px",
+  "r-chip": "14px",
+  "r-in": "12px",
+  "r-sheet": "20px",
+  "sh-card": "0 4px 8px rgba(0,0,0,.10)",
+  "sh-lift": "0 8px 16px rgba(0,0,0,.10)",
+  "sh-sheet": "0 -6px 24px rgba(0,0,0,.12)",
+  "slow": "360ms",
+  "std": "240ms",
+  "succbg": "rgba(0,191,64,.10)",
+  "success": "#00913A",
+  "surface": "#f2f3f8",
+  "surface-dim": "#f5f5f5",
+  "warning": "#F97316",
+}
+`;
