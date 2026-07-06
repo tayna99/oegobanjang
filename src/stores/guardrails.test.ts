@@ -19,12 +19,14 @@ function seedCase(state: CaseCard['state']): CaseCard {
       label: '보내기 승인',
       state: 'ready',
       requiresApproval: true,
+      kind: 'approve',
     },
     secondaryAction: {
       actionId: 'a2',
       label: '초안 보기',
       state: 'ready',
       requiresApproval: false,
+      kind: 'draft',
     },
     preparedBy: 'rule',
   };

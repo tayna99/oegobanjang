@@ -19,11 +19,14 @@ export type NextActionState = 'ready' | 'locked' | 'scheduled' | 'waiting';
 
 export type CitationGrade = 'A' | 'B' | 'C' | 'E';
 
+export type NextActionKind = 'approve' | 'draft' | 'detail' | 'thread' | 'package' | 'confirm';
+
 export interface NextActionRef {
   actionId: string;
   label: string; // "초안 보기" | "보내기 승인" | "응답 요약 보기" ...
   state: NextActionState;
   requiresApproval: boolean;
+  kind: NextActionKind; // 탭 시 이동할 곳(M0.5엔 없었음, 1.3에서 추가 — rules/frontend.md "문자열 라벨로 분기 금지")
 }
 
 export interface WorkerRef {
