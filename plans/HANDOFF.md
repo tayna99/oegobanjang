@@ -18,6 +18,18 @@
 
 ---
 
+### [2026-07-06] 1.3 — 완료
+- 한 일: M1 오늘 브리핑 홈을 5상태 전부 구현하고 `/` 라우트에 연결(더 이상 PlaceholderScreen 아님). `src/types.ts`에 `NextActionKind`(approve/draft/detail/thread/package/confirm) 추가 + `src/mocks/fixtures.ts` CASE_CARDS 10개 액션에 kind 채움. `src/lib/actionNav.ts`(`useNextAction()` — kind→이동/인라인 액션, confirm은 risk_review→completed가 CASE_TRANSITIONS에 없어 이동 없이 evidence만 남김). `src/lib/briefing.ts`(`greetingText`/`sortCards`/`visibleCardsForRole`/`recommendReason` 순수 함수). `src/components/icons.tsx`에 IconSpark/IconWait 추가. `src/features/briefing/`: `BriefingHeader`/`SummaryStatRow`/`CommandBar`(작은 프레젠테이션), `ApprovalCard`(hero/compact, 배지 순서 고정, CTA 2개), `BriefingScreen`(5상태 전부 담은 순수 프레젠테이션 — 이번 마일스톤 DoD), `BriefingHomePage`(caseStore 시딩 + role/greeting 계산하는 컨테이너). 어드버서리얼 리뷰에서 Important 3건 발견 후 수정: (1) compact 카드도 primary(파랑) CTA를 렌더해 "화면당 파랑 1개" 위반 — compact는 secondary variant로 교정 (2) hero 추천 이유가 dead ternary로 항상 undefined — `recommendReason()` 헬퍼로 실연결 (3) `greetingText`가 테스트만 되고 실제 화면은 호칭 없이 인사문을 재구현 — `BriefingViewState`에 `greeting` 필드 추가해 실연결.
+- 남은 일 / 중단 지점: 없음. 컨테이너/프레젠테이션 분리 패턴(`<Name>Screen` + `<Name>Page`)이 확립됐으니 M2~M9도 따르길 권장. role(manager 고정, 4.2 몫)·근로자수(5 고정, 3단계 몫)·실제 fetch/오프라인 감지(백엔드 접속점 이후)·Toast(스펙 갭)·CommandBar→M9 연결(1.5)·프로액티브 행→런 재생 뷰(1.5)는 계획 문서에 범위 밖으로 명시. 다음은 ROADMAP 1.4(BottomSheet + M2 케이스 시트) — L2.
+- 결정 사항:
+  - 실행 중 세션 사용량 한도로 워크플로우가 한 번 중단됐다(9:50pm 리셋) — task3(briefing.ts)는 이미 완성돼 있었지만 커밋 전에 끊겨 수동으로 확인 후 커밋, 나머지(4/6/7/8)는 순차 Agent 디스패치로 이어서 진행. 최종 결과물이나 커밋 이력에는 영향 없음.
+  - `ApprovalCard`의 오프라인 처리는 계획 원안(카드 전체 fieldset 잠금)에서 `offlineDisabled` prop 방식으로 구현 중 조정됨 — `requiresApproval:true`인 CTA만 잠그고 읽기 액션(예: 초안 보기)은 오프라인에서도 유지(GOTCHAS §3 "초안 보기 등 읽기 액션은 캐시 범위 내 허용"과 정확히 부합, 원안보다 개선).
+  - `router.test.tsx`의 잘못된 caseId 리다이렉트 테스트가 기대하는 텍스트를 `/M1 오늘 브리핑/`(옛 PlaceholderScreen 문구)에서 `/화성 1공장/`(BriefingHomePage 헤더 회사명)로 갱신 — index route 교체의 자연스러운 결과.
+- verify 상태: PASS (typecheck 0, lint 0, test 27 files/148 tests passed, build OK). `router.test.tsx`의 딥링크 백스택 테스트가 전체 스위트 동시 실행 시 간헐적으로 flake하는 기존 이슈(1.1부터)는 이번 세션에서는 재현되지 않았다.
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` §2 "화면 컴포넌트" 행에 `src/features/briefing/`을 컨테이너/프레젠테이션 분리 패턴의 실제 사례로 추가.
+
+---
+
 ### [2026-07-06] 1.2 — 완료
 - 한 일: 공용 컴포넌트 6종 + 배지 색 규칙 매핑 모듈. `src/components/Badge.tsx`(tone 7종: critical/warning/pending/info/success/neutral/line, 프로토타입 v3 `.bdg` 그대로), `Button.tsx`(variant 3종 primary/secondary/outline + size default/sm, 네이티브 button 속성 pass-through), `Card.tsx`(variant default/hero + interactive, margin은 컴포넌트에 강제 안 함), `SafetyNotice.tsx`(props 없음 — GOTCHAS §3 고정 문구를 타입으로 강제), `OfflineBanner.tsx`(v3에 시각 참고 없어 스펙 텍스트만으로 신규 설계), `Skeleton.tsx`(bg-hairline pulse, motion-reduce 대응). `src/lib/badgeTone.ts` — `severityTone`/`approvalStatusTone`/`caseStateTone`(1단계 §0.2 표 → BadgeTone 매핑, Badge는 이 파일에서 타입만 import해 도메인 타입 격리 유지). `icons.tsx`에 `IconShield` 추가(기존 4개 아이콘 불변). `tokens.css`/`tailwind.config.js`에 이번 태스크에 필요한 토큰 전부 등록(배지 배경 틴트 4색 + 텍스트 오버라이드 2개, 배지 radius 8px, surface-press, 버튼 치수 5개, SafetyNotice 치수 2개) — 임의값 Tailwind 클래스 0건.
 - 남은 일 / 중단 지점: 없음. 다음은 ROADMAP 1.3(M1 브리핑 홈, 5상태 전부) — 이번에 만든 6개 컴포넌트 + badgeTone이 그 화면의 기반이 됨. L2라 계획 승인 대상.
