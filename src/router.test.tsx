@@ -25,7 +25,7 @@ describe('딥링크 진입', () => {
     });
     render(<RouterProvider router={router} />);
 
-    await screen.findByText(/M4 승인 직전/);
+    await screen.findByText('승인 전 확인');
     await waitFor(() =>
       expect(router.state.location.pathname).toBe('/case/nguyen/approve'),
     );

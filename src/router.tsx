@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
+import { RunPage } from '@/features/run/RunPage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -28,12 +29,12 @@ export const routeConfig: RouteObject[] = [
       {
         path: ROUTE_PATHS.caseApprove,
         loader: validateIdParam('caseId'),
-        element: <PlaceholderScreen name="M4 승인 직전" />,
+        element: <RunPage />,
       },
       {
         path: ROUTE_PATHS.run,
         loader: validateIdParam('runId'),
-        element: <PlaceholderScreen name="M9 에이전트 런" />,
+        element: <RunPage />,
       },
       { path: ROUTE_PATHS.messages, element: <PlaceholderScreen name="메시지" /> },
       {
