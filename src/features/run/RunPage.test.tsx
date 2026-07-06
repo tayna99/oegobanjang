@@ -1,6 +1,7 @@
+import { act } from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RunPage } from './RunPage';
 
 describe('RunPage', () => {
@@ -47,5 +48,28 @@ describe('RunPage', () => {
       </MemoryRouter>,
     );
     expect(screen.getByText('분석 중…')).toBeInTheDocument();
+  });
+
+  describe('스트리밍 중 승인 버튼 disabled 통합 테스트', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('/case/:caseId/approve 진입 시 스트리밍 중에는 승인 버튼이 disabled이고, 스트리밍 완료 후 enabled로 바뀐다', async () => {
+      render(
+        <MemoryRouter initialEntries={['/case/nguyen/approve']}>
+          <Routes>
+            <Route path="/case/:caseId/approve" element={<RunPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByRole('button', { name: '승인' })).toBeDisabled();
+
+      act(() => {
+        vi.advanceTimersByTime(430 * 3);
+      });
+
+      expect(screen.getByRole('button', { name: '승인' })).toBeEnabled();
+    });
   });
 });
