@@ -81,3 +81,12 @@ frontend/node_modules/
 frontend/.next/
 frontend/out/
 langchain-1-migration-plan.md
+
+# =========================
+# Web app (root Vite scaffold — M0.1)
+# =========================
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
