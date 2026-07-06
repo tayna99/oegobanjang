@@ -30,8 +30,15 @@ function renderScreen(state: Parameters<typeof BriefingScreen>[0]['state']) {
 
 describe('BriefingScreen — 상태 5종', () => {
   it('default: 카드·통계·안전고지·커맨드바를 전부 렌더한다', () => {
-    renderScreen({ status: 'default', cards: [CARD], stats: [] });
+    renderScreen({
+      status: 'default',
+      cards: [CARD],
+      stats: [],
+      greeting: '담당자님, 오늘 확인이 필요한 업무가 1건 있습니다.',
+    });
     expect(screen.getByText('Nguyen V. 체류기간 연장 서류 요청')).toBeInTheDocument();
+    expect(screen.getByText('담당자님, 오늘 확인이 필요한 업무가 1건 있습니다.')).toBeInTheDocument();
+    expect(screen.getByText(/D-30이고 누락 서류 2건이 있어/)).toBeInTheDocument();
     expect(screen.getByText('승인 전에는 외부 발송이 차단됩니다.')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('AI에게 요청하기')).toBeInTheDocument();
   });

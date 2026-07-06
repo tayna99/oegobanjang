@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { IconDoc, IconMsg, IconWait } from '@/components/icons';
-import { visibleCardsForRole, sortCards } from '@/lib/briefing';
+import { greetingText, visibleCardsForRole, sortCards } from '@/lib/briefing';
 import { useNav } from '@/lib/nav';
 import { CASE_CARDS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
@@ -55,7 +55,7 @@ export function BriefingHomePage() {
       header={{ companyName: '화성 1공장', date: '2026.07.06', unreadNotifications: 0 }}
       state={
         visible.length > 0
-          ? { status: 'default', cards: visible, stats }
+          ? { status: 'default', cards: visible, stats, greeting: greetingText(CURRENT_ROLE, visible.length) }
           : CURRENT_WORKER_COUNT > 0
             ? { status: 'empty', hasWorkers: true }
             : { status: 'empty', hasWorkers: false }

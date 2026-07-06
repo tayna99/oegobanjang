@@ -52,6 +52,13 @@ describe('ApprovalCard', () => {
     expect(screen.queryByText(/D-30이고 누락 서류 2건이 있어/)).not.toBeInTheDocument();
   });
 
+  it('compact 레이아웃에서는 primary CTA도 secondary(비파랑) 색으로 렌더한다(화면당 파랑 CTA 1개)', () => {
+    renderCard({}, 'compact');
+    const primaryBtn = screen.getByText('승인하기');
+    expect(primaryBtn).not.toHaveClass('bg-primary');
+    expect(primaryBtn).toHaveClass('bg-surface');
+  });
+
   it('preparedBy가 agent면 프로액티브 행을 보여준다', () => {
     renderCard({ preparedBy: 'agent', preparedRunRef: '#4788' });
     expect(screen.getByText(/AI가 준비를 마쳤습니다/)).toBeInTheDocument();

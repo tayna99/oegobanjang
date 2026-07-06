@@ -72,7 +72,7 @@ export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDis
           {data.secondaryAction.label}
         </Button>
         <Button
-          variant="primary"
+          variant={layout === 'hero' ? 'primary' : 'secondary'}
           disabled={offlineDisabled && data.primaryAction.requiresApproval}
           onClick={(e) => {
             e.stopPropagation();

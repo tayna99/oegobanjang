@@ -2,6 +2,7 @@ import { Button } from '@/components/Button';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { SafetyNotice } from '@/components/SafetyNotice';
 import { Skeleton } from '@/components/Skeleton';
+import { recommendReason } from '@/lib/briefing';
 import type { CaseCard } from '@/types';
 import { ApprovalCard } from './ApprovalCard';
 import { BriefingHeader, type BriefingHeaderProps } from './BriefingHeader';
@@ -13,7 +14,7 @@ import { SummaryStatRow, type SummaryStat } from './SummaryStatRow';
 // loading/error/offline은 이 컴포넌트에 완성돼 테스트로 검증되지만 실제 트리거는
 // 백엔드 접속점 이후(범위 밖 — 계획 문서 참고).
 export type BriefingViewState =
-  | { status: 'default'; cards: CaseCard[]; stats: SummaryStat[] }
+  | { status: 'default'; cards: CaseCard[]; stats: SummaryStat[]; greeting: string }
   | { status: 'empty'; hasWorkers: true; nextScheduledHint?: string }
   | { status: 'empty'; hasWorkers: false }
   | { status: 'loading' }
@@ -45,7 +46,7 @@ function CardList({
           key={card.caseId}
           data={card}
           layout={i === 0 ? 'hero' : 'compact'}
-          recommendReason={i === 0 ? undefined : undefined}
+          recommendReason={i === 0 ? recommendReason(card) : undefined}
           onOpen={() => onOpenCase(card.caseId)}
           offlineDisabled={offline}
         />
@@ -73,9 +74,7 @@ export function BriefingScreen({ state, header, onOpenCase, onSeeAllCases }: Bri
 
       {state.status === 'default' && (
         <>
-          <p className="my-2.5 text-xl font-bold leading-snug">
-            오늘 확인이 필요한 업무가 <span className="text-primary">{state.cards.length}</span>건 있습니다.
-          </p>
+          <p className="my-2.5 text-xl font-bold leading-snug">{state.greeting}</p>
           <CardList cards={state.cards} onOpenCase={onOpenCase} />
           {state.cards.length > 3 && (
             <button type="button" onClick={onSeeAllCases} className="mb-4 text-sm font-semibold text-primary">

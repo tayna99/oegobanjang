@@ -37,3 +37,13 @@ export function visibleCardsForRole(cards: CaseCard[], role: Role): CaseCard[] {
   if (role === 'owner') return cards.filter((c) => c.approvalRequired);
   return cards;
 }
+
+// 탭별기획 §1.2 "추천 이유는 항상 '~해서 ~이 필요합니다' 구조" — hero 카드 1장에만 쓴다.
+export function recommendReason(card: CaseCard): string | undefined {
+  if (card.dDay === undefined) return undefined;
+  const dueText = card.dDay >= 0 ? `D-${card.dDay}` : `D+${-card.dDay}`;
+  if (card.missingDocCount && card.missingDocCount > 0) {
+    return `${dueText}이고 누락 서류 ${card.missingDocCount}건이 있어 오늘 확인이 필요합니다`;
+  }
+  return `${dueText}이라 오늘 확인이 필요합니다`;
+}

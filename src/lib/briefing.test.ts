@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { greetingText, sortCards, visibleCardsForRole } from './briefing';
+import { greetingText, recommendReason, sortCards, visibleCardsForRole } from './briefing';
 import type { CaseCard } from '@/types';
 
 function card(overrides: Partial<CaseCard>): CaseCard {
@@ -68,5 +68,21 @@ describe('visibleCardsForRole', () => {
 
   it('manager는 전부 본다(승인 + 확인 필요)', () => {
     expect(visibleCardsForRole(cards, 'manager').map((c) => c.caseId)).toEqual(['need-approval', 'just-review']);
+  });
+});
+
+describe('recommendReason', () => {
+  it('dDay와 missingDocCount가 모두 있으면 전체 문장을 만든다', () => {
+    expect(recommendReason(card({ dDay: 30, missingDocCount: 2 }))).toBe(
+      'D-30이고 누락 서류 2건이 있어 오늘 확인이 필요합니다',
+    );
+  });
+
+  it('dDay만 있으면 짧은 문장을 만든다', () => {
+    expect(recommendReason(card({ dDay: -3, missingDocCount: 0 }))).toBe('D+3이라 오늘 확인이 필요합니다');
+  });
+
+  it('dDay가 없으면 undefined를 반환한다', () => {
+    expect(recommendReason(card({ dDay: undefined }))).toBeUndefined();
   });
 });
