@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { ApprovalCard } from './ApprovalCard';
 import type { CaseCard } from '@/types';
@@ -79,5 +79,21 @@ describe('ApprovalCard', () => {
     const { onOpen } = renderCard();
     fireEvent.click(screen.getByText('초안 보기'));
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('프로액티브 행을 탭하면 preparedRunRef의 재생 화면으로 이동한다(# 제거 후 이동)', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route
+            path="/"
+            element={<ApprovalCard data={NGUYEN} layout="hero" onOpen={vi.fn()} />}
+          />
+          <Route path="/run/:runId" element={<div>런 재생 화면</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByText(/AI가 준비를 마쳤습니다/));
+    expect(screen.getByText('런 재생 화면')).toBeInTheDocument();
   });
 });

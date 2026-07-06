@@ -3,6 +3,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { IconSpark } from '@/components/icons';
 import { useNextAction } from '@/lib/actionNav';
+import { useNav } from '@/lib/nav';
 import { dDayLabel, dDayTone } from '@/lib/dday';
 import { severityTone } from '@/lib/badgeTone';
 import type { CaseCard } from '@/types';
@@ -22,6 +23,7 @@ export interface ApprovalCardProps {
 // (Card의 variant prop이 이미 그 두 시각을 표현한다 — 탭별기획 §1.2).
 export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDisabled }: ApprovalCardProps) {
   const handleAction = useNextAction();
+  const nav = useNav();
 
   return (
     <Card
@@ -46,6 +48,7 @@ export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDis
           type="button"
           onClick={(e) => {
             e.stopPropagation();
+            if (data.preparedRunRef) nav.toRun(data.preparedRunRef.replace('#', ''));
           }}
           className="mb-3.5 flex w-full items-center gap-2 rounded-in bg-surface px-3 py-2.5 text-left text-sm font-medium"
         >
