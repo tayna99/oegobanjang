@@ -80,4 +80,8 @@ export interface EvidenceEvent {
   caseId?: string;
   actionId?: string;
   hash?: string; // 민감정보는 원문 대신 해시만
+  // --- 표시용 필드 (M0.5, 1단계 스펙 M8 EventTimelineItem 이식) ---
+  summary?: string; // PII 마스킹된 한 줄 요약만. 원문 메시지 전문 금지
+  actor?: string; // "시스템" | "김담당 (본인 확인 완료)" — 원문 개인정보 아님
+  evidenceRef?: string; // "#4789" 표시용 판단 기록 번호 (id와 별개 — id는 내부 식별자)
 }

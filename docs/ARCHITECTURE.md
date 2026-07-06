@@ -17,7 +17,7 @@
 | 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
 | 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
-| mock 데이터 | `src/mocks/fixtures.ts` — Nguyen/Tran/Bayar/Candidate/Mohammad/채용 |
+| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS) · `evidence.ts`(EVIDENCE_SEED). Nguyen/Tran/Bayar/Mohammad/채용. Candidate는 PKG 전용(M2.4) |
 
 ## 3. 화면 ↔ 라우트 ↔ 스펙
 
