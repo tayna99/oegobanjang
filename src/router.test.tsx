@@ -41,6 +41,6 @@ describe('딥링크 진입', () => {
       initialEntries: ['/case/a%20b/approve'],
     });
     render(<RouterProvider router={router} />);
-    await screen.findByText(/M1 오늘 브리핑/);
+    await screen.findByText(/화성 1공장/);
   });
 });

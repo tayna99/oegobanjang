@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
+import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -11,7 +12,7 @@ export const routeConfig: RouteObject[] = [
   {
     element: <Shell />,
     children: [
-      { index: true, element: <PlaceholderScreen name="M1 오늘 브리핑" /> },
+      { index: true, element: <BriefingHomePage /> },
       { path: ROUTE_PATHS.cases, element: <PlaceholderScreen name="M7 케이스 목록" /> },
       {
         path: ROUTE_PATHS.case,
