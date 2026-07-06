@@ -18,6 +18,19 @@
 
 ---
 
+### [2026-07-06] 1.2 — 완료
+- 한 일: 공용 컴포넌트 6종 + 배지 색 규칙 매핑 모듈. `src/components/Badge.tsx`(tone 7종: critical/warning/pending/info/success/neutral/line, 프로토타입 v3 `.bdg` 그대로), `Button.tsx`(variant 3종 primary/secondary/outline + size default/sm, 네이티브 button 속성 pass-through), `Card.tsx`(variant default/hero + interactive, margin은 컴포넌트에 강제 안 함), `SafetyNotice.tsx`(props 없음 — GOTCHAS §3 고정 문구를 타입으로 강제), `OfflineBanner.tsx`(v3에 시각 참고 없어 스펙 텍스트만으로 신규 설계), `Skeleton.tsx`(bg-hairline pulse, motion-reduce 대응). `src/lib/badgeTone.ts` — `severityTone`/`approvalStatusTone`/`caseStateTone`(1단계 §0.2 표 → BadgeTone 매핑, Badge는 이 파일에서 타입만 import해 도메인 타입 격리 유지). `icons.tsx`에 `IconShield` 추가(기존 4개 아이콘 불변). `tokens.css`/`tailwind.config.js`에 이번 태스크에 필요한 토큰 전부 등록(배지 배경 틴트 4색 + 텍스트 오버라이드 2개, 배지 radius 8px, surface-press, 버튼 치수 5개, SafetyNotice 치수 2개) — 임의값 Tailwind 클래스 0건.
+- 남은 일 / 중단 지점: 없음. 다음은 ROADMAP 1.3(M1 브리핑 홈, 5상태 전부) — 이번에 만든 6개 컴포넌트 + badgeTone이 그 화면의 기반이 됨. L2라 계획 승인 대상.
+- 결정 사항:
+  - 배지 radius는 rules/design.md 요약(칩·배지 14)과 달리 실제 8px(`--r-badge`) — 프로토타입 v3 `.bdg{border-radius:8px}`가 시각 기준(rules/design.md 자체 원칙)이라 프로토타입을 따름. rules/design.md 요약 문구 자체는 이번 태스크 범위 밖이라 고치지 않음(다음에 손대는 사람이 "14로 되돌리는" 실수를 하지 않도록 여기 기록).
+  - Button/Card는 레이아웃(margin/flex:1)을 자체에 강제하지 않음 — 프로토타입 정적 HTML과 달리 재사용 컴포넌트라 간격은 호출부(부모 레이아웃) 책임으로 뺌.
+  - 배지 텍스트 색은 종류별로 기본 토큰과 다른 값 사용(critical: 아이콘/닷 등에 쓰는 #EF4444가 아니라 배지 전용 #DC2626, warning도 마찬가지) — 프로토타입 원본 그대로, `critical-text`/`warning-text`로 별도 등록.
+  - `src/router.test.tsx`의 딥링크 백스택 테스트가 전체 스위트 동시 실행 시 간헐적으로 실패(단독 실행 시엔 항상 통과) — 이번 태스크가 만든 파일과 무관(router.tsx/Shell.tsx 무변경 확인됨), 1.1부터 있던 타이밍 이슈로 추정. 다음에 이 테스트를 만지는 사람은 참고.
+- verify 상태: PASS (typecheck 0, lint 0, test 19 files/104 tests passed, build OK). router.test.tsx 간헐적 flake는 위 참고.
+- 지도/규칙 갱신: 없음(ARCHITECTURE.md의 "화면 컴포넌트" 항목은 아직 `src/features/`를 가리키는데, 이번 6개는 도메인 화면이 아니라 공용 프리미티브라 `src/components/`에 그대로 있음 — 별도 갱신 불필요 판단).
+
+---
+
 ### [2026-07-06] 1.1 — 완료
 - 한 일: ROADMAP 1.1(라우터+딥링크 맵+Shell) 전체 9태스크 완료. `src/lib/routes.ts`(`ROUTES`/`ROUTE_PATHS` 딥링크 경로 단일 출처), `src/lib/cn.ts`(legacy `features/pc/ui.tsx`에서 이식), `src/components/icons.tsx`(탭 아이콘 4종, `prototype_v3.html`에서 이식), `src/screens/PlaceholderScreen.tsx`(미구현 라우트 공용 자리표시자), `src/lib/deeplink.ts`(`validateIdParam` — zod 기반 loader 팩토리, `zod` 신규 의존성 4.4.3), `src/lib/nav.ts`(`useNav()` — 명명된 내비게이션 메서드 12개, 전부 `ROUTES.*` 위임), `src/Shell.tsx`(레이아웃 라우트 — <1024px 모바일 탭바/이상 PC 헤더 분기 + `useDeepLinkBackstack()` 훅, 콜드 스타트 시 히스토리를 [M1, 목적지]로 재작성), `src/router.tsx`(자식 라우트 12개로 전체 라우트 트리 완성, 그중 6개는 `validateIdParam` 기반 loader 보유). M0.1 자리표시자였던 `src/App.tsx`/`src/App.test.tsx`는 삭제(Shell로 완전 대체). 두 DoD(라우트 스냅샷 테스트, 딥링크 백스택=M1→목적지)를 `src/router.test.tsx`의 실제(비모킹) 라우터 테스트로 검증.
 - 남은 일 / 중단 지점: 없음. 1.2/1.3/1.4/2.1이 의존하는 라우팅·딥링크·Shell·nav 인프라는 모두 준비 완료.

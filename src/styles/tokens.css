@@ -12,5 +12,20 @@
   --e-in:cubic-bezier(.2,0,0,1); --e-std:cubic-bezier(.4,0,.2,1);
   /* 탭바 치수 — 탭별기획 §0.2 "탭바 62px", "라벨 11/600" (GOTCHAS §4: 임의값 금지) */
   --tabbar-h:62px; --tabbar-label-fs:11px;
+  /* 배지 배경 틴트(8~10%, rules/design.md) — pendbg/succbg는 M0.2에 이미 있음.
+     나머지 4색 + 배지 전용 텍스트 색(기본 토큰보다 살짝 짙게, 프로토타입 v3 .bdg 규칙). */
+  --critbg:rgba(239,68,68,.08); --warnbg:rgba(249,115,22,.09);
+  --infobg:rgba(37,99,235,.08); --neutbg:rgba(107,114,128,.08);
+  --critical-text:#DC2626; --warning-text:#EA580C;
+  /* 배지 radius(8px) — 칩(14px)·카드(16px)와 다른 별도 값 (프로토타입 v3 .bdg) */
+  --r-badge:8px;
+  /* 눌림 배경 — Button secondary:active 등 surface 계열의 진한 눌림 상태 공용 */
+  --surface-press:#e9ebf3;
+  /* 버튼 치수(프로토타입 v3 .btn: 기본 높이 50/패딩 18/간격 7/폰트 15, sm 높이 44 — 나머지는 기본 Tailwind 스케일과 일치) */
+  --btn-h:50px; --btn-h-sm:44px; --btn-px:18px; --btn-gap:7px; --btn-fs:15px;
+  /* 배지 세부 치수(프로토타입 v3 .bdg: padding 3px 8px, gap 5px — 8px는 Tailwind px-2와 동일해 별도 등록 불필요) */
+  --badge-py:3px; --badge-gap:5px;
+  /* SafetyNotice 치수(프로토타입 v3 .safety: 아이콘 간격 9px, 폰트 13px) */
+  --safety-gap:9px; --safety-fs:13px;
 }
 @media (prefers-reduced-motion:reduce){:root{--fast:0ms;--std:0ms;--slow:0ms}}
