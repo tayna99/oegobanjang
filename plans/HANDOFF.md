@@ -18,6 +18,18 @@
 
 ---
 
+### [2026-07-06] 1.5 — 완료
+- 한 일: L3(협업) 태스크라 `superpowers:brainstorming`으로 시작 — 범위(3모드 한번에 vs approval만 먼저)와 M4/M9 화면 공유 여부를 질문으로 확정한 뒤 설계 스펙(`docs/superpowers/specs/2026-07-06-run-engine-steptimeline-design.md`) 작성·커밋, 구현 계획(`docs/superpowers/plans/2026-07-06-run-engine-steptimeline.md`, 9태스크) 작성 후 subagent-driven-development로 실행. `src/mocks/runs.ts`의 `RunStepKind`를 공식 5종(thinking/tool_call/guardrail/handoff/replan)으로 정리하고 M0.5의 로컬 `'wait'` 확장 제거("승인 대기"는 RunStep이 아니라 런의 종착점), command(#4790)·replay(#4788) config 2건 추가. `src/lib/runEngine.ts`(React 비의존 `executeRun` — 430ms*(i+1) 스텝 스트리밍, replay는 즉시 전체 emit) + `src/lib/useRunEngine.ts`(React 훅 래퍼). `src/features/run/`: `StepTimeline`(guardrail만 경고 톤 구분) + `RunScreen`(5상태 프레젠테이션, 스트리밍 미완료 시 승인 버튼 disabled) + `RunPage`(컨테이너 — `/case/:caseId/approve`·`/run/:runId` 두 라우트를 하나로 공유). 기존 no-op였던 `CommandBar` 제출(→ command 데모 런)과 `ApprovalCard` 프로액티브 행 클릭(→ preparedRunRef 재생)을 실제 네비게이션으로 배선. 최종 전체 리뷰(opus)에서 Critical/Important 0건, Minor 2건 중 1건(RunPage 레벨 스트리밍-disabled 통합 테스트 부재)만 수정 — 픽스 서브에이전트가 fake timer 아래 `findByRole`(waitFor 기반, 실시간 폴링 필요)을 써서 타임아웃 나는 걸 컨트롤러가 직접 `getByRole`(버튼은 스트리밍 여부와 무관하게 항상 동기 렌더됨)로 교체해 해결.
+- 남은 일 / 중단 지점: 없음. approvalStore.decide() 등 승인 결정 영속화·caseStore 상태 전이는 명시적으로 1.6(M3~M5 루프) 몫으로 남김 — 지금 `RunPage.onApprove`는 `/done`으로 이동만 한다. `RunViewState.default.mode` 필드는 RunScreen이 아직 안 읽음(1.6에서 command/replay UI 차이가 더 생기면 쓰일 수 있음, 지금은 무해한 미사용 필드로 남김 — 최종 리뷰 Minor, 고치지 않기로 함). command 모드는 자연어 파싱 없이 항상 고정 데모 런(#4790)으로 매핑(실 파싱은 백엔드 단계). 다음은 ROADMAP 1.6(M3 초안 + M4 승인 + M5 완료 + 상태 전파, E2E) — L2.
+- 결정 사항:
+  - ARCHITECTURE.md의 "M4는 이 화면의 mode='pre_approval' 특수 케이스" 문구는 별도 모드 값이 아니라 "M4 라우트가 이 화면(mode='approval')의 특수 사용처"로 해석 확정(브레인스토밍 질문으로 사용자 확인) — `RunConfig.mode`는 3값(`command`/`approval`/`replay`) 그대로.
+  - M4(`/case/:caseId/approve`)와 M9(`/run/:runId`) 라우트가 동일한 `RunPage` 컴포넌트를 공유(브레인스토밍 질문으로 확정) — `caseId` 파라미터면 `caseId+mode==='approval'`로, `runId` 파라미터면 `runKey`로 `RUN_CONFIGS`를 조회.
+  - 런은 전역 zustand 스토어를 만들지 않음 — 화면 하나가 소유하는 로컬 상태(useRunEngine의 useState)로 충분하다고 판단(caseStore/approvalStore와 달리 여러 화면이 동시 구독할 필요가 없음).
+- verify 상태: PASS (typecheck 0, lint 0, test 35 files/183 tests passed, build OK).
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` §2에 `src/features/run/` 추가, §5 런 시스템에 "구현(1.5)" 문단 추가(executeRun/useRunEngine/RunPage 공유 사실 + approvalStore 연동은 1.6 몫 명시).
+
+---
+
 ### [2026-07-06] 1.4 — 완료
 - 한 일: `/case/:caseId`가 실제 M2 케이스 시트를 렌더. `src/components/BottomSheet.tsx`(공용 모달 프리미티브 — scrim/slide-up/dismissible/footer, 도메인 타입 모름). `src/features/case/CaseSheet.tsx`(1단계 §M2 5블록 고정: 요약/AI확인내용/서류체크리스트/근거/에이전트활동 + ActionBar 2개 — citation 0건이면 근거 경고 + **승인이 필요한 액션만** locked, 5개 케이스 전부 이 컴포넌트 하나로 커버·분기 없음). `src/features/case/CaseSheetPage.tsx`(`<BriefingHomePage/>`를 배경으로, `<CaseSheet/>`를 오버레이로 구성 — 2단계 딥링크맵의 "M1 위에 오버레이" 요구를 진짜 background-location 대신 M1 렌더러 재사용으로 근사). 어드버서리얼 리뷰에서 Important 1건(`activity`가 비어 있으면(mohammad/hiring) `nextWake`까지 통째로 안 뜨던 버그) 발견 후 수정.
 - 남은 일 / 중단 지점: 없음. 진짜 background-location(M7 생기면 재검토), half↔full 드래그 제스처, M9 재생 뷰 연결, tranCase 확인완료 후 UI 반영은 계획 문서에 범위 밖으로 명시. Minor로 남긴 것(고치지 않음, 문제 아님): `BriefingHomePage`와 `CaseSheetPage`가 caseStore 시딩 `useEffect`를 각자 갖고 있어 중복이지만 React 마운트 순서상 안전(자식이 먼저 시드하고 부모는 가드에 걸려 스킵) — 다음에 손댈 사람은 공유 훅으로 뽑을지 고려. 존재하지 않는 caseId로 이동하면 안내 없이 조용히 M1만 보임(M7·실제 딥링크 검증 붙을 때 재검토). 다음은 ROADMAP 1.5(런 엔진, **L3** 협업 태스크 — v3의 renderRun() 각본 재생 로직 이식) 또는 2.1(M7 케이스 목록) — ROADMAP 순서상 1.5가 다음이지만 L3라 더 무거운 협의가 필요.
