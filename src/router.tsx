@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
+import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -17,7 +18,7 @@ export const routeConfig: RouteObject[] = [
       {
         path: ROUTE_PATHS.case,
         loader: validateIdParam('caseId'),
-        element: <PlaceholderScreen name="M2 케이스 시트" />,
+        element: <CaseSheetPage />,
       },
       {
         path: ROUTE_PATHS.caseDraft,
