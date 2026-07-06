@@ -1,13 +1,17 @@
 import { useState } from 'react';
+import { useNav } from '@/lib/nav';
 
 export interface CommandBarProps {
   suggestions?: string[];
 }
 
-// 1단계 스펙 §0.3 CommandBar — 제출 시 M9 에이전트 런 시작이 최종 동작이지만
-// 런 엔진(1.5)이 아직 없어 지금은 입력을 비우기만 한다.
+// 1단계 스펙 §0.3 CommandBar — 제출 시 M9 에이전트 런을 시작한다. MVP는 자연어
+// 파싱이 없어 제출 내용과 무관하게 항상 command 데모 런(#4790, "이번 달 급한
+// 직원만 정리해줘")으로 진입한다 — 실 파싱은 백엔드 단계
+// (docs/superpowers/specs/2026-07-06-run-engine-steptimeline-design.md).
 export function CommandBar({ suggestions }: CommandBarProps) {
   const [value, setValue] = useState('');
+  const nav = useNav();
 
   return (
     <div>
@@ -29,6 +33,7 @@ export function CommandBar({ suggestions }: CommandBarProps) {
         onSubmit={(e) => {
           e.preventDefault();
           setValue('');
+          nav.toRun('4790');
         }}
         className="flex gap-2"
       >
