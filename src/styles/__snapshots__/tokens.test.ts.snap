@@ -38,6 +38,7 @@ exports[`tokens.css의 디자인 토큰이 v3 :root와 일치한다 1`] = `
   "sh-card": "0 4px 8px rgba(0,0,0,.10)",
   "sh-lift": "0 8px 16px rgba(0,0,0,.10)",
   "sh-sheet": "0 -6px 24px rgba(0,0,0,.12)",
+  "sheet-max-h": "86%",
   "slow": "360ms",
   "std": "240ms",
   "succbg": "rgba(0,191,64,.10)",

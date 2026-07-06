@@ -55,6 +55,9 @@ export default {
         // SafetyNotice 폰트(13px, 프로토타입 v3 .safety).
         safety: 'var(--safety-fs)',
       },
+      maxHeight: {
+        sheet: 'var(--sheet-max-h)',
+      },
       boxShadow: {
         card: 'var(--sh-card)',
         lift: 'var(--sh-lift)',

@@ -27,5 +27,7 @@
   --badge-py:3px; --badge-gap:5px;
   /* SafetyNotice 치수(프로토타입 v3 .safety: 아이콘 간격 9px, 폰트 13px) */
   --safety-gap:9px; --safety-fs:13px;
+  /* 바텀시트 최대 높이(86%, 프로토타입 v3 .sheet) */
+  --sheet-max-h:86%;
 }
 @media (prefers-reduced-motion:reduce){:root{--fast:0ms;--std:0ms;--slow:0ms}}
