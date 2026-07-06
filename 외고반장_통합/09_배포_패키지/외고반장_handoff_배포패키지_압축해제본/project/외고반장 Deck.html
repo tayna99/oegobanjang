@@ -1,0 +1,2063 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>외고반장</title>
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
+  <link rel="stylesheet" href="colors_and_type.css">
+  <script src="deck-stage.js"></script>
+  <style>
+    :root {
+      --type-hero:    120px;
+      --type-title:    72px;
+      --type-subtitle: 48px;
+      --type-body:     36px;
+      --type-small:    28px;
+      --type-micro:    24px;
+      --pad-x:        120px;
+      --pad-top:       96px;
+      --pad-bottom:    80px;
+      --gap-title:     48px;
+      --gap-item:      28px;
+      --r-card:        16px;
+      --r-card-lg:     20px;
+      --blue:         #0066FF;
+      --dark:         #0F0F10;
+      --dark-2:       #1B1C1E;
+      --light:        #F7F7F8;
+      --white:        #FFFFFF;
+      --red:          #FF4242;
+      --orange:       #FF9200;
+      --green:        #00BF40;
+      --line:         #E8E8EA;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; background: #000; }
+
+    /* ── typography helpers ── */
+    .t-hero    { font-size: var(--type-hero);     font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+    .t-title   { font-size: var(--type-title);    font-weight: 700; letter-spacing: -0.032em; line-height: 1.15; }
+    .t-sub     { font-size: var(--type-subtitle); font-weight: 600; letter-spacing: -0.02em;  line-height: 1.25; }
+    .t-body    { font-size: var(--type-body);     font-weight: 400; letter-spacing: -0.01em;  line-height: 1.55; }
+    .t-small   { font-size: var(--type-small);    font-weight: 400; letter-spacing: -0.005em; line-height: 1.55; }
+    .t-micro   { font-size: var(--type-micro);    font-weight: 400; letter-spacing: 0;        line-height: 1.6; }
+    .t-label   { font-size: var(--type-micro);    font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+
+    /* ── layout helpers ── */
+    .slide-pad { padding: var(--pad-top) var(--pad-x) var(--pad-bottom); height: 100%; display: flex; flex-direction: column; }
+    .col       { display: flex; flex-direction: column; }
+    .row       { display: flex; flex-direction: row; }
+    .flex1     { flex: 1; }
+    .gap8  { gap: 8px; }
+    .gap12 { gap: 12px; }
+    .gap16 { gap: 16px; }
+    .gap20 { gap: 20px; }
+    .gap24 { gap: 24px; }
+    .gap32 { gap: 32px; }
+    .gap40 { gap: 40px; }
+    .gap48 { gap: 48px; }
+    .g3    { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+    .g2    { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+
+    /* ── backgrounds ── */
+    .bg-dark  { background: var(--dark); }
+    .bg-dark2 { background: var(--dark-2); }
+    .bg-light { background: var(--light); }
+    .bg-white { background: var(--white); }
+    .bg-blue  { background: var(--blue); }
+
+    /* ── text colors ── */
+    .c-white  { color: #fff; }
+    .c-dark   { color: var(--dark); }
+    .c-blue   { color: var(--blue); }
+    .c-muted  { color: rgba(255,255,255,0.5); }
+    .c-muted2 { color: #888; }
+    .c-muted3 { color: #555; }
+    .c-red    { color: var(--red); }
+    .c-green  { color: var(--green); }
+    .c-orange { color: var(--orange); }
+
+    /* ── card components ── */
+    .card        { background: #fff; border-radius: var(--r-card); padding: 36px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+    .card-lg     { background: #fff; border-radius: var(--r-card-lg); padding: 48px; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+    .card-light  { background: var(--light); border-radius: var(--r-card); padding: 36px; }
+    .card-ghost  { background: rgba(255,255,255,0.06); border-radius: var(--r-card); padding: 36px; border: 1px solid rgba(255,255,255,0.1); }
+    .card-blue   { background: rgba(0,102,255,0.12); border-radius: var(--r-card); padding: 36px; border: 1.5px solid rgba(0,102,255,0.3); }
+
+    /* ── dividers ── */
+    .divider       { width: 100%; height: 1px; background: var(--line); }
+    .divider-white { width: 100%; height: 1px; background: rgba(255,255,255,0.1); }
+    .vdivider      { width: 1px; flex-shrink: 0; background: var(--line); }
+    .vdivider-white{ width: 1px; flex-shrink: 0; background: rgba(255,255,255,0.1); }
+
+    /* ── badges ── */
+    .badge     { display: inline-flex; align-items: center; padding: 5px 16px; border-radius: 6px; font-size: var(--type-micro); font-weight: 700; }
+    .badge-red    { background: var(--red);    color: #fff; }
+    .badge-orange { background: var(--orange); color: #fff; }
+    .badge-green  { background: var(--green);  color: #fff; }
+    .badge-blue   { background: var(--blue);   color: #fff; }
+
+    /* ── tag / chip ── */
+    .tag { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 99px; font-size: var(--type-micro); font-weight: 500; }
+    .tag-blue { background: rgba(0,102,255,0.12); border: 1.5px solid rgba(0,102,255,0.3); color: #7EB8FF; }
+    .tag-line { border: 1.5px solid rgba(255,255,255,0.2); color: rgba(255,255,255,0.6); }
+
+    /* ── icon box ── */
+    .icon-box { width: 56px; height: 56px; border-radius: 14px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .icon-box-blue  { background: #EBF3FF; }
+    .icon-box-white { background: rgba(255,255,255,0.12); }
+
+    /* ── step circle ── */
+    .step { width: 40px; height: 40px; border-radius: 50%; background: var(--blue); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: var(--type-micro); font-weight: 700; color: #fff; }
+
+    /* ── numbered row ── */
+    .num-row { display: flex; gap: 20px; align-items: flex-start; padding: 22px 28px; border-radius: 12px; }
+
+    /* ── slide section label ── */
+    .slide-section-label { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .slide-section-label::before { content: ''; display: block; width: 3px; height: 20px; background: var(--blue); border-radius: 2px; }
+
+    /* ── arrow flow ── */
+    .arrow-right { color: var(--blue); font-size: 32px; line-height: 1; display: flex; align-items: center; flex-shrink: 0; padding: 0 2px; }
+
+    /* ── evidence log row ── */
+    .ev-row { display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; background: #fff; border-radius: 10px; }
+
+    /* ── decorative blob ── */
+    .blob { position: absolute; border-radius: 50%; pointer-events: none; }
+
+    /* ── slide base: overflow hidden ── */
+    deck-stage > section { overflow: hidden; position: relative; }
+  </style>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 01 COVER                                        -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="01 Cover" style="background:#0F0F10;">
+    <!-- decorative glows -->
+    <div class="blob" style="right:-180px;top:-180px;width:880px;height:880px;background:radial-gradient(circle,rgba(0,102,255,0.13) 0%,transparent 68%);"></div>
+    <div class="blob" style="left:560px;bottom:-140px;width:560px;height:560px;background:radial-gradient(circle,rgba(0,102,255,0.07) 0%,transparent 70%);"></div>
+
+    <div class="slide-pad" style="justify-content:space-between;">
+      <!-- eyebrow -->
+      <div class="row" style="align-items:center;gap:14px;">
+        <div style="width:44px;height:3px;background:var(--blue);border-radius:2px;"></div>
+        <span class="t-label" style="color:rgba(255,255,255,0.35);">Product Overview 2026</span>
+      </div>
+
+      <!-- main content -->
+      <div class="col" style="gap:28px;">
+        <h1 class="t-hero" style="color:#fff;font-size:128px;">외고반장</h1>
+        <p class="t-sub" style="color:rgba(255,255,255,0.82);font-weight:400;max-width:900px;">
+          외국인 고용 업무, <span style="color:var(--blue);font-weight:700;">놓치기 전에 먼저</span> 챙깁니다
+        </p>
+        <div class="row" style="gap:16px;flex-wrap:wrap;margin-top:12px;">
+          <div class="tag tag-blue"><span style="width:8px;height:8px;background:var(--blue);border-radius:50%;display:inline-block;"></span>D-day 리스크를 먼저 보여준다</div>
+          <div class="tag tag-blue"><span style="width:8px;height:8px;background:var(--blue);border-radius:50%;display:inline-block;"></span>Next Action을 준비해준다</div>
+          <div class="tag tag-blue"><span style="width:8px;height:8px;background:var(--blue);border-radius:50%;display:inline-block;"></span>승인·증빙으로 안전하게 실행하고 남긴다</div>
+        </div>
+      </div>
+
+      <!-- footer -->
+      <div>
+        <p class="t-micro" style="color:rgba(255,255,255,0.22);">Daily Briefing + Approval + Evidence 기반 외국인 고용 업무 관리 시스템</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 02 PROBLEM                                      -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="02 Problem" style="background:#fff;">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Problem</span></div>
+        <h2 class="t-title" style="color:var(--dark);">오늘 챙겨야 할 일이<br>한 화면에 없다</h2>
+      </div>
+
+      <div class="row flex1 gap40" style="align-items:stretch;">
+        <!-- left: fragmented systems -->
+        <div class="col flex1 gap20" style="justify-content:center;">
+          <p class="t-small c-muted2" style="font-weight:600;margin-bottom:4px;">외국인 고용 업무는 이렇게 분산돼 있습니다</p>
+          <div class="g2">
+            <div style="padding:26px 28px;background:var(--light);border-radius:12px;border:1px solid var(--line);">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">엑셀 / 폴더</div>
+              <div class="t-micro c-muted2">서류 저장</div>
+            </div>
+            <div style="padding:26px 28px;background:var(--light);border-radius:12px;border:1px solid var(--line);">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">메신저</div>
+              <div class="t-micro c-muted2">소통</div>
+            </div>
+            <div style="padding:26px 28px;background:var(--light);border-radius:12px;border:1px solid var(--line);">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">정부 시스템</div>
+              <div class="t-micro c-muted2">신청 · 민원</div>
+            </div>
+            <div style="padding:26px 28px;background:var(--light);border-radius:12px;border:1px solid var(--line);">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">행정사</div>
+              <div class="t-micro c-muted2">검토 · 대행</div>
+            </div>
+          </div>
+          <div style="padding:26px 28px;background:var(--light);border-radius:12px;border:2px dashed #CACACE;text-align:center;">
+            <div class="t-small" style="font-weight:600;color:#AAAAAE;">매일의 운영 업무 → 담당자의 기억에 의존</div>
+          </div>
+        </div>
+
+        <div class="vdivider"></div>
+
+        <!-- right: consequences -->
+        <div class="col flex1 gap20" style="justify-content:center;">
+          <p class="t-small c-muted2" style="font-weight:600;margin-bottom:4px;">결과로 생기는 운영 리스크</p>
+          <div class="col gap16">
+            <div style="padding:26px 28px;border-left:4px solid var(--red);background:#FFF5F5;border-radius:0 12px 12px 0;">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:6px;">체류만료 · 서류누락 · 기한초과</div>
+              <div class="t-micro c-muted2">생산 공백 / 벌금·제재 / 행정사 재요청</div>
+            </div>
+            <div style="padding:26px 28px;border-left:4px solid var(--orange);background:#FFF8F0;border-radius:0 12px 12px 0;">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:6px;">사람의 기억에 의존하는 운영</div>
+              <div class="t-micro c-muted2">인수인계 불가 / 뒷북 대응 반복</div>
+            </div>
+            <div style="padding:26px 28px;border-left:4px solid var(--blue);background:#F0F5FF;border-radius:0 12px 12px 0;">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:6px;">정부·행정사 시스템의 공백</div>
+              <div class="t-micro c-muted2">기업 내부의 매일 업무 단계가 비어 있음</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 03 CUSTOMER                                     -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="03 Customer" style="background:var(--light);">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Customer</span></div>
+        <h2 class="t-title" style="color:var(--dark);">E-9 근로자 10~100명<br>제조업체 인사·총무 담당자</h2>
+      </div>
+
+      <div class="row flex1 gap32" style="align-items:stretch;">
+        <!-- primary target -->
+        <div class="card-lg col flex1 gap36" style="gap:32px;justify-content:space-between;">
+          <div class="col gap8">
+            <p class="t-label c-blue">핵심 타겟 (초기)</p>
+          </div>
+          <div class="col gap24">
+            <div class="row gap20" style="align-items:center;">
+              <div class="icon-box icon-box-blue">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" fill="#0066FF"/></svg>
+              </div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">동시 다발 케이스 운영</div>
+                <div class="t-micro c-muted2">한 번이 아니라 여러 개가 동시에 돌아갑니다</div>
+              </div>
+            </div>
+            <div class="row gap20" style="align-items:center;">
+              <div class="icon-box icon-box-blue">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" fill="#0066FF"/></svg>
+              </div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">서류·증빙·승인·기록 반복 업무</div>
+                <div class="t-micro c-muted2">매월 동일한 패턴의 업무가 반복됩니다</div>
+              </div>
+            </div>
+            <div class="row gap20" style="align-items:center;">
+              <div class="icon-box icon-box-blue">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" fill="#0066FF"/></svg>
+              </div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">다국어 모바일 커뮤니케이션 필요</div>
+                <div class="t-micro c-muted2">현장 근로자와 직접 소통이 필요합니다</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- secondary target -->
+        <div style="flex:0.75;background:var(--dark);border-radius:var(--r-card-lg);padding:48px;display:flex;flex-direction:column;justify-content:space-between;">
+          <p class="t-label" style="color:rgba(255,255,255,0.35);">보조 고객 (확장)</p>
+          <div class="col gap16">
+            <h3 class="t-sub c-white">행정사 · 노무사</h3>
+            <p class="t-micro" style="color:rgba(255,255,255,0.5);line-height:1.8;">여러 사업장을 운영하는<br>B2B2B 운영 주체</p>
+            <div style="margin-top:8px;display:inline-block;padding:8px 20px;background:rgba(0,102,255,0.2);border:1px solid rgba(0,102,255,0.45);border-radius:8px;">
+              <span class="t-micro" style="color:#7EB8FF;font-weight:700;">White-label 가능</span>
+            </div>
+          </div>
+          <div class="divider-white"></div>
+          <p class="t-micro" style="color:rgba(255,255,255,0.28);">다수 사업장 일괄 관리</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 04 GAP                                          -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="04 Gap" style="background:var(--dark-2);">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Gap</span></div>
+        <h2 class="t-title c-white">기존 플레이어는 내부 운영 단계를 채우지 않는다</h2>
+      </div>
+
+      <div class="row flex1 gap0" style="align-items:stretch;">
+        <!-- existing players -->
+        <div class="col flex1 gap16" style="justify-content:center;padding-right:40px;border-right:1px solid rgba(255,255,255,0.08);">
+          <p class="t-label" style="color:rgba(255,255,255,0.3);margin-bottom:4px;">기존 플레이어</p>
+          <div class="col gap12">
+            <div style="padding:20px 28px;background:rgba(255,255,255,0.05);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small c-white" style="font-weight:600;">정부 시스템</span>
+              <span class="t-micro" style="color:rgba(255,255,255,0.35);">신청 · 민원</span>
+            </div>
+            <div style="padding:20px 28px;background:rgba(255,255,255,0.05);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small c-white" style="font-weight:600;">행정사</span>
+              <span class="t-micro" style="color:rgba(255,255,255,0.35);">검토 · 대행</span>
+            </div>
+            <div style="padding:20px 28px;background:rgba(255,255,255,0.05);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small c-white" style="font-weight:600;">ERP · HR</span>
+              <span class="t-micro" style="color:rgba(255,255,255,0.35);">근태 · 급여</span>
+            </div>
+            <div style="padding:20px 28px;background:rgba(255,255,255,0.05);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small c-white" style="font-weight:600;">메신저 · 엑셀</span>
+              <span class="t-micro" style="color:rgba(255,255,255,0.35);">소통 · 저장</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- gap area -->
+        <div class="col flex1" style="justify-content:center;align-items:center;padding:0 40px;gap:24px;">
+          <div style="width:100%;padding:32px 36px;border:2px dashed rgba(0,102,255,0.45);border-radius:16px;background:rgba(0,102,255,0.06);">
+            <div class="t-sub c-blue" style="margin-bottom:20px;text-align:center;">비어 있는 내부 운영 단계</div>
+            <div class="col gap14">
+              <div class="row gap16" style="align-items:center;"><span style="color:var(--blue);font-size:30px;font-weight:700;flex-shrink:0;">?</span><span class="t-small" style="color:rgba(255,255,255,0.72);">오늘 누구를 챙겨야 하지?</span></div>
+              <div class="row gap16" style="align-items:center;"><span style="color:var(--blue);font-size:30px;font-weight:700;flex-shrink:0;">?</span><span class="t-small" style="color:rgba(255,255,255,0.72);">지금 뭘 준비해야 하지?</span></div>
+              <div class="row gap16" style="align-items:center;"><span style="color:var(--blue);font-size:30px;font-weight:700;flex-shrink:0;">?</span><span class="t-small" style="color:rgba(255,255,255,0.72);">누가 승인해야 하지?</span></div>
+              <div class="row gap16" style="align-items:center;"><span style="color:var(--blue);font-size:30px;font-weight:700;flex-shrink:0;">?</span><span class="t-small" style="color:rgba(255,255,255,0.72);">무엇을 증빙으로 남겨야 하지?</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- arrow -->
+        <div style="display:flex;align-items:center;flex-shrink:0;padding:0 16px;">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="#0066FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+
+        <!-- 외고반장 -->
+        <div style="flex:0.7;display:flex;flex-direction:column;justify-content:center;">
+          <div class="card-blue col gap20" style="height:auto;">
+            <div class="t-sub c-white" style="font-weight:700;">외고반장</div>
+            <div class="t-micro" style="color:rgba(255,255,255,0.6);line-height:1.8;">브리핑 · 누락탐지<br>승인 · 증빙 축적</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 05 SOLUTION                                     -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="05 Solution" style="background:var(--blue);">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label" style="--slide-accent:#fff;"><span class="t-label" style="color:rgba(255,255,255,0.55);">Solution</span></div>
+        <h2 class="t-title c-white">외고반장의 운영 표준화 3요소</h2>
+      </div>
+
+      <div class="g3 flex1" style="align-content:stretch;gap:28px;">
+        <!-- Briefing -->
+        <div style="background:rgba(255,255,255,0.13);border-radius:20px;padding:48px 44px;display:flex;flex-direction:column;gap:24px;border:1px solid rgba(255,255,255,0.2);">
+          <div class="icon-box icon-box-white" style="width:64px;height:64px;border-radius:16px;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5H7v2h5v-2zm5 0h-3v2h3v-2z" fill="#fff"/></svg>
+          </div>
+          <div>
+            <div class="t-sub c-white" style="margin-bottom:14px;">Daily Briefing</div>
+            <div class="t-small" style="color:rgba(255,255,255,0.78);line-height:1.7;">오늘·이번 주 리스크와<br>해야 할 일을 선제적으로 제시</div>
+          </div>
+          <div style="margin-top:auto;"><span class="t-micro" style="color:rgba(255,255,255,0.45);">검색이 아니라 Next Action 제안</span></div>
+        </div>
+
+        <!-- Approval -->
+        <div style="background:rgba(255,255,255,0.13);border-radius:20px;padding:48px 44px;display:flex;flex-direction:column;gap:24px;border:1px solid rgba(255,255,255,0.2);">
+          <div class="icon-box icon-box-white" style="width:64px;height:64px;border-radius:16px;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" fill="#fff"/></svg>
+          </div>
+          <div>
+            <div class="t-sub c-white" style="margin-bottom:14px;">Approval</div>
+            <div class="t-small" style="color:rgba(255,255,255,0.78);line-height:1.7;">중요한 실행을 승인으로 통제<br>승인 전 외부 발송 불가</div>
+          </div>
+          <div style="margin-top:auto;"><span class="t-micro" style="color:rgba(255,255,255,0.45);">Human Approval Gate</span></div>
+        </div>
+
+        <!-- Evidence -->
+        <div style="background:rgba(255,255,255,0.13);border-radius:20px;padding:48px 44px;display:flex;flex-direction:column;gap:24px;border:1px solid rgba(255,255,255,0.2);">
+          <div class="icon-box icon-box-white" style="width:64px;height:64px;border-radius:16px;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zm-1 8l-3-3 1.41-1.41L12 14.17l4.59-4.58L18 11l-6 6z" fill="#fff"/></svg>
+          </div>
+          <div>
+            <div class="t-sub c-white" style="margin-bottom:14px;">Evidence</div>
+            <div class="t-small" style="color:rgba(255,255,255,0.78);line-height:1.7;">실행 결과를 증빙으로 축적<br>인수인계·감사·재현 가능</div>
+          </div>
+          <div style="margin-top:auto;"><span class="t-micro" style="color:rgba(255,255,255,0.45);">Append-only 기록 축적</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 06 PRODUCT SCREENSHOT                           -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="06 Product — 대시보드" style="background:var(--dark);">
+    <div class="slide-pad" style="flex-direction:row;gap:64px;padding-top:80px;padding-bottom:60px;">
+      <!-- left: context -->
+      <div class="col" style="flex:0.65;gap:32px;justify-content:center;">
+        <div>
+          <div class="slide-section-label"><span class="t-label c-blue">Product</span></div>
+          <h2 class="t-title c-white" style="line-height:1.15;">오늘 할 일이<br>한 화면에</h2>
+        </div>
+        <div class="col gap16">
+          <div style="padding:20px 24px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:3px solid var(--blue);">
+            <div class="t-small c-white" style="font-weight:700;margin-bottom:4px;">Daily Briefing 배너</div>
+            <div class="t-micro c-muted" style="line-height:1.7;">7개 케이스 자동 정리 — 즉시 확인·우선 확인·승인 대기 분류</div>
+          </div>
+          <div style="padding:20px 24px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:3px solid var(--blue);">
+            <div class="t-small c-white" style="font-weight:700;margin-bottom:4px;">상태 카드 7종</div>
+            <div class="t-micro c-muted" style="line-height:1.7;">체류기간 임박·서류 보완·신규 채용·컨택 대기·응답 도착·승인 대기·행정사 검토</div>
+          </div>
+          <div style="padding:20px 24px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:3px solid var(--blue);">
+            <div class="t-small c-white" style="font-weight:700;margin-bottom:4px;">오늘의 업무 큐</div>
+            <div class="t-micro c-muted" style="line-height:1.7;">기한 임박순 정렬 — 다음 처리(초안 보기·승인 요청·응답 요약) 바로 실행</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right: screenshot -->
+      <div style="flex:1.5;border-radius:16px;overflow:hidden;box-shadow:0 8px 48px rgba(0,0,0,0.4);align-self:center;">
+        <img src="uploads/image (24).png" style="width:100%;display:block;object-fit:cover;">
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 DEMO — SCENE 1: 브리핑                       -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="07 Demo — 브리핑" style="background:#fff;">
+    <div class="slide-pad" style="gap:36px;">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div class="slide-section-label"><span class="t-label c-blue">Demo — Scene 1</span></div>
+          <h2 class="t-title" style="color:var(--dark);">오늘의 브리핑</h2>
+        </div>
+        <div style="display:inline-flex;align-items:center;gap:12px;padding:12px 24px;background:#FFF0F0;border:1.5px solid var(--red);border-radius:10px;">
+          <span class="t-small" style="font-weight:800;color:var(--red);">D-30</span>
+          <span class="t-micro c-muted2">체류만료 감지</span>
+        </div>
+      </div>
+
+      <div class="row flex1 gap40" style="align-items:stretch;">
+        <!-- briefing mockup -->
+        <div style="flex:1.3;background:var(--light);border-radius:20px;padding:40px;display:flex;flex-direction:column;gap:20px;">
+          <div class="row" style="justify-content:space-between;align-items:center;">
+            <span class="t-small" style="font-weight:700;color:var(--dark);">오늘의 브리핑</span>
+            <span class="t-micro c-muted2">2026. 05. 14</span>
+          </div>
+          <div class="divider"></div>
+          <!-- case card -->
+          <div style="background:#fff;border-radius:14px;padding:28px 32px;border-left:5px solid var(--red);box-shadow:0 2px 12px rgba(0,0,0,0.06);">
+            <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:14px;">
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">Nguyen Van A</div>
+                <div class="t-micro c-muted2">베트남 · E-9 · 화성 2공장 조립라인</div>
+              </div>
+              <span class="badge badge-red">D-30</span>
+            </div>
+            <div class="row gap12" style="margin-bottom:18px;flex-wrap:wrap;">
+              <span style="padding:4px 14px;background:#FFF5F5;border:1px solid #FFCCCC;border-radius:6px;font-size:var(--type-micro);color:#CC2200;">서류 누락 2건</span>
+              <span style="padding:4px 14px;background:#F0F5FF;border:1px solid #CCE0FF;border-radius:6px;font-size:var(--type-micro);color:#0055CC;">체류만료 임박</span>
+            </div>
+            <div class="row gap10">
+              <button style="flex:1;padding:14px 0;background:var(--light);border:1.5px solid var(--line);border-radius:8px;font-size:var(--type-micro);font-weight:600;color:#555;cursor:pointer;font-family:inherit;">초안 보기</button>
+              <button style="flex:1;padding:14px 0;background:var(--light);border:1.5px solid var(--line);border-radius:8px;font-size:var(--type-micro);font-weight:600;color:#555;cursor:pointer;font-family:inherit;">수정 요청</button>
+              <button style="flex:2;padding:14px 0;background:var(--blue);border:none;border-radius:8px;font-size:var(--type-micro);font-weight:700;color:#fff;cursor:pointer;font-family:inherit;">보내기 승인</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- step description -->
+        <div class="col flex1 gap20" style="justify-content:center;">
+          <div class="row gap20" style="align-items:flex-start;">
+            <div class="step">1</div>
+            <div>
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">D-30 감지</div>
+              <div class="t-micro c-muted2">체류만료 자동 감지 + 누락 서류 2건 확인</div>
+            </div>
+          </div>
+          <div style="width:2px;height:24px;background:var(--line);margin-left:19px;"></div>
+          <div class="row gap20" style="align-items:flex-start;">
+            <div class="step">2</div>
+            <div>
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">Next Action 추천</div>
+              <div class="t-micro c-muted2">여권 사본 + 표준근로계약서 요청 준비</div>
+            </div>
+          </div>
+          <div style="width:2px;height:24px;background:var(--line);margin-left:19px;"></div>
+          <div class="row gap20" style="align-items:flex-start;">
+            <div class="step">3</div>
+            <div>
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">처리 화면으로 바로 이동</div>
+              <div class="t-micro c-muted2">초안 확인 → 승인 후 실행</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 07 DEMO — SCENE 2: 케이스 상세                  -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="08 Demo — 케이스 상세" style="background:var(--light);">
+    <div class="slide-pad" style="gap:36px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Demo — Scene 2</span></div>
+        <h2 class="t-title" style="color:var(--dark);">케이스 상세: 리스크 근거 + 다국어 초안</h2>
+      </div>
+
+      <div class="row flex1 gap28" style="align-items:stretch;">
+        <!-- case detail -->
+        <div class="card col gap24" style="flex:0.85;justify-content:flex-start;">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">케이스 상세</div>
+          <div class="divider"></div>
+          <div>
+            <div class="t-micro c-muted2" style="margin-bottom:8px;">리스크 레벨</div>
+            <span class="badge badge-red">HIGH</span>
+          </div>
+          <div>
+            <div class="t-micro c-muted2" style="margin-bottom:8px;">누락 서류</div>
+            <div class="col gap10">
+              <div class="row gap12" style="align-items:center;padding:12px 16px;background:#FFF5F5;border-radius:8px;">
+                <div style="width:8px;height:8px;background:var(--red);border-radius:50%;flex-shrink:0;"></div>
+                <span class="t-micro" style="color:var(--dark);">여권 사본</span>
+              </div>
+              <div class="row gap12" style="align-items:center;padding:12px 16px;background:#FFF5F5;border-radius:8px;">
+                <div style="width:8px;height:8px;background:var(--red);border-radius:50%;flex-shrink:0;"></div>
+                <span class="t-micro" style="color:var(--dark);">표준근로계약서 사본</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="t-micro c-muted2" style="margin-bottom:8px;">이전 기록</div>
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;font-size:var(--type-micro);color:#555;">3일 전 서류 요청 기록 있음</div>
+          </div>
+        </div>
+
+        <!-- drafts -->
+        <div class="col flex1 gap20">
+          <div class="card col gap16" style="flex:1;">
+            <div class="row" style="justify-content:space-between;align-items:center;">
+              <div class="t-small" style="font-weight:700;color:var(--dark);">메시지 초안 (베트남어)</div>
+              <span style="padding:4px 12px;background:#FFF8E0;border:1px solid #FFD966;border-radius:6px;font-size:var(--type-micro);color:#997700;font-weight:700;">VN</span>
+            </div>
+            <p class="t-micro c-muted3" style="line-height:1.9;font-style:italic;">Xin chào anh Nguyen Van A,<br>Thị thực của anh sẽ hết hạn vào ngày 20/06/2026.<br>Vui lòng chuẩn bị: Bản sao hộ chiếu / Hợp đồng lao động tiêu chuẩn.</p>
+          </div>
+          <div class="card col gap16" style="flex:1;">
+            <div class="row" style="justify-content:space-between;align-items:center;">
+              <div class="t-small" style="font-weight:700;color:var(--dark);">한국어 요약</div>
+              <span style="padding:4px 12px;background:#EBF3FF;border:1px solid #CCE0FF;border-radius:6px;font-size:var(--type-micro);color:#0055CC;font-weight:700;">KR</span>
+            </div>
+            <p class="t-micro c-muted3" style="line-height:1.9;">안녕하세요 Nguyen Van A 씨,<br>체류기간 만료(2026.06.20)가 임박해 있습니다.<br>여권 사본 + 표준근로계약서 사본 제출이 필요합니다.</p>
+          </div>
+          <!-- response scenarios -->
+          <div style="background:#F0F5FF;border-radius:14px;padding:22px 28px;">
+            <div class="t-micro" style="color:#0055CC;font-weight:700;margin-bottom:12px;">예상 응답 시나리오 → 다음 행동 제안</div>
+            <div class="row gap16">
+              <div style="flex:1;padding:12px 16px;background:#fff;border-radius:8px;text-align:center;">
+                <div class="t-micro c-green" style="font-weight:700;margin-bottom:4px;">긍정</div>
+                <div style="font-size:var(--type-micro);color:#555;">서류 수신 확인</div>
+              </div>
+              <div style="flex:1;padding:12px 16px;background:#fff;border-radius:8px;text-align:center;">
+                <div class="t-micro c-orange" style="font-weight:700;margin-bottom:4px;">질문</div>
+                <div style="font-size:var(--type-micro);color:#555;">추가 안내 제안</div>
+              </div>
+              <div style="flex:1;padding:12px 16px;background:#fff;border-radius:8px;text-align:center;">
+                <div class="t-micro c-red" style="font-weight:700;margin-bottom:4px;">지연</div>
+                <div style="font-size:var(--type-micro);color:#555;">에스컬레이션</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 08 DEMO — SCENE 3: 승인·기록                    -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="09 Demo — 승인·기록" style="background:#fff;">
+    <div class="slide-pad" style="gap:36px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Demo — Scene 3</span></div>
+        <h2 class="t-title" style="color:var(--dark);">승인 전 실행 불가 — 기록은 자동</h2>
+      </div>
+
+      <div class="row flex1 gap40" style="align-items:stretch;">
+        <!-- agent steps -->
+        <div class="col flex1 gap16" style="justify-content:center;">
+          <p class="t-small" style="font-weight:700;color:#555;margin-bottom:4px;">Live Agent 처리 단계</p>
+          <div class="col gap12">
+            <div style="padding:20px 28px;background:#F0F5FF;border-radius:12px;display:flex;gap:16px;align-items:center;">
+              <div style="width:34px;height:34px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--type-micro);font-weight:700;color:#fff;flex-shrink:0;">1</div>
+              <span class="t-small" style="font-weight:500;color:var(--dark);">근로자 정보 확인</span>
+              <span style="margin-left:auto;font-size:var(--type-small);color:var(--green);font-weight:700;">✓</span>
+            </div>
+            <div style="padding:20px 28px;background:#F0F5FF;border-radius:12px;display:flex;gap:16px;align-items:center;">
+              <div style="width:34px;height:34px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--type-micro);font-weight:700;color:#fff;flex-shrink:0;">2</div>
+              <span class="t-small" style="font-weight:500;color:var(--dark);">이전 대화 / 업무 기록 확인</span>
+              <span style="margin-left:auto;font-size:var(--type-small);color:var(--green);font-weight:700;">✓</span>
+            </div>
+            <div style="padding:20px 28px;background:#F0F5FF;border-radius:12px;display:flex;gap:16px;align-items:center;">
+              <div style="width:34px;height:34px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--type-micro);font-weight:700;color:#fff;flex-shrink:0;">3</div>
+              <span class="t-small" style="font-weight:500;color:var(--dark);">메시지 초안 생성</span>
+              <span style="margin-left:auto;font-size:var(--type-small);color:var(--green);font-weight:700;">✓</span>
+            </div>
+            <div style="padding:20px 28px;background:#FFF8E0;border-radius:12px;border:2px solid #FFD966;display:flex;gap:16px;align-items:center;">
+              <div style="width:34px;height:34px;background:var(--orange);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:var(--type-micro);font-weight:700;color:#fff;flex-shrink:0;">4</div>
+              <span class="t-small" style="font-weight:700;color:var(--dark);">발송 전 승인 대기</span>
+              <span style="margin-left:auto;font-size:var(--type-small);color:var(--orange);">⏳</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="vdivider"></div>
+
+        <!-- evidence log -->
+        <div class="col flex1 gap20" style="justify-content:center;">
+          <p class="t-small" style="font-weight:700;color:#555;margin-bottom:4px;">승인 후 — Evidence Log</p>
+          <div style="background:var(--light);border-radius:16px;padding:28px;display:flex;flex-direction:column;gap:14px;">
+            <div class="ev-row" style="border-left:4px solid var(--green);">
+              <div>
+                <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:2px;">메시지 발송 승인</div>
+                <div style="font-size:var(--type-micro);color:#888;">담당자 승인 · 2026.05.14 14:32</div>
+              </div>
+              <span style="font-size:var(--type-micro);color:var(--green);font-weight:700;">#4789</span>
+            </div>
+            <div class="ev-row" style="border-left:4px solid var(--blue);">
+              <div>
+                <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:2px;">베트남어 요청 메시지 발송</div>
+                <div style="font-size:var(--type-micro);color:#888;">Nguyen Van A · 체류만료 서류 요청</div>
+              </div>
+              <span style="font-size:var(--type-micro);color:var(--blue);font-weight:700;">#4790</span>
+            </div>
+            <div class="ev-row" style="border-left:4px solid #888;">
+              <div>
+                <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:2px;">Evidence 자동 저장</div>
+                <div style="font-size:var(--type-micro);color:#888;">판단 근거 · 승인 이력 · 실행 기록</div>
+              </div>
+              <span style="font-size:var(--type-micro);color:#888;font-weight:700;">#4791</span>
+            </div>
+          </div>
+          <div style="padding:20px 24px;background:#F0F5FF;border-radius:12px;">
+            <p class="t-micro" style="color:#0055CC;line-height:1.7;"><strong>Append-only 기록</strong> — 원문 PII 저장 없이<br>trace_id 기반으로 감사·재현이 가능합니다</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 09 WORKFLOW                                     -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="10 Workflow" style="background:var(--dark-2);">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Workflow</span></div>
+        <h2 class="t-title c-white">모든 케이스의 동일한 5단계 흐름</h2>
+      </div>
+
+      <div class="row flex1" style="align-items:stretch;gap:0;">
+
+        <!-- step 1 -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:20px;padding:32px 20px;">
+          <div style="width:72px;height:72px;background:rgba(0,102,255,0.2);border:2px solid var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" fill="#0066FF"/></svg>
+          </div>
+          <div style="text-align:center;">
+            <div class="t-sub c-white" style="margin-bottom:8px;">감지</div>
+            <div class="t-micro c-muted" style="line-height:1.7;">D-day / 필수조건<br>누락 · 변경</div>
+          </div>
+        </div>
+
+        <div class="arrow-right">→</div>
+
+        <!-- step 2 -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:20px;padding:32px 20px;">
+          <div style="width:72px;height:72px;background:rgba(0,102,255,0.2);border:2px solid var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z" fill="#0066FF"/></svg>
+          </div>
+          <div style="text-align:center;">
+            <div class="t-sub c-white" style="margin-bottom:8px;">분석</div>
+            <div class="t-micro c-muted" style="line-height:1.7;">리스크 레벨<br>이유 · 근거</div>
+          </div>
+        </div>
+
+        <div class="arrow-right">→</div>
+
+        <!-- step 3 -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:20px;padding:32px 20px;">
+          <div style="width:72px;height:72px;background:rgba(0,102,255,0.2);border:2px solid var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z" fill="#0066FF"/></svg>
+          </div>
+          <div style="text-align:center;">
+            <div class="t-sub c-white" style="margin-bottom:8px;">준비</div>
+            <div class="t-micro c-muted" style="line-height:1.7;">실행 패키지<br>메시지 · 서류</div>
+          </div>
+        </div>
+
+        <div class="arrow-right">→</div>
+
+        <!-- step 4 (highlighted) -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:20px;padding:32px 20px;background:rgba(0,102,255,0.1);border-radius:16px;border:1px solid rgba(0,102,255,0.3);">
+          <div style="width:72px;height:72px;background:rgba(0,102,255,0.35);border:2px solid var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" fill="#0066FF"/></svg>
+          </div>
+          <div style="text-align:center;">
+            <div class="t-sub c-blue" style="margin-bottom:8px;font-weight:800;">승인</div>
+            <div class="t-micro c-muted" style="line-height:1.7;">승인 전 실행 불가<br>Human Gate</div>
+          </div>
+        </div>
+
+        <div class="arrow-right">→</div>
+
+        <!-- step 5 -->
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:20px;padding:32px 20px;">
+          <div style="width:72px;height:72px;background:rgba(0,102,255,0.2);border:2px solid var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z" fill="#0066FF"/></svg>
+          </div>
+          <div style="text-align:center;">
+            <div class="t-sub c-white" style="margin-bottom:8px;">기록</div>
+            <div class="t-micro c-muted" style="line-height:1.7;">Evidence Append-only<br>감사 · 재현 가능</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 10 ARCHITECTURE                                 -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="11 Architecture" style="background:#fff;">
+    <div class="slide-pad" style="flex-direction:row;gap:56px;padding-top:80px;padding-bottom:60px;">
+
+      <!-- left: stack diagram -->
+      <div class="col" style="flex:1;gap:28px;justify-content:flex-start;">
+        <div>
+          <div class="slide-section-label"><span class="t-label c-blue">Architecture</span></div>
+          <h2 class="t-title" style="color:var(--dark);">통제된<br>Agentic Workflow</h2>
+        </div>
+
+        <div class="col gap0" style="flex:1;justify-content:stretch;">
+          <div style="padding:16px 22px;background:var(--light);border-radius:12px 12px 0 0;border-bottom:1px solid var(--line);">
+            <div class="t-label" style="color:#888;margin-bottom:4px;">Entry</div>
+            <div class="t-micro c-dark">User Chat · Daily Briefing Scheduler · Admin Upload</div>
+          </div>
+          <div style="padding:16px 22px;background:#FFF8E0;border-bottom:1px solid var(--line);">
+            <div class="t-label" style="color:#997700;margin-bottom:4px;">Input Guard</div>
+            <div class="t-micro c-dark">PII Masking · Tenant Scope · Rate Limit</div>
+          </div>
+          <div style="padding:16px 22px;background:#F0F5FF;border-bottom:1px solid var(--line);">
+            <div class="t-label" style="color:#0055CC;margin-bottom:4px;">Bounded Router</div>
+            <div class="t-micro c-dark">업무 의도 분류</div>
+          </div>
+          <div style="padding:16px 22px;background:#EBF3FF;border-bottom:1px solid var(--line);">
+            <div class="t-label" style="color:#0055CC;margin-bottom:4px;">3 Mission Agents</div>
+            <div class="t-micro c-dark">Workforce · Visa Document · Multilingual Contact</div>
+          </div>
+          <div style="padding:16px 22px;background:#F0F5FF;border-bottom:1px solid var(--line);">
+            <div class="t-label" style="color:#0055CC;margin-bottom:4px;">Rule · RAG · DB Tools</div>
+            <div class="t-micro c-dark">D-day · 누락서류 · 공식 근거 · 내부 데이터</div>
+          </div>
+          <div style="padding:16px 22px;background:#FFF0F0;border-bottom:1px solid var(--line);">
+            <div class="t-label" style="color:#CC3333;margin-bottom:4px;">Approval Gate</div>
+            <div class="t-micro c-dark">외부 발송 전 사람 승인 · pending-first</div>
+          </div>
+          <div style="padding:16px 22px;background:#F0FFF5;border-radius:0 0 12px 12px;">
+            <div class="t-label" style="color:#006B2A;margin-bottom:4px;">Evidence Log / Metrics</div>
+            <div class="t-micro c-dark">판단 근거 · 승인 이력 · 실행 기록</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right: RAG architecture image -->
+      <div class="col" style="flex:1.4;gap:20px;">
+        <div style="flex:1;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:var(--light);display:flex;align-items:center;justify-content:center;">
+          <img src="uploads/아키텍처.png" style="width:100%;height:100%;object-fit:contain;padding:16px;">
+        </div>
+        <div style="padding:20px 28px;background:var(--dark);border-radius:12px;">
+          <p class="t-micro" style="color:rgba(255,255,255,0.82);text-align:center;line-height:1.6;"><strong style="color:#fff;">AI는 준비하고, 사람은 승인하며,</strong> 실제 외부 실행은 통제됩니다</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 11 TECHNICAL TRUST                              -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="12 Technical Trust" style="background:var(--light);">
+    <div class="slide-pad" style="gap:40px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Technical Trust</span></div>
+        <h2 class="t-title" style="color:var(--dark);">안전·신뢰 설계 6원칙</h2>
+      </div>
+
+      <div class="g3 flex1" style="gap:20px;align-content:start;">
+        <div class="card col gap14">
+          <div class="t-small c-blue" style="font-weight:700;">01 단일 안전 기준</div>
+          <div class="t-micro c-muted3" style="line-height:1.75;">모든 요청은 PII 마스킹·tenant scope·rate limit을 거친 뒤 Agent Runtime으로 진입</div>
+        </div>
+        <div class="card col gap14">
+          <div class="t-small c-blue" style="font-weight:700;">02 3개의 Mission Agent</div>
+          <div class="t-micro c-muted3" style="line-height:1.75;">M1 Workforce / M2 Visa Document / M3 Multilingual Contact — 각자 세부 작업 순차 처리</div>
+        </div>
+        <div class="card col gap14">
+          <div class="t-small c-blue" style="font-weight:700;">03 순차 실행 선택</div>
+          <div class="t-micro c-muted3" style="line-height:1.75;">병렬 대신 순차 실행 — 상태 충돌·중복 호출·감사 로그 누락 방지</div>
+        </div>
+        <div class="card col gap14">
+          <div class="t-small c-blue" style="font-weight:700;">04 Rule/RAG + LLM 분리</div>
+          <div class="t-micro c-muted3" style="line-height:1.75;">위험 판단은 결정론적 Rule과 근거 — LLM은 설명·초안·요약에만 집중</div>
+        </div>
+        <div class="card col gap14">
+          <div class="t-small c-blue" style="font-weight:700;">05 Approval Gate</div>
+          <div class="t-micro c-muted3" style="line-height:1.75;">외부 발송·제출 자동 실행 없음 — pending-first 승인 구조 + outbox 기록</div>
+        </div>
+        <div class="card col gap14">
+          <div class="t-small c-blue" style="font-weight:700;">06 Evidence Log + Metrics</div>
+          <div class="t-micro c-muted3" style="line-height:1.75;">판단 근거·승인 이력·실행 상태 추적 — 원문 PII 미저장, trace_id 기반</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 12 ENGINEERING OVERVIEW                         -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="13 Engineering Overview" style="background:var(--dark);">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Engineering</span></div>
+        <h2 class="t-title c-white">엔지니어링이 보장해야 하는 4가지</h2>
+      </div>
+
+      <div class="g2 flex1" style="gap:28px;align-content:stretch;">
+        <div style="background:rgba(0,102,255,0.12);border-radius:20px;padding:48px;border:1.5px solid rgba(0,102,255,0.3);display:flex;flex-direction:column;gap:20px;">
+          <div style="width:52px;height:52px;background:rgba(0,102,255,0.25);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M9.5 3A6.5 6.5 0 0116 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 019.5 16 6.5 6.5 0 013 9.5 6.5 6.5 0 019.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5z" fill="#0066FF"/></svg>
+          </div>
+          <div>
+            <div class="t-sub c-white" style="margin-bottom:10px;">검색 품질</div>
+            <div class="t-micro c-muted" style="line-height:1.75;">정확한 근거 기반 RAG 파이프라인<br>라우팅 품질 · 불확실성 처리</div>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.05);border-radius:20px;padding:48px;border:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;gap:20px;">
+          <div style="width:52px;height:52px;background:rgba(255,255,255,0.08);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z" fill="rgba(255,255,255,0.7)"/></svg>
+          </div>
+          <div>
+            <div class="t-sub c-white" style="margin-bottom:10px;">비용</div>
+            <div class="t-micro c-muted" style="line-height:1.75;">운영 가능한 단가<br>캐싱 · 배치 · 계단식 추론</div>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.05);border-radius:20px;padding:48px;border:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;gap:20px;">
+          <div style="width:52px;height:52px;background:rgba(255,255,255,0.08);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" fill="rgba(255,255,255,0.7)"/></svg>
+          </div>
+          <div>
+            <div class="t-sub c-white" style="margin-bottom:10px;">보안</div>
+            <div class="t-micro c-muted" style="line-height:1.75;">PII / 권한 / 감사<br>테넌트 격리 · Human Gate</div>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.05);border-radius:20px;padding:48px;border:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;gap:20px;">
+          <div style="width:52px;height:52px;background:rgba(255,255,255,0.08);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z" fill="rgba(255,255,255,0.7)"/></svg>
+          </div>
+          <div>
+            <div class="t-sub c-white" style="margin-bottom:10px;">평가</div>
+            <div class="t-micro c-muted" style="line-height:1.75;">지표로 검증<br>Route / Rule / Citation / Approval</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 14 AGENT PATTERN                                -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="14 Agent Pattern" style="background:var(--dark);">
+    <div class="slide-pad" style="gap:36px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Engineering — 에이전트 패턴</span></div>
+        <h2 class="t-title c-white">Router · Mission Agent · Guardrail</h2>
+      </div>
+
+      <div class="row flex1 gap24" style="align-items:stretch;">
+        <!-- left: flow + router -->
+        <div class="col flex1 gap16" style="justify-content:flex-start;">
+          <p class="t-small c-white" style="font-weight:700;">전체 흐름</p>
+          <div class="col gap0">
+            <div style="padding:14px 20px;background:rgba(0,102,255,0.2);border-radius:10px 10px 0 0;border-bottom:1px solid rgba(255,255,255,0.08);">
+              <div class="t-micro c-white" style="font-weight:700;">입력 채널</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.5);">Daily Briefing (Scheduler) / User Chat</div>
+            </div>
+            <div style="padding:14px 20px;background:rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.08);">
+              <div class="t-micro c-white" style="font-weight:700;">Intent Router</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.5);">Bounded intent 정규화 → 미션 결정</div>
+            </div>
+            <div style="padding:14px 20px;background:rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.08);">
+              <div class="t-micro c-blue" style="font-weight:700;">Risk Rule Engine</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.5);">D-7 / D-30 경보 · 누락 감지 · 충돌 탐지</div>
+            </div>
+            <div style="padding:14px 20px;background:rgba(255,255,255,0.06);border-bottom:1px solid rgba(255,255,255,0.08);">
+              <div class="t-micro c-white" style="font-weight:700;">Mission Agent (LLM)</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.5);">Workforce / Visa Document / Multilingual Contact</div>
+            </div>
+            <div style="padding:14px 20px;background:rgba(255,146,0,0.15);border-bottom:1px solid rgba(255,255,255,0.08);">
+              <div class="t-micro" style="font-weight:700;color:var(--orange);">Approval Gate</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.5);">외부 발송·제출 전 반드시 사람 승인</div>
+            </div>
+            <div style="padding:14px 20px;background:rgba(0,191,64,0.12);border-radius:0 0 10px 10px;">
+              <div class="t-micro c-green" style="font-weight:700;">Evidence Log</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.5);">판단 근거 + 실행 이력 저장</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- middle: Rule vs LLM -->
+        <div class="col flex1 gap16" style="justify-content:flex-start;">
+          <p class="t-small c-white" style="font-weight:700;">Rule vs LLM 책임 분리</p>
+          <div style="padding:24px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:3px solid var(--red);flex:1;">
+            <div class="t-small" style="font-weight:700;color:var(--red);margin-bottom:12px;">Rule (결정론)</div>
+            <div class="col gap8">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.65);">D-7 / D-30 임계값 경보·우선순위</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.65);">필수 서류 누락 감지</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.65);">계약-체류일 불일치 탐지</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.65);">Case 생성 / 중복 방지 / Idempotency</div>
+            </div>
+          </div>
+          <div style="padding:24px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:3px solid var(--blue);flex:1;">
+            <div class="t-small c-blue" style="font-weight:700;margin-bottom:12px;">LLM (생성)</div>
+            <div class="col gap8">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.65);">다국어 메시지 초안</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.65);">응답 요약 / 행정사 전달문</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.65);">사용자 질문 자연어 응답</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.65);">설명 생성 (사용자 이해용)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- right: Safety / Guardrail -->
+        <div class="col flex1 gap16" style="justify-content:flex-start;">
+          <p class="t-small c-white" style="font-weight:700;">Safety / Guardrail 체크리스트</p>
+          <div class="col gap10" style="flex:1;">
+            <div style="padding:14px 18px;background:rgba(255,66,66,0.12);border-radius:8px;border-left:3px solid var(--red);">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);">AI 단독 법률 판단 금지</div>
+            </div>
+            <div style="padding:14px 18px;background:rgba(255,66,66,0.12);border-radius:8px;border-left:3px solid var(--red);">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);">비자 발급 가능 여부 확정 금지</div>
+            </div>
+            <div style="padding:14px 18px;background:rgba(255,66,66,0.12);border-radius:8px;border-left:3px solid var(--red);">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);">국적·성실도 등 가치 판단 금지</div>
+            </div>
+            <div style="padding:14px 18px;background:rgba(255,66,66,0.12);border-radius:8px;border-left:3px solid var(--red);">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);">대표 승인 전 외부 발송 금지</div>
+            </div>
+            <div style="padding:14px 18px;background:rgba(255,66,66,0.12);border-radius:8px;border-left:3px solid var(--red);">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);">정부 포털 자동 제출 금지</div>
+            </div>
+            <div style="padding:14px 18px;background:rgba(255,66,66,0.12);border-radius:8px;border-left:3px solid var(--red);">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);">PII 원문 로그 저장 금지</div>
+            </div>
+          </div>
+          <!-- summary quote -->
+          <div style="padding:20px 22px;background:rgba(0,102,255,0.15);border-radius:10px;border:1px solid rgba(0,102,255,0.3);">
+            <p style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);line-height:1.7;font-style:italic;">
+              Router가 미션을 고르고, Rule Engine이 케이스를 확정하고, Mission Agent는 승인 가능한 초안을 만들며, Approval Gate를 통과한 뒤에만 실행된다
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 15 인력확보 에이전트                              -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="15 인력확보 에이전트" style="background:var(--light);">
+    <div class="slide-pad" style="gap:28px;">
+      <div class="row" style="justify-content:space-between;align-items:flex-end;">
+        <div>
+          <div class="slide-section-label"><span class="t-label c-blue">Agent 1 — 인력 확보</span></div>
+          <h2 class="t-title" style="color:var(--dark);">E-9 인력 확보 에이전트</h2>
+        </div>
+        <div style="padding:10px 20px;background:var(--blue);border-radius:8px;">
+          <span class="t-micro" style="color:#fff;font-weight:700;">요청서·핸드오프 문서화 + 후보 준비도 7항목 rule check</span>
+        </div>
+      </div>
+
+      <div class="row flex1 gap20" style="align-items:stretch;">
+        <!-- 설계 -->
+        <div class="card col flex1 gap16">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">설계</div>
+          <div class="col gap10">
+            <div style="padding:14px 16px;background:#F0F5FF;border-radius:8px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">WorkforceAgent (Orchestrator)</div>
+              <div style="font-size:var(--type-micro);color:#555;">ForeignHiringState 입력 → 서브에이전트 순차 실행</div>
+            </div>
+            <div style="width:2px;height:12px;background:var(--line);margin-left:16px;"></div>
+            <div style="padding:14px 16px;background:#F0F5FF;border-radius:8px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">① WorkforceRequirementAgent</div>
+              <div style="font-size:var(--type-micro);color:#555;">companies.csv → 필수필드 검증 → visa_type=E-9 고정<br>WORKFORCE_CHECKS 5개 + handoff_questions 5개<br><span style="color:var(--orange);font-weight:600;">approval_required=true 항상</span></div>
+            </div>
+            <div style="width:2px;height:12px;background:var(--line);margin-left:16px;"></div>
+            <div style="padding:14px 16px;background:#F0F5FF;border-radius:8px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">② CandidateReadinessAgent</div>
+              <div style="font-size:var(--type-micro);color:#555;">candidates.csv → 7항목 rule-based 체크<br>여권·증명사진·건강검진·근무가능일·희망직무·숙소·근무조건<br><span style="color:var(--red);font-weight:600;">점수·순위·성실도 판단 금지</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 입력 -->
+        <div class="card col flex1 gap16">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">입력</div>
+          <div class="col gap10">
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;border-left:3px solid var(--green);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:3px;">공식 정책 문서 (Grade A/B)</div>
+              <div style="font-size:var(--type-micro);color:#888;">EPS 고용절차·구비서류·E-9 허용업종·표준근로계약서</div>
+            </div>
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;border-left:3px solid var(--blue);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:3px;">내부 템플릿·DB (Grade E)</div>
+              <div style="font-size:var(--type-micro);color:#888;">요청서 템플릿 · 체크리스트 · companies.csv · candidates.csv</div>
+            </div>
+            <div style="padding:12px 16px;background:#FFF5F5;border-radius:8px;border-left:3px solid #CCC;">
+              <div class="t-micro" style="font-weight:700;color:#888;margin-bottom:3px;">현재 없는 데이터 (외부 연동 필요)</div>
+              <div style="font-size:var(--type-micro);color:#AAA;">고용조정·임금체불·보험가입·구인노력 진행 상태</div>
+            </div>
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;border-left:3px solid var(--blue);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:3px;">RAG — similarity ≥ 0.4 게이트</div>
+              <div style="font-size:var(--type-micro);color:#888;">visa_type / evidence_grade 필터 + 버킷 분리 반환</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 출력 + 포인트 -->
+        <div class="col flex1 gap16">
+          <div class="card col gap14" style="flex:1.2;">
+            <div class="t-small" style="font-weight:700;color:var(--dark);">출력 (Human Approval 전)</div>
+            <div class="col gap8">
+              <div style="padding:10px 14px;background:#EBF3FF;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">신규 인력 요청서 초안 <span style="color:#888;">(필드 + missing_inputs + citations)</span></div>
+              <div style="padding:10px 14px;background:#EBF3FF;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">제도 체크리스트 5개 <span style="color:#888;">(업종·내국인구인노력·고용허가·표준계약·숙소)</span></div>
+              <div style="padding:10px 14px;background:#EBF3FF;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">후보 준비도 테이블 <span style="color:#888;">(ready / missing + risk_flag)</span></div>
+              <div style="padding:10px 14px;background:#FFF0F0;border-radius:8px;font-size:var(--type-micro);color:var(--red);font-weight:600;">CRITICAL → 행정사 핸드오프 패키지 초안</div>
+            </div>
+          </div>
+          <div style="padding:18px 20px;background:var(--dark);border-radius:12px;">
+            <div class="t-micro" style="color:var(--blue);font-weight:700;margin-bottom:8px;">핵심 포인트</div>
+            <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);line-height:1.7;">외부 실행(send_expert_package 등)은<br><strong style="color:#fff;">APPROVAL_REQUIRED</strong>로 분리,<br>나머지는 SAFE_*로 안전하게 분해</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 16 다국어컨택 에이전트                            -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="16 다국어컨택 에이전트" style="background:#fff;">
+    <div class="slide-pad" style="gap:28px;">
+      <div class="row" style="justify-content:space-between;align-items:flex-end;">
+        <div>
+          <div class="slide-section-label"><span class="t-label c-blue">Agent 2 — 다국어 컨택</span></div>
+          <h2 class="t-title" style="color:var(--dark);">다국어 컨택 에이전트</h2>
+        </div>
+        <div style="padding:10px 20px;background:var(--blue);border-radius:8px;">
+          <span class="t-micro" style="color:#fff;font-weight:700;">의도+언어 먼저 결정 → 안전 근거(A/B/E)로만 메시지 생성</span>
+        </div>
+      </div>
+
+      <div class="row flex1 gap20" style="align-items:stretch;">
+        <!-- 설계 -->
+        <div class="card col flex1 gap16">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">설계</div>
+          <div class="col gap10">
+            <div style="padding:14px 16px;background:#F0F5FF;border-radius:8px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">infer_intent()</div>
+              <div style="font-size:var(--type-micro);color:#555;">상담 / 안전 / 생활 / 공지 분류<br>스코어 부스트: intent -0.25</div>
+            </div>
+            <div style="padding:14px 16px;background:#F0F5FF;border-radius:8px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">infer_language_code()</div>
+              <div style="font-size:var(--type-micro);color:#555;">vi / id 언어 감지<br>스코어 부스트: lang -0.6</div>
+            </div>
+            <div style="padding:14px 16px;background:#F0FFF5;border-radius:8px;border-left:3px solid var(--green);">
+              <div class="t-micro c-green" style="font-weight:700;margin-bottom:4px;">RAG 안전 필터</div>
+              <div style="font-size:var(--type-micro);color:#555;">ANSWER_EVIDENCE: A/B/E만 인용 허용<br>F등급·금지 마커 차단<br>3단계 fallback (특정→관련→전체)</div>
+            </div>
+            <div style="padding:14px 16px;background:#F0F5FF;border-radius:8px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">① Onboarding Subagent</div>
+              <div style="font-size:var(--type-micro);color:#555;">CSV 템플릿 + RAG → LLM 번역 품질 검증 → KO+VI/ID 초안</div>
+            </div>
+            <div style="padding:14px 16px;background:#F0F5FF;border-radius:8px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">② Reply Interpreter Subagent</div>
+              <div style="font-size:var(--type-micro);color:#555;">근로자 답장 번역 → 한국어 요약 → 상태 업데이트 후보(rule-based)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 입력 -->
+        <div class="card col flex1 gap16">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">입력</div>
+          <div class="col gap10">
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;border-left:3px solid var(--green);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:3px;">공식 문서 (A/B)</div>
+              <div style="font-size:var(--type-micro);color:#888;">EPS/Law/Gov24/HiKorea 크롤러 수집<br>출입국법·고용허가 절차·법령</div>
+            </div>
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;border-left:3px solid var(--blue);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:3px;">다국어 템플릿 (E)</div>
+              <div style="font-size:var(--type-micro);color:#888;">message_templates.csv (vi/id)<br>안전·생활 가이드 PDF/HTML</div>
+            </div>
+            <div style="padding:12px 16px;background:#FFF5F5;border-radius:8px;border-left:3px solid #CCC;">
+              <div class="t-micro" style="font-weight:700;color:#888;margin-bottom:3px;">내부 케이스 (F — 근거 부적합)</div>
+              <div style="font-size:var(--type-micro);color:#AAA;">case_record: 인용 불가 마킹</div>
+            </div>
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;border-left:3px solid var(--blue);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:3px;">근로자 답장 (Reply 해석용)</div>
+              <div style="font-size:var(--type-micro);color:#888;">베트남어/인니어 원문 텍스트</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 출력 + 포인트 -->
+        <div class="col flex1 gap16">
+          <div class="card col gap14" style="flex:1.2;">
+            <div class="t-small" style="font-weight:700;color:var(--dark);">출력 (Human Approval 전)</div>
+            <div class="col gap8">
+              <div style="padding:10px 14px;background:#EBF3FF;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">메시지 초안 <span style="color:#888;">(KO 원문 + VI/ID 번역 + citation_ids)</span></div>
+              <div style="padding:10px 14px;background:#EBF3FF;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">예상 응답 시나리오 <span style="color:#888;">(긍정 / 질문 / 지연)</span></div>
+              <div style="padding:10px 14px;background:#FFF8E0;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">Human Approval → ExternalDeliveryJob <span style="color:#888;">(Zalo·이메일·수동)</span></div>
+              <div style="padding:10px 14px;background:#F0FFF5;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">EvidenceEvent <span style="color:#888;">(RAG_RETRIEVED · APPROVAL_REQUESTED · redacted_hash)</span></div>
+            </div>
+          </div>
+          <div style="padding:18px 20px;background:var(--dark);border-radius:12px;">
+            <div class="t-micro" style="color:var(--blue);font-weight:700;margin-bottom:8px;">핵심 포인트</div>
+            <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);line-height:1.7;">의도+언어를 <strong style="color:#fff;">먼저 결정</strong>한 뒤 RAG 검색 → 답장 해석(Reply Interpreter)은 번역+요약까지만, <strong style="color:#fff;">외부 발송은 승인 후</strong>로 분리</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 17 비자서류 에이전트                              -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="17 비자서류 에이전트" style="background:var(--light);">
+    <div class="slide-pad" style="gap:28px;">
+      <div class="row" style="justify-content:space-between;align-items:flex-end;">
+        <div>
+          <div class="slide-section-label"><span class="t-label c-blue">Agent 3 — 비자 서류</span></div>
+          <h2 class="t-title" style="color:var(--dark);">비자 서류 에이전트</h2>
+        </div>
+        <div style="padding:10px 20px;background:var(--blue);border-radius:8px;">
+          <span class="t-micro" style="color:#fff;font-weight:700;">LangGraph 런타임 + 위험도·우선순위 2서브에이전트 → Aggregator 병합</span>
+        </div>
+      </div>
+
+      <!-- LangGraph flow -->
+      <div style="background:#fff;border-radius:14px;padding:20px 28px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+        <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:12px;">설계 — LangGraph 런타임 흐름</div>
+        <div class="row gap0" style="align-items:center;">
+          <div style="padding:10px 14px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;"><div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">Intent<br>Router</div></div>
+          <div style="color:var(--blue);padding:0 6px;font-size:24px;">→</div>
+          <div style="padding:10px 14px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;"><div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">Planner</div></div>
+          <div style="color:var(--blue);padding:0 6px;font-size:24px;">→</div>
+          <div style="padding:10px 14px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;"><div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">State<br>Loader</div></div>
+          <div style="color:var(--blue);padding:0 6px;font-size:24px;">→</div>
+          <div style="padding:10px 14px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;"><div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">Executor</div></div>
+          <div style="color:var(--blue);padding:0 6px;font-size:24px;">→</div>
+          <div style="padding:10px 14px;background:#FFF8E0;border-radius:8px;text-align:center;flex:1;border:1px solid #FFD966;"><div style="font-size:var(--type-micro);font-weight:700;color:var(--orange);">Approval<br>Gate 🔒</div></div>
+          <div style="color:var(--blue);padding:0 6px;font-size:24px;">→</div>
+          <div style="padding:10px 14px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;"><div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">Aggregator</div></div>
+          <div style="color:var(--blue);padding:0 6px;font-size:24px;">→</div>
+          <div style="padding:10px 14px;background:#F0FFF5;border-radius:8px;text-align:center;flex:1;"><div style="font-size:var(--type-micro);font-weight:700;color:var(--green);">Evidence<br>Logger</div></div>
+        </div>
+      </div>
+
+      <div class="row flex1 gap20" style="align-items:stretch;">
+        <!-- 입력 -->
+        <div class="card col gap14" style="flex:1;">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">입력</div>
+          <div class="col gap8">
+            <div style="padding:10px 14px;background:var(--light);border-radius:8px;border-left:3px solid var(--blue);"><div style="font-size:var(--type-micro);color:var(--dark);"><strong>DB/사업장</strong><br><span style="color:#888;">근로자·비자·서류·계약 데이터</span></div></div>
+            <div style="padding:10px 14px;background:var(--light);border-radius:8px;border-left:3px solid var(--green);"><div style="font-size:var(--type-micro);color:var(--dark);"><strong>RAG 벡터스토어</strong><br><span style="color:#888;">출입국법·고용허가·서식</span></div></div>
+            <div style="padding:10px 14px;background:var(--light);border-radius:8px;border-left:3px solid var(--orange);"><div style="font-size:var(--type-micro);color:var(--dark);"><strong>사용자 요청</strong><br><span style="color:#888;">자연어 또는 스케줄 트리거</span></div></div>
+            <div style="padding:10px 14px;background:var(--light);border-radius:8px;border-left:3px solid #888;"><div style="font-size:var(--type-micro);color:var(--dark);"><strong>Middleware</strong><br><span style="color:#888;">PII Filter · Call Limiter · Summarizer</span></div></div>
+          </div>
+        </div>
+
+        <!-- 서브에이전트 -->
+        <div class="col gap14" style="flex:1.3;">
+          <div class="card col gap12">
+            <div class="t-small c-blue" style="font-weight:700;">Sub-agent 1 — 비자 위험도 분석</div>
+            <div style="font-size:var(--type-micro);color:#555;">_run_visa_risk_sub_agent() · ReAct LLM 루프<br>D-day / 체류유형 / 계약 교차 분석<br>calculate_visa_d_day · assess_visa_risk</div>
+          </div>
+          <div class="card col gap12">
+            <div class="t-small c-blue" style="font-weight:700;">Sub-agent 2 — 서류 우선순위 분석</div>
+            <div style="font-size:var(--type-micro);color:#555;">_run_document_priority_sub_agent() · ReAct LLM 루프<br>누락서류 / CRITICAL vs SUPPLEMENTARY 분류<br>calculate_missing_documents · assess_document_priority</div>
+          </div>
+        </div>
+
+        <!-- 출력 + 포인트 -->
+        <div class="col flex1 gap16">
+          <div class="card col gap12" style="flex:1.2;">
+            <div class="t-small" style="font-weight:700;color:var(--dark);">출력 (Human Approval 전)</div>
+            <div class="col gap8">
+              <div style="padding:10px 14px;background:#EBF3FF;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">DailyBriefingItem <span style="color:#888;">(리스크 요약 + D-day + citation_ids)</span></div>
+              <div style="padding:10px 14px;background:#EBF3FF;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">NextAction <span style="color:#888;">(request_document / create_handoff)</span></div>
+              <div style="padding:10px 14px;background:#F0FFF5;border-radius:8px;font-size:var(--type-micro);color:var(--dark);">EvidenceEvent <span style="color:#888;">(hash · node_name · actor_type)</span></div>
+              <div style="padding:10px 14px;background:#FFF8E0;border-radius:8px;font-size:var(--type-micro);color:var(--orange);font-weight:600;">승인 후 → ExternalDeliveryJob 생성</div>
+            </div>
+          </div>
+          <div style="padding:18px 20px;background:var(--dark);border-radius:12px;">
+            <div class="t-micro" style="color:var(--blue);font-weight:700;margin-bottom:8px;">핵심 포인트</div>
+            <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.75);line-height:1.7;">위험도와 서류 우선순위를 <strong style="color:#fff;">별도 서브에이전트</strong>가 각각 처리 → <strong style="color:#fff;">Aggregator 병합</strong>. 오케스트레이터는 CRITICAL 감지 시 handoff로 자동 분기</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════════════════════════════ -->
+        <div class="col" style="flex:0.9;gap:12px;">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">Tool 위험도 등급</p>
+          <div class="col gap10">
+            <div style="padding:14px 18px;background:#fff;border-radius:10px;border-left:4px solid var(--green);box-shadow:0 1px 6px rgba(0,0,0,0.04);">
+              <div class="t-micro c-green" style="font-weight:700;margin-bottom:3px;">SAFE_READ</div>
+              <div style="font-size:var(--type-micro);color:#555;">get_company_profile · get_candidate_profile<br>search_policy_documents · get_document_requirements</div>
+            </div>
+            <div style="padding:14px 18px;background:#fff;border-radius:10px;border-left:4px solid var(--blue);box-shadow:0 1px 6px rgba(0,0,0,0.04);">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:3px;">SAFE_CALCULATE</div>
+              <div style="font-size:var(--type-micro);color:#555;">calculate_candidate_readiness · assess_visa_risk<br>calculate_missing_documents · quota_tool</div>
+            </div>
+            <div style="padding:14px 18px;background:#fff;border-radius:10px;border-left:4px solid var(--orange);box-shadow:0 1px 6px rgba(0,0,0,0.04);">
+              <div class="t-micro c-orange" style="font-weight:700;margin-bottom:3px;">SAFE_DRAFT</div>
+              <div style="font-size:var(--type-micro);color:#555;">generate_hiring_request_draft<br>generate_expert_handoff_package</div>
+            </div>
+            <div style="padding:14px 18px;background:#FFF0F0;border-radius:10px;border-left:4px solid var(--red);box-shadow:0 1px 6px rgba(0,0,0,0.04);">
+              <div class="t-micro c-red" style="font-weight:700;margin-bottom:3px;">APPROVAL_REQUIRED 🔒</div>
+              <div style="font-size:var(--type-micro);color:#555;">send_expert_package<br>update_case_status_completed</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-agents -->
+        <div class="col flex1 gap12">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">서브 에이전트 (순차 실행)</p>
+          <div class="col gap12" style="flex:1;">
+            <div style="padding:22px 24px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);flex:1;">
+              <div class="t-small c-blue" style="font-weight:700;margin-bottom:10px;">① WorkforceRequirementAgent</div>
+              <div class="col gap6">
+                <div style="font-size:var(--type-micro);color:#555;">companies.csv 로드 → 필수필드 검증 → visa_type=E-9 고정</div>
+                <div style="font-size:var(--type-micro);color:#555;">WORKFORCE_CHECKS 5개 자동 포함 + handoff_questions 5개 생성</div>
+                <div style="font-size:var(--type-micro);color:var(--orange);font-weight:600;">approval_required = true (항상)</div>
+              </div>
+            </div>
+            <div style="width:2px;height:16px;background:var(--line);margin-left:20px;"></div>
+            <div style="padding:22px 24px;background:#fff;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);flex:1;">
+              <div class="t-small c-blue" style="font-weight:700;margin-bottom:10px;">② CandidateReadinessAgent</div>
+              <div class="col gap6">
+                <div style="font-size:var(--type-micro);color:#555;">candidates.csv → 7항목 <strong>rule-based 체크</strong></div>
+                <div style="font-size:var(--type-micro);color:#555;">여권·증명사진·건강검진·근무가능일·희망직무·숙소·근무조건</div>
+                <div style="font-size:var(--type-micro);color:var(--red);font-weight:600;">점수·순위·성실도 "판단" 금지 (가드레일)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 출력물 -->
+        <div class="col" style="flex:0.9;gap:12px;">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">출력물 (HITL 전)</p>
+          <div class="col gap10">
+            <div style="padding:16px 18px;background:#EBF3FF;border-radius:10px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">신규 인력 요청서 초안</div>
+              <div style="font-size:var(--type-micro);color:#555;">필드 + missing_inputs + citations</div>
+            </div>
+            <div style="padding:16px 18px;background:#EBF3FF;border-radius:10px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">제도 체크리스트 5개</div>
+              <div style="font-size:var(--type-micro);color:#555;">업종/내국인구인노력/고용허가/표준계약/숙소·교대</div>
+            </div>
+            <div style="padding:16px 18px;background:#EBF3FF;border-radius:10px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">후보 준비도 테이블</div>
+              <div style="font-size:var(--type-micro);color:#555;">ready / missing_required_info + risk_flag</div>
+            </div>
+            <div style="padding:16px 18px;background:#FFF0F0;border-radius:10px;border:1px solid #FFCCCC;">
+              <div class="t-micro c-red" style="font-weight:700;margin-bottom:4px;">CRITICAL → 핸드오프</div>
+              <div style="font-size:var(--type-micro);color:#555;">행정사 핸드오프 패키지 초안 자동 생성</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 16 다국어컨택 에이전트                            -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="16 다국어컨택 에이전트" style="background:#fff;">
+    <div class="slide-pad" style="gap:32px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Mission Agent 2</span></div>
+        <h2 class="t-title" style="color:var(--dark);">다국어 컨택 에이전트</h2>
+      </div>
+
+      <div class="row flex1 gap24" style="align-items:stretch;">
+        <!-- 입력/분류 -->
+        <div class="col flex1 gap12">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">입력 → 분류 → RAG 필터</p>
+          <div class="col gap10" style="flex:1;justify-content:center;">
+            <div style="padding:16px 18px;background:var(--light);border-radius:10px;border-left:3px solid var(--blue);">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:3px;">infer_intent()</div>
+              <div style="font-size:var(--type-micro);color:#555;">상담 / 안전 / 생활 / 공지 분류</div>
+            </div>
+            <div style="padding:16px 18px;background:var(--light);border-radius:10px;border-left:3px solid var(--blue);">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:3px;">infer_language_code()</div>
+              <div style="font-size:var(--type-micro);color:#555;">vi / id 언어 감지</div>
+            </div>
+            <div style="padding:16px 18px;background:var(--light);border-radius:10px;border-left:3px solid var(--green);">
+              <div class="t-micro c-green" style="font-weight:700;margin-bottom:3px;">RAG 안전 필터</div>
+              <div style="font-size:var(--type-micro);color:#555;">A/B/E 등급만 인용 허용<br>F등급·금지 마커 차단</div>
+            </div>
+            <div style="padding:16px 18px;background:var(--light);border-radius:10px;border-left:3px solid var(--orange);">
+              <div class="t-micro c-orange" style="font-weight:700;margin-bottom:3px;">3단계 Fallback</div>
+              <div style="font-size:var(--type-micro);color:#555;">특정 → 관련 → 전체 doc_type</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-agents -->
+        <div class="col flex1 gap12">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">서브 에이전트</p>
+          <div class="col gap12" style="flex:1;">
+            <div style="padding:22px 24px;background:var(--light);border-radius:12px;flex:1;">
+              <div class="t-small c-blue" style="font-weight:700;margin-bottom:10px;">① Onboarding Subagent</div>
+              <div class="col gap6">
+                <div style="font-size:var(--type-micro);color:#555;">CSV 템플릿 로드 + RAG 검색</div>
+                <div style="font-size:var(--type-micro);color:#555;">LLM 번역 품질 검증</div>
+                <div style="font-size:var(--type-micro);color:#555;">KO + VI/ID 초안 + citation_ids 생성</div>
+              </div>
+            </div>
+            <div style="width:2px;height:16px;background:var(--line);margin-left:20px;"></div>
+            <div style="padding:22px 24px;background:var(--light);border-radius:12px;flex:1;">
+              <div class="t-small c-blue" style="font-weight:700;margin-bottom:10px;">② Reply Interpreter Subagent</div>
+              <div class="col gap6">
+                <div style="font-size:var(--type-micro);color:#555;">근로자 답장 번역 → 한국어 요약</div>
+                <div style="font-size:var(--type-micro);color:#555;">상태 업데이트 후보 (rule-based) 제안</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 출력/HITL -->
+        <div class="col flex1 gap12">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">출력 → Human Approval → 발송</p>
+          <div class="col gap10" style="flex:1;justify-content:center;">
+            <div style="padding:16px 18px;background:#EBF3FF;border-radius:10px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">메시지 초안</div>
+              <div style="font-size:var(--type-micro);color:#555;">KO 원문 + VI/ID 번역 + citation_ids</div>
+            </div>
+            <div style="padding:16px 18px;background:#EBF3FF;border-radius:10px;">
+              <div class="t-micro c-blue" style="font-weight:700;margin-bottom:4px;">예상 응답 시나리오</div>
+              <div style="font-size:var(--type-micro);color:#555;">긍정 / 질문 / 지연</div>
+            </div>
+            <div style="padding:16px 18px;background:#FFF8E0;border-radius:10px;border:1px solid #FFD966;">
+              <div class="t-micro c-orange" style="font-weight:700;margin-bottom:4px;">Human Approval Gate</div>
+              <div style="font-size:var(--type-micro);color:#555;">승인 후 ExternalDeliveryJob<br>Zalo / 이메일 / 수동 발송</div>
+            </div>
+            <div style="padding:16px 18px;background:#F0FFF5;border-radius:10px;">
+              <div class="t-micro c-green" style="font-weight:700;margin-bottom:4px;">EvidenceEvent 기록</div>
+              <div style="font-size:var(--type-micro);color:#555;">RAG_RETRIEVED / APPROVAL_REQUESTED<br>trace_id / redacted_hash</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 17 비자서류 에이전트                              -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="17 비자서류 에이전트" style="background:var(--light);">
+    <div class="slide-pad" style="gap:32px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Mission Agent 3</span></div>
+        <h2 class="t-title" style="color:var(--dark);">비자 서류 에이전트</h2>
+      </div>
+
+      <div class="col flex1 gap20">
+        <!-- LangGraph 런타임 흐름 -->
+        <div style="background:#fff;border-radius:14px;padding:24px 32px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+          <p class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:16px;">LangGraph 런타임 흐름</p>
+          <div class="row gap0" style="align-items:center;">
+            <div style="padding:10px 16px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;">
+              <div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">Intent<br>Router</div>
+            </div>
+            <div class="arrow-right" style="font-size:24px;padding:0 6px;">→</div>
+            <div style="padding:10px 16px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;">
+              <div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">Planner</div>
+            </div>
+            <div class="arrow-right" style="font-size:24px;padding:0 6px;">→</div>
+            <div style="padding:10px 16px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;">
+              <div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">State<br>Loader</div>
+            </div>
+            <div class="arrow-right" style="font-size:24px;padding:0 6px;">→</div>
+            <div style="padding:10px 16px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;">
+              <div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">Executor</div>
+            </div>
+            <div class="arrow-right" style="font-size:24px;padding:0 6px;">→</div>
+            <div style="padding:10px 16px;background:#FFF8E0;border-radius:8px;text-align:center;flex:1;border:1px solid #FFD966;">
+              <div style="font-size:var(--type-micro);font-weight:700;color:var(--orange);">Approval<br>Gate 🔒</div>
+            </div>
+            <div class="arrow-right" style="font-size:24px;padding:0 6px;">→</div>
+            <div style="padding:10px 16px;background:#F0F5FF;border-radius:8px;text-align:center;flex:1;">
+              <div style="font-size:var(--type-micro);font-weight:700;color:var(--blue);">Aggregator</div>
+            </div>
+            <div class="arrow-right" style="font-size:24px;padding:0 6px;">→</div>
+            <div style="padding:10px 16px;background:#F0FFF5;border-radius:8px;text-align:center;flex:1;">
+              <div style="font-size:var(--type-micro);font-weight:700;color:var(--green);">Evidence<br>Logger</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub-agents + Output -->
+        <div class="row gap24" style="flex:1;align-items:stretch;">
+          <div style="flex:1;background:#fff;border-radius:14px;padding:28px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+            <div class="t-small c-blue" style="font-weight:700;margin-bottom:14px;">Sub-agent 1 — 비자 위험도 분석</div>
+            <div class="col gap8">
+              <div style="font-size:var(--type-micro);color:#555;">_run_visa_risk_sub_agent() · ReAct LLM 루프</div>
+              <div style="font-size:var(--type-micro);color:#555;">D-day / 체류유형 / 계약 교차 분석</div>
+              <div style="font-size:var(--type-micro);color:#555;">SAFE_CALCULATE: calculate_visa_d_day · assess_visa_risk</div>
+            </div>
+          </div>
+          <div style="flex:1;background:#fff;border-radius:14px;padding:28px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+            <div class="t-small c-blue" style="font-weight:700;margin-bottom:14px;">Sub-agent 2 — 서류 우선순위 분석</div>
+            <div class="col gap8">
+              <div style="font-size:var(--type-micro);color:#555;">_run_document_priority_sub_agent() · ReAct LLM 루프</div>
+              <div style="font-size:var(--type-micro);color:#555;">누락서류 / CRITICAL vs SUPPLEMENTARY 분류</div>
+              <div style="font-size:var(--type-micro);color:#555;">SAFE_CALCULATE: calculate_missing_documents · assess_document_priority</div>
+            </div>
+          </div>
+          <div style="flex:1;background:#fff;border-radius:14px;padding:28px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+            <div class="t-small c-blue" style="font-weight:700;margin-bottom:14px;">출력 (Human Approval 전)</div>
+            <div class="col gap8">
+              <div style="font-size:var(--type-micro);color:#555;"><strong>DailyBriefingItem:</strong> 리스크 요약 + D-day + citation_ids</div>
+              <div style="font-size:var(--type-micro);color:#555;"><strong>NextAction:</strong> request_document / create_handoff</div>
+              <div style="font-size:var(--type-micro);color:#555;"><strong>EvidenceEvent:</strong> hash · node_name · actor_type</div>
+              <div style="font-size:var(--type-micro);color:var(--orange);font-weight:600;">승인 후 → ExternalDeliveryJob 생성</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 18 SEARCH QUALITY                               -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="18 Search Quality" style="background:#fff;">
+    <div class="slide-pad" style="gap:36px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Engineering — 검색 품질</span></div>
+        <h2 class="t-title" style="color:var(--dark);">RAG 파이프라인 + 라우팅 품질</h2>
+      </div>
+
+      <div class="row flex1 gap32" style="align-items:stretch;">
+        <!-- RAG pipeline -->
+        <div class="col flex1 gap24">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">RAG 파이프라인</p>
+          <div class="col gap0" style="flex:1;">
+            <div style="padding:16px 22px;background:#F0F5FF;border-radius:12px 12px 0 0;border-bottom:1px solid var(--line);">
+              <div class="t-micro" style="font-weight:700;color:#0055CC;margin-bottom:2px;">① 문서 소스</div>
+              <div class="t-micro c-muted3">사내 문서 / PDF / Wiki / DB</div>
+            </div>
+            <div style="padding:16px 22px;background:#EBF3FF;border-bottom:1px solid var(--line);">
+              <div class="t-micro" style="font-weight:700;color:#0055CC;margin-bottom:2px;">② 정규화 / 청킹</div>
+              <div class="t-micro c-muted3">chunk text hash 기반 임베딩 캐시</div>
+            </div>
+            <div style="padding:16px 22px;background:#F0F5FF;border-bottom:1px solid var(--line);">
+              <div class="t-micro" style="font-weight:700;color:#0055CC;margin-bottom:2px;">③ 인덱싱</div>
+              <div class="t-micro c-muted3">변경분 중심 업데이트 · 버전/유효기간 관리</div>
+            </div>
+            <div style="padding:16px 22px;background:#EBF3FF;border-bottom:1px solid var(--line);">
+              <div class="t-micro" style="font-weight:700;color:#0055CC;margin-bottom:2px;">④ 검색 → 인용(Citation)</div>
+              <div class="t-micro c-muted3">stale evidence 탐지·차단</div>
+            </div>
+            <div style="padding:16px 22px;background:#F0F5FF;border-radius:0 0 12px 12px;">
+              <div class="t-micro" style="font-weight:700;color:#0055CC;margin-bottom:2px;">⑤ 답변 생성</div>
+              <div class="t-micro c-muted3">근거 없으면 강한 결론 금지 → 보류 / 재질문 / 승인 요청</div>
+            </div>
+          </div>
+          <!-- RAG 근거 추적 -->
+          <div style="padding:20px 24px;background:#F0F5FF;border-radius:12px;margin-top:8px;">
+            <div class="t-micro c-blue" style="font-weight:700;margin-bottom:10px;">RAG 품질 = "정답 생성"이 아닌 "근거 추적"</div>
+            <div class="col gap6">
+              <div style="font-size:var(--type-micro);color:#555;">근거가 언제 수집됐는지</div>
+              <div style="font-size:var(--type-micro);color:#555;">공식 문서인지 / 내부 문서인지 (A/B/E vs F등급)</div>
+              <div style="font-size:var(--type-micro);color:#555;">문서가 오래됐을 때 처리 방식 (stale evidence 탐지)</div>
+              <div style="font-size:var(--type-micro);color:#555;">어떤 답변에 어떤 근거가 쓰였는지 (답변-근거 연결)</div>
+              <div style="font-size:var(--type-micro);color:#555;">RAG 실패 시 fallback / 승인 플로우</div>
+            </div>
+          </div>
+          </div>
+        </div>
+
+        <div class="vdivider"></div>
+
+        <!-- Routing quality -->
+        <div class="col flex1 gap20" style="justify-content:flex-start;">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">라우팅 품질</p>
+          <div class="col gap14">
+            <div style="padding:22px 28px;background:var(--light);border-radius:12px;border-left:4px solid var(--blue);">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:6px;">Bounded Intent → 구조화된 Plan</div>
+              <div class="t-micro c-muted3">의도를 제한해야 필요한 데이터·툴·승인만 포함한 plan 생성 가능</div>
+            </div>
+            <div style="padding:22px 28px;background:var(--light);border-radius:12px;border-left:4px solid var(--red);">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:6px;">Rule vs LLM 책임 분리</div>
+              <div class="t-micro c-muted3"><strong>Rule:</strong> 필수조건 · 리스크 · 금지행동 · 승인 필요 여부<br><strong>LLM:</strong> 요약 · 작성 · 설명 · 플랜</div>
+            </div>
+            <div style="padding:22px 28px;background:var(--light);border-radius:12px;border-left:4px solid var(--orange);">
+              <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:6px;">불확실성 처리</div>
+              <div class="t-micro c-muted3">low_confidence → 재질문 or 안전한 fallback<br>unknown intent → 조회 모드 제한, 실행 액션 미생성</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 14 COST                                         -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="19 Cost" style="background:var(--light);">
+    <div class="slide-pad" style="gap:36px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Engineering — 비용</span></div>
+        <h2 class="t-title" style="color:var(--dark);">비용 설계 원칙</h2>
+      </div>
+
+      <div class="row flex1 gap28" style="align-items:stretch;">
+        <!-- cost sources -->
+        <div class="col" style="flex:0.9;gap:16px;justify-content:flex-start;">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">비용이 터지는 지점</p>
+          <div class="col gap12">
+            <div style="padding:18px 22px;background:#FFF8E0;border-radius:10px;border-left:3px solid var(--orange);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:2px;">문서 인덱싱 / 검색</div>
+              <div style="font-size:var(--type-micro);color:#888;">전체 재인덱싱 → 변경분 중심 업데이트</div>
+            </div>
+            <div style="padding:18px 22px;background:#FFF8E0;border-radius:10px;border-left:3px solid var(--orange);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:2px;">LLM 호출</div>
+              <div style="font-size:var(--type-micro);color:#888;">매 질문 풀 생성 → 라우팅·룰로 좁힌 뒤 필요 단계만</div>
+            </div>
+            <div style="padding:18px 22px;background:#FFF8E0;border-radius:10px;border-left:3px solid var(--orange);">
+              <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:2px;">대량 이벤트 (스케줄러)</div>
+              <div style="font-size:var(--type-micro);color:#888;">사업장·근로자 증가 → 배치 / 큐잉 / 캐싱 전략 필요</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="vdivider"></div>
+
+        <!-- cost principles -->
+        <div class="col flex1 gap14" style="justify-content:flex-start;">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">비용을 낮추는 설계 원칙</p>
+          <div class="g2" style="gap:14px;align-content:start;">
+            <div class="card col gap10" style="padding:22px 24px;">
+              <div class="t-micro c-blue" style="font-weight:700;">Embedding Cache</div>
+              <div style="font-size:var(--type-micro);color:#555;line-height:1.6;">chunk text hash 기반 — 중복 재생성 방지</div>
+            </div>
+            <div class="card col gap10" style="padding:22px 24px;">
+              <div class="t-micro c-blue" style="font-weight:700;">Rate / Cost Guard</div>
+              <div style="font-size:var(--type-micro);color:#555;line-height:1.6;">무한 재시도 · 루프 차단 (circuit breaker)</div>
+            </div>
+            <div class="card col gap10" style="padding:22px 24px;">
+              <div class="t-micro c-blue" style="font-weight:700;">Idempotency 키</div>
+              <div style="font-size:var(--type-micro);color:#555;line-height:1.6;">동일 case_id 중복 실행 방지</div>
+            </div>
+            <div class="card col gap10" style="padding:22px 24px;">
+              <div class="t-micro c-blue" style="font-weight:700;">요약 미들웨어</div>
+              <div style="font-size:var(--type-micro);color:#555;line-height:1.6;">장기 케이스 컨텍스트 절약 — 토큰 일정 유지</div>
+            </div>
+            <div class="card col gap10" style="padding:22px 24px;">
+              <div class="t-micro c-blue" style="font-weight:700;">계단식 추론</div>
+              <div style="font-size:var(--type-micro);color:#555;line-height:1.6;">소형 모델 분류 후 → 큰 모델은 생성 단계만</div>
+            </div>
+            <div class="card col gap10" style="padding:22px 24px;">
+              <div class="t-micro c-blue" style="font-weight:700;">초안 ↔ 확정 분리</div>
+              <div style="font-size:var(--type-micro);color:#555;line-height:1.6;">승인 전 초안만 — 승인 후 확정·발송·패키지 생성</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 15 SECURITY                                     -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="20 Security" style="background:var(--dark-2);">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Engineering — 보안</span></div>
+        <h2 class="t-title c-white">테넌트 격리 · PII 취급 · 권한 모델</h2>
+      </div>
+
+      <div class="row flex1 gap32" style="align-items:stretch;">
+        <!-- data boundary -->
+        <div class="col flex1 gap16" style="justify-content:flex-start;">
+          <p class="t-small c-white" style="font-weight:700;">데이터 경계와 권한</p>
+          <div class="col gap12">
+            <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--red);">
+              <div class="t-small c-white" style="font-weight:700;margin-bottom:6px;">Tenant 단위 데이터 격리</div>
+              <div class="t-micro c-muted" style="line-height:1.65;">사업장 간 데이터가 섞이면 즉시 치명적 — 격리는 제품의 전제조건</div>
+            </div>
+            <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--blue);">
+              <div class="t-small c-white" style="font-weight:700;margin-bottom:6px;">사용자 역할 3단계</div>
+              <div class="t-micro c-muted" style="line-height:1.65;"><strong style="color:rgba(255,255,255,0.7);">작성자(담당)</strong> · <strong style="color:rgba(255,255,255,0.7);">승인자(결재)</strong> · <strong style="color:rgba(255,255,255,0.7);">열람자(감사/관리)</strong><br>권한 모델 없이 승인·증빙은 그럴듯한 UI에 불과</div>
+            </div>
+            <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--orange);">
+              <div class="t-small c-white" style="font-weight:700;margin-bottom:6px;">미들웨어 중앙 통제</div>
+              <div class="t-micro c-muted" style="line-height:1.65;">권한 · rate limit · 재시도 · 감사 로그 — 툴 호출은 곧 외부 영향</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="vdivider-white"></div>
+
+        <!-- PII -->
+        <div class="col flex1 gap16" style="justify-content:flex-start;">
+          <p class="t-small c-white" style="font-weight:700;">PII / 민감정보 취급</p>
+          <div class="col gap12">
+            <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--green);">
+              <div class="t-small c-white" style="font-weight:700;margin-bottom:6px;">PII 최소화</div>
+              <div class="t-micro c-muted" style="line-height:1.65;">모델 입력 단계에서 불필요한 PII 제거·마스킹 — 유출 면적 자체를 줄인다</div>
+            </div>
+            <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--green);">
+              <div class="t-small c-white" style="font-weight:700;margin-bottom:6px;">로그·트레이스 원문 비저장</div>
+              <div class="t-micro c-muted" style="line-height:1.65;">민감 필드는 별도 보관 (권한 기반) — 운영 가능성과 보안을 동시에</div>
+            </div>
+            <div style="padding:22px 28px;background:rgba(0,102,255,0.12);border-radius:12px;border:1.5px solid rgba(0,102,255,0.4);">
+              <div class="t-small c-blue" style="font-weight:700;margin-bottom:6px;">Human Approval Gate</div>
+              <div class="t-micro c-muted" style="line-height:1.65;">승인 전 외부 발송·제출 구조적 차단 — 실수 한 번의 비용을 막는다</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 16 SYSTEM ARCHITECTURE                          -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="21 System Architecture" style="background:#fff;">
+    <div class="slide-pad" style="gap:36px;">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Engineering — 시스템 구성</span></div>
+        <h2 class="t-title" style="color:var(--dark);">API Contract · DB Schema · Observability</h2>
+      </div>
+
+      <div class="row flex1 gap28" style="align-items:stretch;">
+        <!-- API contract -->
+        <div class="col flex1 gap20">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">API Contract</p>
+          <div style="background:var(--dark);border-radius:14px;padding:28px 32px;flex:1;font-family:'Courier New',monospace;">
+            <p style="font-size:var(--type-micro);color:#7EB8FF;margin-bottom:14px;font-weight:700;">// 최소 필수 필드</p>
+            <div class="col gap8">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.55);">tenantId · userId · currentScreen</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.55);">selectedCaseId · workerId</div>
+              <div style="height:1px;background:rgba(255,255,255,0.08);margin:4px 0;"></div>
+              <div style="font-size:var(--type-micro);color:#7EB8FF;">intent · caseId · riskLevel</div>
+              <div style="font-size:var(--type-micro);color:#7EB8FF;">nextActions · evidenceEventIds</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DB schema -->
+        <div class="col flex1 gap20">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">DB Schema — 상태 모델</p>
+          <div class="col gap10" style="flex:1;">
+            <div style="padding:16px 20px;background:#F0F5FF;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="font-weight:700;color:var(--dark);">Case</span>
+              <span class="t-micro c-blue">위험·업무 단위 (중심)</span>
+            </div>
+            <div style="padding:16px 20px;background:#F0F5FF;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="font-weight:700;color:var(--dark);">NextAction</span>
+              <span class="t-micro c-blue">실행 단위</span>
+            </div>
+            <div style="padding:16px 20px;background:#FFF8E0;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="font-weight:700;color:var(--dark);">Approval</span>
+              <span class="t-micro" style="color:#997700;">통제 단위</span>
+            </div>
+            <div style="padding:16px 20px;background:#F0FFF5;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="font-weight:700;color:var(--dark);">EvidenceEvent</span>
+              <span class="t-micro" style="color:#006B2A;">감사·재현 (append-only)</span>
+            </div>
+            <div style="height:1px;background:var(--line);"></div>
+            <div style="font-size:var(--type-micro);color:#888;line-height:1.6;">확장: Worker · Document · Contract<br>HandoffPackage · DispatchLog · Tenant · User/Role</div>
+          </div>
+          <div style="padding:16px 18px;background:var(--light);border-radius:10px;">
+            <div class="t-micro" style="font-weight:700;color:var(--dark);margin-bottom:8px;">설계 체크리스트</div>
+            <div class="col gap6">
+              <div style="font-size:var(--type-micro);color:#555;">Case 중복 생성 방지 — idempotency 키 / 스케줄러 중복 실행 방지</div>
+              <div style="font-size:var(--type-micro);color:#555;">Action 상태 전이 정의</div>
+              <div style="font-size:var(--type-micro);color:#555;">Approval 취소·수정 가능 범위</div>
+              <div style="font-size:var(--type-micro);color:#555;">EvidenceEvent append-only 여부 / 버전 관리</div>
+              <div style="font-size:var(--type-micro);color:#555;">근거 문서 버전 저장 방식</div>
+            </div>
+          </div>
+        </div>
+            <div style="padding:18px 22px;background:#F0F5FF;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="font-weight:700;color:var(--dark);">Case</span>
+              <span class="t-micro c-blue">상태의 중심 (업무 묶음)</span>
+            </div>
+            <div style="padding:18px 22px;background:#F0F5FF;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="font-weight:700;color:var(--dark);">NextAction</span>
+              <span class="t-micro c-blue">실행 단위</span>
+            </div>
+            <div style="padding:18px 22px;background:#FFF8E0;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="font-weight:700;color:var(--dark);">Approval</span>
+              <span class="t-micro" style="color:#997700;">통제 단위</span>
+            </div>
+            <div style="padding:18px 22px;background:#F0FFF5;border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="font-weight:700;color:var(--dark);">Evidence</span>
+              <span class="t-micro" style="color:#006B2A;">감사·재현 (append-only)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- observability -->
+        <div class="col flex1 gap20">
+          <p class="t-small" style="font-weight:700;color:var(--dark);">Trace / Observability</p>
+          <div style="background:var(--dark);border-radius:14px;padding:28px 32px;flex:1;font-family:'Courier New',monospace;">
+            <p style="font-size:var(--type-micro);color:#7EB8FF;margin-bottom:14px;font-weight:700;">// 최소 로그 필드</p>
+            <div class="col gap6">
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.55);">trace_id · tenant_id · user_id</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.55);">intent · route</div>
+              <div style="height:1px;background:rgba(255,255,255,0.08);margin:4px 0;"></div>
+              <div style="font-size:var(--type-micro);color:#7EB8FF;">retrieved_docs_count</div>
+              <div style="font-size:var(--type-micro);color:#7EB8FF;">risk_rule_result</div>
+              <div style="height:1px;background:rgba(255,255,255,0.08);margin:4px 0;"></div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.55);">case_id · next_action_ids</div>
+              <div style="font-size:var(--type-micro);color:rgba(255,255,255,0.55);">approval_id · evidence_event_ids</div>
+              <div style="height:1px;background:rgba(255,255,255,0.08);margin:4px 0;"></div>
+              <div style="font-size:var(--type-micro);color:#7EB8FF;">latency_ms · model_name</div>
+              <div style="font-size:var(--type-micro);color:#7EB8FF;">token_usage · fallback_reason</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 17 TECH STACK                                   -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="22 Tech Stack" style="background:var(--light);">
+    <div class="slide-pad" style="gap:36px;flex-direction:row;padding-top:80px;padding-bottom:60px;">
+      <!-- left: title + key highlights -->
+      <div class="col" style="flex:0.72;gap:32px;justify-content:flex-start;">
+        <div>
+          <div class="slide-section-label"><span class="t-label c-blue">Engineering — 기술 스택</span></div>
+          <h2 class="t-title" style="color:var(--dark);">기술 스택</h2>
+        </div>
+        <div class="col gap14">
+          <div style="padding:20px 24px;background:#fff;border-radius:12px;border-left:4px solid var(--blue);box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">Frontend · Backend</div>
+            <div class="t-micro c-muted3">React · Next.js · TypeScript · Node.js · Spring Boot · Python</div>
+          </div>
+          <div style="padding:20px 24px;background:#fff;border-radius:12px;border-left:4px solid var(--blue);box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">Database</div>
+            <div class="t-micro c-muted3">MySQL · PostgreSQL · MongoDB · Redis · Chroma (Vector DB)</div>
+          </div>
+          <div style="padding:20px 24px;background:#fff;border-radius:12px;border-left:4px solid var(--blue);box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">DevOps · AI</div>
+            <div class="t-micro c-muted3">Docker · GitHub Actions · AWS · LangChain 1.0 · Pydantic</div>
+          </div>
+          <div style="padding:20px 24px;background:#fff;border-radius:12px;border-left:4px solid var(--blue);box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">Collaboration</div>
+            <div class="t-micro c-muted3">Git · GitHub · Figma · Notion · Slack</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right: image -->
+      <div style="flex:1.4;border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;">
+        <img src="uploads/기술스텍.png" style="width:100%;height:100%;object-fit:contain;padding:12px;">
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 18 VALIDATION                                   -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="23 Validation" style="background:var(--dark-2);">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Validation</span></div>
+        <h2 class="t-title c-white">데모가 아니라 운영 신뢰성으로 검증</h2>
+      </div>
+
+      <div class="row flex1 gap32" style="align-items:stretch;">
+        <!-- test categories -->
+        <div class="col" style="flex:1.6;gap:12px;justify-content:center;">
+          <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--blue);">
+            <div class="t-small c-white" style="font-weight:700;margin-bottom:4px;">Route Correctness</div>
+            <div class="t-micro c-muted">의도 분류 정확도</div>
+          </div>
+          <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--red);">
+            <div class="t-small c-white" style="font-weight:700;margin-bottom:4px;">Risk Rule Correctness</div>
+            <div class="t-micro c-muted">D-30 HIGH 탐지 · 누락서류 탐지 · 계약충돌 탐지</div>
+          </div>
+          <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--green);">
+            <div class="t-small c-white" style="font-weight:700;margin-bottom:4px;">Citation Correctness</div>
+            <div class="t-micro c-muted">Hit@3 · citation accuracy · hallucinated citation rate · stale evidence detection</div>
+          </div>
+          <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid var(--orange);">
+            <div class="t-small c-white" style="font-weight:700;margin-bottom:4px;">Approval Correctness</div>
+            <div class="t-micro c-muted">승인 전 실행 불가 · 승인 후 dispatch 생성 · 중복 승인 방지</div>
+          </div>
+          <div style="padding:22px 28px;background:rgba(255,255,255,0.06);border-radius:12px;border-left:4px solid #7B61FF;">
+            <div class="t-small c-white" style="font-weight:700;margin-bottom:4px;">Idempotency</div>
+            <div class="t-micro c-muted">스케줄러 2회 실행 시 Case 중복 생성 없음</div>
+          </div>
+        </div>
+
+        <div class="vdivider-white"></div>
+
+        <!-- metrics -->
+        <div class="col flex1 gap16" style="justify-content:center;">
+          <p class="t-small" style="font-weight:700;color:rgba(255,255,255,0.4);margin-bottom:4px;">핵심 측정 지표</p>
+          <div class="col gap12">
+            <div style="padding:18px 22px;background:rgba(255,255,255,0.04);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="color:rgba(255,255,255,0.72);">누락률 / 오탐률</span>
+            </div>
+            <div style="padding:18px 22px;background:rgba(255,255,255,0.04);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="color:rgba(255,255,255,0.72);">E2E 처리시간</span>
+            </div>
+            <div style="padding:18px 22px;background:rgba(255,255,255,0.04);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="color:rgba(255,255,255,0.72);">승인 지연</span>
+            </div>
+            <div style="padding:18px 22px;background:rgba(255,255,255,0.04);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="color:rgba(255,255,255,0.72);">증빙 누락률</span>
+            </div>
+            <div style="padding:18px 22px;background:rgba(255,255,255,0.04);border-radius:10px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small" style="color:rgba(255,255,255,0.72);">Forbidden Block Count</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 13 MARKET & GTM                                 -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="24 Market & GTM" style="background:#fff;">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Market & GTM</span></div>
+        <h2 class="t-title" style="color:var(--dark);">신청에서 운영으로 — 비즈니스 모델</h2>
+      </div>
+
+      <div class="row flex1 gap32" style="align-items:stretch;">
+        <!-- market opp -->
+        <div class="card-lg col flex1 gap28">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">시장 기회</div>
+          <div style="padding:24px 28px;background:var(--light);border-radius:12px;">
+            <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:12px;">채용 이후가 운영의 무게중심</div>
+            <div class="t-micro c-muted3" style="line-height:1.85;">체류 · 계약 · 서류 · 연락 · 검토 →<br>매월 반복되는 운영 문제로 이동<br><br>시장 단위: <strong>근로자 수 × 반복 이벤트 수</strong></div>
+          </div>
+          <div style="padding:20px 24px;background:#F0F5FF;border-radius:10px;">
+            <div class="t-micro" style="color:#0055CC;line-height:1.7;">공백: 정부(신청) · 행정사(검토) 사이에<br><strong>사업장 내부 업무 단계</strong>가 비어 있음</div>
+          </div>
+        </div>
+
+        <!-- gtm strategy -->
+        <div class="col flex1 gap20" style="justify-content:flex-start;padding-top:0;">
+          <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">GTM 전략</div>
+          <div class="col gap16">
+            <div style="padding:24px 28px;background:#F0F5FF;border-radius:12px;display:flex;gap:16px;align-items:center;">
+              <div class="step">1</div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);">초기: 제조업체 파일럿</div>
+                <div class="t-micro c-muted2">E-9 10~100명 사업장</div>
+              </div>
+            </div>
+            <div style="padding:24px 28px;background:#F0F5FF;border-radius:12px;display:flex;gap:16px;align-items:center;">
+              <div class="step">2</div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);">확장: 행정사·노무사 White-label</div>
+                <div class="t-micro c-muted2">B2B2B 운영 주체</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- pricing -->
+        <div class="col flex1 gap20" style="justify-content:flex-start;padding-top:0;">
+          <div class="t-small" style="font-weight:700;color:var(--dark);margin-bottom:4px;">과금 모델</div>
+          <div class="col gap12">
+            <div style="padding:22px 28px;background:var(--light);border-radius:12px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small c-dark">사업장 기본료</span>
+              <span class="t-micro c-muted2">월정액</span>
+            </div>
+            <div style="padding:22px 28px;background:var(--light);border-radius:12px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small c-dark">근로자 수</span>
+              <span class="t-micro c-muted2">per-seat</span>
+            </div>
+            <div style="padding:22px 28px;background:var(--light);border-radius:12px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="t-small c-dark">고급 액션 사용량</span>
+              <span class="t-micro c-muted2">usage-based</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 14 PILOT PLAN                                   -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="25 Pilot Plan" style="background:var(--light);">
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Pilot Validation</span></div>
+        <h2 class="t-title" style="color:var(--dark);">파일럿 검증 계획</h2>
+      </div>
+
+      <div class="row flex1 gap32" style="align-items:stretch;">
+        <!-- target + questions -->
+        <div class="card-lg col flex1 gap24">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">검증 대상</div>
+          <div style="padding:18px 22px;background:#F0F5FF;border-radius:10px;">
+            <div class="t-small c-blue" style="font-weight:700;">E-9 근로자 10~100명 제조업체</div>
+            <div class="t-micro c-muted2" style="margin-top:4px;">인사/총무 담당자 5곳</div>
+          </div>
+          <div class="t-small" style="font-weight:700;color:var(--dark);margin-top:4px;">검증 질문</div>
+          <div class="col gap10">
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;font-size:var(--type-micro);color:#555;">오늘 챙길 일을 현재 어떻게 관리하는가?</div>
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;font-size:var(--type-micro);color:#555;">체류/계약/서류 누락으로 실제 문제가 생긴 적 있는가?</div>
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;font-size:var(--type-micro);color:#555;">행정사 자료 준비에 얼마나 시간이 드는가?</div>
+            <div style="padding:12px 16px;background:var(--light);border-radius:8px;font-size:var(--type-micro);color:#555;">Daily Briefing + 승인 + Evidence에 월 얼마까지 낼 수 있는가?</div>
+          </div>
+        </div>
+
+        <!-- success criteria -->
+        <div class="col flex1 gap20" style="justify-content:flex-start;">
+          <div class="t-small" style="font-weight:700;color:var(--dark);">성공 기준</div>
+          <div class="col gap14">
+            <div class="card row gap16" style="align-items:center;padding:22px 28px;">
+              <div style="width:10px;height:10px;background:var(--green);border-radius:50%;flex-shrink:0;"></div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);">반복 업무 30% 이상 절감</div>
+                <div class="t-micro c-muted2">가능성 신호 확인</div>
+              </div>
+            </div>
+            <div class="card row gap16" style="align-items:center;padding:22px 28px;">
+              <div style="width:10px;height:10px;background:var(--green);border-radius:50%;flex-shrink:0;"></div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);">D-day / 누락 관리 니즈 확인</div>
+              </div>
+            </div>
+            <div class="card row gap16" style="align-items:center;padding:22px 28px;">
+              <div style="width:10px;height:10px;background:var(--green);border-radius:50%;flex-shrink:0;"></div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);">월 과금 지불 의사 확인</div>
+              </div>
+            </div>
+            <div class="card row gap16" style="align-items:center;padding:22px 28px;">
+              <div style="width:10px;height:10px;background:var(--blue);border-radius:50%;flex-shrink:0;"></div>
+              <div>
+                <div class="t-small" style="font-weight:700;color:var(--dark);">파일럿 1~2곳 LOI 확보</div>
+                <div class="t-micro c-muted2">또는 실사용</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════ -->
+  <!-- 15 ROADMAP & ASK                                -->
+  <!-- ═══════════════════════════════════════════════ -->
+  <section data-label="26 Roadmap & Ask" style="background:#0F0F10;overflow:hidden;">
+    <div class="blob" style="right:-100px;top:50%;transform:translateY(-50%);width:560px;height:560px;background:radial-gradient(circle,rgba(0,102,255,0.14) 0%,transparent 70%);"></div>
+
+    <div class="slide-pad" style="gap:var(--gap-title);">
+      <div>
+        <div class="slide-section-label"><span class="t-label c-blue">Roadmap & Ask</span></div>
+        <h2 class="t-title c-white">다음 단계</h2>
+      </div>
+
+      <div class="row flex1 gap28" style="align-items:stretch;">
+        <!-- 3 phases -->
+        <div style="flex:1;background:rgba(255,255,255,0.05);border-radius:16px;padding:40px 36px;display:flex;flex-direction:column;gap:20px;border-top:3px solid var(--blue);">
+          <span class="t-label c-blue">Phase 1</span>
+          <div class="t-sub c-white" style="line-height:1.2;">MVP 완성</div>
+          <div class="t-micro c-muted" style="line-height:1.75;">브리핑 – 케이스 – 승인 – 증빙의<br>최소 루프 완성</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.05);border-radius:16px;padding:40px 36px;display:flex;flex-direction:column;gap:20px;border-top:3px solid rgba(0,102,255,0.5);">
+          <span class="t-label" style="color:rgba(0,102,255,0.7);">Phase 2</span>
+          <div class="t-sub c-white" style="line-height:1.2;">파일럿 고객</div>
+          <div class="t-micro c-muted" style="line-height:1.75;">운영 지표 / ROI 검증</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.05);border-radius:16px;padding:40px 36px;display:flex;flex-direction:column;gap:20px;border-top:3px solid rgba(0,102,255,0.3);">
+          <span class="t-label" style="color:rgba(0,102,255,0.5);">Phase 3</span>
+          <div class="t-sub c-white" style="line-height:1.2;">파트너</div>
+          <div class="t-micro c-muted" style="line-height:1.75;">행정사 협업 및<br>White-label 설계</div>
+        </div>
+
+        <!-- ask -->
+        <div class="card-blue col" style="flex:1;padding:40px 36px;gap:24px;justify-content:space-between;">
+          <div class="t-sub c-blue">Ask</div>
+          <div class="col gap16">
+            <div class="row gap14" style="align-items:flex-start;">
+              <div style="width:8px;height:8px;background:var(--blue);border-radius:50%;margin-top:8px;flex-shrink:0;"></div>
+              <span class="t-small c-white">데이터 · 파트너 연결</span>
+            </div>
+            <div class="row gap14" style="align-items:flex-start;">
+              <div style="width:8px;height:8px;background:var(--blue);border-radius:50%;margin-top:8px;flex-shrink:0;"></div>
+              <span class="t-small c-white">현장 피드백</span>
+            </div>
+            <div class="row gap14" style="align-items:flex-start;">
+              <div style="width:8px;height:8px;background:var(--blue);border-radius:50%;margin-top:8px;flex-shrink:0;"></div>
+              <span class="t-small c-white">엔지니어링 · 세일즈 리소스</span>
+            </div>
+          </div>
+          <div class="divider-white"></div>
+          <p class="t-micro c-muted" style="line-height:1.7;">운영이 커질수록<br>과금이 안정되는 구조</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</deck-stage>
+</body>
+</html>

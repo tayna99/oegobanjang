@@ -1,0 +1,5 @@
+{"id":"rag-smoke-001","input":"여권 사본 요청 메시지 템플릿 찾아줘","expected_source_ids":["message_template_passport_request_ko"],"answer_evidence_only":true}
+{"id":"rag-smoke-002","input":"체류기간 만료 안내 메시지 초안 근거 찾아줘","expected_source_ids":["message_template_visa_extension_notice_ko"],"answer_evidence_only":true}
+{"id":"rag-smoke-003","input":"안전교육 안내 메시지 템플릿 필요해","expected_source_ids":["message_template_safety_notice_ko"],"answer_evidence_only":true}
+{"id":"rag-smoke-004","input":"E-9 신규 채용 고용허가 절차 데모 문서 찾아줘","expected_source_ids":["seed_eps_procedure_demo_001"],"answer_evidence_only":false}
+{"id":"rag-smoke-005","input":"E-9 체류기간 연장 준비 데모 문서 찾아줘","expected_source_ids":["seed_visa_extension_demo_001"],"answer_evidence_only":false}

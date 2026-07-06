@@ -1,0 +1,71 @@
+{
+  "started_at": "2026-05-03T10:07:23.855893+00:00",
+  "dataset_path": "C:\\WorkBridge\\evals\\datasets\\rag_retrieval_cases.jsonl",
+  "chunk_path": "C:\\WorkBridge\\data-pipeline\\processed\\chunks\\all_chunks.jsonl",
+  "top_k": 3,
+  "total_cases": 5,
+  "hits": 5,
+  "hit_rate": 1.0,
+  "case_results": [
+    {
+      "case_id": "rag-001",
+      "expected_source_ids": [
+        "message_template_passport_request_ko"
+      ],
+      "retrieved_source_ids": [
+        "message_template_passport_request_ko",
+        "message_template_safety_notice_ko",
+        "message_template_visa_extension_notice_ko"
+      ],
+      "hit": true
+    },
+    {
+      "case_id": "rag-002",
+      "expected_source_ids": [
+        "message_template_visa_extension_notice_ko"
+      ],
+      "retrieved_source_ids": [
+        "message_template_visa_extension_notice_ko",
+        "message_template_safety_notice_ko",
+        "message_template_passport_request_ko"
+      ],
+      "hit": true
+    },
+    {
+      "case_id": "rag-003",
+      "expected_source_ids": [
+        "message_template_safety_notice_ko"
+      ],
+      "retrieved_source_ids": [
+        "message_template_safety_notice_ko",
+        "message_template_visa_extension_notice_ko",
+        "message_template_passport_request_ko"
+      ],
+      "hit": true
+    },
+    {
+      "case_id": "rag-004",
+      "expected_source_ids": [
+        "seed_eps_procedure_demo_001"
+      ],
+      "retrieved_source_ids": [
+        "seed_eps_procedure_demo_001",
+        "seed_visa_extension_demo_001",
+        "document_requirement_80262ae6deccffdd"
+      ],
+      "hit": true
+    },
+    {
+      "case_id": "rag-005",
+      "expected_source_ids": [
+        "seed_visa_extension_demo_001"
+      ],
+      "retrieved_source_ids": [
+        "seed_visa_extension_demo_001",
+        "seed_eps_procedure_demo_001",
+        "document_requirement_16668760f8fa2381"
+      ],
+      "hit": true
+    }
+  ]
+}

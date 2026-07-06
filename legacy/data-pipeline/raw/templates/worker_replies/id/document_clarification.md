@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=document_clarification
+purpose=document_question_reply
+language_code=id
+incoming_message=Dokumen apa yang harus saya kirim? Tolong jelaskan lagi.
+korean_meaning=어떤 서류를 보내야 하는지 다시 설명해 달라는 의미의 합성 답변.
+expected_summary=근로자는 제출해야 할 서류 종류를 명확히 다시 안내해 달라고 요청했다.
+expected_status_update=document_clarification_requested_candidate
+next_action=필요 서류 목록을 쉬운 표현으로 다시 안내하는 초안을 만들고 담당자 검토를 요청한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

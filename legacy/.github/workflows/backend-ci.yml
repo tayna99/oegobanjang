@@ -1,0 +1,79 @@
+name: Backend CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "scripts/**"
+      - "evals/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "scripts/**"
+      - "evals/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  backend-sanity:
+    name: Backend syntax and dataset sanity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check backend and script syntax
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+
+          roots = [Path("backend/app"), Path("scripts")]
+          checked = 0
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in sorted(root.rglob("*.py")):
+                  ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+                  checked += 1
+
+          print(f"Syntax-checked {checked} Python files.")
+          PY
+
+      - name: Validate eval JSONL files
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          dataset_dir = Path("evals/datasets")
+          if not dataset_dir.exists():
+              print("evals/datasets not found. Skipping.")
+              raise SystemExit(0)
+
+          checked = 0
+          for path in sorted(dataset_dir.glob("*.jsonl")):
+              with path.open("r", encoding="utf-8") as f:
+                  for line_no, line in enumerate(f, start=1):
+                      line = line.strip()
+                      if not line:
+                          continue
+                      json.loads(line)
+              checked += 1
+
+          print(f"Checked {checked} JSONL dataset files.")
+          PY

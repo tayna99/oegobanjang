@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>WorkBridge Agent 설계 — PPT Mockup 4가지 안</title>
+<style>
+  :root {
+    --bg: #eef0f4;
+    --slide-bg: #ffffff;
+    --ink: #1f2330;
+    --muted: #7b8190;
+    --label: #9aa0ac;
+    --brand: #2f3aa1;
+    --border: #e3e5ea;
+    --soft: #f7f8fa;
+    --green: #2f9e6a;
+    --green-bg: #e9f7ef;
+    --blue: #3b6bd8;
+    --blue-bg: #eaf1fd;
+    --orange: #d97a30;
+    --orange-bg: #fdeedb;
+    --purple: #7c4dc5;
+    --purple-bg: #f1eafa;
+    --red: #d24b4b;
+    --red-bg: #fdecec;
+    --yellow: #d6a73b;
+    --yellow-bg: #fbf3dc;
+    --gray: #6b7280;
+    --gray-bg: #f1f2f5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                 "Pretendard", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 32px;
+    color: var(--ink);
+  }
+  .page-title {
+    max-width: 1280px;
+    margin: 0 auto 24px;
+  }
+  .page-title h1 { font-size: 22px; margin: 0 0 6px; color: var(--brand); }
+  .page-title p { margin: 0; color: var(--muted); font-size: 14px; }
+  .toc {
+    max-width: 1280px;
+    margin: 0 auto 32px;
+    background: var(--slide-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    font-size: 14px;
+  }
+  .toc a { color: var(--brand); text-decoration: none; margin-right: 16px; }
+  .toc a:hover { text-decoration: underline; }
+
+  .option-section {
+    max-width: 1280px;
+    margin: 0 auto 64px;
+  }
+  .option-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .option-tag {
+    background: var(--brand);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 5px;
+  }
+  .option-title { font-size: 20px; font-weight: 700; margin: 0; }
+  .option-desc { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+  /* SLIDE — 16:9 ratio, scales to container width */
+  .slide {
+    background: var(--slide-bg);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(20,30,60,0.08);
+    aspect-ratio: 16 / 9;
+    padding: 36px 44px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide-num {
+    position: absolute;
+    bottom: 14px;
+    right: 22px;
+    font-size: 11px;
+    color: var(--label);
+    font-family: monospace;
+  }
+  .slide-foot {
+    position: absolute;
+    bottom: 14px;
+    left: 22px;
+    font-size: 11px;
+    color: var(--label);
+  }
+  .slide-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--brand);
+    margin: 0 0 4px 0;
+  }
+  .slide-sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0 0 18px 0;
+  }
+  .slide-body { flex: 1; display: flex; flex-direction: column; }
+
+  /* ===== Common Pipeline 9-stage horizontal flow ===== */
+  .pipeline {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .pipe-step {
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 6px;
+    text-align: center;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .pipe-step .pnum {
+    font-size: 10px;
+    color: var(--label);
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .pipe-step .pname {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+  .pipe-step .pwhy {
+    font-size: 10.5px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .pipe-step.guard { background: #fef2f2; border-color: #f0bfbf; }
+  .pipe-step.io { background: #eaf4fd; border-color: #bcd6f0; }
+  .pipe-step.core { background: #f1eafa; border-color: #d4bff0; }
+
+  /* ===== Matrix table ===== */
+  .matrix {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 6px;
+    table-layout: fixed;
+  }
+  .matrix th, .matrix td {
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    font-size: 12.5px;
+    vertical-align: top;
+    text-align: left;
+    line-height: 1.45;
+  }
+  .matrix th {
+    background: var(--soft);
+    color: var(--label);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    text-align: center;
+  }
+  .matrix .agent-cell {
+    background: var(--soft);
+    font-weight: 700;
+    color: var(--brand);
+    text-align: center;
+    font-size: 13px;
+  }
+  .matrix .visa { background: #fff3e8; }
+  .matrix .workforce { background: #eef7f2; }
+  .matrix .contact { background: #eef1fa; }
+
+  /* ===== Safety design cross-section ===== */
+  .safety-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 0.8fr;
+    gap: 14px;
+    flex: 1;
+  }
+  .safety-card {
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+  }
+  .safety-card h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .tier {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 12.5px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .tier:last-child { border-bottom: none; }
+  .tier .tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .tag.read { background: var(--green-bg); color: var(--green); }
+  .tag.calc { background: var(--purple-bg); color: var(--purple); }
+  .tag.draft { background: var(--yellow-bg); color: var(--yellow); }
+  .tag.approve { background: var(--red-bg); color: var(--red); }
+  .mw-line {
+    font-size: 12px;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .mw-line:last-child { border-bottom: none; }
+  .mw-line b { color: var(--ink); }
+  .gate-card {
+    background: var(--red-bg);
+    border: 1.5px solid #ee9999;
+    border-radius: 8px;
+    padding: 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+  }
+  .gate-card .gname {
+    font-family: monospace;
+    color: var(--red);
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  .gate-card .gdesc {
+    font-size: 12px;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .one-liner {
+    background: var(--brand);
+    color: #fff;
+    text-align: center;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 12px;
+  }
+
+  /* ===== T-matrix (option 2) — agents × stages ===== */
+  .tmatrix {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+    margin-top: 4px;
+  }
+  .tmatrix th, .tmatrix td {
+    border: 1px solid var(--border);
+    padding: 5px 5px;
+    font-size: 9.5px;
+    vertical-align: top;
+    text-align: left;
+    line-height: 1.35;
+    overflow: hidden;
+  }
+  .tmatrix th {
+    background: var(--soft);
+    color: var(--label);
+    font-size: 9.5px;
+    text-align: center;
+    font-weight: 700;
+    padding: 6px 4px;
+  }
+  .tmatrix th.common-h { background: var(--gray-bg); color: var(--gray); }
+  .tmatrix td.common { background: #f7f7f9; color: var(--gray); }
+  .tmatrix td.visa { background: #fff7ec; }
+  .tmatrix td.work { background: #f0faf4; }
+  .tmatrix td.contact { background: #eef1fa; }
+  .tmatrix .agent-h {
+    background: var(--brand);
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+    font-size: 11px;
+    padding: 8px 4px;
+  }
+  .tmatrix td b { color: var(--ink); font-size: 10px; }
+
+  /* ===== Risk-Defense Mapping (option 3 slide 1) ===== */
+  .rd-grid {
+    display: grid;
+    grid-template-columns: 1fr 60px 1fr;
+    gap: 12px;
+    flex: 1;
+    align-items: stretch;
+    margin-top: 4px;
+  }
+  .rd-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .rd-col .col-title {
+    font-size: 12px;
+    color: var(--label);
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 2px;
+    text-align: center;
+  }
+  .risk-card {
+    background: var(--red-bg);
+    border: 1px solid #e0a8a8;
+    border-radius: 6px;
+    padding: 10px 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .risk-card .rtitle { font-weight: 700; font-size: 13px; color: var(--red); }
+  .risk-card .rsub { font-size: 11.5px; color: var(--ink); margin-top: 3px; line-height: 1.4; }
+  .def-card {
+    background: var(--green-bg);
+    border: 1px solid #9fd3b8;
+    border-radius: 6px;
+    padding: 10px 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .def-card .dtitle { font-weight: 700; font-size: 13px; color: var(--green); }
+  .def-card .dsub { font-size: 11.5px; color: var(--ink); margin-top: 3px; line-height: 1.4; font-family: monospace; }
+  .arrows {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .arr-cell {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brand);
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  /* ===== Layered architecture (option 4) ===== */
+  .layer {
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
+  }
+  .layer.top { background: #eaf1fd; border-color: #bcd6f0; }
+  .layer.mid { background: #f1eafa; border-color: #d4bff0; }
+  .layer.bot { background: #fef2f2; border-color: #f0bfbf; }
+  .layer-label {
+    font-size: 11px;
+    color: var(--label);
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .layer-content {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .node-chip {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: monospace;
+  }
+  .node-arrow { color: var(--brand); font-weight: 700; }
+
+  .common-block {
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+  }
+  .common-block h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .common-block .item {
+    font-size: 12px;
+    margin: 4px 0;
+    color: var(--ink);
+  }
+  .common-block .item b { color: var(--brand); }
+
+  /* Section title between options */
+  .section-divider {
+    height: 2px;
+    background: var(--border);
+    margin: 24px 0;
+  }
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 8px;
+    font-size: 12px;
+  }
+  .pc-box { padding: 8px 12px; border-radius: 6px; }
+  .pc-box.pro { background: var(--green-bg); color: var(--green); }
+  .pc-box.con { background: var(--orange-bg); color: var(--orange); }
+  .pc-box b { color: inherit; }
+
+  /* Center alignment helpers */
+  .center { text-align: center; }
+  .flex-grow { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <h1>WorkBridge Agent 설계 — PPT 슬라이드 mockup 4가지 안</h1>
+  <p>Visa Agent · Workforce Agent · Multilingual Contact Agent — 엔지니어링 설계 발표용 압축 구조 비교</p>
+</div>
+
+<div class="toc">
+  <b>목차 ·</b>
+  <a href="#opt1">안 1 · 공통 골격 + 차이 분리 (3장)</a>
+  <a href="#opt2">안 2 · T자형 단일 매트릭스 (1장)</a>
+  <a href="#opt3">안 3 · 안전 우선 내러티브 (3장)</a>
+  <a href="#opt4">안 4 · 역삼각형 추상화 (3장)</a>
+</div>
+
+<!-- ============================================================ -->
+<!-- 안 1                                                          -->
+<!-- ============================================================ -->
+<div class="option-section" id="opt1">
+  <div class="option-header">
+    <span class="option-tag">안 1</span>
+    <h2 class="option-title">공통 골격 + 차이 분리 (3장 · 가장 추천)</h2>
+    <span class="option-desc">프레임워크 vs 구현 레이어 분리 강조</span>
+  </div>
+
+  <!-- Slide 1.1 — 공통 파이프라인 -->
+  <div class="slide">
+    <h3 class="slide-title">공통 파이프라인 — 3개 에이전트가 동일 9단계를 공유</h3>
+    <p class="slide-sub">에이전트별 차이는 색이 다른 박스(AGENT, OUTPUT)에만 존재. 나머지는 프레임워크가 제공</p>
+    <div class="slide-body">
+      <div class="pipeline">
+        <div class="pipe-step io">
+          <div class="pnum">1</div>
+          <div class="pname">INPUT</div>
+          <div class="pwhy">사용자 질문 + 컨텍스트</div>
+        </div>
+        <div class="pipe-step core">
+          <div class="pnum">2</div>
+          <div class="pname">INTENT ROUTER</div>
+          <div class="pwhy">LLM 1회로 에이전트 선택</div>
+        </div>
+        <div class="pipe-step core">
+          <div class="pnum">3</div>
+          <div class="pname">AGENT 실행</div>
+          <div class="pwhy">서브에이전트 ReAct 루프</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pnum">4</div>
+          <div class="pname">TOOL 4단계</div>
+          <div class="pwhy">READ / CALC / DRAFT / APPROVAL</div>
+        </div>
+        <div class="pipe-step guard">
+          <div class="pnum">5</div>
+          <div class="pname">MIDDLEWARE</div>
+          <div class="pwhy">7개 가드레일 자동 적용</div>
+        </div>
+        <div class="pipe-step guard">
+          <div class="pnum">6</div>
+          <div class="pname">APPROVAL GATE</div>
+          <div class="pwhy">schema invariant 강제</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pnum">7</div>
+          <div class="pname">OUTPUT</div>
+          <div class="pwhy">7개 카드 표준 구조</div>
+        </div>
+        <div class="pipe-step guard">
+          <div class="pnum">8</div>
+          <div class="pname">EVIDENCE LOG</div>
+          <div class="pwhy">의무 감사 이벤트 9종</div>
+        </div>
+        <div class="pipe-step io">
+          <div class="pnum">9</div>
+          <div class="pname">FINAL RESPONSE</div>
+          <div class="pwhy">PII 마스킹 + 근거 인용</div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 20px; font-size: 11px;">
+        <div style="background:#eaf4fd; padding:8px; border-radius:6px;"><b>파랑</b> = I/O 경계</div>
+        <div style="background:#f1eafa; padding:8px; border-radius:6px;"><b>보라</b> = 에이전트 코어 (specialization 지점)</div>
+        <div style="background:#fef2f2; padding:8px; border-radius:6px;"><b>빨강</b> = 가드레일 (전 에이전트 공통)</div>
+        <div style="background:var(--soft); padding:8px; border-radius:6px;"><b>회색</b> = 데이터 변환</div>
+      </div>
+
+      <div class="one-liner">9단계 중 7단계가 프레임워크 공통 → 신규 에이전트 추가 비용 최소화</div>
+    </div>
+    <div class="slide-foot">안 1 · 슬라이드 1 / 3</div>
+    <div class="slide-num">backend/app/agent_runtime/</div>
+  </div>
+
+  <!-- Slide 1.2 — Agent Matrix -->
+  <div class="slide">
+    <h3 class="slide-title">3 에이전트 specialization — 5개 변별점</h3>
+    <p class="slide-sub">같은 파이프라인 위에 무엇이 다른가</p>
+    <div class="slide-body">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th style="width: 90px"></th>
+            <th>Intent</th>
+            <th>서브에이전트</th>
+            <th>핵심 Tool</th>
+            <th>차단 (Forbidden)</th>
+            <th>Output 핵심</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="agent-cell">Visa</td>
+            <td class="visa"><b>VISA_CHECK</b></td>
+            <td class="visa">visa_risk<br>+ document_priority</td>
+            <td class="visa">assess_visa_risk<br>assess_document_priority</td>
+            <td class="visa">비자 발급 확정<br>법률 자문</td>
+            <td class="visa">D-day + CRITICAL 누락 서류</td>
+          </tr>
+          <tr>
+            <td class="agent-cell">Workforce</td>
+            <td class="workforce"><b>HIRING_REQUEST</b></td>
+            <td class="workforce">workforce_requirement<br>+ candidate_readiness</td>
+            <td class="workforce">generate_hiring_request_draft<br>calculate_candidate_readiness</td>
+            <td class="workforce">국적별 차별<br>성실도 / 이탈 판단</td>
+            <td class="workforce">인력 요청서 초안 + 준비도 표</td>
+          </tr>
+          <tr>
+            <td class="agent-cell">Contact</td>
+            <td class="contact"><b>WORKER_CONTACT</b></td>
+            <td class="contact">message_draft<br>+ reply_summary</td>
+            <td class="contact">search_multilingual_contact_rag<br>generate_multilingual_message_draft</td>
+            <td class="contact">자동 발송<br>SNS 감시 / 이탈 예측</td>
+            <td class="contact">한국어+vi 본문 + 답장 요약</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="one-liner">변별점 5개만 정의하면 새 에이전트도 같은 파이프라인 위에서 동작</div>
+    </div>
+    <div class="slide-foot">안 1 · 슬라이드 2 / 3</div>
+    <div class="slide-num">agents/{visa,hiring,contact}_agent.py</div>
+  </div>
+
+  <!-- Slide 1.3 — Safety cross-section -->
+  <div class="slide">
+    <h3 class="slide-title">안전 설계 단면 — 모든 에이전트에 동일 적용</h3>
+    <p class="slide-sub">TOOL 등급 × Middleware × Approval Gate = 도메인 위험 대응 3중 방어</p>
+    <div class="slide-body">
+      <div class="safety-grid">
+        <div class="safety-card">
+          <h4>TOOL 4단계 계층</h4>
+          <div class="tier"><span class="tag read">SAFE_READ</span><span>DB / RAG 조회만 (8개)</span></div>
+          <div class="tier"><span class="tag calc">SAFE_CALCULATE</span><span>날짜·우선순위·번역 검증 (6개)</span></div>
+          <div class="tier"><span class="tag draft">SAFE_DRAFT</span><span>초안 생성 · approval_required=True (3개)</span></div>
+          <div class="tier"><span class="tag approve">APPROVAL_REQUIRED</span><span>호출 즉시 NEEDS_APPROVAL 반환 (3개)</span></div>
+        </div>
+        <div class="safety-card">
+          <h4>Middleware 7개</h4>
+          <div class="mw-line"><b>1. WorkBridgeSafetyMW</b> — 금지 의도 차단</div>
+          <div class="mw-line"><b>2. EvidenceCaptureMW</b> — 이벤트 자동 수집</div>
+          <div class="mw-line"><b>3. PIIMiddleware(email)</b></div>
+          <div class="mw-line"><b>4. PIIMiddleware(foreign_pii)</b></div>
+          <div class="mw-line"><b>5. ModelCallLimit(12)</b></div>
+          <div class="mw-line"><b>6. ToolCallLimit(12)</b></div>
+          <div class="mw-line"><b>7. HumanInTheLoop</b> — 강제 중단</div>
+        </div>
+        <div class="gate-card">
+          <div class="gname">approval_gate_node</div>
+          <div class="gdesc">
+            <code>requires_human_approval=True</code><br>
+            <b>schema invariant</b><br>
+            <br>
+            메시지 발송 · 행정사 패키지<br>
+            정부 포털 제출 · 케이스 종결<br>
+            <b>모두 사람 승인 후</b>
+          </div>
+        </div>
+      </div>
+      <div class="one-liner">동일 가드레일 = 3 에이전트의 위험 등급 동등 보장</div>
+    </div>
+    <div class="slide-foot">안 1 · 슬라이드 3 / 3</div>
+    <div class="slide-num">middleware.py · approval_gate.py · tools/registry.py</div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pc-box pro"><b>장점</b> · 프레임워크 vs 구현 레이어 분리, 엔지니어가 추상화 즉시 파악, 신규 에이전트 추가 비용 메시지</div>
+    <div class="pc-box con"><b>단점</b> · 슬라이드 3장 사용, 도메인 위험 맥락은 부수적으로 전달됨</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 안 2                                                          -->
+<!-- ============================================================ -->
+<div class="option-section" id="opt2">
+  <div class="option-header">
+    <span class="option-tag">안 2</span>
+    <h2 class="option-title">T자형 단일 매트릭스 (1장 · 가장 압축)</h2>
+    <span class="option-desc">3 에이전트 × 9 단계 = 27셀 한 장</span>
+  </div>
+
+  <!-- Single Dense Slide -->
+  <div class="slide">
+    <h3 class="slide-title">3 에이전트 × 9 파이프라인 단계 — 전체 설계 한 장</h3>
+    <p class="slide-sub">회색 = 프레임워크 공통 · 컬러 = 에이전트별 specialization</p>
+    <div class="slide-body">
+      <table class="tmatrix">
+        <thead>
+          <tr>
+            <th style="width: 70px"></th>
+            <th>1. INPUT</th>
+            <th class="common-h">2. INTENT</th>
+            <th>3. AGENT</th>
+            <th>4. TOOL</th>
+            <th class="common-h">5. MW</th>
+            <th class="common-h">6. APPROVAL</th>
+            <th>7. OUTPUT</th>
+            <th class="common-h">8. EV LOG</th>
+            <th>9. RESPONSE</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="agent-h">Visa</td>
+            <td class="visa"><b>worker_id</b><br>"비자 만료?"</td>
+            <td class="common">VISA_CHECK</td>
+            <td class="visa"><b>2 sub</b><br>risk + doc_priority</td>
+            <td class="visa">assess_visa_risk<br>assess_doc_priority</td>
+            <td class="common">7개 MW<br>전 에이전트 동일</td>
+            <td class="common">schema invariant<br>True 강제</td>
+            <td class="visa">D-47<br>CRITICAL 2건</td>
+            <td class="common">TOOL_EXECUTED<br>RAG_RETRIEVED 등</td>
+            <td class="visa">D-day + 누락 서류<br>+ handoff 초안</td>
+          </tr>
+          <tr>
+            <td class="agent-h">Workforce</td>
+            <td class="work"><b>company_id</b><br>"6명 채용"</td>
+            <td class="common">HIRING_REQUEST</td>
+            <td class="work"><b>2 sub</b><br>requirement + readiness</td>
+            <td class="work">generate_hiring_draft<br>calc_candidate_readiness</td>
+            <td class="common">7개 MW<br>전 에이전트 동일</td>
+            <td class="common">schema invariant<br>True 강제</td>
+            <td class="work">요청서 초안<br>5명 중 2 ready</td>
+            <td class="common">TOOL_EXECUTED<br>RAG_RETRIEVED 등</td>
+            <td class="work">인력 요청서<br>+ 준비도 표</td>
+          </tr>
+          <tr>
+            <td class="agent-h">Contact</td>
+            <td class="contact"><b>worker_id+lang</b><br>"메시지 보내줘"</td>
+            <td class="common">WORKER_CONTACT</td>
+            <td class="contact"><b>2 flow</b><br>draft + reply_summary</td>
+            <td class="contact">search_multilingual_rag<br>gen_multilingual_draft</td>
+            <td class="common">7개 MW<br>전 에이전트 동일</td>
+            <td class="common">schema invariant<br>True 강제</td>
+            <td class="contact">ko 본문<br>+ vi 번역문</td>
+            <td class="common">TOOL_EXECUTED<br>RAG_RETRIEVED 등</td>
+            <td class="contact">메시지 초안<br>+ 답장 요약</td>
+          </tr>
+          <tr>
+            <td class="agent-h" style="background:var(--gray);">금지</td>
+            <td colspan="9" style="background:var(--red-bg); color:var(--red); text-align:center; font-weight:700;">
+              비자발급확정 · 법률자문 · 국적별 차별 · 성실도 / 이탈 판단 · 자동 발송 · SNS 감시 · 정부 포털 자동 제출 · 케이스 자동 종결
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="one-liner" style="margin-top: 16px;">공통 5칸(회색) + 에이전트별 4칸(컬러) → 신규 에이전트는 4칸만 정의하면 됨</div>
+    </div>
+    <div class="slide-foot">안 2 · 슬라이드 1 / 1</div>
+    <div class="slide-num">최고 압축 · 핸드아웃에 적합</div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pc-box pro"><b>장점</b> · 한 장에 전체 설계, 회색·컬러 대비로 공통/차이가 한눈에, 핸드아웃·문서에 강함</div>
+    <div class="pc-box con"><b>단점</b> · 폰트가 작아 발표 화면에서 뒷자리에 안 보임, 청중이 잠깐 멈춰서 읽어야 함</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 안 3                                                          -->
+<!-- ============================================================ -->
+<div class="option-section" id="opt3">
+  <div class="option-header">
+    <span class="option-tag">안 3</span>
+    <h2 class="option-title">안전 우선 내러티브 (3장 · 엔지니어 설득력 최강)</h2>
+    <span class="option-desc">"왜 이렇게 설계했는가" → 도메인 위험이 설계 결정을 강제</span>
+  </div>
+
+  <!-- Slide 3.1 — Risk-Defense Mapping -->
+  <div class="slide">
+    <h3 class="slide-title">왜 이 설계인가 — 도메인 위험 4종 ↔ 방어 4종 매핑</h3>
+    <p class="slide-sub">외국인 고용 도메인은 PII · 법령 · 차별 위험을 동시에 안고 있다 → 설계가 강제됨</p>
+    <div class="slide-body">
+      <div class="rd-grid">
+        <div class="rd-col">
+          <div class="col-title">⚠ 도메인 위험</div>
+          <div class="risk-card">
+            <div class="rtitle">① 차별 추천</div>
+            <div class="rsub">국적별 선호, 성실도 점수, 이탈 가능성 판단</div>
+          </div>
+          <div class="risk-card">
+            <div class="rtitle">② 무단 자동 제출</div>
+            <div class="rsub">메시지 자동 발송, 행정사 자동 전달, 정부 포털 자동 제출</div>
+          </div>
+          <div class="risk-card">
+            <div class="rtitle">③ PII 유출</div>
+            <div class="rsub">여권번호, 외국인등록번호, 전화번호 로그·LLM 노출</div>
+          </div>
+          <div class="risk-card">
+            <div class="rtitle">④ 무한 호출 / 비용 폭발</div>
+            <div class="rsub">LLM ReAct 루프 무한 반복, Tool 무한 호출</div>
+          </div>
+        </div>
+        <div class="arrows">
+          <div class="col-title">&nbsp;</div>
+          <div class="arr-cell">→</div>
+          <div class="arr-cell">→</div>
+          <div class="arr-cell">→</div>
+          <div class="arr-cell">→</div>
+        </div>
+        <div class="rd-col">
+          <div class="col-title">✓ 코드 레벨 방어</div>
+          <div class="def-card">
+            <div class="dtitle">① WorkBridgeSafetyMW + 프롬프트 금지절</div>
+            <div class="dsub">FORBIDDEN_TERMS 차단 + 시스템 프롬프트 명시적 금지</div>
+          </div>
+          <div class="def-card">
+            <div class="dtitle">② Tool 등급 + Approval Gate</div>
+            <div class="dsub">APPROVAL_REQUIRED → schema invariant True 강제</div>
+          </div>
+          <div class="def-card">
+            <div class="dtitle">③ PIIMiddleware ×2</div>
+            <div class="dsub">email + foreign_hiring_pii 마스킹 (입·출력 모두)</div>
+          </div>
+          <div class="def-card">
+            <div class="dtitle">④ Model/ToolCallLimit(12)</div>
+            <div class="dsub">12회 초과 시 강제 종료</div>
+          </div>
+        </div>
+      </div>
+      <div class="one-liner">설계 결정 ≠ 임의 선택 · 도메인 위험이 가드레일을 강제함</div>
+    </div>
+    <div class="slide-foot">안 3 · 슬라이드 1 / 3</div>
+    <div class="slide-num">SECURITY_GUARDRAILS.md</div>
+  </div>
+
+  <!-- Slide 3.2 — Common Pipeline (same as 1.1) -->
+  <div class="slide">
+    <h3 class="slide-title">공통 파이프라인 — 가드레일이 9단계에 어떻게 박혀 있는가</h3>
+    <p class="slide-sub">앞 슬라이드의 4가지 방어가 단계별로 분산 배치됨</p>
+    <div class="slide-body">
+      <div class="pipeline">
+        <div class="pipe-step io">
+          <div class="pnum">1</div>
+          <div class="pname">INPUT</div>
+          <div class="pwhy" style="color:var(--red);">PII MW 입력 적용</div>
+        </div>
+        <div class="pipe-step core">
+          <div class="pnum">2</div>
+          <div class="pname">INTENT ROUTER</div>
+          <div class="pwhy" style="color:var(--red);">Safety MW 차단</div>
+        </div>
+        <div class="pipe-step core">
+          <div class="pnum">3</div>
+          <div class="pname">AGENT 실행</div>
+          <div class="pwhy" style="color:var(--red);">Call Limit 12회</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pnum">4</div>
+          <div class="pname">TOOL 4단계</div>
+          <div class="pwhy" style="color:var(--red);">등급으로 위험 분류</div>
+        </div>
+        <div class="pipe-step guard">
+          <div class="pnum">5</div>
+          <div class="pname">MIDDLEWARE</div>
+          <div class="pwhy">7개 모두 적용</div>
+        </div>
+        <div class="pipe-step guard">
+          <div class="pnum">6</div>
+          <div class="pname">APPROVAL GATE</div>
+          <div class="pwhy">schema invariant</div>
+        </div>
+        <div class="pipe-step">
+          <div class="pnum">7</div>
+          <div class="pname">OUTPUT</div>
+          <div class="pwhy" style="color:var(--red);">PII MW 출력 적용</div>
+        </div>
+        <div class="pipe-step guard">
+          <div class="pnum">8</div>
+          <div class="pname">EVIDENCE LOG</div>
+          <div class="pwhy">민감정보 원문 제외</div>
+        </div>
+        <div class="pipe-step io">
+          <div class="pnum">9</div>
+          <div class="pname">FINAL RESPONSE</div>
+          <div class="pwhy">근거 인용 필수</div>
+        </div>
+      </div>
+
+      <div style="margin-top: 20px; background: var(--soft); padding: 14px 18px; border-radius: 8px; font-size: 12.5px; line-height: 1.7;">
+        <b style="color:var(--brand)">단계별 가드레일 분산 배치:</b><br>
+        · <b>1, 7</b> 단계: PII 마스킹 (입·출력 양쪽)<br>
+        · <b>2</b> 단계: 금지 의도 차단 (Intent 분류 전 차단으로 LLM 호출 절약)<br>
+        · <b>3</b> 단계: ReAct 루프 호출 한도 (LLM/Tool 12회씩)<br>
+        · <b>4, 6</b> 단계: Approval 강제 (Tool 등급 = 위험 분류 + Gate = 외부 전달 차단)<br>
+        · <b>8</b> 단계: 감사 추적 (Evidence Log) — 모든 단계 이벤트 수집
+      </div>
+      <div class="one-liner">단일 가드레일이 아닌 단계별 분산 방어 → 한 단계 실패해도 다음 단계가 잡음</div>
+    </div>
+    <div class="slide-foot">안 3 · 슬라이드 2 / 3</div>
+    <div class="slide-num">middleware.py · graph/workflow.py</div>
+  </div>
+
+  <!-- Slide 3.3 — Agent specialization matrix -->
+  <div class="slide">
+    <h3 class="slide-title">3 에이전트 — 동일 가드레일 위에서 무엇이 다른가</h3>
+    <p class="slide-sub">specialization은 Intent · 서브에이전트 · 핵심 Tool · 금지 항목 · Output 5개 차원에서만 발생</p>
+    <div class="slide-body">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th style="width: 90px"></th>
+            <th>Intent</th>
+            <th>서브에이전트 (2개씩)</th>
+            <th>핵심 Tool</th>
+            <th>도메인 특화 금지</th>
+            <th>Output 핵심</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="agent-cell">Visa</td>
+            <td class="visa"><b>VISA_CHECK</b></td>
+            <td class="visa">visa_risk_sub<br>+ document_priority_sub</td>
+            <td class="visa">assess_visa_risk<br>assess_document_priority</td>
+            <td class="visa">비자 발급 가부 확정<br>법률 자문</td>
+            <td class="visa">D-day + CRITICAL 누락 서류</td>
+          </tr>
+          <tr>
+            <td class="agent-cell">Workforce</td>
+            <td class="workforce"><b>HIRING_REQUEST</b></td>
+            <td class="workforce">workforce_requirement_agent<br>+ candidate_readiness_agent</td>
+            <td class="workforce">generate_hiring_request_draft<br>calculate_candidate_readiness</td>
+            <td class="workforce">국적별 차별 추천<br>성실도 / 이탈 판단</td>
+            <td class="workforce">인력 요청서 초안 + 후보자 준비도</td>
+          </tr>
+          <tr>
+            <td class="agent-cell">Contact</td>
+            <td class="contact"><b>WORKER_CONTACT</b></td>
+            <td class="contact">message_draft_flow<br>+ reply_summary_flow</td>
+            <td class="contact">search_multilingual_contact_rag<br>generate_multilingual_message_draft</td>
+            <td class="contact">자동 발송<br>SNS 감시 / 이탈 예측</td>
+            <td class="contact">ko 본문 + vi 번역문 + 답장 요약</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="one-liner">신규 에이전트는 이 5 차원만 정의 → 4 가드레일은 자동 상속</div>
+    </div>
+    <div class="slide-foot">안 3 · 슬라이드 3 / 3</div>
+    <div class="slide-num">agents/{visa,hiring,contact}_agent.py</div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pc-box pro"><b>장점</b> · "왜?"로 시작해 엔지니어 설득력 강함, 도메인 제약 → 설계 결정 흐름 명확</div>
+    <div class="pc-box con"><b>단점</b> · 첫 슬라이드가 무거움, 일반 청중에게는 위험 4종이 추상적으로 느껴질 수 있음</div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- 안 4                                                          -->
+<!-- ============================================================ -->
+<div class="option-section" id="opt4">
+  <div class="option-header">
+    <span class="option-tag">안 4</span>
+    <h2 class="option-title">역삼각형 추상화 (3장 · LangGraph 초보 친화)</h2>
+    <span class="option-desc">최상단 그래프 → 중간 공통 구조 → 하단 specialization</span>
+  </div>
+
+  <!-- Slide 4.1 — LangGraph workflow top -->
+  <div class="slide">
+    <h3 class="slide-title">최상단 — LangGraph workflow 노드 흐름</h3>
+    <p class="slide-sub">전체 시스템은 LangGraph 상태 머신, 5개 핵심 노드로 구성</p>
+    <div class="slide-body">
+      <div class="flex-grow">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; margin: 20px 0;">
+          <div class="node-chip" style="background:#eaf1fd;">intent_router_node</div>
+          <span class="node-arrow">→</span>
+          <div class="node-chip" style="background:#eaf1fd;">planner_node</div>
+          <span class="node-arrow">→</span>
+          <div class="node-chip" style="background:#f1eafa;">executor_node</div>
+          <span class="node-arrow">→</span>
+          <div class="node-chip" style="background:#fef2f2;">approval_gate_node</div>
+          <span class="node-arrow">→</span>
+          <div class="node-chip" style="background:#eaf1fd;">final_response_node</div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; font-size: 11.5px; margin-top: 10px;">
+          <div style="text-align: center; color: var(--muted);">의도 분류<br>(LLM 1회)</div>
+          <div style="text-align: center; color: var(--muted);">에이전트 선택<br>(visa/hiring/contact)</div>
+          <div style="text-align: center; color: var(--muted);">에이전트 실행<br>(서브 + Tool)</div>
+          <div style="text-align: center; color: var(--muted);">승인 필요 판단<br>(schema invariant)</div>
+          <div style="text-align: center; color: var(--muted);">PII 마스킹<br>+ 근거 인용</div>
+        </div>
+
+        <div style="margin-top: 32px; background: var(--soft); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px;">
+          <h4 style="margin: 0 0 8px; font-size: 13px; color: var(--label); text-transform: uppercase;">병렬로 흐르는 횡단 관심사</h4>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px;">
+            <div style="background:#fff; border:1px solid var(--border); padding:6px 10px; border-radius:5px;">📋 evidence_logger</div>
+            <div style="background:#fff; border:1px solid var(--border); padding:6px 10px; border-radius:5px;">🛡 7개 Middleware</div>
+            <div style="background:#fff; border:1px solid var(--border); padding:6px 10px; border-radius:5px;">📊 aggregator</div>
+            <div style="background:#fff; border:1px solid var(--border); padding:6px 10px; border-radius:5px;">⚠ risk_flags 누적</div>
+          </div>
+        </div>
+      </div>
+      <div class="one-liner">단일 LangGraph 위에 3개 에이전트가 executor_node에서 분기</div>
+    </div>
+    <div class="slide-foot">안 4 · 슬라이드 1 / 3</div>
+    <div class="slide-num">graph/workflow.py · graph/nodes/</div>
+  </div>
+
+  <!-- Slide 4.2 — Agent common structure (middle) -->
+  <div class="slide">
+    <h3 class="slide-title">중간 — 모든 에이전트의 공통 내부 구조</h3>
+    <p class="slide-sub">executor_node에서 호출되는 에이전트는 동일한 3축 구조</p>
+    <div class="slide-body">
+      <div class="common-block">
+        <div>
+          <h4>① 서브에이전트 (2개)</h4>
+          <div class="item"><b>각자 독립 LLM ReAct 루프</b></div>
+          <div class="item">최대 <b>4회</b> 반복</div>
+          <div class="item">결과 통합 후 risk_flags dedupe</div>
+          <div class="item" style="margin-top: 10px; color: var(--muted);">예시:</div>
+          <div class="item">· Visa: risk + document_priority</div>
+          <div class="item">· Workforce: requirement + readiness</div>
+          <div class="item">· Contact: draft + reply_summary</div>
+        </div>
+        <div>
+          <h4>② Tool 4단계 (총 20개)</h4>
+          <div class="item"><span class="tag read">READ</span> 8개</div>
+          <div class="item"><span class="tag calc">CALC</span> 6개</div>
+          <div class="item"><span class="tag draft">DRAFT</span> 3개 (항상 approval=True)</div>
+          <div class="item"><span class="tag approve">APPROVAL</span> 3개 (호출 즉시 NEEDS_APPROVAL)</div>
+          <div class="item" style="margin-top: 10px; color: var(--muted);">중앙 레지스트리 관리</div>
+          <div class="item">· tools/registry.py</div>
+          <div class="item">· TOOL_REGISTRY[name] → (tool, grade)</div>
+        </div>
+        <div>
+          <h4>③ Middleware 7개</h4>
+          <div class="item">1. WorkBridgeSafety (의도 차단)</div>
+          <div class="item">2. EvidenceCapture (이벤트 수집)</div>
+          <div class="item">3. PIIMW(email)</div>
+          <div class="item">4. PIIMW(foreign_hiring_pii)</div>
+          <div class="item">5. ModelCallLimit(12)</div>
+          <div class="item">6. ToolCallLimit(12)</div>
+          <div class="item">7. HumanInTheLoop (강제 중단)</div>
+          <div class="item" style="margin-top: 8px; color: var(--muted);">전 에이전트 동일 스택</div>
+        </div>
+      </div>
+      <div class="one-liner">에이전트 = 서브에이전트 + Tool + Middleware 조합으로 정의</div>
+    </div>
+    <div class="slide-foot">안 4 · 슬라이드 2 / 3</div>
+    <div class="slide-num">agents/ · tools/registry.py · middleware.py</div>
+  </div>
+
+  <!-- Slide 4.3 — Specialization matrix (bottom) -->
+  <div class="slide">
+    <h3 class="slide-title">하단 — 3 에이전트 specialization</h3>
+    <p class="slide-sub">최상단 그래프 + 중간 공통 구조 위에서 어떻게 달라지는가</p>
+    <div class="slide-body">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th style="width: 90px"></th>
+            <th>Intent</th>
+            <th>서브에이전트 선택</th>
+            <th>핵심 Tool (DRAFT 등급)</th>
+            <th>Output 특이점</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="agent-cell">Visa</td>
+            <td class="visa"><b>VISA_CHECK</b></td>
+            <td class="visa">_run_visa_risk_sub_agent<br>_run_document_priority_sub_agent</td>
+            <td class="visa">generate_expert_handoff_package_draft</td>
+            <td class="visa">D-day + 누락 서류 CRITICAL/SUPPLEMENTARY 분류</td>
+          </tr>
+          <tr>
+            <td class="agent-cell">Workforce</td>
+            <td class="workforce"><b>HIRING_REQUEST</b></td>
+            <td class="workforce">WorkforceRequirementAgent<br>CandidateReadinessAgent</td>
+            <td class="workforce">generate_hiring_request_draft<br>generate_expert_handoff_package_draft</td>
+            <td class="workforce">institutional_checklist + candidate_readiness_table</td>
+          </tr>
+          <tr>
+            <td class="agent-cell">Contact</td>
+            <td class="contact"><b>WORKER_CONTACT</b></td>
+            <td class="contact">generate_message_draft (flow)<br>summarize_worker_reply (flow)</td>
+            <td class="contact">generate_multilingual_message_draft</td>
+            <td class="contact">한국어 본문 + 번역문 + 답장 status_update_candidates</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="one-liner">최상단 · 중간 레이어 재사용 → 신규 에이전트는 하단 4 차원만 정의</div>
+    </div>
+    <div class="slide-foot">안 4 · 슬라이드 3 / 3</div>
+    <div class="slide-num">agents/ · 신규 에이전트 추가 비용 분석</div>
+  </div>
+
+  <div class="pros-cons">
+    <div class="pc-box pro"><b>장점</b> · 추상화 → 구체화 흐름 자연스러움, LangGraph 처음 보는 사람도 따라옴</div>
+    <div class="pc-box con"><b>단점</b> · 도메인 안전 설계 메시지가 늦게 등장, 첫 슬라이드가 프레임워크 도식에 그침</div>
+  </div>
+</div>
+
+</body>
+</html>

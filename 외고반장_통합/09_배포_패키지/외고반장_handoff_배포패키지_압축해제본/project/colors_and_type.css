@@ -1,0 +1,485 @@
+/*
+ * Montage — Wanted Design System
+ * CSS Custom Properties
+ * Source: https://github.com/wanteddev/montage-web
+ *
+ * Load Pretendard font before using this file:
+ * <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css" />
+ */
+
+/* ─────────────────────────────────────────
+   ATOMIC COLOR SCALES
+   ───────────────────────────────────────── */
+
+:root {
+  /* Blue (Primary brand color) */
+  --atomic-blue-10: #001536;
+  --atomic-blue-20: #002966;
+  --atomic-blue-30: #003E9C;
+  --atomic-blue-40: #0054D1;
+  --atomic-blue-45: #005EEB;
+  --atomic-blue-50: #0066FF;  /* PRIMARY */
+  --atomic-blue-55: #1A75FF;
+  --atomic-blue-60: #3385FF;
+  --atomic-blue-65: #4F95FF;
+  --atomic-blue-70: #69A5FF;
+  --atomic-blue-80: #9EC5FF;
+  --atomic-blue-90: #C9DEFE;
+  --atomic-blue-95: #EAF2FE;
+  --atomic-blue-99: #F7FBFF;
+
+  /* CoolNeutral (UI text, backgrounds, borders) */
+  --atomic-cn-5:  #0F0F10;
+  --atomic-cn-7:  #141415;
+  --atomic-cn-10: #171719;
+  --atomic-cn-15: #1B1C1E;
+  --atomic-cn-17: #212225;
+  --atomic-cn-20: #292A2D;
+  --atomic-cn-22: #2E2F33;
+  --atomic-cn-23: #333438;
+  --atomic-cn-25: #37383C;
+  --atomic-cn-30: #46474C;
+  --atomic-cn-40: #5A5C63;
+  --atomic-cn-50: #70737C;
+  --atomic-cn-60: #878A93;
+  --atomic-cn-70: #989BA2;
+  --atomic-cn-80: #AEB0B6;
+  --atomic-cn-90: #C2C4C8;
+  --atomic-cn-95: #DBDCDF;
+  --atomic-cn-96: #E1E2E4;
+  --atomic-cn-97: #EAEBEC;
+  --atomic-cn-98: #F4F4F5;
+  --atomic-cn-99: #F7F7F8;
+
+  /* Neutral (pure gray — used for shadow base) */
+  --atomic-neutral-5:  #0F0F0F;
+  --atomic-neutral-10: #171717;
+  --atomic-neutral-15: #1C1C1C;
+  --atomic-neutral-20: #2A2A2A;
+  --atomic-neutral-22: #303030;
+  --atomic-neutral-30: #474747;
+  --atomic-neutral-40: #5C5C5C;
+  --atomic-neutral-50: #737373;
+  --atomic-neutral-60: #8A8A8A;
+  --atomic-neutral-70: #9B9B9B;
+  --atomic-neutral-80: #B0B0B0;
+  --atomic-neutral-90: #C4C4C4;
+  --atomic-neutral-95: #DCDCDC;
+  --atomic-neutral-99: #F7F7F7;
+
+  /* Common */
+  --atomic-common-0:   #000000;
+  --atomic-common-100: #FFFFFF;
+
+  /* Green (Status: Positive) */
+  --atomic-green-10: #00240C;
+  --atomic-green-20: #004517;
+  --atomic-green-30: #006E25;
+  --atomic-green-40: #009632;
+  --atomic-green-50: #00BF40;
+  --atomic-green-60: #1ED45A;
+  --atomic-green-70: #49E57D;
+  --atomic-green-80: #7DF5A5;
+  --atomic-green-90: #ACFCC7;
+  --atomic-green-95: #D9FFE6;
+  --atomic-green-99: #F2FFF6;
+
+  /* Orange (Status: Cautionary) */
+  --atomic-orange-10: #361E00;
+  --atomic-orange-20: #663A00;
+  --atomic-orange-30: #9C5800;
+  --atomic-orange-39: #D17600;
+  --atomic-orange-40: #D47800;
+  --atomic-orange-50: #FF9200;
+  --atomic-orange-60: #FFA938;
+  --atomic-orange-70: #FFC06E;
+  --atomic-orange-80: #FFD49C;
+  --atomic-orange-90: #FEE6C6;
+  --atomic-orange-95: #FEF4E6;
+  --atomic-orange-99: #FFFCF7;
+
+  /* Red (Status: Negative) */
+  --atomic-red-10: #3B0101;
+  --atomic-red-20: #730303;
+  --atomic-red-30: #B00C0C;
+  --atomic-red-40: #E52222;
+  --atomic-red-50: #FF4242;
+  --atomic-red-60: #FF6363;
+  --atomic-red-70: #FF8C8C;
+  --atomic-red-80: #FFB5B5;
+  --atomic-red-90: #FED5D5;
+  --atomic-red-95: #FEECEC;
+  --atomic-red-99: #FFFAFA;
+
+  /* Violet (Accent) */
+  --atomic-violet-10: #11024D;
+  --atomic-violet-20: #23098F;
+  --atomic-violet-30: #3A16C9;
+  --atomic-violet-40: #4F29E5;
+  --atomic-violet-45: #5B37ED;
+  --atomic-violet-50: #6541F2;
+  --atomic-violet-60: #7D5EF7;
+  --atomic-violet-70: #9E86FC;
+  --atomic-violet-80: #C0B0FF;
+  --atomic-violet-90: #DBD3FE;
+  --atomic-violet-95: #F0ECFE;
+  --atomic-violet-99: #FBFAFF;
+
+  /* Purple (Accent) */
+  --atomic-purple-10: #290247;
+  --atomic-purple-20: #580A7D;
+  --atomic-purple-30: #861CB8;
+  --atomic-purple-40: #AD36E3;
+  --atomic-purple-50: #CB59FF;
+  --atomic-purple-60: #D478FF;
+  --atomic-purple-70: #DE96FF;
+  --atomic-purple-80: #E9BAFF;
+  --atomic-purple-90: #F2D6FF;
+  --atomic-purple-95: #F9EDFF;
+  --atomic-purple-99: #FEFBFF;
+
+  /* Pink (Accent) */
+  --atomic-pink-10: #3D0133;
+  --atomic-pink-20: #730560;
+  --atomic-pink-30: #A81690;
+  --atomic-pink-40: #D331B8;
+  --atomic-pink-46: #E846CD;
+  --atomic-pink-50: #F553DA;
+  --atomic-pink-60: #FA73E3;
+  --atomic-pink-70: #FF94ED;
+  --atomic-pink-80: #FFB8F3;
+  --atomic-pink-90: #FED3F7;
+  --atomic-pink-95: #FEECFB;
+  --atomic-pink-99: #FFFAFE;
+
+  /* Cyan (Accent) */
+  --atomic-cyan-10: #00252B;
+  --atomic-cyan-20: #004854;
+  --atomic-cyan-30: #006F82;
+  --atomic-cyan-40: #0098B2;
+  --atomic-cyan-50: #00BDDE;
+  --atomic-cyan-60: #28D0ED;
+  --atomic-cyan-70: #57DFF7;
+  --atomic-cyan-80: #8AEDFF;
+  --atomic-cyan-90: #B5F4FF;
+  --atomic-cyan-95: #DEFAFF;
+  --atomic-cyan-99: #F7FEFF;
+
+  /* LightBlue (Accent) */
+  --atomic-lightblue-10: #002130;
+  --atomic-lightblue-20: #004261;
+  --atomic-lightblue-30: #006796;
+  --atomic-lightblue-40: #008DCF;
+  --atomic-lightblue-50: #00AEFF;
+  --atomic-lightblue-60: #3DC2FF;
+  --atomic-lightblue-70: #70D2FF;
+  --atomic-lightblue-80: #A1E1FF;
+  --atomic-lightblue-90: #C4ECFE;
+  --atomic-lightblue-95: #E5F6FE;
+  --atomic-lightblue-99: #F7FDFF;
+
+  /* Lime (Accent) */
+  --atomic-lime-10: #112900;
+  --atomic-lime-20: #225200;
+  --atomic-lime-30: #347D00;
+  --atomic-lime-37: #429E00;
+  --atomic-lime-40: #48AD00;
+  --atomic-lime-50: #58CF04;
+  --atomic-lime-60: #6BE016;
+  --atomic-lime-70: #88F03E;
+  --atomic-lime-80: #AEF779;
+  --atomic-lime-90: #CCFCA9;
+  --atomic-lime-95: #E6FFD4;
+  --atomic-lime-99: #F8FFF2;
+
+  /* RedOrange (Accent) */
+  --atomic-redorange-10: #290F00;
+  --atomic-redorange-20: #592100;
+  --atomic-redorange-30: #913500;
+  --atomic-redorange-40: #C94A00;
+  --atomic-redorange-48: #F55A00;
+  --atomic-redorange-50: #FF5E00;
+  --atomic-redorange-60: #FF7B2E;
+  --atomic-redorange-70: #FF9B61;
+  --atomic-redorange-80: #FFBD96;
+  --atomic-redorange-90: #FED9C4;
+  --atomic-redorange-95: #FEEEE5;
+  --atomic-redorange-99: #FFFAF7;
+}
+
+
+/* ─────────────────────────────────────────
+   SEMANTIC TOKENS — LIGHT THEME (default)
+   ───────────────────────────────────────── */
+
+:root,
+[data-theme="light"] {
+  --color-primary-normal:       #0066FF;
+  --color-primary-strong:       #005EEB;
+  --color-primary-heavy:        #0054D1;
+
+  --color-static-white:         #FFFFFF;
+  --color-static-black:         #000000;
+
+  --color-label-normal:         #171719;
+  --color-label-strong:         #000000;
+  --color-label-neutral:        rgba(55, 56, 60, 0.88);
+  --color-label-alternative:    rgba(55, 56, 60, 0.61);
+  --color-label-assistive:      rgba(55, 56, 60, 0.28);
+  --color-label-disable:        rgba(55, 56, 60, 0.16);
+
+  --color-bg-normal:            #FFFFFF;
+  --color-bg-alternative:       #F7F7F8;
+  --color-bg-elevated:          #FFFFFF;
+  --color-bg-elevated-alt:      #F7F7F8;
+
+  --color-interaction-inactive: #989BA2;
+  --color-interaction-disable:  #F4F4F5;
+
+  --color-line-normal:          rgba(112, 115, 124, 0.22);
+  --color-line-neutral:         rgba(112, 115, 124, 0.16);
+  --color-line-alternative:     rgba(112, 115, 124, 0.08);
+  --color-line-solid-normal:    #E1E2E4;
+  --color-line-solid-neutral:   #EAEBEC;
+  --color-line-solid-alt:       #F4F4F5;
+
+  --color-status-positive:      #00BF40;
+  --color-status-cautionary:    #FF9200;
+  --color-status-negative:      #FF4242;
+
+  --color-fill-normal:          rgba(112, 115, 124, 0.08);
+  --color-fill-strong:          rgba(112, 115, 124, 0.16);
+  --color-fill-alternative:     rgba(112, 115, 124, 0.05);
+
+  --color-inverse-primary:      #3385FF;
+  --color-inverse-bg:           #1B1C1E;
+  --color-inverse-label:        #F7F7F8;
+
+  --color-material-dimmer:      rgba(23, 23, 25, 0.52);
+
+  --color-accent-redorange:     #FF5E00;
+  --color-accent-lime:          #58CF04;
+  --color-accent-cyan:          #00BDDE;
+  --color-accent-lightblue:     #00AEFF;
+  --color-accent-violet:        #6541F2;
+  --color-accent-purple:        #CB59FF;
+  --color-accent-pink:          #F553DA;
+
+  /* Shadows */
+  --shadow-xsmall:  0px 1px 2px -1px rgba(23,23,23,0.10);
+  --shadow-small:   0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);
+  --shadow-medium:  0px 4px 6px -2px rgba(23,23,23,0.07), 0px 10px 15px -3px rgba(23,23,23,0.07);
+  --shadow-large:   0px 6px 10px -4px rgba(23,23,23,0.08), 0px 16px 24px -6px rgba(23,23,23,0.08);
+  --shadow-xlarge:  0px 10px 15px -5px rgba(23,23,23,0.10), 0px 24px 38px -10px rgba(23,23,23,0.12);
+  --shadow-spread-small:  0px 0px 60px 0px rgba(23,23,23,0.10);
+  --shadow-spread-medium: 0px 15px 75px 0px rgba(23,23,23,0.16);
+}
+
+
+/* ─────────────────────────────────────────
+   SEMANTIC TOKENS — DARK THEME
+   ───────────────────────────────────────── */
+
+[data-theme="dark"] {
+  --color-primary-normal:       #3385FF;
+  --color-primary-strong:       #1A75FF;
+  --color-primary-heavy:        #0066FF;
+
+  --color-label-normal:         #F7F7F8;
+  --color-label-strong:         #FFFFFF;
+  --color-label-neutral:        rgba(194, 196, 200, 0.88);
+  --color-label-alternative:    rgba(174, 176, 182, 0.61);
+  --color-label-assistive:      rgba(174, 176, 182, 0.28);
+  --color-label-disable:        rgba(152, 155, 162, 0.16);
+
+  --color-bg-normal:            #1B1C1E;
+  --color-bg-alternative:       #0F0F10;
+  --color-bg-elevated:          #212225;
+  --color-bg-elevated-alt:      #141415;
+
+  --color-interaction-inactive: #5A5C63;
+  --color-interaction-disable:  #2E2F33;
+
+  --color-line-normal:          rgba(112, 115, 124, 0.32);
+  --color-line-neutral:         rgba(112, 115, 124, 0.28);
+  --color-line-alternative:     rgba(112, 115, 124, 0.22);
+  --color-line-solid-normal:    #37383C;
+  --color-line-solid-neutral:   #333438;
+  --color-line-solid-alt:       #2E2F33;
+
+  --color-status-positive:      #1ED45A;
+  --color-status-cautionary:    #FFA938;
+  --color-status-negative:      #FF6363;
+
+  --color-fill-normal:          rgba(112, 115, 124, 0.22);
+  --color-fill-strong:          rgba(112, 115, 124, 0.28);
+  --color-fill-alternative:     rgba(112, 115, 124, 0.12);
+
+  --color-inverse-primary:      #0066FF;
+  --color-inverse-bg:           #FFFFFF;
+  --color-inverse-label:        #171719;
+
+  --color-material-dimmer:      rgba(23, 23, 25, 0.74);
+}
+
+
+/* ─────────────────────────────────────────
+   SPACING TOKENS
+   ───────────────────────────────────────── */
+
+:root {
+  --space-0:    0px;
+  --space-05:   0.5px;
+  --space-1:    1px;
+  --space-2:    2px;
+  --space-4:    4px;
+  --space-6:    6px;
+  --space-8:    8px;
+  --space-10:   10px;
+  --space-12:   12px;
+  --space-14:   14px;
+  --space-16:   16px;
+  --space-20:   20px;
+  --space-24:   24px;
+  --space-32:   32px;
+  --space-40:   40px;
+  --space-48:   48px;
+  --space-56:   56px;
+  --space-64:   64px;
+  --space-72:   72px;
+  --space-80:   80px;
+}
+
+
+/* ─────────────────────────────────────────
+   OPACITY TOKENS
+   ───────────────────────────────────────── */
+
+:root {
+  --opacity-0:   0;
+  --opacity-5:   0.05;
+  --opacity-8:   0.08;
+  --opacity-12:  0.12;
+  --opacity-16:  0.16;
+  --opacity-22:  0.22;
+  --opacity-28:  0.28;
+  --opacity-35:  0.35;
+  --opacity-43:  0.43;
+  --opacity-52:  0.52;
+  --opacity-61:  0.61;
+  --opacity-74:  0.74;
+  --opacity-88:  0.88;
+  --opacity-97:  0.97;
+  --opacity-100: 1;
+}
+
+
+/* ─────────────────────────────────────────
+   TYPOGRAPHY TOKENS
+   ───────────────────────────────────────── */
+
+:root {
+  --font-family: 'Pretendard', 'Pretendard JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Font sizes */
+  --fs-display1:  3.5rem;    /* 56px */
+  --fs-display2:  2.5rem;    /* 40px */
+  --fs-display3:  2.25rem;   /* 36px */
+  --fs-title1:    2rem;      /* 32px */
+  --fs-title2:    1.75rem;   /* 28px */
+  --fs-title3:    1.5rem;    /* 24px */
+  --fs-heading1:  1.375rem;  /* 22px */
+  --fs-heading2:  1.25rem;   /* 20px */
+  --fs-headline1: 1.125rem;  /* 18px */
+  --fs-headline2: 1.0625rem; /* 17px */
+  --fs-body1:     1rem;      /* 16px */
+  --fs-body2:     0.9375rem; /* 15px */
+  --fs-label1:    0.875rem;  /* 14px */
+  --fs-label2:    0.8125rem; /* 13px */
+  --fs-caption1:  0.75rem;   /* 12px */
+  --fs-caption2:  0.6875rem; /* 11px */
+
+  /* Line heights */
+  --lh-display1:  4.5rem;    /* 72px */
+  --lh-display2:  3.25rem;   /* 52px */
+  --lh-display3:  3rem;      /* 48px */
+  --lh-title1:    2.75rem;   /* 44px */
+  --lh-title2:    2.375rem;  /* 38px */
+  --lh-title3:    2rem;      /* 32px */
+  --lh-heading1:  1.875rem;  /* 30px */
+  --lh-heading2:  1.75rem;   /* 28px */
+  --lh-headline1: 1.625rem;  /* 26px */
+  --lh-headline2: 1.5rem;    /* 24px */
+  --lh-body1:     1.5rem;    /* 24px */
+  --lh-body1r:    1.625rem;  /* 26px — reading variant */
+  --lh-body2:     1.375rem;  /* 22px */
+  --lh-body2r:    1.5rem;    /* 24px — reading variant */
+  --lh-label1:    1.25rem;   /* 20px */
+  --lh-label1r:   1.375rem;  /* 22px — reading variant */
+  --lh-label2:    1.125rem;  /* 18px */
+  --lh-caption1:  1rem;      /* 16px */
+  --lh-caption2:  0.875rem;  /* 14px */
+
+  /* Letter spacing */
+  --ls-display1:  -0.0319em;
+  --ls-display2:  -0.0282em;
+  --ls-display3:  -0.027em;
+  --ls-title1:    -0.0253em;
+  --ls-title2:    -0.0236em;
+  --ls-title3:    -0.023em;
+  --ls-heading1:  -0.0194em;
+  --ls-heading2:  -0.012em;
+  --ls-headline1: -0.002em;
+  --ls-headline2:  0em;
+  --ls-body1:      0.0057em;
+  --ls-body2:      0.0096em;
+  --ls-label1:     0.0145em;
+  --ls-label2:     0.0194em;
+  --ls-caption1:   0.0252em;
+  --ls-caption2:   0.0311em;
+
+  /* Font weights */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-bold:    600;
+  --fw-display-bold: 700; /* display/title sizes use 700 for bold */
+}
+
+
+/* ─────────────────────────────────────────
+   SEMANTIC TYPOGRAPHY UTILITY CLASSES
+   ───────────────────────────────────────── */
+
+.wds-display1 { font-size: var(--fs-display1); line-height: var(--lh-display1); letter-spacing: var(--ls-display1); }
+.wds-display2 { font-size: var(--fs-display2); line-height: var(--lh-display2); letter-spacing: var(--ls-display2); }
+.wds-display3 { font-size: var(--fs-display3); line-height: var(--lh-display3); letter-spacing: var(--ls-display3); }
+.wds-title1   { font-size: var(--fs-title1);   line-height: var(--lh-title1);   letter-spacing: var(--ls-title1); }
+.wds-title2   { font-size: var(--fs-title2);   line-height: var(--lh-title2);   letter-spacing: var(--ls-title2); }
+.wds-title3   { font-size: var(--fs-title3);   line-height: var(--lh-title3);   letter-spacing: var(--ls-title3); }
+.wds-heading1 { font-size: var(--fs-heading1); line-height: var(--lh-heading1); letter-spacing: var(--ls-heading1); }
+.wds-heading2 { font-size: var(--fs-heading2); line-height: var(--lh-heading2); letter-spacing: var(--ls-heading2); }
+.wds-headline1 { font-size: var(--fs-headline1); line-height: var(--lh-headline1); letter-spacing: var(--ls-headline1); }
+.wds-headline2 { font-size: var(--fs-headline2); line-height: var(--lh-headline2); letter-spacing: var(--ls-headline2); }
+.wds-body1    { font-size: var(--fs-body1);    line-height: var(--lh-body1);    letter-spacing: var(--ls-body1); }
+.wds-body2    { font-size: var(--fs-body2);    line-height: var(--lh-body2);    letter-spacing: var(--ls-body2); }
+.wds-label1   { font-size: var(--fs-label1);   line-height: var(--lh-label1);   letter-spacing: var(--ls-label1); }
+.wds-label2   { font-size: var(--fs-label2);   line-height: var(--lh-label2);   letter-spacing: var(--ls-label2); }
+.wds-caption1 { font-size: var(--fs-caption1); line-height: var(--lh-caption1); letter-spacing: var(--ls-caption1); }
+.wds-caption2 { font-size: var(--fs-caption2); line-height: var(--lh-caption2); letter-spacing: var(--ls-caption2); }
+
+.wds-regular { font-weight: var(--fw-regular); }
+.wds-medium  { font-weight: var(--fw-medium); }
+.wds-bold    { font-weight: var(--fw-bold); }
+
+/* Base reset with Pretendard */
+.wds-root {
+  font-family: var(--font-family);
+  font-size: var(--fs-body1);
+  line-height: var(--lh-body1);
+  letter-spacing: var(--ls-body1);
+  color: var(--color-label-normal);
+  background-color: var(--color-bg-normal);
+  font-weight: var(--fw-regular);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

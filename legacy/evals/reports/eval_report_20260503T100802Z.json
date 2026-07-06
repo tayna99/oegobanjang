@@ -1,0 +1,10 @@
+{
+  "mode": "structure-only",
+  "started_at": "2026-05-03T10:08:02.105170+00:00",
+  "datasets_checked": [
+    "rag_retrieval_cases"
+  ],
+  "total_cases": 5,
+  "total_issues": 0,
+  "issues": []
+}

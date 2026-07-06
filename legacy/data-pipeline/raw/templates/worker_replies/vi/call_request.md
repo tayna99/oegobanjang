@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=call_request
+purpose=contact_preference_reply
+language_code=vi
+incoming_message=Bạn có thể gọi điện cho tôi được không?
+korean_meaning=전화로 연락해 달라는 의미의 합성 답변.
+expected_summary=근로자는 전화 연락을 요청했다.
+expected_status_update=contact_preference:call_requested_candidate
+next_action=전화 연락 요청 후보를 기록하고 실제 연락은 담당자가 승인 후 진행한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

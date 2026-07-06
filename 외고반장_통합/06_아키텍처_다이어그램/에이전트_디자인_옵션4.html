@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>WorkBridge Agent 설계 — 역삼각형 추상화</title>
+<style>
+  :root {
+    --bg: #eef0f4;
+    --slide-bg: #ffffff;
+    --ink: #1f2330;
+    --muted: #7b8190;
+    --label: #9aa0ac;
+    --brand: #2f3aa1;
+    --border: #e3e5ea;
+    --soft: #f7f8fa;
+    --green: #2f9e6a;
+    --green-bg: #e9f7ef;
+    --blue: #3b6bd8;
+    --blue-bg: #eaf1fd;
+    --orange: #d97a30;
+    --orange-bg: #fdeedb;
+    --purple: #7c4dc5;
+    --purple-bg: #f1eafa;
+    --red: #d24b4b;
+    --red-bg: #fdecec;
+    --yellow: #d6a73b;
+    --yellow-bg: #fbf3dc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                 "Pretendard", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 32px;
+    color: var(--ink);
+  }
+  .page-title {
+    max-width: 1280px;
+    margin: 0 auto 24px;
+  }
+  .page-title h1 { font-size: 22px; margin: 0 0 6px; color: var(--brand); }
+  .page-title p { margin: 0; color: var(--muted); font-size: 14px; }
+  .deck { max-width: 1280px; margin: 0 auto; }
+
+  .slide {
+    background: var(--slide-bg);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(20,30,60,0.08);
+    aspect-ratio: 16 / 9;
+    padding: 36px 44px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide-num {
+    position: absolute;
+    bottom: 14px;
+    right: 22px;
+    font-size: 11px;
+    color: var(--label);
+    font-family: monospace;
+  }
+  .slide-foot {
+    position: absolute;
+    bottom: 14px;
+    left: 22px;
+    font-size: 11px;
+    color: var(--label);
+  }
+  .slide-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--brand);
+    margin: 0 0 4px 0;
+  }
+  .slide-sub {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 0 0 22px 0;
+  }
+  .slide-body { flex: 1; display: flex; flex-direction: column; }
+
+  .one-liner {
+    background: var(--brand);
+    color: #fff;
+    text-align: center;
+    padding: 11px;
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-top: 16px;
+  }
+
+  /* ===== Slide 1: LangGraph nodes (top of triangle) ===== */
+  .langgraph-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: nowrap;
+    margin: 24px 0 12px 0;
+  }
+  .node-chip {
+    background: #eaf1fd;
+    border: 1.5px solid #b8d1ee;
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: "Consolas", "D2Coding", monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brand);
+    text-align: center;
+    min-width: 140px;
+  }
+  .node-chip.executor { background: #f1eafa; border-color: #d4bff0; color: var(--purple); }
+  .node-chip.gate { background: #fef2f2; border-color: #f0bfbf; color: var(--red); }
+  .node-arrow {
+    color: var(--brand);
+    font-weight: 700;
+    font-size: 22px;
+  }
+  .node-captions {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-top: 4px;
+    padding: 0 12px;
+  }
+  .node-cap {
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .cross-cutting {
+    margin-top: 28px;
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+  }
+  .cross-cutting h4 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-weight: 700;
+  }
+  .cc-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .cc-chip {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+  }
+  .cc-chip b { color: var(--brand); }
+
+  /* ===== Slide 2: Agent common structure (middle of triangle) ===== */
+  .common-block {
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 22px 26px;
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 18px;
+  }
+  .common-col h4 {
+    margin: 0 0 12px 0;
+    font-size: 13px;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-weight: 700;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .common-col .item {
+    font-size: 12.5px;
+    margin: 7px 0;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .common-col .item b { color: var(--brand); }
+  .common-col .gap { margin-top: 12px; color: var(--muted); font-size: 11.5px; }
+  .tag {
+    display: inline-block;
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .tag.read { background: var(--green-bg); color: var(--green); }
+  .tag.calc { background: var(--purple-bg); color: var(--purple); }
+  .tag.draft { background: var(--yellow-bg); color: var(--yellow); }
+  .tag.approve { background: var(--red-bg); color: var(--red); }
+
+  /* ===== Slide 3: Specialization matrix (bottom of triangle) ===== */
+  .matrix {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 6px;
+    table-layout: fixed;
+  }
+  .matrix th, .matrix td {
+    border: 1px solid var(--border);
+    padding: 13px 14px;
+    font-size: 13px;
+    vertical-align: top;
+    text-align: left;
+    line-height: 1.5;
+  }
+  .matrix th {
+    background: var(--soft);
+    color: var(--label);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    text-align: center;
+  }
+  .matrix .agent-cell {
+    background: var(--soft);
+    font-weight: 700;
+    color: var(--brand);
+    text-align: center;
+    font-size: 14px;
+  }
+  .matrix .visa { background: #fff3e8; }
+  .matrix .workforce { background: #eef7f2; }
+  .matrix .contact { background: #eef1fa; }
+
+  /* Triangle indicator */
+  .triangle-indicator {
+    position: absolute;
+    top: 38px;
+    right: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    opacity: 0.85;
+  }
+  .ti-row {
+    display: flex;
+    gap: 3px;
+  }
+  .ti-cell {
+    width: 14px;
+    height: 5px;
+    border-radius: 2px;
+    background: var(--border);
+  }
+  .ti-cell.active { background: var(--brand); }
+  .ti-label {
+    font-size: 9.5px;
+    color: var(--label);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <h1>WorkBridge Agent 설계 — 역삼각형 추상화</h1>
+  <p>최상단 LangGraph workflow → 중간 Agent 공통 구조 → 하단 Agent specialization (3장)</p>
+</div>
+
+<div class="deck">
+
+<!-- =================================================== -->
+<!-- Slide 1 — Top: LangGraph workflow                     -->
+<!-- =================================================== -->
+<div class="slide">
+  <div class="triangle-indicator">
+    <div class="ti-row"><div class="ti-cell active"></div><div class="ti-cell active"></div><div class="ti-cell active"></div><div class="ti-cell active"></div><div class="ti-cell active"></div></div>
+    <div class="ti-row"><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div></div>
+    <div class="ti-row"><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div></div>
+    <div class="ti-label">최상단</div>
+  </div>
+
+  <h3 class="slide-title">최상단 — LangGraph workflow 노드 흐름</h3>
+  <p class="slide-sub">전체 시스템은 LangGraph 상태 머신. 5개 핵심 노드가 직렬로 연결되고, 횡단 관심사가 병렬로 흐름</p>
+  <div class="slide-body">
+
+    <div class="langgraph-row">
+      <div class="node-chip">intent_router_node</div>
+      <span class="node-arrow">→</span>
+      <div class="node-chip">planner_node</div>
+      <span class="node-arrow">→</span>
+      <div class="node-chip executor">executor_node</div>
+      <span class="node-arrow">→</span>
+      <div class="node-chip gate">approval_gate_node</div>
+      <span class="node-arrow">→</span>
+      <div class="node-chip">final_response_node</div>
+    </div>
+
+    <div class="node-captions">
+      <div class="node-cap">의도 분류<br>(LLM 1회 · gpt-4o-mini)</div>
+      <div class="node-cap">에이전트 선택<br>(visa / hiring / contact)</div>
+      <div class="node-cap"><b style="color:var(--purple)">에이전트 실행</b><br>(서브에이전트 + Tool)</div>
+      <div class="node-cap"><b style="color:var(--red)">승인 필요 판단</b><br>(schema invariant 강제)</div>
+      <div class="node-cap">최종 응답 조립<br>(PII 마스킹 + 근거 인용)</div>
+    </div>
+
+    <div class="cross-cutting">
+      <h4>병렬로 흐르는 횡단 관심사</h4>
+      <div class="cc-chips">
+        <div class="cc-chip"><b>evidence_logger_node</b> — 모든 노드 이벤트 수집</div>
+        <div class="cc-chip"><b>aggregator_node</b> — 결과 통합 + risk_flags dedupe</div>
+        <div class="cc-chip"><b>7개 Middleware</b> — 모든 LLM/Tool 호출에 적용</div>
+        <div class="cc-chip"><b>state.risk_flags</b> — 누적 + 임계치 체크</div>
+      </div>
+    </div>
+
+    <div class="one-liner">단일 LangGraph 위에 3개 에이전트가 executor_node에서 분기</div>
+  </div>
+  <div class="slide-foot">슬라이드 1 / 3</div>
+  <div class="slide-num">graph/workflow.py · graph/nodes/</div>
+</div>
+
+<!-- =================================================== -->
+<!-- Slide 2 — Middle: Agent common structure              -->
+<!-- =================================================== -->
+<div class="slide">
+  <div class="triangle-indicator">
+    <div class="ti-row"><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div></div>
+    <div class="ti-row"><div class="ti-cell active"></div><div class="ti-cell active"></div><div class="ti-cell active"></div><div class="ti-cell active"></div></div>
+    <div class="ti-row"><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div></div>
+    <div class="ti-label">중간</div>
+  </div>
+
+  <h3 class="slide-title">중간 — 모든 에이전트의 공통 내부 구조</h3>
+  <p class="slide-sub">executor_node에서 호출되는 에이전트는 동일한 3축 구조 = 서브에이전트 + Tool 4단계 + Middleware 7개</p>
+  <div class="slide-body">
+
+    <div class="common-block">
+      <div class="common-col">
+        <h4>① 서브에이전트 (각 2개씩)</h4>
+        <div class="item"><b>각자 독립 LLM ReAct 루프</b></div>
+        <div class="item">최대 <b>4회</b> 반복 (ToolCall 12회 한도 별도)</div>
+        <div class="item">결과 통합 후 risk_flags <b>dedupe</b></div>
+        <div class="item">evidence_events 누적</div>
+        <div class="gap">에이전트별 매핑 예시</div>
+        <div class="item">· Visa: visa_risk + document_priority</div>
+        <div class="item">· Workforce: requirement + readiness</div>
+        <div class="item">· Contact: message_draft + reply_summary</div>
+      </div>
+
+      <div class="common-col">
+        <h4>② Tool 4단계 (총 20개)</h4>
+        <div class="item"><span class="tag read">READ</span> DB / RAG 조회만 (8개)</div>
+        <div class="item"><span class="tag calc">CALC</span> 날짜 · 우선순위 · 검증 (6개)</div>
+        <div class="item"><span class="tag draft">DRAFT</span> 초안 · 항상 approval=True (3개)</div>
+        <div class="item"><span class="tag approve">APPROVAL</span> 즉시 NEEDS_APPROVAL 반환 (3개)</div>
+        <div class="gap">중앙 레지스트리 관리</div>
+        <div class="item">· tools/registry.py</div>
+        <div class="item">· TOOL_REGISTRY[name] → (tool, grade)</div>
+        <div class="item">· grade 기반 자동 라우팅</div>
+      </div>
+
+      <div class="common-col">
+        <h4>③ Middleware 7개</h4>
+        <div class="item">1. WorkBridgeSafety — 의도 차단</div>
+        <div class="item">2. EvidenceCapture — 이벤트 수집</div>
+        <div class="item">3. PIIMiddleware(email)</div>
+        <div class="item">4. PIIMiddleware(foreign_hiring_pii)</div>
+        <div class="item">5. ModelCallLimit(12)</div>
+        <div class="item">6. ToolCallLimit(12)</div>
+        <div class="item">7. HumanInTheLoop — 강제 중단</div>
+        <div class="gap">전 에이전트 동일 스택 · 순서도 동일</div>
+      </div>
+    </div>
+
+    <div class="one-liner">에이전트 = (서브에이전트 2개 × Tool 4단계 × Middleware 7개) 조합으로 정의</div>
+  </div>
+  <div class="slide-foot">슬라이드 2 / 3</div>
+  <div class="slide-num">agents/ · tools/registry.py · middleware.py</div>
+</div>
+
+<!-- =================================================== -->
+<!-- Slide 3 — Bottom: Specialization matrix               -->
+<!-- =================================================== -->
+<div class="slide">
+  <div class="triangle-indicator">
+    <div class="ti-row"><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div></div>
+    <div class="ti-row"><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div><div class="ti-cell"></div></div>
+    <div class="ti-row"><div class="ti-cell active"></div><div class="ti-cell active"></div><div class="ti-cell active"></div></div>
+    <div class="ti-label">하단</div>
+  </div>
+
+  <h3 class="slide-title">하단 — 3 에이전트 specialization</h3>
+  <p class="slide-sub">최상단 그래프 + 중간 공통 구조 위에서 어떻게 달라지는가 (4 차원만 정의하면 됨)</p>
+  <div class="slide-body">
+
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th style="width: 100px"></th>
+          <th>Intent</th>
+          <th>서브에이전트 선택</th>
+          <th>핵심 Tool (DRAFT 등급)</th>
+          <th>Output 특이점</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="agent-cell">Visa</td>
+          <td class="visa"><b>VISA_CHECK</b></td>
+          <td class="visa">_run_visa_risk_sub_agent<br>_run_document_priority_sub_agent</td>
+          <td class="visa">generate_expert_handoff_package_draft</td>
+          <td class="visa">D-day + 누락 서류 CRITICAL / SUPPLEMENTARY 분류</td>
+        </tr>
+        <tr>
+          <td class="agent-cell">Workforce</td>
+          <td class="workforce"><b>HIRING_REQUEST</b></td>
+          <td class="workforce">WorkforceRequirementAgent<br>CandidateReadinessAgent</td>
+          <td class="workforce">generate_hiring_request_draft<br>generate_expert_handoff_package_draft</td>
+          <td class="workforce">institutional_checklist + candidate_readiness_table</td>
+        </tr>
+        <tr>
+          <td class="agent-cell">Contact</td>
+          <td class="contact"><b>WORKER_CONTACT</b></td>
+          <td class="contact">generate_message_draft (flow)<br>summarize_worker_reply (flow)</td>
+          <td class="contact">generate_multilingual_message_draft</td>
+          <td class="contact">한국어 본문 + 번역문 + 답장 status_update_candidates</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="one-liner">최상단 · 중간 레이어 재사용 → 신규 에이전트는 하단 4 차원만 정의</div>
+  </div>
+  <div class="slide-foot">슬라이드 3 / 3</div>
+  <div class="slide-num">agents/ · 신규 에이전트 추가 비용 분석</div>
+</div>
+
+</div>
+</body>
+</html>

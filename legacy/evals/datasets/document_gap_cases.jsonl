@@ -1,0 +1,10 @@
+{"id":"doc-001","input":"E-9 체류기간 연장에 필요한 서류가 뭐야?","visa_type":"E-9","expected_documents":["여권","비자 사본","고용계약서","건강검진 증명서","범죄경력 조회 결과"],"min_recall":0.95,"user_id":"company_A","company_id":"company_A"}
+{"id":"doc-002","input":"H-2 새로운 신청에 필요한 서류는?","visa_type":"H-2","expected_documents":["여권","비자 신청서","고용허가신청서","신청 수수료","건강검진"],"min_recall":0.95,"user_id":"company_B","company_id":"company_B"}
+{"id":"doc-003","input":"E-1 회사원의 체류 연장 준비물 알려줘","visa_type":"E-1","expected_documents":["여권","비자 사본","고용계약서","건강검진"],"min_recall":0.95,"user_id":"company_C","company_id":"company_C"}
+{"id":"doc-004","input":"근로자 비자 신청할 때 사업장에서 준비해야 할 서류","visa_type":"E-9","case_type":"new_application","expected_documents":["사업장 등록 증명서","근로자 인명부","고용계약서 사본","사업장 안전보건"],"min_recall":0.90,"user_id":"company_D","company_id":"company_D"}
+{"id":"doc-005","input":"라오스 근로자 첫 입국 시 사업장에서 제출하는 서류","visa_type":"D-10","case_type":"first_entry","expected_documents":["사업장 정보 서류","근로조건 설명서","숙소 정보","교통 안내"],"min_recall":0.90,"user_id":"company_E","company_id":"company_E"}
+{"id":"doc-006","input":"E-9 근로자가 사직할 때 필요한 사직 서류","visa_type":"E-9","case_type":"resignation","expected_documents":["사직서","고용주 확인 서류","미지급 임금 정산"],"min_recall":0.85,"user_id":"company_A","company_id":"company_A"}
+{"id":"doc-007","input":"신규 고용 E-1 비자자의 사업장 제출 서류","visa_type":"E-1","case_type":"new_hiring","expected_documents":["고용계약서","사업장 등록 증명서","직급 및 직책 증명"],"min_recall":0.90,"user_id":"company_B","company_id":"company_B"}
+{"id":"doc-008","input":"베트남 근로자 E-9 재취업 서류 목록","visa_type":"E-9","case_type":"re_employment","expected_documents":["여권","비자 사본","근로경험 증명서","고용계약서"],"min_recall":0.95,"user_id":"company_C","company_id":"company_C"}
+{"id":"doc-009","input":"근로 조건 변경 시 추가로 제출하는 서류","case_type":"employment_condition_change","expected_documents":["변경된 고용계약서","급여 변경 공시","근무지 변경 증명"],"min_recall":0.90,"user_id":"company_D","company_id":"company_D"}
+{"id":"doc-010","input":"외국인 근로자 사업장 변경 허가 서류","case_type":"workplace_change","expected_documents":["전직 신청서","신 사업장 고용계약서","신 사업장 정보 서류"],"min_recall":0.85,"user_id":"company_E","company_id":"company_E"}
