@@ -1,12 +1,12 @@
 // APPROVE 승인 런 설정 이식 — reference/prototype_v3.html의 APPROVE(§775)를
 // 1단계 스펙 §M9 RunConfig/RunStep 계약으로 정규화 (M0.5, docs/SPEC_INDEX.md 이식표).
-// 범위: mode='approval'(M4) 6건만 이식. command(#4790)·draft 재생성(#4796)·replay(#4788)는
-// 각각 M1.5(런 엔진)·M3.1(프로액티브 런) 태스크에서 다룬다 — 여기서 앞서 설계하지 않는다.
+// 1.5(런 엔진)에서 command(#4790)·replay(#4788) 모드를 추가하고, 로컬 확장이었던
+// 'wait' kind를 제거했다 — "승인 대기"는 RunStep이 아니라 런의 종착점(requestApproval(),
+// ARCHITECTURE.md §5)이며 RunConfig.question/altLabel이 이미 그 정보를 담고 있다.
+// (docs/superpowers/specs/2026-07-06-run-engine-steptimeline-design.md §2)
 
-export type RunStepKind = 'thinking' | 'tool_call' | 'guardrail' | 'wait';
-// 공식 RunStep(GLOSSARY §16)은 thinking/tool_call/guardrail/handoff/replan 5종.
-// 'wait'는 이 6건의 승인 대기 스텝을 표현하려 v3 데모를 따라 추가한 로컬 확장이며,
-// M9 RunStep으로 승격할 때는 스펙에 먼저 추가해야 한다(GOTCHAS 상단 원칙).
+export type RunStepKind = 'thinking' | 'tool_call' | 'guardrail' | 'handoff' | 'replan';
+// 공식 RunStep(GLOSSARY §16) 5종 — M9 RunStep과 완전히 동일한 값만 쓴다.
 
 export interface RunStep {
   kind: RunStepKind;
@@ -15,9 +15,9 @@ export interface RunStep {
 }
 
 export interface RunConfig {
-  runKey: string; // APPROVE 레지스트리 키 — DRAFT.draftKey와 연결
+  runKey: string; // /run/:runId 조회 키 & DRAFT.draftKey 연결
   caseId?: string; // 대응하는 CaseCard.caseId (candidate는 패키지 전용이라 없음)
-  mode: 'approval'; // M4 화면(승인 직전) 전용. dock은 항상 'approve'로 고정
+  mode: 'command' | 'approval' | 'replay'; // M9(command) | M4(approval) | #4788류(replay)
   title: string;
   agent: string; // 라우팅된 에이전트명
   evidenceRef: string; // "#4789" 판단 기록 번호
@@ -25,6 +25,7 @@ export interface RunConfig {
   question: string; // 승인 질문(q)
   altLabel: string; // 대안 버튼 라벨(수정 요청/돌아가기 등)
   steps: RunStep[];
+  readOnly?: boolean; // replay 전용 — 정적 재생, 승인/대안 버튼을 렌더하지 않는다
 }
 
 // approvalRun()의 고정 결과 문구 — 모든 승인 런 공통.
@@ -45,7 +46,6 @@ export const RUN_CONFIGS: RunConfig[] = [
       { kind: 'tool_call', label: '근로자 프로필 확인 완료', detail: 'Nguyen Van A · 베트남 · E-9 · Zalo' },
       { kind: 'tool_call', label: '이전 대화 기록 확인 완료', detail: '3일 전 표준근로계약서 요청 이력 있음' },
       { kind: 'tool_call', label: '메시지 초안 생성 완료', detail: '베트남어 원문 + 한국어 번역' },
-      { kind: 'wait', label: '발송 전 승인 대기', detail: '담당자 승인 후 근로자에게 발송됩니다' },
     ],
   },
   {
@@ -61,7 +61,6 @@ export const RUN_CONFIGS: RunConfig[] = [
       { kind: 'tool_call', label: '후보자 서류 상태 확인', detail: '5개 중 3개 확보 · 2개 확인 필요' },
       { kind: 'tool_call', label: '요건 충족 여부 점검', detail: '준비도 기준 — 사람 평가 항목 없음' },
       { kind: 'guardrail', label: '가드레일', detail: '정부 포털 제출 불가 — 행정사 전달 준비까지만 진행합니다' },
-      { kind: 'wait', label: '전달 준비 승인 대기', detail: '승인 후 행정사 전달 준비 완료로 전환됩니다' },
     ],
   },
   {
@@ -94,7 +93,6 @@ export const RUN_CONFIGS: RunConfig[] = [
     steps: [
       { kind: 'tool_call', label: '서류 만료 확인', detail: '건강검진 확인서 · 7.18 만료 예정' },
       { kind: 'tool_call', label: '요청 초안 생성 완료', detail: '한국어 + 영어' },
-      { kind: 'wait', label: '발송 전 승인 대기', detail: '담당자 승인 후 발송됩니다' },
     ],
   },
   {
@@ -111,7 +109,6 @@ export const RUN_CONFIGS: RunConfig[] = [
       { kind: 'tool_call', label: '요청서 완성도 점검', detail: '8개 항목 중 5개 완료' },
       { kind: 'thinking', label: '미완료 항목 판단', detail: '남은 3개는 행정사 확인과 병행 가능' },
       { kind: 'guardrail', label: '가드레일', detail: '후보자 평가·국적 선호 항목 없음 확인 — 준비 상태 점검만 포함' },
-      { kind: 'wait', label: '검토 요청 승인 대기', detail: '승인 후 행정사에게 검토 요청됩니다' },
     ],
   },
   {
@@ -127,7 +124,38 @@ export const RUN_CONFIGS: RunConfig[] = [
     steps: [
       { kind: 'tool_call', label: '대화 맥락 확인', detail: '어제 여권 제출 약속 — 오늘 미수신' },
       { kind: 'tool_call', label: '리마인드 초안 생성', detail: '베트남어 + 한국어 · 부드러운 톤' },
-      { kind: 'wait', label: '발송 전 승인 대기', detail: '담당자 승인 후 발송됩니다' },
+    ],
+  },
+  {
+    runKey: '4790',
+    mode: 'command',
+    title: '이번 달 급한 직원 정리',
+    agent: 'Workforce Agent',
+    evidenceRef: '#4790',
+    autonomyLabel: '자율성 Medium (승인 필요)',
+    question: '이번 달 급한 케이스 정리 결과를 승인할까요?',
+    altLabel: '수정 요청',
+    steps: [
+      { kind: 'thinking', label: '이번 달 마감 케이스 판별', detail: 'D-day 30일 이내 · 승인 대기 상태 기준' },
+      { kind: 'tool_call', label: '대상 케이스 3건 확인', detail: 'Nguyen(D-30) · Mohammad(서류 만료 임박) · Tran(리마인드)' },
+      { kind: 'tool_call', label: '케이스별 액션 초안 생성', detail: '메시지·리마인드 3건' },
+    ],
+  },
+  {
+    runKey: '4788',
+    caseId: 'nguyen',
+    mode: 'replay',
+    title: '서류요청 준비 (재생)',
+    agent: 'Multilingual Contact Agent',
+    evidenceRef: '#4788',
+    autonomyLabel: '자율성 Medium (승인 필요)',
+    question: '이 메시지로 컨택할까요?',
+    altLabel: '수정 요청',
+    readOnly: true,
+    steps: [
+      { kind: 'tool_call', label: '근로자 프로필 확인 완료', detail: 'Nguyen Van A · 베트남 · E-9 · Zalo' },
+      { kind: 'tool_call', label: '이전 대화 기록 확인 완료', detail: '3일 전 표준근로계약서 요청 이력 있음' },
+      { kind: 'tool_call', label: '메시지 초안 생성 완료', detail: '베트남어 원문 + 한국어 번역' },
     ],
   },
 ];
