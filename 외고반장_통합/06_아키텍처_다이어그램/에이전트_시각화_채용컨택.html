@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>WorkBridge — 인력 확보 / 다국어 컨택 에이전트 시각화</title>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --border: #e3e5ea;
+    --ink: #1f2330;
+    --muted: #7b8190;
+    --label: #9aa0ac;
+    --brand: #2f3aa1;
+    --accent-green: #2f9e6a;
+    --accent-green-bg: #e9f7ef;
+    --accent-blue: #3b6bd8;
+    --accent-blue-bg: #eaf1fd;
+    --accent-orange: #d97a30;
+    --accent-orange-bg: #fdeedb;
+    --accent-purple: #7c4dc5;
+    --accent-purple-bg: #f1eafa;
+    --accent-red: #d24b4b;
+    --accent-red-bg: #fdecec;
+    --accent-yellow: #d6a73b;
+    --accent-yellow-bg: #fbf3dc;
+    --code-bg: #1d2233;
+    --code-ink: #cfd6e6;
+    --code-green: #7fd6a4;
+    --code-red: #ff8a8a;
+    --code-yellow: #e8c46a;
+    --code-cyan: #82c8e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                 "Pretendard", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    margin: 0;
+    padding: 40px 20px;
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  .doc {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  .agent-doc { margin-bottom: 80px; }
+  h1 {
+    font-size: 26px;
+    color: var(--brand);
+    margin: 0 0 6px 0;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .stamp {
+    display: inline-block;
+    background: var(--accent-green-bg);
+    color: var(--accent-green);
+    padding: 4px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 28px;
+  }
+  .stamp code { color: var(--accent-green); background: transparent; padding: 0;}
+  .section-label {
+    text-transform: uppercase;
+    font-size: 13px;
+    color: var(--label);
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    margin: 26px 0 12px 0;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 22px;
+  }
+  .arrow {
+    text-align: center;
+    color: var(--label);
+    margin: 14px 0;
+    font-size: 16px;
+  }
+
+  /* INPUT */
+  .input-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .input-chip {
+    background: var(--brand);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .input-meta { color: var(--muted); font-size: 14px; }
+
+  /* INTENT ROUTER */
+  .router-grid {
+    display: grid;
+    grid-template-columns: 1.4fr auto 1fr;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .router-box {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 22px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .llm-badge {
+    background: var(--brand);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 10px;
+    border-radius: 6px;
+    height: fit-content;
+  }
+  .router-box h3 {
+    margin: 0 0 8px 0;
+    font-size: 15px;
+  }
+  .router-arrow {
+    display: flex;
+    align-items: center;
+    color: var(--label);
+    font-size: 18px;
+  }
+  .blocked-box {
+    background: var(--accent-red-bg);
+    border: 1px solid #f3c5c5;
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .blocked-title {
+    color: var(--accent-red);
+    font-weight: 700;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .blocked-item {
+    font-size: 13px;
+    color: var(--ink);
+    margin: 4px 0;
+  }
+  .blocked-item b { color: #8a3e3e; }
+
+  /* CODE BLOCK */
+  .code {
+    font-family: "JetBrains Mono", "Consolas", "Menlo", "D2Coding", monospace;
+    font-size: 13.5px;
+    line-height: 1.8;
+    color: var(--ink);
+  }
+  .code .fn { color: var(--brand); }
+  .code .str { color: var(--accent-green); }
+  .code .kw { color: var(--accent-red); }
+  .code .num { color: var(--accent-purple); }
+  .code .arr-line { padding-left: 22px; position: relative; }
+  .code .arr-line::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--muted);
+  }
+  .code .var { color: var(--accent-red); font-weight: 600; }
+  .code .tool { color: var(--accent-orange); }
+
+  /* SUBAGENT cards */
+  .subagent-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .subagent {
+    border-radius: 10px;
+    padding: 18px 20px;
+    background: var(--panel);
+  }
+  .subagent.yellow { border: 2px solid #e0c574; background: #fffaef; }
+  .subagent.blue { border: 2px solid #7eaedb; background: #f3f8fd; }
+  .subagent.purple { border: 2px solid #b89adf; background: #f7f1fd; }
+  .subagent.green { border: 2px solid #8bcfa8; background: #f0faf4; }
+  .subagent h3 {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+  }
+  .subagent .path {
+    color: var(--muted);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .tag.read    { background: var(--accent-green-bg);  color: var(--accent-green); }
+  .tag.calc    { background: var(--accent-purple-bg); color: var(--accent-purple); }
+  .tag.draft   { background: var(--accent-yellow-bg); color: var(--accent-yellow); }
+  .tag.approve { background: var(--accent-red-bg);    color: var(--accent-red); }
+  .tag.rag     { background: var(--accent-blue-bg);   color: var(--accent-blue); }
+  .tag.warn    { background: var(--accent-orange-bg); color: var(--accent-orange); }
+  .tool-line { font-size: 13.5px; margin: 8px 0; }
+  .note { color: var(--muted); font-size: 13px; margin: 6px 0 2px; }
+  .data-block {
+    background: rgba(0,0,0,0.03);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin: 6px 0 10px;
+  }
+  .result-row { font-size: 13.5px; margin: 6px 0; }
+  .result-row b { color: var(--ink); }
+  .forbid {
+    color: var(--accent-red);
+    font-size: 13px;
+    margin-top: 12px;
+    font-weight: 600;
+  }
+  .step-list { margin: 8px 0 0 0; padding: 0; list-style: none; }
+  .step-list li {
+    font-size: 13.5px;
+    margin: 5px 0;
+    padding-left: 24px;
+    position: relative;
+  }
+  .step-list li .step-num {
+    position: absolute;
+    left: 0;
+    top: 0;
+    background: var(--accent-blue);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    line-height: 1.4;
+  }
+
+  /* TOOL TABLE */
+  .tool-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .tool-table th, .tool-table td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tool-table th {
+    color: var(--label);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+
+  /* MIDDLEWARE */
+  .mw-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mw-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .mw-num {
+    background: #2b2f3d;
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  .mw-name { font-weight: 700; margin-right: 6px; }
+  .mw-sub { color: var(--muted); font-size: 13px; margin-top: 4px; padding-left: 0; }
+
+  /* APPROVAL GATE */
+  .approval-gate {
+    background: var(--accent-red-bg);
+    border: 1.5px solid #ee9999;
+    border-radius: 10px;
+    padding: 16px 22px;
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 16px;
+    align-items: center;
+  }
+  .approval-gate .gate-name {
+    color: var(--accent-red);
+    font-weight: 700;
+    font-family: monospace;
+    font-size: 14px;
+  }
+
+  /* OUTPUT cards */
+  .output-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .out-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 13.5px;
+  }
+  .out-card.green   { border-color: var(--accent-green); background: var(--accent-green-bg); }
+  .out-card.red     { border-color: #ee9999; background: var(--accent-red-bg); }
+  .out-card.wide    { grid-column: span 2; }
+  .out-card.wide-3  { grid-column: span 3; }
+  .out-title {
+    font-weight: 700;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .out-title .num { color: var(--muted); margin-right: 4px; }
+  .out-line { margin: 3px 0; }
+  .out-line .em { color: var(--accent-red); font-weight: 700; }
+  .out-line .em-y { color: var(--accent-yellow); font-weight: 700; }
+
+  /* EVIDENCE LOG */
+  .ev-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .ev-chip {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13.5px;
+  }
+  .ev-chip b { color: var(--brand); font-weight: 700; margin-right: 6px; }
+  .ev-warn {
+    color: var(--accent-red);
+    font-size: 13px;
+    margin-top: 12px;
+  }
+
+  /* FINAL RESPONSE BOX */
+  .final {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 18px 22px;
+    border-radius: 8px;
+    font-family: "Consolas", "D2Coding", monospace;
+    font-size: 14px;
+    line-height: 1.85;
+  }
+  .final .ok { color: var(--code-green); }
+  .final .warn { color: var(--code-yellow); }
+  .final .err { color: var(--code-red); }
+  .final .info { color: var(--code-cyan); }
+  .final-label {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 12px 0 8px 0;
+    font-weight: 700;
+  }
+
+  /* DIVIDER between agents */
+  .divider {
+    height: 4px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 60px 0;
+  }
+
+  @media (max-width: 900px) {
+    .subagent-row, .router-grid, .output-grid { grid-template-columns: 1fr; }
+    .approval-gate { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="doc">
+
+<!-- ================================================================ -->
+<!-- AGENT 1: WORKFORCE / HIRING AGENT                                 -->
+<!-- ================================================================ -->
+<div class="agent-doc">
+
+  <h1>Workforce Agent (인력 확보 에이전트) — 사업장 C001</h1>
+  <div class="subtitle">
+    "베트남어 가능한 용접 인력 6명 채용 요청서 만들어줘" → 사업장 조회 + EPS 절차 확인 + 인력 요청서 초안 + 후보자 준비도 검토
+  </div>
+  <div class="stamp">최종 업데이트 2026-05-17 · 코드 기준: <code>backend/app/agent_runtime/</code></div>
+
+  <!-- 1. INPUT -->
+  <div class="section-label">1. INPUT</div>
+  <div class="panel">
+    <div class="input-row">
+      <div class="input-chip">"베트남어 가능 용접공 6명 채용 요청서 작성해줘"</div>
+      <div class="input-meta">company_id: C001 · 케이스 유형: 신규 채용 · 요청 인원: 6명 · 선호 언어: vi</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 2. INTENT ROUTER -->
+  <div class="section-label">2. INTENT ROUTER (LLM 1회 — GPT-4O-MINI)</div>
+  <div class="router-grid">
+    <div class="router-box">
+      <div class="llm-badge">LLM</div>
+      <div>
+        <h3>intent_router_node</h3>
+        <div>→ planner_node가 <code>[workforce_agent]</code> 선택</div>
+        <div>→ Intent.<b>HIRING_REQUEST</b> 감지</div>
+      </div>
+    </div>
+    <div class="router-arrow">→</div>
+    <div class="blocked-box">
+      <div class="blocked-title">차단됨 (3가지 유형)</div>
+      <div class="blocked-item"><b>차별추천:</b> "베트남 사람이 제일 일 잘하니까 추천해줘"</div>
+      <div class="blocked-item"><b>성실도판단:</b> "성실한 후보자만 골라줘" / "오래 다닐 후보"</div>
+      <div class="blocked-item"><b>자동제출:</b> 승인 없이 행정사·정부 포털 자동 전달</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 3. WORKFORCE AGENT EXECUTION -->
+  <div class="section-label">3. WORKFORCE AGENT 실행 — AGENTS/HIRING_AGENT.PY</div>
+  <div class="panel">
+    <div class="code">
+      <div><span class="fn">run_hiring_agent</span>(state, company_id=<span class="str">"C001"</span>)</div>
+      <div class="arr-line">미들웨어 <span class="fn">check_llm_limit</span>(state) → 호출 한도 점검</div>
+      <div class="arr-line"><span class="kw">WorkforceAgent</span>().run(state) 호출 — 서브에이전트 2개 오케스트레이션</div>
+      <div class="arr-line">서브에이전트 1: <span class="tool">workforce_requirement_agent</span> — 최대 <span class="num">4회</span> ReAct 루프</div>
+      <div class="arr-line">서브에이전트 2: <span class="tool">candidate_readiness_agent</span> — 최대 <span class="num">4회</span> ReAct 루프</div>
+      <div class="arr-line">결과 통합 — risk_flags / evidence_events / tool_calls_count <span class="kw">dedupe</span></div>
+      <div class="arr-line">state.agent_results에 누적, state.risk_flags 확장</div>
+      <div class="arr-line">완료 후 <span class="var">EventType.TOOL_EXECUTED</span> Evidence 이벤트 기록</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 4. SUBAGENTS -->
+  <div class="section-label">4. WORKFORCE AGENT — 서브에이전트 2개 (각자 독립 LLM REACT 루프, 최대 4회)</div>
+  <div class="subagent-row">
+
+    <div class="subagent yellow">
+      <h3>① 인력 요청서 초안 (workforce_requirement_agent)</h3>
+      <div class="path">agents/workforce_requirement_agent.py · tools/safe_draft.py</div>
+      <div class="tool-line"><span class="tag read">SAFE_READ</span> get_company_profile, search_policy_documents, get_document_requirements</div>
+      <div class="note">↳ C001 사업장 정보 조회 결과</div>
+      <div class="data-block">업종: 제조(용접) · 지역: 경기 안산 · 기존 외국인 고용: E-9 4명 · 잔여 쿼터: 3명</div>
+
+      <div class="tool-line"><span class="tag draft">SAFE_DRAFT</span> generate_hiring_request_draft → 신규 인력 요청서 초안</div>
+      <div class="note">분석 절차 (시스템 프롬프트)</div>
+      <ul class="step-list">
+        <li><span class="step-num">1</span>get_company_profile로 사업장 기본 정보 조회</li>
+        <li><span class="step-num">2</span>search_policy_documents로 EPS 절차 공식 근거 확인</li>
+        <li><span class="step-num">3</span>generate_hiring_request_draft로 요청서 초안 생성</li>
+        <li><span class="step-num">4</span>누락 정보·주의사항 risk_flags에 포함</li>
+      </ul>
+
+      <div class="note" style="margin-top:10px;">결과</div>
+      <div class="result-row">요청 인원: <b>6명</b> · 잔여 쿼터 <b>3명 초과</b> → <span class="tag warn">주의</span></div>
+      <div class="result-row">institutional_checklist: 4건 (사업장 등록·외국인고용허가신청서·표준근로계약·내국인 구인노력)</div>
+      <div class="result-row">handoff_questions: 3건 (희망 시작일, 숙소 제공 여부, 작업 환경)</div>
+      <div class="result-row">위험 플래그: <span class="tag warn">초과쿼터</span> 6명 요청 / 잔여 쿼터 3명</div>
+      <div class="result-row">approval_required: <b style="color:var(--accent-red)">True</b> (외부 전달 차단)</div>
+
+      <div class="forbid">⊘ 금지: 국적별 선호 / 후보자 성실도 판단 / 고용 가능 여부 확정</div>
+    </div>
+
+    <div class="subagent blue">
+      <h3>② 후보자 준비도 검토 (candidate_readiness_agent)</h3>
+      <div class="path">agents/candidate_readiness_agent.py · tools/safe_calculate.py</div>
+      <div class="tool-line"><span class="tag read">SAFE_READ</span> get_candidate_profile, get_document_requirements, search_policy_documents</div>
+      <div class="note">↳ C001 매칭 후보자 풀에서 서류 상태 조회</div>
+      <div class="data-block">대상 후보자: 5명 · 비자 유형: E-9 · 검토 항목: 여권/EPS 합격증/건강검진</div>
+
+      <div class="tool-line"><span class="tag calc">SAFE_CALCULATE</span> calculate_candidate_readiness → 준비도 계산</div>
+      <div class="note">candidate_readiness_table 산출</div>
+      <div class="result-row">전체 후보: <b>5명</b></div>
+      <div class="result-row">ready_count: <b style="color:var(--accent-green)">2명</b> (서류 일체 완비)</div>
+      <div class="result-row">needs_more_info_count: <b style="color:var(--accent-yellow)">3명</b> (서류 부족)</div>
+
+      <div class="note" style="margin-top:10px;">미비 항목</div>
+      <div class="result-row">· CAND_002 — EPS 한국어 시험 결과서 누락</div>
+      <div class="result-row">· CAND_004 — 건강검진 결과서 누락</div>
+      <div class="result-row">· CAND_005 — 여권 만료 6개월 미만</div>
+
+      <div class="result-row" style="margin-top:8px;">위험 플래그: <span class="tag warn">CANDIDATE_INFO_MISSING</span></div>
+      <div class="result-row">approval_required: <b>False</b> (조회·계산만, 외부 전달 없음)</div>
+
+      <div class="forbid">⊘ 금지: 후보자 성실도 / 이탈 가능성 / 국적별 차별 판단</div>
+    </div>
+
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 5. TOOLS -->
+  <div class="section-label">5. TOOL 4단계 계층 — AGENTS/HIRING_AGENT.PY · TOOLS/REGISTRY.PY</div>
+  <div class="panel">
+    <table class="tool-table">
+      <thead>
+        <tr><th style="width: 200px">계층</th><th>설명</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag read">SAFE_READ</span></td>
+          <td>get_company_profile · get_candidate_profile · get_worker_profile · search_policy_documents · get_document_requirements (DB / RAG 조회만, 부작용 없음)</td>
+        </tr>
+        <tr>
+          <td><span class="tag calc">SAFE_CALCULATE</span></td>
+          <td>calculate_candidate_readiness — 서류 보유 ↔ 요건 매칭 후 준비도 산출, 부작용 없음</td>
+        </tr>
+        <tr>
+          <td><span class="tag draft">SAFE_DRAFT</span></td>
+          <td>generate_hiring_request_draft · generate_expert_handoff_package_draft — 초안 생성, <code>approval_required=True</code> 항상 반환</td>
+        </tr>
+        <tr>
+          <td><span class="tag approve">APPROVAL_REQUIRED</span></td>
+          <td>send_expert_package · update_case_status_completed — 호출 즉시 <code>NEEDS_APPROVAL</code> 반환 → 미들웨어가 에이전트 강제 중단</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 6. MIDDLEWARE -->
+  <div class="section-label">6. MIDDLEWARE — LANGCHAIN_V1/MIDDLEWARE.PY</div>
+  <div class="mw-list">
+    <div class="mw-row"><div class="mw-num">1</div><div><span class="mw-name">WorkBridgeSafetyMiddleware</span> 금지 의도 차단 — 국적별 선호, 성실도, 추천, 이탈 가능성 등 FORBIDDEN_TERMS 포함 시 즉시 차단</div></div>
+    <div class="mw-row"><div class="mw-num">2</div><div><span class="mw-name">EvidenceCaptureMiddleware</span> Evidence 이벤트 자동 수집 (tool_executed, rag_retrieved, hiring_request_draft_created 등)</div></div>
+    <div class="mw-row"><div class="mw-num">3</div><div><span class="mw-name">PIIMiddleware("email")</span> 이메일 주소 마스킹</div></div>
+    <div class="mw-row"><div class="mw-num">4</div><div>
+      <span class="mw-name">PIIMiddleware("foreign_hiring_pii")</span> 외국인등록번호 / 여권번호 / 전화번호 / EPS 합격번호 마스킹
+      <div class="mw-sub">입력: "EPS 합격번호 V20251234로 조회해줘" → LLM 전달: "[EPS 합격번호]로 조회해줘"</div>
+    </div></div>
+    <div class="mw-row"><div class="mw-num">5</div><div><span class="mw-name">ModelCallLimitMiddleware(12)</span> LLM 호출 12회 초과 시 강제 종료</div></div>
+    <div class="mw-row"><div class="mw-num">6</div><div><span class="mw-name">ToolCallLimitMiddleware(12)</span> Tool 호출 12회 초과 시 강제 종료</div></div>
+    <div class="mw-row"><div class="mw-num">7</div><div>
+      <span class="mw-name">HumanInTheLoopMiddleware</span> APPROVAL_REQUIRED Tool 호출 순간 에이전트 전체 강제 중단 → 사람 승인 대기
+      <div class="mw-sub">interrupt_on: send_expert_package, update_case_status_completed</div>
+    </div></div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 7. APPROVAL GATE -->
+  <div class="section-label">7. APPROVAL GATE — 모든 외부 전달은 승인 후</div>
+  <div class="approval-gate">
+    <div class="gate-name">approval_gate_node</div>
+    <div>
+      <code>requires_human_approval=True</code> 강제 (schema invariant)
+      <div style="color:var(--muted); margin-top:4px; font-size:13px;">
+        차단 대상: 행정사 패키지 자동 전달 / 사업장 등록 자동 신청 / 정부24 자동 제출 / 케이스 완료 처리
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 8. OUTPUT -->
+  <div class="section-label">8. OUTPUT — WORKFORCE_AGENT 결과</div>
+  <div class="output-grid">
+    <div class="out-card">
+      <div class="out-title"><span class="num">①</span>사업장·쿼터 현황</div>
+      <div class="out-line">company_id: C001</div>
+      <div class="out-line">잔여 쿼터: <b style="color:var(--accent-orange)">3명</b></div>
+      <div class="out-line">요청 인원: 6명 (초과)</div>
+    </div>
+    <div class="out-card">
+      <div class="out-title"><span class="num">②</span>위험 플래그</div>
+      <div class="out-line">초과 쿼터 (요청 6 / 잔여 3)</div>
+      <div class="out-line">CANDIDATE_INFO_MISSING</div>
+      <div class="out-line">담당자 확인 필요</div>
+    </div>
+    <div class="out-card">
+      <div class="out-title"><span class="num">③</span>institutional_checklist</div>
+      <div class="out-line"><span class="em">4건</span> (사업장 등록, 고용허가 신청서, 표준근로계약서, 내국인 구인노력)</div>
+    </div>
+    <div class="out-card">
+      <div class="out-title"><span class="num">④</span>인력 요청서 초안</div>
+      <div class="out-line">초안 생성 완료</div>
+      <div class="out-line">자동 발송 안 함</div>
+      <div class="out-line">승인 대기 상태</div>
+    </div>
+
+    <div class="out-card green">
+      <div class="out-title"><span class="num">⑤</span>Evidence (법령 출처)</div>
+      <div class="out-line">외국인근로자고용법 §6 (고용허가)</div>
+      <div class="out-line">EPS 고용허가 신청 절차 지침</div>
+      <div class="out-line">출입국관리법 §18 (취업 사증)</div>
+    </div>
+    <div class="out-card red">
+      <div class="out-title"><span class="num">⑥</span>Approval Block</div>
+      <div class="out-line">requires_human_approval=True</div>
+      <div class="out-line">행정사 패키지 자동 전달 차단</div>
+      <div class="out-line">사업장 자동 등록 차단</div>
+      <div class="out-line">정부24 자동 제출 차단</div>
+    </div>
+    <div class="out-card wide">
+      <div class="out-title"><span class="num">⑦</span>다음 단계</div>
+      <div class="out-line">담당자 승인 → 행정사 handoff 가능 / 누락 서류 안내 다국어 메시지 위임 가능 / 사업장 등록 절차 안내 가능</div>
+      <div class="out-line">candidate_readiness_table 3명 보완 필요 → 다국어 컨택 에이전트 위임 추천</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 9. EVIDENCE LOG -->
+  <div class="section-label">9. EVIDENCE LOG — 의무 기록 이벤트</div>
+  <div class="ev-grid">
+    <div class="ev-chip"><b>INTENT_CLASSIFIED</b> HIRING_REQUEST 감지</div>
+    <div class="ev-chip"><b>PLAN_CREATED</b> workforce_agent 선택</div>
+    <div class="ev-chip"><b>TOOL_EXECUTED</b> get_company_profile, calculate_candidate_readiness, generate_hiring_request_draft 실행</div>
+    <div class="ev-chip"><b>RAG_RETRIEVED</b> 외국인근로자고용법 §6, EPS 고용허가 지침 인용</div>
+    <div class="ev-chip"><b>RISK_FLAGGED</b> 초과 쿼터, CANDIDATE_INFO_MISSING 3건</div>
+    <div class="ev-chip"><b>HIRING_REQUEST_DRAFT_CREATED</b> 신규 인력 요청서 초안</div>
+    <div class="ev-chip"><b>CANDIDATE_READINESS_CALCULATED</b> 5명 중 2명 ready</div>
+    <div class="ev-chip"><b>APPROVAL_REQUESTED</b> 행정사 패키지 → 승인 대기</div>
+    <div class="ev-chip"><b>FINAL_RESPONSE_GENERATED</b> 최종 응답</div>
+  </div>
+  <div class="ev-warn">⚠ 민감정보 원문(여권번호, 외국인등록번호, EPS 합격번호, 전화번호)은 Evidence Log에 저장하지 않음</div>
+
+  <div class="arrow">↓</div>
+
+  <!-- FINAL RESPONSE -->
+  <div class="final-label">최종 응답 예시</div>
+  <div class="final">
+<span class="info">사업장 C001 신규 인력 요청서 초안을 생성했습니다. (잔여 쿼터 3명)</span><br>
+<span class="warn">⚠ 요청 인원(6명)이 잔여 쿼터(3명)를 초과합니다 — 담당자 확인 필요</span><br>
+<span class="warn">⚠ 후보자 5명 중 3명 서류 보완 필요: EPS 시험결과서, 건강검진서, 여권 만료</span><br>
+<span class="warn">⚠ 매칭 가능 후보자 2명 (서류 완비): CAND_001, CAND_003</span><br>
+<span class="ok">✓ 행정사 전달 패키지 초안이 생성되었습니다. 담당자 승인 후 전달됩니다.</span><br>
+<span class="ok">✓ 누락 서류 안내 메시지는 다국어 컨택 에이전트로 위임 가능합니다.</span>
+  </div>
+
+</div>
+
+<div class="divider"></div>
+
+<!-- ================================================================ -->
+<!-- AGENT 2: MULTILINGUAL CONTACT AGENT                               -->
+<!-- ================================================================ -->
+<div class="agent-doc">
+
+  <h1>Multilingual Contact Agent (다국어 컨택 에이전트) — 김현수 (vi)</h1>
+  <div class="subtitle">
+    "베트남 근로자 W001에게 비자 만료 알림 메시지 보내줘" → 템플릿 로드 + RAG 검색 + LLM 정제 + 번역 + 품질 검증 + 승인 대기
+  </div>
+  <div class="stamp">최종 업데이트 2026-05-17 · 코드 기준: <code>backend/app/agent_runtime/</code></div>
+
+  <!-- 1. INPUT -->
+  <div class="section-label">1. INPUT</div>
+  <div class="panel">
+    <div class="input-row">
+      <div class="input-chip">"베트남 근로자 W001에게 비자 만료 알림 보내줘"</div>
+      <div class="input-meta">worker_id: W001 · language_code: vi · message_purpose: missing_document_request · due_date: 2025-11-30</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 2. INTENT ROUTER -->
+  <div class="section-label">2. INTENT ROUTER (LLM 1회 — GPT-4O-MINI)</div>
+  <div class="router-grid">
+    <div class="router-box">
+      <div class="llm-badge">LLM</div>
+      <div>
+        <h3>intent_router_node</h3>
+        <div>→ planner_node가 <code>[multilingual_contact_agent]</code> 선택</div>
+        <div>→ Intent.<b>WORKER_CONTACT</b> 감지</div>
+      </div>
+    </div>
+    <div class="router-arrow">→</div>
+    <div class="blocked-box">
+      <div class="blocked-title">차단됨 (3가지 유형)</div>
+      <div class="blocked-item"><b>자동발송:</b> "이 메시지 바로 발송해줘" — 승인 없이 발송</div>
+      <div class="blocked-item"><b>SNS감시:</b> "근로자 SNS 분석해줘" / "단톡방 메시지 확인"</div>
+      <div class="blocked-item"><b>이탈예측:</b> "이 근로자 이탈 가능성 판단" / "성실도 점수"</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 3. AGENT EXECUTION -->
+  <div class="section-label">3. CONTACT AGENT 실행 — AGENTS/MULTILINGUAL_CONTACT_AGENT.PY</div>
+  <div class="panel">
+    <div class="code">
+      <div><span class="fn">generate_message_draft</span>(MessageDraftInput(worker_id=<span class="str">"W001"</span>, language_code=<span class="str">"vi"</span>, ...))</div>
+      <div class="arr-line">LLM: <span class="kw">gpt-4.1-nano</span>, temperature=<span class="num">0.2</span></div>
+      <div class="arr-line">① CSV 템플릿 로드 — data-pipeline/seed/message_templates.csv (purpose+lang+approval_required)</div>
+      <div class="arr-line">② 필수 필드 검증 — _missing_required_fields() → 누락 시 FAILED 반환</div>
+      <div class="arr-line">③ RAG 검색 — search_multilingual_contact_rag_tool (top_k=<span class="num">5</span>)</div>
+      <div class="arr-line">④ 기본 초안 렌더링 — template.format(values)</div>
+      <div class="arr-line">⑤ LLM 한국어 정제 — RAG 스니펫 최대 <span class="num">3</span>건 반영</div>
+      <div class="arr-line">⑥ LLM 번역 — 정제된 한국어 → 대상 언어 (vi/id)</div>
+      <div class="arr-line">⑦ 번역 품질 검증 — check_translation_quality() (rule-based)</div>
+      <div class="arr-line">완료 후 <span class="var">EventType.RAG_RETRIEVED</span>, <span class="var">MESSAGE_DRAFT_CREATED</span>, <span class="var">APPROVAL_REQUESTED</span> 기록</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 4. SUBAGENTS / FLOWS -->
+  <div class="section-label">4. CONTACT AGENT — 메시지 초안 흐름 + 근로자 답장 요약 흐름</div>
+  <div class="subagent-row">
+
+    <div class="subagent purple">
+      <h3>① 메시지 초안 생성 (generate_message_draft)</h3>
+      <div class="path">agents/multilingual_contact_agent.py · tools/search_multilingual_contact_rag_tool.py</div>
+
+      <div class="tool-line"><span class="tag read">SAFE_READ</span> get_worker_profile, load_message_template</div>
+      <div class="note">↳ W001 + 템플릿 매칭 (purpose=missing_document_request, lang=vi, approval_required=true)</div>
+      <div class="data-block">근로자: 김현수(M****) · 비자: E-9 · 모국어: vi · 담당자: 박지수 · 마감일: 2025-11-30</div>
+
+      <div class="tool-line"><span class="tag rag">RAG</span> search_multilingual_contact_rag_tool</div>
+      <div class="note">↳ top_k=5, intent=PURPOSE_TO_RAG_INTENT[message_purpose] 매핑</div>
+      <div class="data-block">조회 결과: 외국인근로자고용법 §22(통지 의무) · HiKorea 체류기간 연장 안내 · 다국어 안내 베트남어판</div>
+
+      <div class="tool-line"><span class="tag draft">SAFE_DRAFT</span> _refine_korean → _translate → 한국어/베트남어 본문</div>
+
+      <div class="note" style="margin-top:10px;">생성 결과</div>
+      <div class="result-row"><b>korean_text:</b> "김현수님, 체류만료(2025-12-28) 전 표준근로계약서·고용허가서 제출이 필요합니다. 마감일: 2025-11-30, 담당자: 박지수"</div>
+      <div class="result-row"><b>translated_text (vi):</b> "Anh Kim Hyeon-su, trước ngày hết hạn cư trú (28/12/2025)..."</div>
+      <div class="result-row">citations: <b>3건</b> · risk_flags: 0건 · approval_required: <b style="color:var(--accent-red)">True</b></div>
+
+      <div class="forbid">⊘ 금지: 차별/강압 표현 · 국적·성실도·이탈 가능성 판단</div>
+    </div>
+
+    <div class="subagent green">
+      <h3>② 근로자 답장 요약 (summarize_worker_reply)</h3>
+      <div class="path">agents/multilingual_contact_agent.py · translation/reply_summarizer.py · reply_interpreter.py</div>
+
+      <div class="tool-line"><span class="tag read">SAFE_READ</span> translate_and_summarize_worker_reply, interpret_worker_reply</div>
+      <div class="note">↳ W001이 베트남어로 답장한 메시지 입력</div>
+      <div class="data-block">worker_reply: "Em đã gửi hộ chiếu, hợp đồng tuần sau..." (원문은 Evidence Log에 저장하지 않음)</div>
+
+      <div class="tool-line"><span class="tag calc">SAFE_CALCULATE</span> 번역 → 요약 → status_update_candidates 추출</div>
+
+      <div class="note" style="margin-top:10px;">생성 결과</div>
+      <div class="result-row"><b>translated_ko:</b> "여권은 보냈고, 근로계약서는 다음 주에 제출 예정입니다."</div>
+      <div class="result-row"><b>summary_ko:</b> "여권 제출 완료. 표준근로계약서 다음 주 제출 예정 답변"</div>
+      <div class="result-row">status_update_candidates: <b>2건</b></div>
+      <div class="result-row">· 여권 → 제출 완료 (manager_review_required=True)</div>
+      <div class="result-row">· 표준근로계약서 → 제출 예정 (확정 안 함)</div>
+
+      <div class="result-row" style="margin-top:8px;">approval_required: <b style="color:var(--accent-red)">True</b> · manager_review_required: <b>True</b></div>
+      <div class="result-row">risk_flags: 0건 (uncertainty_flags 없음)</div>
+
+      <div class="forbid">⊘ 금지: 자동 상태 업데이트 확정 · 원문 Evidence Log 저장</div>
+    </div>
+
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 4b. RAG STRATEGY -->
+  <div class="section-label">4b. RAG 전략 — 다국어 컨택 전용 청크</div>
+  <div class="subagent-row" style="grid-template-columns: 1fr 1fr 1fr;">
+    <div class="subagent" style="border:2px solid #b89adf; background:#f7f1fd;">
+      <div style="font-weight:700; color:var(--accent-purple); margin-bottom:6px;">법령 · Grade A</div>
+      <div class="result-row"><b>600자 상한</b> · 조문 완결 보장</div>
+      <div class="result-row">외국인근로자고용법, 출입국관리법, 통지 의무 조문</div>
+    </div>
+    <div class="subagent" style="border:2px solid #7eaedb; background:#f3f8fd;">
+      <div style="font-weight:700; color:var(--accent-blue); margin-bottom:6px;">절차·서식 · Grade B</div>
+      <div class="result-row"><b>500자 상한</b> · 단계 흐름 유지</div>
+      <div class="result-row">HiKorea 체류연장, 정부24, 표준근로계약서 안내</div>
+    </div>
+    <div class="subagent" style="border:2px solid #e0c574; background:#fffaef;">
+      <div style="font-weight:700; color:var(--accent-orange); margin-bottom:6px;">안전·상담 · Grade C/D</div>
+      <div class="result-row"><b>400자 상한</b> · 다국어 혼재 보존</div>
+      <div class="result-row">KOSHA 다국어 안전표지, 상담센터 vi/id 안내</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 5. TOOLS -->
+  <div class="section-label">5. TOOL 4단계 계층 — AGENTS/MULTILINGUAL_CONTACT_AGENT.PY · TOOLS/REGISTRY.PY</div>
+  <div class="panel">
+    <table class="tool-table">
+      <thead>
+        <tr><th style="width: 200px">계층</th><th>설명</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag read">SAFE_READ</span></td>
+          <td>get_worker_profile · search_policy_documents · load_message_template · search_multilingual_contact_rag_tool (DB / RAG 조회만)</td>
+        </tr>
+        <tr>
+          <td><span class="tag calc">SAFE_CALCULATE</span></td>
+          <td>check_translation_quality · interpret_worker_reply · translate_and_summarize_worker_reply (규칙 기반 검증·요약, 부작용 없음)</td>
+        </tr>
+        <tr>
+          <td><span class="tag draft">SAFE_DRAFT</span></td>
+          <td>generate_multilingual_message_draft — 한국어+번역문 초안 생성, <code>approval_required=True</code> 항상 반환</td>
+        </tr>
+        <tr>
+          <td><span class="tag approve">APPROVAL_REQUIRED</span></td>
+          <td>send_worker_message · update_case_status_completed — 호출 즉시 <code>NEEDS_APPROVAL</code> 반환 → 미들웨어가 에이전트 강제 중단</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 6. MIDDLEWARE -->
+  <div class="section-label">6. MIDDLEWARE — LANGCHAIN_V1/MIDDLEWARE.PY</div>
+  <div class="mw-list">
+    <div class="mw-row"><div class="mw-num">1</div><div><span class="mw-name">WorkBridgeSafetyMiddleware</span> 금지 의도 차단 — SNS 감시, 단톡방 확인, 이탈 예측, 성실도 판단, 자동 발송 FORBIDDEN_TERMS 포함 시 즉시 차단</div></div>
+    <div class="mw-row"><div class="mw-num">2</div><div><span class="mw-name">EvidenceCaptureMiddleware</span> Evidence 이벤트 자동 수집 (rag_retrieved, message_draft_created, worker_reply_summarized 등)</div></div>
+    <div class="mw-row"><div class="mw-num">3</div><div><span class="mw-name">PIIMiddleware("email")</span> 이메일 주소 마스킹</div></div>
+    <div class="mw-row"><div class="mw-num">4</div><div>
+      <span class="mw-name">PIIMiddleware("foreign_hiring_pii")</span> 외국인등록번호 / 여권번호 / 전화번호 마스킹 — <b>근로자 답장 원문에도 적용</b>
+      <div class="mw-sub">근로자 답장: "M12345678 여권 보냈어요" → LLM 전달: "[여권번호] 여권 보냈어요"</div>
+      <div class="mw-sub">출력 메시지: 한국어/번역문 모두 [전화번호] / [외국인등록번호] 형태 보존</div>
+    </div></div>
+    <div class="mw-row"><div class="mw-num">5</div><div><span class="mw-name">ModelCallLimitMiddleware(12)</span> LLM 호출 12회 초과 시 강제 종료 (정제+번역 2회 + 요약 1회 사용)</div></div>
+    <div class="mw-row"><div class="mw-num">6</div><div><span class="mw-name">ToolCallLimitMiddleware(12)</span> Tool 호출 12회 초과 시 강제 종료</div></div>
+    <div class="mw-row"><div class="mw-num">7</div><div>
+      <span class="mw-name">HumanInTheLoopMiddleware</span> APPROVAL_REQUIRED Tool 호출 순간 에이전트 전체 강제 중단 → 사람 승인 대기
+      <div class="mw-sub">interrupt_on: <b>send_worker_message</b>, update_case_status_completed</div>
+    </div></div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 7. APPROVAL GATE -->
+  <div class="section-label">7. APPROVAL GATE — 모든 외부 전달은 승인 후</div>
+  <div class="approval-gate">
+    <div class="gate-name">approval_gate_node</div>
+    <div>
+      <code>requires_human_approval=True</code> 강제 (schema invariant)
+      <div style="color:var(--muted); margin-top:4px; font-size:13px;">
+        차단 대상: 근로자 메시지 자동 발송 / 상태 업데이트 자동 확정 / 답장 기반 케이스 자동 종결
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 8. OUTPUT -->
+  <div class="section-label">8. OUTPUT — MULTILINGUAL_CONTACT_AGENT 결과</div>
+  <div class="output-grid">
+    <div class="out-card">
+      <div class="out-title"><span class="num">①</span>근로자·언어</div>
+      <div class="out-line">worker_id: W001 (김현수)</div>
+      <div class="out-line">language_code: <b>vi</b></div>
+      <div class="out-line">purpose: missing_document_request</div>
+    </div>
+    <div class="out-card">
+      <div class="out-title"><span class="num">②</span>품질·위험 플래그</div>
+      <div class="out-line">번역 품질 검증 통과</div>
+      <div class="out-line">TRANSLATION_REVIEW_REQUIRED: 없음</div>
+      <div class="out-line">담당자 검토 요청</div>
+    </div>
+    <div class="out-card">
+      <div class="out-title"><span class="num">③</span>한국어 본문</div>
+      <div class="out-line"><span class="em-y">정제 완료</span> (LLM + RAG 3건)</div>
+      <div class="out-line">마감일·담당자 명시</div>
+    </div>
+    <div class="out-card">
+      <div class="out-title"><span class="num">④</span>번역문 (vi)</div>
+      <div class="out-line">정제된 한국어 기반 재번역</div>
+      <div class="out-line">자동 발송 안 함</div>
+      <div class="out-line">승인 대기 상태</div>
+    </div>
+
+    <div class="out-card green">
+      <div class="out-title"><span class="num">⑤</span>Evidence (RAG 출처)</div>
+      <div class="out-line">외국인근로자고용법 §22 (통지)</div>
+      <div class="out-line">HiKorea 체류 연장 안내</div>
+      <div class="out-line">다국어 안내 베트남어판</div>
+    </div>
+    <div class="out-card red">
+      <div class="out-title"><span class="num">⑥</span>Approval Block</div>
+      <div class="out-line">requires_human_approval=True</div>
+      <div class="out-line">메시지 발송 차단</div>
+      <div class="out-line">상태 업데이트 차단</div>
+      <div class="out-line">케이스 종결 차단</div>
+    </div>
+    <div class="out-card wide">
+      <div class="out-title"><span class="num">⑦</span>다음 단계</div>
+      <div class="out-line">담당자 승인 → 근로자 메시지 발송 가능 / 답장 수신 시 summarize_worker_reply 위임 / 서류 상태 업데이트 후보 검토</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <!-- 9. EVIDENCE LOG -->
+  <div class="section-label">9. EVIDENCE LOG — 의무 기록 이벤트</div>
+  <div class="ev-grid">
+    <div class="ev-chip"><b>INTENT_CLASSIFIED</b> WORKER_CONTACT 감지</div>
+    <div class="ev-chip"><b>PLAN_CREATED</b> multilingual_contact_agent 선택</div>
+    <div class="ev-chip"><b>TOOL_EXECUTED</b> search_multilingual_contact_rag_tool, generate_multilingual_message_draft 실행</div>
+    <div class="ev-chip"><b>RAG_RETRIEVED</b> 외국인근로자고용법 §22, HiKorea 체류연장 인용</div>
+    <div class="ev-chip"><b>MESSAGE_DRAFT_CREATED</b> 한국어+vi 번역문 초안 생성</div>
+    <div class="ev-chip"><b>TRANSLATION_QUALITY_CHECKED</b> 규칙 기반 검증 통과</div>
+    <div class="ev-chip"><b>APPROVAL_REQUESTED</b> 메시지 발송 → 승인 대기</div>
+    <div class="ev-chip"><b>WORKER_REPLY_SUMMARIZED</b> (답장 도착 시) 번역+요약</div>
+    <div class="ev-chip"><b>STATUS_UPDATE_CANDIDATE_CREATED</b> 서류/상태 후보 생성</div>
+    <div class="ev-chip"><b>FINAL_RESPONSE_GENERATED</b> 최종 응답</div>
+  </div>
+  <div class="ev-warn">⚠ 민감정보 원문(여권번호, 외국인등록번호, 전화번호) <b>및 근로자 답장 원문/번역 전문</b>은 Evidence Log에 저장하지 않음</div>
+
+  <div class="arrow">↓</div>
+
+  <!-- FINAL RESPONSE -->
+  <div class="final-label">최종 응답 예시</div>
+  <div class="final">
+<span class="info">김현수 씨(W001) 베트남어 메시지 초안을 생성했습니다.</span><br>
+<span class="info">목적: missing_document_request · 마감일: 2025-11-30 · 담당자: 박지수</span><br>
+<span class="ok">✓ 한국어 본문 (정제 완료): "김현수님, 체류만료(2025-12-28) 전 표준근로계약서·고용허가서 제출이 필요합니다..."</span><br>
+<span class="ok">✓ 베트남어 번역문 (재번역 완료): "Anh Kim Hyeon-su, trước ngày hết hạn cư trú..."</span><br>
+<span class="ok">✓ RAG 근거 3건 인용: 외국인근로자고용법 §22, HiKorea 체류연장, 다국어 안내 vi판</span><br>
+<span class="warn">⚠ 메시지 발송은 담당자 승인 후 진행됩니다 (send_worker_message → NEEDS_APPROVAL)</span><br>
+<span class="warn">⚠ 근로자 답장 수신 시 자동 요약·번역되며, 상태 업데이트는 후보로만 제시됩니다.</span>
+  </div>
+
+</div>
+
+</div>
+</body>
+</html>

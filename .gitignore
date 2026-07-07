@@ -51,6 +51,8 @@ data-pipeline/index/*
 data-pipeline/index/chroma/*
 !data-pipeline/index/chroma/workforce/
 !data-pipeline/index/chroma/workforce/**
+legacy/data-pipeline/cache/
+legacy/data-pipeline/index/
 .chroma/
 .pycache-ci*/
 evals/reports/*.json
@@ -81,3 +83,12 @@ frontend/node_modules/
 frontend/.next/
 frontend/out/
 langchain-1-migration-plan.md
+
+# =========================
+# Web app (root Vite scaffold - M0.1)
+# =========================
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo

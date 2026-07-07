@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>WorkBridge Agent 설계 — 공통 골격 + 차이 분리</title>
+<style>
+  :root {
+    --bg: #eef0f4;
+    --slide-bg: #ffffff;
+    --ink: #1f2330;
+    --muted: #7b8190;
+    --label: #9aa0ac;
+    --brand: #2f3aa1;
+    --border: #e3e5ea;
+    --soft: #f7f8fa;
+    --green: #2f9e6a;
+    --green-bg: #e9f7ef;
+    --blue: #3b6bd8;
+    --blue-bg: #eaf1fd;
+    --orange: #d97a30;
+    --orange-bg: #fdeedb;
+    --purple: #7c4dc5;
+    --purple-bg: #f1eafa;
+    --red: #d24b4b;
+    --red-bg: #fdecec;
+    --yellow: #d6a73b;
+    --yellow-bg: #fbf3dc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+                 "Pretendard", "Malgun Gothic", sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 32px;
+    color: var(--ink);
+  }
+  .page-title {
+    max-width: 1280px;
+    margin: 0 auto 24px;
+  }
+  .page-title h1 { font-size: 22px; margin: 0 0 6px; color: var(--brand); }
+  .page-title p { margin: 0; color: var(--muted); font-size: 14px; }
+  .deck { max-width: 1280px; margin: 0 auto; }
+
+  .slide {
+    background: var(--slide-bg);
+    border-radius: 8px;
+    box-shadow: 0 6px 24px rgba(20,30,60,0.08);
+    aspect-ratio: 16 / 9;
+    padding: 36px 44px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide-num {
+    position: absolute;
+    bottom: 14px;
+    right: 22px;
+    font-size: 11px;
+    color: var(--label);
+    font-family: monospace;
+  }
+  .slide-foot {
+    position: absolute;
+    bottom: 14px;
+    left: 22px;
+    font-size: 11px;
+    color: var(--label);
+  }
+  .slide-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--brand);
+    margin: 0 0 4px 0;
+  }
+  .slide-sub {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin: 0 0 18px 0;
+  }
+  .slide-body { flex: 1; display: flex; flex-direction: column; }
+
+  /* Pipeline */
+  .pipeline {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .pipe-step {
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 6px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .pipe-step .pnum {
+    font-size: 10.5px;
+    color: var(--label);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .pipe-step .pname {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+  .pipe-step .pwhy {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .pipe-step.guard { background: #fef2f2; border-color: #f0bfbf; }
+  .pipe-step.io { background: #eaf4fd; border-color: #bcd6f0; }
+  .pipe-step.core { background: #f1eafa; border-color: #d4bff0; }
+
+  .legend-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 22px;
+    font-size: 11.5px;
+  }
+  .legend-item { padding: 9px 12px; border-radius: 6px; }
+  .legend-item.l-io { background: #eaf4fd; }
+  .legend-item.l-core { background: #f1eafa; }
+  .legend-item.l-guard { background: #fef2f2; }
+  .legend-item.l-data { background: var(--soft); }
+
+  .one-liner {
+    background: var(--brand);
+    color: #fff;
+    text-align: center;
+    padding: 11px;
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-top: 16px;
+  }
+
+  /* Matrix */
+  .matrix {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 6px;
+    table-layout: fixed;
+  }
+  .matrix th, .matrix td {
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    font-size: 13px;
+    vertical-align: top;
+    text-align: left;
+    line-height: 1.5;
+  }
+  .matrix th {
+    background: var(--soft);
+    color: var(--label);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    text-align: center;
+  }
+  .matrix .agent-cell {
+    background: var(--soft);
+    font-weight: 700;
+    color: var(--brand);
+    text-align: center;
+    font-size: 14px;
+  }
+  .matrix .visa { background: #fff3e8; }
+  .matrix .workforce { background: #eef7f2; }
+  .matrix .contact { background: #eef1fa; }
+
+  /* Safety grid */
+  .safety-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 0.85fr;
+    gap: 14px;
+    flex: 1;
+  }
+  .safety-card {
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+  }
+  .safety-card h4 {
+    margin: 0 0 10px 0;
+    font-size: 13px;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .tier {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 0;
+    font-size: 13px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .tier:last-child { border-bottom: none; }
+  .tier .tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .tag.read { background: var(--green-bg); color: var(--green); }
+  .tag.calc { background: var(--purple-bg); color: var(--purple); }
+  .tag.draft { background: var(--yellow-bg); color: var(--yellow); }
+  .tag.approve { background: var(--red-bg); color: var(--red); }
+  .mw-line {
+    font-size: 12.5px;
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .mw-line:last-child { border-bottom: none; }
+  .mw-line b { color: var(--ink); }
+  .gate-card {
+    background: var(--red-bg);
+    border: 1.5px solid #ee9999;
+    border-radius: 8px;
+    padding: 18px 16px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+  }
+  .gate-card .gname {
+    font-family: monospace;
+    color: var(--red);
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .gate-card .gdesc {
+    font-size: 12.5px;
+    color: var(--ink);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">
+  <h1>WorkBridge Agent 설계 — 공통 골격 + 차이 분리</h1>
+  <p>Visa Agent · Workforce Agent · Multilingual Contact Agent — 엔지니어링 설계 발표용 (3장)</p>
+</div>
+
+<div class="deck">
+
+<!-- Slide 1 — Common Pipeline -->
+<div class="slide">
+  <h3 class="slide-title">공통 파이프라인 — 3개 에이전트가 동일 9단계를 공유</h3>
+  <p class="slide-sub">에이전트별 차이는 색이 다른 박스(AGENT, OUTPUT)에만 존재. 나머지는 프레임워크가 제공</p>
+  <div class="slide-body">
+    <div class="pipeline">
+      <div class="pipe-step io">
+        <div class="pnum">1</div>
+        <div class="pname">INPUT</div>
+        <div class="pwhy">사용자 질문<br>+ 컨텍스트</div>
+      </div>
+      <div class="pipe-step core">
+        <div class="pnum">2</div>
+        <div class="pname">INTENT ROUTER</div>
+        <div class="pwhy">LLM 1회로<br>에이전트 선택</div>
+      </div>
+      <div class="pipe-step core">
+        <div class="pnum">3</div>
+        <div class="pname">AGENT 실행</div>
+        <div class="pwhy">서브에이전트<br>ReAct 루프</div>
+      </div>
+      <div class="pipe-step">
+        <div class="pnum">4</div>
+        <div class="pname">TOOL 4단계</div>
+        <div class="pwhy">READ / CALC<br>DRAFT / APPROVAL</div>
+      </div>
+      <div class="pipe-step guard">
+        <div class="pnum">5</div>
+        <div class="pname">MIDDLEWARE</div>
+        <div class="pwhy">7개 가드레일<br>자동 적용</div>
+      </div>
+      <div class="pipe-step guard">
+        <div class="pnum">6</div>
+        <div class="pname">APPROVAL GATE</div>
+        <div class="pwhy">schema invariant<br>강제</div>
+      </div>
+      <div class="pipe-step">
+        <div class="pnum">7</div>
+        <div class="pname">OUTPUT</div>
+        <div class="pwhy">7개 카드<br>표준 구조</div>
+      </div>
+      <div class="pipe-step guard">
+        <div class="pnum">8</div>
+        <div class="pname">EVIDENCE LOG</div>
+        <div class="pwhy">의무 감사<br>이벤트 9종</div>
+      </div>
+      <div class="pipe-step io">
+        <div class="pnum">9</div>
+        <div class="pname">FINAL RESPONSE</div>
+        <div class="pwhy">PII 마스킹<br>+ 근거 인용</div>
+      </div>
+    </div>
+
+    <div class="legend-grid">
+      <div class="legend-item l-io"><b>파랑</b> = I/O 경계</div>
+      <div class="legend-item l-core"><b>보라</b> = 에이전트 코어 (specialization 지점)</div>
+      <div class="legend-item l-guard"><b>빨강</b> = 가드레일 (전 에이전트 공통)</div>
+      <div class="legend-item l-data"><b>회색</b> = 데이터 변환</div>
+    </div>
+
+    <div class="one-liner">9단계 중 7단계가 프레임워크 공통 → 신규 에이전트 추가 비용 최소화</div>
+  </div>
+  <div class="slide-foot">슬라이드 1 / 3</div>
+  <div class="slide-num">backend/app/agent_runtime/</div>
+</div>
+
+<!-- Slide 2 — Agent Matrix -->
+<div class="slide">
+  <h3 class="slide-title">3 에이전트 specialization — 5개 변별점</h3>
+  <p class="slide-sub">같은 파이프라인 위에 무엇이 다른가</p>
+  <div class="slide-body">
+    <table class="matrix">
+      <thead>
+        <tr>
+          <th style="width: 100px"></th>
+          <th>Intent</th>
+          <th>서브에이전트</th>
+          <th>핵심 Tool</th>
+          <th>차단 (Forbidden)</th>
+          <th>Output 핵심</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="agent-cell">Visa</td>
+          <td class="visa"><b>VISA_CHECK</b></td>
+          <td class="visa">visa_risk<br>+ document_priority</td>
+          <td class="visa">assess_visa_risk<br>assess_document_priority</td>
+          <td class="visa">비자 발급 확정<br>법률 자문</td>
+          <td class="visa">D-day + CRITICAL 누락 서류</td>
+        </tr>
+        <tr>
+          <td class="agent-cell">Workforce</td>
+          <td class="workforce"><b>HIRING_REQUEST</b></td>
+          <td class="workforce">workforce_requirement<br>+ candidate_readiness</td>
+          <td class="workforce">generate_hiring_request_draft<br>calculate_candidate_readiness</td>
+          <td class="workforce">국적별 차별<br>성실도 / 이탈 판단</td>
+          <td class="workforce">인력 요청서 초안 + 준비도 표</td>
+        </tr>
+        <tr>
+          <td class="agent-cell">Contact</td>
+          <td class="contact"><b>WORKER_CONTACT</b></td>
+          <td class="contact">message_draft<br>+ reply_summary</td>
+          <td class="contact">search_multilingual_contact_rag<br>generate_multilingual_message_draft</td>
+          <td class="contact">자동 발송<br>SNS 감시 / 이탈 예측</td>
+          <td class="contact">한국어+vi 본문 + 답장 요약</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="one-liner">변별점 5개만 정의하면 새 에이전트도 같은 파이프라인 위에서 동작</div>
+  </div>
+  <div class="slide-foot">슬라이드 2 / 3</div>
+  <div class="slide-num">agents/{visa,hiring,contact}_agent.py</div>
+</div>
+
+<!-- Slide 3 — Safety cross-section -->
+<div class="slide">
+  <h3 class="slide-title">안전 설계 단면 — 모든 에이전트에 동일 적용</h3>
+  <p class="slide-sub">TOOL 등급 × Middleware × Approval Gate = 도메인 위험 대응 3중 방어</p>
+  <div class="slide-body">
+    <div class="safety-grid">
+      <div class="safety-card">
+        <h4>TOOL 4단계 계층</h4>
+        <div class="tier"><span class="tag read">SAFE_READ</span><span>DB / RAG 조회만 (8개)</span></div>
+        <div class="tier"><span class="tag calc">SAFE_CALCULATE</span><span>날짜·우선순위·번역 검증 (6개)</span></div>
+        <div class="tier"><span class="tag draft">SAFE_DRAFT</span><span>초안 생성 · approval_required=True (3개)</span></div>
+        <div class="tier"><span class="tag approve">APPROVAL_REQUIRED</span><span>호출 즉시 NEEDS_APPROVAL 반환 (3개)</span></div>
+      </div>
+      <div class="safety-card">
+        <h4>Middleware 7개</h4>
+        <div class="mw-line"><b>1. WorkBridgeSafetyMW</b> — 금지 의도 차단</div>
+        <div class="mw-line"><b>2. EvidenceCaptureMW</b> — 이벤트 자동 수집</div>
+        <div class="mw-line"><b>3. PIIMiddleware(email)</b></div>
+        <div class="mw-line"><b>4. PIIMiddleware(foreign_pii)</b></div>
+        <div class="mw-line"><b>5. ModelCallLimit(12)</b></div>
+        <div class="mw-line"><b>6. ToolCallLimit(12)</b></div>
+        <div class="mw-line"><b>7. HumanInTheLoop</b> — 강제 중단</div>
+      </div>
+      <div class="gate-card">
+        <div class="gname">approval_gate_node</div>
+        <div class="gdesc">
+          <code>requires_human_approval=True</code><br>
+          <b>schema invariant</b><br>
+          <br>
+          메시지 발송 · 행정사 패키지<br>
+          정부 포털 제출 · 케이스 종결<br>
+          <b>모두 사람 승인 후</b>
+        </div>
+      </div>
+    </div>
+    <div class="one-liner">동일 가드레일 = 3 에이전트의 위험 등급 동등 보장</div>
+  </div>
+  <div class="slide-foot">슬라이드 3 / 3</div>
+  <div class="slide-num">middleware.py · approval_gate.py · tools/registry.py</div>
+</div>
+
+</div>
+</body>
+</html>

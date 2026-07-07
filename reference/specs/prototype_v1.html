@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>외고반장 — 모바일 프로토타입 M1~M5 + M9 (v1)</title>
+<style>
+/* ===== 4단계 디자인 토큰 ===== */
+:root{
+  --color-canvas:#ffffff; --color-surface:#f2f3f8; --color-surface-dim:#f5f5f5;
+  --color-text:#354153; --color-text-muted:#b4bbcb; --color-hairline:#e5e8ef;
+  --color-primary:#0066FF; --color-primary-press:#005EEB; --color-on-primary:#fff;
+  --sem-critical:#EF4444; --sem-warning:#F97316; --sem-pending:#F59E0B;
+  --sem-info:#3B82F6; --sem-success:#00BF40; --sem-neutral:#6B7280;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px;
+  --r-input:12px; --r-chip:14px; --r-card:16px; --r-sheet:20px;
+  --shadow-card:0 4px 8px rgba(0,0,0,.10); --shadow-sheet:0 -6px 24px rgba(0,0,0,.12);
+  --motion-fast:150ms; --motion-standard:240ms; --motion-slow:360ms;
+  --ease-enter:cubic-bezier(.2,0,0,1); --ease-exit:cubic-bezier(.4,0,1,1); --ease-standard:cubic-bezier(.4,0,.2,1);
+}
+@media (prefers-reduced-motion: reduce){
+  :root{--motion-fast:0ms;--motion-standard:0ms;--motion-slow:0ms}
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#dfe3ea;font-family:'Pretendard Variable',Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+  color:var(--color-text);display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:24px 0}
+/* ===== 폰 프레임 ===== */
+.phone{width:390px;max-width:100vw;height:844px;background:var(--color-canvas);border-radius:28px;
+  overflow:hidden;position:relative;box-shadow:0 12px 40px rgba(0,0,0,.22);display:flex;flex-direction:column}
+.statusbar{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 var(--sp-5);
+  font:600 13px/1 Pretendard;flex-shrink:0}
+/* ===== 화면 라우팅 ===== */
+.screen{position:absolute;inset:44px 0 0 0;background:var(--color-canvas);display:none;flex-direction:column;overflow:hidden}
+.screen.active{display:flex}
+.screen.push-in{animation:pushIn var(--motion-slow) var(--ease-enter)}
+@keyframes pushIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.scroll{flex:1;overflow-y:auto;padding:0 var(--sp-4) var(--sp-6);scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+/* ===== 공통 컴포넌트 ===== */
+.appbar{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);flex-shrink:0}
+.appbar .back{width:48px;height:48px;margin-left:-12px;border:none;background:none;font-size:22px;color:var(--color-text);cursor:pointer;border-radius:var(--r-input)}
+.appbar h1{font:700 20px/1.36 Pretendard;flex:1}
+.appbar .meta{font:400 13px/1.4 Pretendard;color:var(--sem-neutral)}
+h2.section{font:700 22px/1.36 Pretendard;margin:var(--sp-5) 0 var(--sp-3)}
+.card{background:#fff;border:1px solid var(--color-hairline);border-radius:var(--r-card);padding:var(--sp-5);margin-bottom:var(--sp-3)}
+.card.tappable{cursor:pointer;transition:box-shadow var(--motion-fast)}
+.card.tappable:active{box-shadow:var(--shadow-card)}
+.card h3{font:600 16px/1.5 Pretendard;margin-bottom:var(--sp-2)}
+.badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--sp-3)}
+.badge{border-radius:var(--r-chip);padding:3px 10px;font:600 13px/1.4 Pretendard;display:inline-flex;align-items:center;gap:4px}
+.b-critical{background:rgba(239,68,68,.08);color:#DC2626}
+.b-warning{background:rgba(249,115,22,.08);color:#EA580C}
+.b-pending{background:rgba(245,158,11,.10);color:#B45309}
+.b-info{background:rgba(59,130,246,.08);color:#2563EB}
+.b-success{background:rgba(0,191,64,.10);color:#00913A}
+.b-neutral{background:rgba(107,114,128,.08);color:var(--sem-neutral)}
+.btn-row{display:flex;gap:var(--sp-3);margin-top:var(--sp-4)}
+.btn{border:none;border-radius:var(--r-input);padding:14px 18px;font:600 15px/1 Pretendard;min-height:52px;
+  cursor:pointer;flex:1;display:flex;align-items:center;justify-content:center;transition:background var(--motion-fast)}
+.btn-primary{background:var(--color-primary);color:#fff}
+.btn-primary:active{background:var(--color-primary-press)}
+.btn-primary:disabled{background:var(--color-surface);color:var(--color-text-muted);cursor:not-allowed}
+.btn-secondary{background:var(--color-surface);color:var(--color-text)}
+.btn-outline{background:#fff;border:1px solid var(--color-hairline);color:var(--color-text)}
+.safety{display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-3) var(--sp-4);background:var(--color-surface);
+  border-radius:var(--r-chip);font:400 13px/1.4 Pretendard;color:var(--color-text);margin:var(--sp-3) 0}
+.safety::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--color-primary);flex-shrink:0}
+.reason{font:400 13px/1.5 Pretendard;color:var(--sem-neutral);margin-top:var(--sp-2)}
+/* 탭바 */
+.tabbar{height:56px;border-top:1px solid var(--color-hairline);display:flex;flex-shrink:0;background:#fff}
+.tab{flex:1;border:none;background:none;font:600 12px/1.2 Pretendard;color:var(--color-text-muted);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.tab.on{color:var(--color-primary)}
+.tab .ic{font-size:18px;line-height:1}
+/* 커맨드 바 */
+.cmdwrap{padding:var(--sp-2) var(--sp-4) var(--sp-3);border-top:1px solid var(--color-hairline);background:#fff;flex-shrink:0}
+.cmd{display:flex;gap:var(--sp-2)}
+.cmd input{flex:1;background:var(--color-surface);border:none;border-radius:var(--r-input);padding:14px 16px;
+  font:400 15px/1.4 Pretendard;color:var(--color-text);min-height:48px;outline:none}
+.cmd input::placeholder{color:var(--color-text-muted)}
+.cmd input:focus{outline:2px solid var(--color-primary);background:#fff}
+.cmd button{width:48px;min-height:48px;border:none;border-radius:var(--r-input);background:var(--color-surface);
+  color:var(--color-text);font-size:17px;cursor:pointer;flex-shrink:0}
+/* 통계 카드 (v1.1 무채색) */
+.stats{display:flex;gap:var(--sp-2);margin-top:var(--sp-2)}
+.stat{flex:1;background:#fff;border:1px solid var(--color-hairline);border-radius:var(--r-chip);
+  padding:var(--sp-3);cursor:pointer}
+.stat .n{font:700 18px/1 Pretendard;font-variant-numeric:tabular-nums}
+.stat .l{font:400 12px/1.4 Pretendard;color:var(--sem-neutral);margin-top:4px}
+/* 바텀시트 */
+.overlay{position:absolute;inset:0;background:rgba(20,25,35,.4);opacity:0;pointer-events:none;
+  transition:opacity var(--motion-standard) var(--ease-standard);z-index:20}
+.overlay.open{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:var(--r-sheet) var(--r-sheet) 0 0;
+  box-shadow:var(--shadow-sheet);transform:translateY(105%);transition:transform var(--motion-standard) var(--ease-enter);
+  z-index:21;max-height:88%;display:flex;flex-direction:column}
+.sheet.open{transform:translateY(0)}
+.handle{padding:var(--sp-3) 0 var(--sp-1);display:flex;justify-content:center;cursor:pointer;min-height:24px}
+.handle::after{content:'';width:36px;height:4px;border-radius:2px;background:var(--color-hairline)}
+.sheet .body{overflow-y:auto;padding:var(--sp-2) var(--sp-5) var(--sp-4)}
+.sheet .foot{padding:var(--sp-3) var(--sp-5) var(--sp-6);border-top:1px solid var(--color-hairline)}
+.blk{margin-bottom:var(--sp-5)}
+.blk .t{font:600 14px/1.4 Pretendard;color:var(--sem-neutral);margin-bottom:var(--sp-2)}
+.kv{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--color-hairline);font:400 15px/1.5 Pretendard}
+.kv:last-child{border-bottom:none}
+.kv b{font-weight:600}
+.doc{display:flex;align-items:center;gap:var(--sp-2);padding:10px 0;font:400 15px/1.5 Pretendard;border-bottom:1px solid var(--color-hairline)}
+.doc:last-child{border-bottom:none}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.cite{background:var(--color-surface);border-radius:var(--r-chip);padding:var(--sp-3) var(--sp-4);font:400 13px/1.5 Pretendard;margin-bottom:var(--sp-2)}
+.cite .g{font-weight:700;color:var(--color-primary);margin-right:6px}
+.cite .src{color:var(--sem-neutral);display:block;margin-top:2px}
+/* 언어 토글 */
+.seg{display:flex;background:var(--color-surface);border-radius:var(--r-input);padding:3px;margin:var(--sp-3) 0}
+.seg button{flex:1;border:none;background:none;border-radius:9px;padding:10px;font:600 14px/1 Pretendard;
+  color:var(--sem-neutral);cursor:pointer;min-height:44px}
+.seg button.on{background:#fff;color:var(--color-text);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.draftbox{background:#fff;border:1px solid var(--color-hairline);border-radius:var(--r-card);padding:var(--sp-5);
+  font:400 15px/1.7 Pretendard;white-space:pre-line}
+.checks{margin:var(--sp-4) 0}
+.chk{display:flex;align-items:center;gap:var(--sp-2);padding:6px 0;font:400 14px/1.4 Pretendard}
+.chk .m{color:var(--sem-success);font-weight:700}
+.scen{display:flex;gap:var(--sp-2);overflow-x:auto;margin-top:var(--sp-3);padding-bottom:4px;scrollbar-width:none}
+.scen::-webkit-scrollbar{display:none}
+.scen .sc{min-width:150px;background:#fff;border:1px solid var(--color-hairline);border-radius:var(--r-chip);padding:var(--sp-3)}
+.sc .st{font:600 13px/1.4 Pretendard;margin-bottom:4px}
+.sc .sd{font:400 12px/1.5 Pretendard;color:var(--sem-neutral)}
+/* M4/M9 스텝 타임라인 */
+.runhead{background:var(--color-surface);border-radius:var(--r-card);padding:var(--sp-4) var(--sp-5);margin-bottom:var(--sp-4)}
+.runhead .an{font:600 16px/1.4 Pretendard;display:flex;align-items:center;gap:8px}
+.livedot{width:8px;height:8px;border-radius:50%;background:var(--sem-success);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.3}}
+.runhead .rm{font:400 13px/1.5 Pretendard;color:var(--sem-neutral);margin-top:4px}
+.steps{padding-left:4px}
+.step{display:flex;gap:var(--sp-3);opacity:0;transform:translateY(6px);transition:opacity var(--motion-fast) var(--ease-enter),transform var(--motion-fast) var(--ease-enter)}
+.step.show{opacity:1;transform:none}
+.step .rail{display:flex;flex-direction:column;align-items:center;width:24px;flex-shrink:0}
+.step .ic{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font:700 12px/1 Pretendard;flex-shrink:0}
+.step .line{width:2px;flex:1;background:var(--color-hairline);min-height:14px}
+.step:last-child .line{display:none}
+.step .sc-done{background:rgba(0,191,64,.12);color:#00913A}
+.step .sc-active{background:rgba(0,102,255,.12);color:var(--color-primary);animation:blink 1.2s infinite}
+.step .sc-guard{background:rgba(245,158,11,.12);color:#B45309}
+.step .cnt{padding-bottom:var(--sp-4);flex:1}
+.step .sl{font:600 15px/1.4 Pretendard}
+.step .sd{font:400 13px/1.5 Pretendard;color:var(--sem-neutral);margin-top:2px}
+.qcard{background:#fff;border:1px solid var(--color-hairline);border-radius:var(--r-card);padding:var(--sp-5);margin:var(--sp-3) 0}
+.qcard .qt{font:600 15px/1.5 Pretendard;margin-bottom:var(--sp-3)}
+.chips{display:flex;gap:var(--sp-2);flex-wrap:wrap}
+.chip{border:1px solid var(--color-hairline);background:#fff;border-radius:var(--r-chip);padding:10px 14px;
+  font:600 14px/1 Pretendard;color:var(--color-text);cursor:pointer;min-height:44px}
+.chip:active{background:var(--color-surface)}
+/* M5 */
+.hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:var(--sp-8) var(--sp-5) var(--sp-5)}
+.bigcheck{width:72px;height:72px;border-radius:50%;background:rgba(0,191,64,.12);color:#00913A;
+  display:flex;align-items:center;justify-content:center;font-size:34px;margin-bottom:var(--sp-5);
+  animation:pop var(--motion-slow) var(--ease-enter)}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+.hero h1{font:700 24px/1.38 Pretendard;margin-bottom:var(--sp-2)}
+.hero p{font:400 14px/1.6 Pretendard;color:var(--sem-neutral)}
+.statechange{display:flex;align-items:center;justify-content:center;gap:var(--sp-2);font:600 14px/1.4 Pretendard;
+  padding:var(--sp-3);background:var(--color-surface);border-radius:var(--r-chip);margin:var(--sp-4) 0}
+.statechange .arrow{color:var(--sem-neutral)}
+/* 토스트 */
+.toast{position:absolute;left:16px;right:16px;bottom:76px;background:var(--color-text);color:#fff;
+  border-radius:var(--r-input);padding:14px 18px;font:400 14px/1.4 Pretendard;opacity:0;pointer-events:none;
+  transition:opacity var(--motion-standard);z-index:40;text-align:center}
+.toast.show{opacity:1}
+.hint{position:fixed;left:50%;transform:translateX(-50%);bottom:8px;font:400 12px/1.4 Pretendard;color:#7a8296}
+@media(max-height:900px){.phone{height:calc(100vh - 48px);min-height:640px}}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="statusbar"><span>9:41</span><span>외고반장 프로토타입 v1</span></div>
+
+  <!-- ============ M1 오늘 브리핑 ============ -->
+  <section class="screen active" id="m1">
+    <div class="appbar">
+      <h1>오늘 브리핑</h1><span class="meta">한별제조 · 2026.07.04</span>
+    </div>
+    <div class="scroll">
+      <p style="font:700 20px/1.4 Pretendard;margin:4px 0 16px">담당자님, 오늘 확인이 필요한<br>외국인 고용 업무가 <span style="color:var(--color-primary)">3건</span> 있습니다.</p>
+
+      <!-- 카드 1: Nguyen (hero) -->
+      <div class="card tappable" id="cardNguyen" onclick="openSheet(event)">
+        <h3>Nguyen V. 체류기간 연장 서류 요청</h3>
+        <div class="badge-row" id="nguyenBadges">
+          <span class="badge b-warning">D-30</span>
+          <span class="badge b-critical">누락 2건</span>
+          <span class="badge b-pending">승인 필요</span>
+          <span class="badge b-warning">우선 확인</span>
+        </div>
+        <p class="reason">추천 이유: D-30이고 누락 서류 2건이 있어 오늘 요청이 필요합니다</p>
+        <div class="btn-row" id="nguyenCta">
+          <button class="btn btn-outline" onclick="event.stopPropagation();go('m3')">초안 보기</button>
+          <button class="btn btn-primary" onclick="event.stopPropagation();go('m4')">보내기 승인</button>
+        </div>
+      </div>
+
+      <!-- 카드 2, 3 (compact) -->
+      <div class="card tappable" onclick="toast('프로토타입 범위: Nguyen 케이스만 동작합니다')">
+        <h3>Candidate A 입국 전 서류 패키지</h3>
+        <div class="badge-row"><span class="badge b-pending">승인 필요</span><span class="badge b-info">행정사 검토 전</span></div>
+        <div class="btn-row">
+          <button class="btn btn-outline">검토 자료 보기</button>
+          <button class="btn btn-secondary">승인하기</button>
+        </div>
+      </div>
+      <div class="card tappable" onclick="toast('프로토타입 범위: Nguyen 케이스만 동작합니다')">
+        <h3>Tran T.H. 계약 종료 확인</h3>
+        <div class="badge-row"><span class="badge b-info">응답 도착</span><span class="badge b-neutral">요약 확인 필요</span></div>
+        <div class="btn-row">
+          <button class="btn btn-outline">응답 요약 보기</button>
+          <button class="btn btn-secondary">다음 절차 확인</button>
+        </div>
+      </div>
+
+      <!-- 무채색 통계 (v1.1) -->
+      <div class="stats">
+        <div class="stat" onclick="toast('케이스 탭으로 이동 (범위 밖)')"><div class="n">2</div><div class="l">서류 보완</div></div>
+        <div class="stat" onclick="toast('케이스 탭으로 이동 (범위 밖)')"><div class="n" id="statPending">2</div><div class="l">승인 대기</div></div>
+        <div class="stat" onclick="toast('케이스 탭으로 이동 (범위 밖)')"><div class="n">1</div><div class="l">응답 도착</div></div>
+      </div>
+      <div class="safety">승인 전에는 외부 발송이 차단됩니다.</div>
+    </div>
+    <div class="cmdwrap">
+      <form class="cmd" onsubmit="startRun(event)">
+        <input id="cmdInput" placeholder="AI에게 요청하기 (예: 이번 달 급한 직원 정리해줘)">
+        <button type="submit" aria-label="요청 보내기">↑</button>
+      </form>
+    </div>
+    <nav class="tabbar">
+      <button class="tab on"><span class="ic">▤</span>브리핑</button>
+      <button class="tab" onclick="toast('케이스 탭 — 프로토타입 범위 밖')"><span class="ic">☰</span>케이스</button>
+      <button class="tab" onclick="toast('메시지 탭 — 프로토타입 범위 밖')"><span class="ic">✉</span>메시지</button>
+      <button class="tab" onclick="toast('기록 탭 — 프로토타입 범위 밖')"><span class="ic">≡</span>기록</button>
+    </nav>
+  </section>
+
+  <!-- ============ M2 케이스 바텀시트 ============ -->
+  <div class="overlay" id="ovl" onclick="closeSheet()"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-label="케이스 상세">
+    <div class="handle" onclick="closeSheet()"></div>
+    <div class="body">
+      <h3 style="font:600 17px/1.4 Pretendard;margin-bottom:8px">Nguyen V. 체류기간 연장 서류 요청</h3>
+      <div class="badge-row"><span class="badge b-warning">D-30</span><span class="badge b-critical">누락 2건</span><span class="badge b-pending">승인 필요</span></div>
+      <p style="font:400 15px/1.6 Pretendard;margin-bottom:20px">체류만료가 30일 남았고 서류 2건이 누락되어 요청이 필요합니다.</p>
+
+      <div class="blk"><div class="t">AI가 확인한 내용</div>
+        <div class="kv"><span>체류만료일</span><b>2026-08-03 (D-30)</b></div>
+        <div class="kv"><span>이전 요청 이력</span><b>3일 전 서류 요청 있음</b></div>
+        <div class="kv"><span>컨택 채널</span><b>Zalo · 베트남어</b></div>
+      </div>
+      <div class="blk"><div class="t">누락 서류</div>
+        <div class="doc"><span class="dot" style="background:var(--sem-critical)"></span>표준근로계약서 사본 — 누락</div>
+        <div class="doc"><span class="dot" style="background:var(--sem-critical)"></span>여권 사본 — 누락</div>
+        <div class="doc"><span class="dot" style="background:var(--sem-success)"></span>외국인등록증 — 확보</div>
+      </div>
+      <div class="blk"><div class="t">근거</div>
+        <div class="cite"><span class="g">A</span>출입국관리법 제25조 — 체류기간 연장허가<span class="src">국가법령정보센터 · 2025.11.02</span></div>
+        <div class="cite"><span class="g">B</span>체류기간 연장 신청 구비서류 안내<span class="src">HiKorea · 2026.01.15</span></div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-outline" onclick="closeSheet();go('m3')">초안 보기</button>
+        <button class="btn btn-primary" onclick="closeSheet();go('m4')">승인하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ M3 초안 상세 ============ -->
+  <section class="screen" id="m3">
+    <div class="appbar">
+      <button class="back" onclick="go('m1')" aria-label="뒤로">‹</button>
+      <h1>서류 요청 메시지</h1><span class="meta">Zalo</span>
+    </div>
+    <div class="scroll">
+      <div class="badge-row"><span class="badge b-warning">D-30</span><span class="badge b-critical">누락 2건</span><span class="badge b-pending">승인 전 차단</span></div>
+      <div class="safety">승인 전에는 외부 발송이 차단됩니다.</div>
+      <div class="seg">
+        <button class="on" id="segKr" onclick="setLang('kr')">한국어</button>
+        <button id="segVn" onclick="setLang('vn')">베트남어</button>
+      </div>
+      <div class="draftbox" id="draftKr">안녕하세요 Nguyen 씨,
+체류기간 연장 준비를 위해 아래 서류가 필요합니다.
+
+필요 서류
+· 표준근로계약서 사본
+· 여권 사본
+
+가능하면 2일 이내에 보내주세요.
+제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.
+
+감사합니다.</div>
+      <div class="draftbox" id="draftVn" style="display:none">Xin chào Nguyen,
+để chuẩn bị gia hạn thời gian lưu trú, vui lòng gửi các giấy tờ sau.
+
+Giấy tờ cần thiết
+· Bản sao hợp đồng lao động tiêu chuẩn
+· Bản sao hộ chiếu
+
+Vui lòng gửi trong vòng 2 ngày nếu có thể.
+Giấy tờ chỉ được dùng cho thủ tục hành chính về việc làm và lưu trú.
+
+Cảm ơn bạn.</div>
+      <div class="checks">
+        <div class="chk"><span class="m">✓</span>개인정보 사용 목적 포함</div>
+        <div class="chk"><span class="m">✓</span>제출 기한 포함</div>
+      </div>
+      <div class="blk"><div class="t">예상 응답 시나리오</div>
+        <div class="scen">
+          <div class="sc"><div class="st">긍정 응답</div><div class="sd">서류 수신 후 검토 자료에 반영</div></div>
+          <div class="sc"><div class="st">추가 질문</div><div class="sd">서류 형식 기준 재안내</div></div>
+          <div class="sc"><div class="st">응답 지연</div><div class="sd">2일 뒤 리마인드 제안 <span class="badge b-info" style="padding:1px 8px">예정</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cmdwrap">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-outline" onclick="toast('수정 요청 — 에이전트 런으로 초안 재생성 (커맨드 바로 시연 가능)')">수정 요청</button>
+        <button class="btn btn-primary" onclick="go('m4')">보내기 승인</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ M4 Live Agent 승인 직전 ============ -->
+  <section class="screen" id="m4">
+    <div class="appbar">
+      <button class="back" onclick="go('m3')" aria-label="뒤로">‹</button>
+      <h1>승인 전 확인</h1>
+    </div>
+    <div class="scroll">
+      <div class="runhead">
+        <div class="an"><span class="livedot" id="m4dot"></span>Multilingual Contact Agent</div>
+        <div class="rm">판단 기록 #4789 · 현재 자율성: Medium (승인 필요)</div>
+      </div>
+      <div class="steps" id="m4steps"></div>
+      <div id="m4extra" style="display:none">
+        <div class="card" style="cursor:pointer" onclick="toast('초안 펼침 — M3에서 확인한 VN/KR 초안')">
+          <h3 style="margin-bottom:4px">VN/KR 메시지 초안</h3>
+          <p style="font:400 13px/1.5 Pretendard;color:var(--sem-neutral)">Xin chào Nguyen… / 안녕하세요 Nguyen 씨… (탭하여 펼침)</p>
+        </div>
+        <p style="font:400 13px/1.5 Pretendard;color:var(--sem-neutral);margin:8px 0 4px">이 액션은 판단 기록 #4789에 기록되었습니다.</p>
+        <div class="safety">승인 전에는 외부 발송이 차단됩니다.</div>
+      </div>
+    </div>
+    <div class="cmdwrap">
+      <p style="font:600 15px/1.4 Pretendard;text-align:center;margin-bottom:10px" id="m4q" style="opacity:0">이 메시지로 컨택할까요?</p>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-outline" onclick="go('m3')">수정 요청</button>
+        <button class="btn btn-primary" id="m4approve" disabled onclick="approve()">최종 승인</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ M5 승인 완료 ============ -->
+  <section class="screen" id="m5">
+    <div class="scroll">
+      <div class="hero">
+        <div class="bigcheck">✓</div>
+        <h1>보내기 승인이 완료되었습니다</h1>
+        <p>담당자님이 승인하였으므로 케이스가 업데이트되었습니다.<br>승인 전에는 외부 발송이 차단되어 있었습니다.</p>
+      </div>
+      <div class="statechange"><span>승인 전</span><span class="arrow">→</span><span style="color:#00913A">발송 승인 완료</span></div>
+      <div class="card">
+        <div class="kv"><span>체류만료</span><b>D-30</b></div>
+        <div class="kv"><span>누락 서류</span><b>2건 → 요청됨</b></div>
+        <div class="kv"><span>판단 기록</span><b style="color:var(--color-primary);cursor:pointer" onclick="toast('기록 탭 #4789 — 프로토타입 범위 밖')">#4789 저장됨</b></div>
+      </div>
+      <div class="card" style="background:var(--color-surface);border:none">
+        <div class="t" style="font:600 13px/1.4 Pretendard;color:var(--sem-neutral);margin-bottom:4px">다음 할 일</div>
+        <p style="font:400 14px/1.5 Pretendard">2일 내 응답이 없으면 리마인드를 제안합니다 <span class="badge b-info" style="padding:2px 8px">예정</span></p>
+      </div>
+    </div>
+    <div class="cmdwrap">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-outline" onclick="toast('기록 탭 — 프로토타입 범위 밖')">업무 기록 보기</button>
+        <button class="btn btn-primary" onclick="backToBriefing()">브리핑으로 돌아가기</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ M9 에이전트 런 ============ -->
+  <section class="screen" id="m9">
+    <div class="appbar">
+      <button class="back" onclick="go('m1')" aria-label="뒤로">‹</button>
+      <h1>AI 요청 처리</h1>
+    </div>
+    <div class="scroll">
+      <div class="runhead">
+        <div class="an"><span class="livedot"></span><span id="m9agent">요청 분석 중</span></div>
+        <div class="rm" id="m9meta">판단 기록 # 발급 중</div>
+      </div>
+      <div class="card" style="background:var(--color-surface);border:none;padding:14px 18px">
+        <p style="font:400 15px/1.5 Pretendard" id="m9goal">"이번 달 급한 직원만 정리해줘"</p>
+      </div>
+      <div class="steps" id="m9steps"></div>
+      <div id="m9result" style="display:none">
+        <h2 class="section" style="font-size:17px">정리 결과</h2>
+        <p style="font:400 14px/1.6 Pretendard;margin-bottom:12px">이번 달 확인이 필요한 근로자는 2명입니다. 이 중 1명은 승인 대기 중인 서류 요청이 있습니다.</p>
+        <div class="card tappable" onclick="go('m1');setTimeout(openSheet,300)">
+          <h3>Nguyen V. — 체류만료 D-30</h3>
+          <div class="badge-row" style="margin-bottom:0"><span class="badge b-warning">D-30</span><span class="badge b-pending">승인 필요</span></div>
+        </div>
+        <div class="card tappable" onclick="toast('Tran 케이스 — 프로토타입 범위 밖')">
+          <h3>Tran T.H. — 계약 종료 D-45</h3>
+          <div class="badge-row" style="margin-bottom:0"><span class="badge b-info">D-45</span><span class="badge b-neutral">확인 필요</span></div>
+        </div>
+        <p style="font:400 13px/1.5 Pretendard;color:var(--sem-neutral);margin-top:4px">이 실행은 판단 기록 #4790에 저장되었습니다.</p>
+      </div>
+    </div>
+    <div class="cmdwrap">
+      <form class="cmd" onsubmit="event.preventDefault();toast('후속 질문 — 같은 런 스레드에서 이어집니다 (시연 범위 밖)')">
+        <input placeholder="이 결과에 대해 이어서 질문하기">
+        <button type="submit">↑</button>
+      </form>
+    </div>
+  </section>
+
+  <div class="toast" id="toastEl"></div>
+</div>
+<p class="hint">M1 카드 탭=M2 바텀시트 · 초안 보기=M3 · 보내기 승인=M4→M5 · 하단 입력=M9 에이전트 런</p>
+
+<script>
+/* ===== 라우터 ===== */
+function go(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active','push-in'));
+  const el=document.getElementById(id);
+  el.classList.add('active');
+  if(id==='m5') el.classList.add('push-in');            // 완료는 목적지 — push-in (motion-slow)
+  el.querySelector('.scroll')?.scrollTo(0,0);
+  if(id==='m4') runM4();
+}
+/* ===== 토스트 ===== */
+let tt;
+function toast(msg){
+  const t=document.getElementById('toastEl');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);
+}
+/* ===== M2 바텀시트 ===== */
+function openSheet(e){
+  if(approved){toast('이미 승인 완료된 케이스입니다');return}
+  document.getElementById('ovl').classList.add('open');
+  document.getElementById('sheet').classList.add('open');
+}
+function closeSheet(){
+  document.getElementById('ovl').classList.remove('open');
+  document.getElementById('sheet').classList.remove('open');
+}
+/* ===== M3 언어 토글 ===== */
+function setLang(l){
+  document.getElementById('segKr').classList.toggle('on',l==='kr');
+  document.getElementById('segVn').classList.toggle('on',l==='vn');
+  document.getElementById('draftKr').style.display=l==='kr'?'block':'none';
+  document.getElementById('draftVn').style.display=l==='vn'?'block':'none';
+}
+/* ===== M4 스트리밍 ===== */
+const m4data=[
+  {ic:'1',cls:'sc-done',l:'근로자 프로필 확인 완료',d:'Nguyen Van A · 베트남 · E-9 · Zalo'},
+  {ic:'2',cls:'sc-done',l:'이전 대화 기록 확인 완료',d:'3일 전 표준근로계약서 요청 이력 있음'},
+  {ic:'3',cls:'sc-done',l:'메시지 초안 생성 완료',d:'베트남어 원문 + 한국어 번역 생성'},
+  {ic:'4',cls:'sc-active',l:'발송 전 승인 대기',d:'담당자 승인 후 근로자에게 발송됩니다'}
+];
+let m4run=false;
+function runM4(){
+  const box=document.getElementById('m4steps');
+  box.innerHTML='';document.getElementById('m4extra').style.display='none';
+  document.getElementById('m4approve').disabled=true;
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  m4data.forEach((s,i)=>{
+    const el=document.createElement('div');el.className='step';
+    el.innerHTML=`<div class="rail"><div class="ic ${s.cls}">${s.ic}</div><div class="line"></div></div>
+      <div class="cnt"><div class="sl">${s.l}</div><div class="sd">${s.d}</div></div>`;
+    box.appendChild(el);
+    setTimeout(()=>el.classList.add('show'),reduce?0:400*(i+1));
+  });
+  setTimeout(()=>{                       // 스트리밍 완료 전 승인 불가 (성급한 승인 방지)
+    document.getElementById('m4extra').style.display='block';
+    document.getElementById('m4approve').disabled=false;
+  },reduce?0:400*m4data.length+300);
+}
+/* ===== 승인 → M5 → M1 상태 반영 ===== */
+let approved=false;
+function approve(){go('m5');approved=true;}
+function backToBriefing(){
+  go('m1');
+  const b=document.getElementById('nguyenBadges');
+  b.innerHTML='<span class="badge b-warning">D-30</span><span class="badge b-success">승인 완료</span><span class="badge b-info">응답 대기</span>';
+  document.getElementById('nguyenCta').innerHTML=
+    '<button class="btn btn-secondary" onclick="event.stopPropagation();toast(\'응답 대기 중 — 도착 시 알림으로 안내됩니다\')">응답 대기 중</button>';
+  document.getElementById('statPending').textContent='1';
+  const card=document.getElementById('cardNguyen');
+  card.parentNode.appendChild(document.getElementById('cardNguyen'));  // 당일 유지, 하단 이동
+  toast('승인 완료 · 판단 기록 #4789 저장');
+}
+/* ===== M9 에이전트 런 (가짜 스트리밍) ===== */
+const m9data=[
+  {kind:'think',l:'요청을 분석했습니다',d:'의도: 이번 달 리스크 근로자 정리 → Visa Document Agent 라우팅'},
+  {kind:'tool',l:'근로자 상태 조회',d:'get_worker_status — E-9 근로자 12명 확인'},
+  {kind:'tool',l:'D-day 계산',d:'calc_dday — D-60 이내 2명 (Nguyen D-30, Tran D-45)'},
+  {kind:'tool',l:'누락 서류 점검',d:'check_document_gap — Nguyen 2건 누락'},
+  {kind:'guard',l:'가드레일 적용',d:'외부 발송은 승인 전 차단되어 승인 요청으로 전환했습니다'},
+  {kind:'tool',l:'관련 규정 검색',d:'search_regulation — 출입국관리법 제25조 (근거 A)'}
+];
+function startRun(e){
+  e.preventDefault();
+  const v=document.getElementById('cmdInput').value.trim();
+  document.getElementById('m9goal').textContent='"'+(v||'이번 달 급한 직원만 정리해줘')+'"';
+  document.getElementById('cmdInput').value='';
+  go('m9');
+  const box=document.getElementById('m9steps');
+  box.innerHTML='';document.getElementById('m9result').style.display='none';
+  document.getElementById('m9agent').textContent='요청 분석 중';
+  document.getElementById('m9meta').textContent='판단 기록 # 발급 중';
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  m9data.forEach((s,i)=>{
+    const el=document.createElement('div');el.className='step';
+    const cls=s.kind==='guard'?'sc-guard':(i===m9data.length-1?'sc-active':'sc-done');
+    const ic=s.kind==='guard'?'!':(s.kind==='think'?'…':'⚙');
+    el.innerHTML=`<div class="rail"><div class="ic ${cls}">${ic}</div><div class="line"></div></div>
+      <div class="cnt"><div class="sl">${s.l}</div><div class="sd">${s.d}</div></div>`;
+    box.appendChild(el);
+    setTimeout(()=>{
+      el.classList.add('show');
+      if(i===1){document.getElementById('m9agent').textContent='Visa Document Agent';
+        document.getElementById('m9meta').textContent='판단 기록 #4790 · 현재 자율성: Medium (승인 필요)';}
+    },reduce?0:550*(i+1));
+  });
+  setTimeout(()=>{document.getElementById('m9result').style.display='block';},reduce?0:550*m9data.length+400);
+}
+</script>
+</body>
+</html>

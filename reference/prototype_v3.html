@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>외고반장 — 프로토타입 v3 (전 버튼 동작)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  --canvas:#ffffff; --surface:#f2f3f8; --surface-dim:#f5f5f5;
+  --ink:#354153; --muted:#8b93a7; --faint:#b4bbcb; --hairline:#e5e8ef;
+  --primary:#0066FF; --primary-press:#005EEB;
+  --critical:#EF4444; --warning:#F97316; --pending:#B45309; --pendbg:rgba(245,158,11,.10);
+  --info:#2563EB; --success:#00913A; --succbg:rgba(0,191,64,.10); --neutral:#6B7280;
+  --r-in:12px; --r-chip:14px; --r-card:16px; --r-sheet:20px;
+  --sh-card:0 4px 8px rgba(0,0,0,.10); --sh-lift:0 8px 16px rgba(0,0,0,.10); --sh-sheet:0 -6px 24px rgba(0,0,0,.12);
+  --fast:150ms; --std:240ms; --slow:360ms;
+  --e-in:cubic-bezier(.2,0,0,1); --e-std:cubic-bezier(.4,0,.2,1);
+}
+@media (prefers-reduced-motion:reduce){:root{--fast:0ms;--std:0ms;--slow:0ms}}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#e9ecf2;font-family:'Pretendard Variable',Pretendard,-apple-system,'Apple SD Gothic Neo',sans-serif;
+  color:var(--ink);display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:28px 0 8px;font-size:16px;line-height:1.5}
+.phone{width:392px;max-width:100vw;height:850px;background:var(--canvas);border-radius:30px;overflow:hidden;
+  position:relative;box-shadow:0 24px 60px rgba(20,30,50,.25);display:flex;flex-direction:column}
+.status{height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0;font-weight:600;font-size:13px}
+.status .r{color:var(--muted)}
+.screen{position:absolute;inset:46px 0 0 0;background:var(--canvas);display:none;flex-direction:column}
+.screen.active{display:flex}
+.screen.push{animation:push var(--slow) var(--e-in)}
+@keyframes push{from{transform:translateX(100%)}to{transform:none}}
+.scroll{flex:1;overflow-y:auto;padding:0 20px 28px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.appbar{display:flex;align-items:center;gap:10px;padding:14px 20px 10px;flex-shrink:0}
+.appbar .back{width:44px;height:44px;margin-left:-12px;border:none;background:none;color:var(--ink);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;border-radius:var(--r-in)}
+.appbar .back:active{background:var(--surface)}
+.appbar h1{font-size:20px;font-weight:700;flex:1}
+.appbar .sub{font-size:13px;color:var(--muted);font-weight:500}
+.wordmark{display:flex;align-items:center;gap:8px;flex:1}
+.wordmark .sym{width:26px;height:26px;border-radius:8px;background:var(--primary);display:flex;align-items:center;justify-content:center}
+.wordmark b{font-size:19px;font-weight:700}
+.datechip{border:1px solid var(--hairline);border-radius:var(--r-chip);padding:6px 12px;font-size:13px;font-weight:600;color:var(--muted)}
+.h-greet{font-size:23px;font-weight:700;line-height:1.38;margin:10px 0 20px}
+.h-greet .em{color:var(--primary)}
+.sec-t{font-size:13px;font-weight:600;color:var(--muted);margin:26px 0 10px;display:flex;align-items:center;justify-content:space-between}
+.card{background:#fff;border:1px solid var(--hairline);border-radius:var(--r-card);padding:20px;margin-bottom:12px;position:relative}
+.card.hero{border:none;box-shadow:var(--sh-card)}
+.card.tap{cursor:pointer;transition:box-shadow var(--fast)}
+.card.tap:active{box-shadow:var(--sh-lift)}
+.card h3{font-size:16px;font-weight:600;line-height:1.45;margin-bottom:8px;padding-right:8px}
+.card .desc{font-size:14px;color:var(--muted);line-height:1.55}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.bdg{border-radius:8px;padding:3px 8px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:5px;line-height:1.5}
+.bdg .d{width:6px;height:6px;border-radius:50%}
+.b-crit{background:rgba(239,68,68,.08);color:#DC2626}
+.b-warn{background:rgba(249,115,22,.09);color:#EA580C}
+.b-pend{background:var(--pendbg);color:var(--pending)}
+.b-info{background:rgba(37,99,235,.08);color:var(--info)}
+.b-succ{background:var(--succbg);color:var(--success)}
+.b-neut{background:rgba(107,114,128,.08);color:var(--neutral)}
+.b-line{background:#fff;border:1px solid var(--hairline);color:var(--muted)}
+.prep{display:flex;align-items:center;gap:8px;margin:2px 0 14px;padding:10px 12px;background:var(--surface);
+  border-radius:var(--r-in);font-size:13px;font-weight:500;cursor:pointer}
+.prep:active{background:#e9ebf3}
+.prep .spark{width:22px;height:22px;border-radius:7px;background:#fff;display:flex;align-items:center;justify-content:center;
+  color:var(--primary);flex-shrink:0;border:1px solid var(--hairline)}
+.prep .lnk{margin-left:auto;color:var(--primary);font-weight:600;font-size:13px;white-space:nowrap}
+.reason{font-size:13px;color:var(--muted);line-height:1.55;margin-bottom:4px}
+.row{display:flex;gap:10px;margin-top:16px}
+.btn{border:none;border-radius:var(--r-in);padding:0 18px;height:50px;font-size:15px;font-weight:600;cursor:pointer;
+  flex:1;display:flex;align-items:center;justify-content:center;gap:7px;transition:background var(--fast);font-family:inherit}
+.btn.pri{background:var(--primary);color:#fff}
+.btn.pri:active{background:var(--primary-press)}
+.btn.pri:disabled{background:var(--surface);color:var(--faint);cursor:default}
+.btn.sec{background:var(--surface);color:var(--ink)}
+.btn.sec:active{background:#e9ebf3}
+.btn.line{background:#fff;border:1px solid var(--hairline);color:var(--ink)}
+.btn.line:active{background:var(--surface-dim)}
+.btn.sm{height:44px;font-size:14px}
+.stats{display:flex;gap:10px}
+.stat{flex:1;background:#fff;border:1px solid var(--hairline);border-radius:var(--r-chip);padding:14px;cursor:pointer;transition:box-shadow var(--fast)}
+.stat:active{box-shadow:var(--sh-card)}
+.stat .n{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .l{font-size:12px;color:var(--muted);margin-top:3px;font-weight:500}
+.safety{display:flex;align-items:center;gap:9px;padding:12px 14px;background:var(--surface);border-radius:var(--r-chip);
+  font-size:13px;margin:18px 0 0}
+.safety svg{flex-shrink:0;color:var(--primary)}
+.dock{padding:10px 20px 12px;background:#fff;flex-shrink:0;border-top:1px solid var(--hairline)}
+.cmd{display:flex;gap:8px}
+.cmd input{flex:1;background:var(--surface);border:none;border-radius:var(--r-in);padding:0 16px;height:50px;
+  font-size:15px;color:var(--ink);outline:none;font-family:inherit}
+.cmd input::placeholder{color:var(--faint)}
+.cmd input:focus{outline:2px solid var(--primary);background:#fff}
+.cmd .go{width:50px;height:50px;border:none;border-radius:var(--r-in);background:var(--surface);color:var(--muted);
+  cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.tabbar{height:62px;border-top:1px solid var(--hairline);display:flex;flex-shrink:0;background:#fff;padding-bottom:2px}
+.tab{flex:1;border:none;background:none;font-size:11px;font-weight:600;color:var(--faint);cursor:pointer;font-family:inherit;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tab svg{width:22px;height:22px}
+.tab.on{color:var(--primary)}
+.ovl{position:absolute;inset:0;background:rgba(23,30,44,.42);opacity:0;pointer-events:none;transition:opacity var(--std) var(--e-std);z-index:20}
+.ovl.open{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:var(--r-sheet) var(--r-sheet) 0 0;
+  box-shadow:var(--sh-sheet);transform:translateY(105%);transition:transform var(--std) var(--e-in);z-index:21;
+  max-height:86%;display:flex;flex-direction:column}
+.sheet.open{transform:none}
+.handle{padding:12px 0 4px;display:flex;justify-content:center;cursor:pointer}
+.handle::after{content:'';width:36px;height:4px;border-radius:2px;background:var(--hairline)}
+.sbody{overflow-y:auto;padding:8px 24px 8px;scrollbar-width:none}
+.sbody::-webkit-scrollbar{display:none}
+.sfoot{padding:12px 24px 26px;border-top:1px solid var(--hairline)}
+.sfoot:empty{display:none}
+.blk{margin-bottom:24px}
+.blk .bt{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.kv{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--surface);font-size:15px}
+.kv:last-child{border-bottom:none}
+.kv .k{color:var(--muted)}
+.kv b{font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.doc{display:flex;align-items:center;gap:10px;padding:11px 0;font-size:15px;border-bottom:1px solid var(--surface)}
+.doc:last-child{border-bottom:none}
+.doc .st{margin-left:auto;font-size:12px;font-weight:600;white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.cite{background:var(--surface);border-radius:var(--r-chip);padding:12px 14px;font-size:13px;margin-bottom:8px;line-height:1.5}
+.cite .g{display:inline-flex;width:18px;height:18px;border-radius:5px;background:#fff;border:1px solid var(--hairline);
+  color:var(--primary);font-weight:700;font-size:11px;align-items:center;justify-content:center;margin-right:7px;vertical-align:-3px}
+.cite .src{color:var(--muted);display:block;margin-top:3px;font-size:12px}
+.act{display:flex;gap:10px;padding:9px 0;font-size:13.5px;align-items:flex-start;cursor:pointer}
+.act .t{color:var(--muted);min-width:64px;font-variant-numeric:tabular-nums;padding-top:1px;font-size:12.5px}
+.act .what b{font-weight:600;display:block}
+.act .what span{color:var(--muted);font-size:12.5px}
+.nextwake{background:var(--surface);border-radius:var(--r-in);padding:10px 12px;font-size:13px;color:var(--muted);margin-top:6px}
+.gnote{background:var(--pendbg);border-radius:var(--r-in);padding:11px 13px;font-size:13px;color:var(--pending);line-height:1.55;margin-bottom:20px}
+.seg{display:flex;background:var(--surface);border-radius:var(--r-in);padding:3px;margin:14px 0}
+.seg button{flex:1;border:none;background:none;border-radius:9px;height:42px;font-size:14px;font-weight:600;
+  color:var(--muted);cursor:pointer;font-family:inherit;transition:all var(--fast)}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.09)}
+.draft{background:#fff;border:1px solid var(--hairline);border-radius:var(--r-card);padding:20px;font-size:15px;line-height:1.75;white-space:pre-line}
+.chk{display:flex;align-items:center;gap:9px;padding:7px 0;font-size:14px;color:var(--muted)}
+.chk svg{color:var(--success);width:15px;height:15px;flex-shrink:0}
+.scen{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:none}
+.scen::-webkit-scrollbar{display:none}
+.scen .sc{min-width:148px;background:#fff;border:1px solid var(--hairline);border-radius:var(--r-chip);padding:13px 14px}
+.sc b{font-size:13px;font-weight:600;display:block;margin-bottom:3px}
+.sc span{font-size:12px;color:var(--muted);line-height:1.5;display:block}
+.runhead{background:var(--surface);border-radius:var(--r-card);padding:16px 18px;margin-bottom:16px}
+.runhead .an{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.runhead .rm{font-size:12.5px;color:var(--muted);margin-top:3px}
+.live{width:7px;height:7px;border-radius:50%;background:var(--success);animation:bl 1.3s infinite}
+@keyframes bl{50%{opacity:.25}}
+.replaytag{background:var(--pendbg);color:var(--pending);border-radius:var(--r-chip);padding:9px 14px;font-size:13px;font-weight:600;margin-bottom:14px}
+.goal{background:var(--surface);border-radius:var(--r-in);padding:13px 16px;font-size:15px;margin-bottom:18px}
+.stp{display:flex;gap:12px;opacity:0;transform:translateY(6px);transition:opacity var(--fast) var(--e-in),transform var(--fast) var(--e-in)}
+.stp.show{opacity:1;transform:none}
+.stp .rail{display:flex;flex-direction:column;align-items:center;width:26px;flex-shrink:0}
+.stp .ic{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  background:#fff;border:1.5px solid var(--hairline);color:var(--muted)}
+.stp .ic svg{width:13px;height:13px}
+.stp .ic.done{border-color:transparent;background:var(--succbg);color:var(--success)}
+.stp .ic.act{border-color:var(--primary);color:var(--primary);animation:bl 1.3s infinite}
+.stp .ic.guard{border-color:transparent;background:var(--pendbg);color:var(--pending)}
+.stp .line{width:1.5px;flex:1;background:var(--hairline);min-height:12px;margin:3px 0}
+.stp:last-child .line{display:none}
+.stp .cnt{padding-bottom:16px;flex:1;padding-top:2px}
+.stp .sl{font-size:14.5px;font-weight:600;line-height:1.4}
+.stp .sd{font-size:13px;color:var(--muted);margin-top:2px;line-height:1.5}
+.done-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:44px 12px 26px}
+.bigok{width:76px;height:76px;border-radius:50%;background:var(--succbg);color:var(--success);
+  display:flex;align-items:center;justify-content:center;margin-bottom:22px;animation:pop var(--slow) var(--e-in)}
+.bigok svg{width:34px;height:34px}
+@keyframes pop{from{transform:scale(.55);opacity:0}to{transform:none;opacity:1}}
+.done-hero h1{font-size:23px;font-weight:700;line-height:1.38;margin-bottom:10px}
+.done-hero p{font-size:14px;color:var(--muted);line-height:1.65}
+.flow{display:flex;align-items:center;justify-content:center;gap:10px;font-size:14px;font-weight:600;
+  padding:13px;background:var(--surface);border-radius:var(--r-chip);margin:20px 0 14px}
+.flow .ar{color:var(--faint)}
+.chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{border:1px solid var(--hairline);background:#fff;border-radius:var(--r-chip);padding:0 14px;height:38px;
+  font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap;font-family:inherit;display:flex;align-items:center}
+.chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.li{display:flex;gap:12px;padding:15px 2px;border-bottom:1px solid var(--surface);cursor:pointer;align-items:flex-start}
+.li:active{background:var(--surface-dim)}
+.li .av{width:42px;height:42px;border-radius:14px;background:var(--surface);display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:15px;color:var(--muted);flex-shrink:0}
+.li .m{flex:1;min-width:0}
+.li .m b{font-size:15px;font-weight:600;display:block;line-height:1.4}
+.li .m span{font-size:13px;color:var(--muted);display:block;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.li .r{text-align:right;flex-shrink:0}
+.li .r time{font-size:12px;color:var(--faint);display:block;margin-bottom:5px}
+.ev{display:flex;gap:12px;cursor:pointer}
+.ev .rail{display:flex;flex-direction:column;align-items:center;width:20px;flex-shrink:0}
+.ev .nd{width:10px;height:10px;border-radius:50%;border:2px solid var(--hairline);background:#fff;margin-top:5px;flex-shrink:0}
+.ev.hl .nd{border-color:var(--primary);background:var(--primary)}
+.ev .line{width:1.5px;flex:1;background:var(--hairline);margin-top:3px}
+.ev:last-child .line{display:none}
+.ev .cnt{padding-bottom:18px;flex:1}
+.ev .et{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.ev .es{font-size:14.5px;font-weight:600;margin:2px 0}
+.ev .ea{font-size:12.5px;color:var(--muted)}
+.syscap{text-align:center;font-size:12px;color:var(--faint);margin:16px 0 12px}
+.bub{max-width:82%;border-radius:var(--r-card);padding:13px 16px;font-size:14.5px;line-height:1.65;margin-bottom:6px;white-space:pre-line}
+.bub.out{margin-left:auto;background:var(--surface);border-bottom-right-radius:6px}
+.bub.in{margin-right:auto;background:#fff;border:1px solid var(--hairline);border-bottom-left-radius:6px}
+.bubmeta{font-size:11.5px;color:var(--faint);margin-bottom:14px}
+.bubmeta.out{text-align:right}
+.aicard{background:var(--surface);border-radius:var(--r-card);padding:16px 18px;margin:6px 0 14px}
+.aicard .ah{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:9px}
+.aicard .ah .spark2{width:20px;height:20px;border-radius:6px;background:#fff;border:1px solid var(--hairline);
+  display:flex;align-items:center;justify-content:center;color:var(--primary)}
+.aicard .ah .spark2 svg{width:11px;height:11px}
+.scen .sc .bdg{margin-top:5px}
+.aicard p{font-size:14.5px;line-height:1.6;margin-bottom:12px}
+.upd{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #e6e9f1;font-size:13.5px}
+.upd .f{color:var(--muted)}
+.upd .to{font-weight:600;display:flex;align-items:center;gap:6px}
+.upd .to .ar{color:var(--faint);font-weight:400}
+.hashbox{background:var(--surface);border-radius:var(--r-in);padding:10px 13px;font-size:12px;color:var(--muted);
+  font-variant-numeric:tabular-nums;margin-top:6px;word-break:break-all;line-height:1.6}
+textarea.rev{width:100%;background:var(--surface);border:none;border-radius:var(--r-in);padding:14px 16px;min-height:88px;
+  font-size:15px;color:var(--ink);font-family:inherit;resize:none;outline:none;line-height:1.6}
+textarea.rev:focus{outline:2px solid var(--primary);background:#fff}
+.prog{height:6px;border-radius:3px;background:var(--surface);margin:8px 0 6px;overflow:hidden}
+.prog i{display:block;height:100%;border-radius:3px;background:var(--ink)}
+.toast{position:absolute;left:18px;right:18px;bottom:80px;background:var(--ink);color:#fff;border-radius:var(--r-in);
+  padding:14px 18px;font-size:14px;opacity:0;pointer-events:none;transition:opacity var(--std);z-index:40;text-align:center;line-height:1.5}
+.toast.show{opacity:1}
+.hint{font-size:12px;color:#8b93a7;margin-top:12px;text-align:center;line-height:1.6}
+@media(max-height:920px){.phone{height:calc(100vh - 60px);min-height:640px}}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="status"><span>9:41</span><span class="r">외고반장 · 프로토타입 v3</span></div>
+
+  <!-- ═══ M1 브리핑 ═══ -->
+  <section class="screen active" id="m1">
+    <div class="appbar">
+      <div class="wordmark"><span class="sym"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 16L9 8h6l3 8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><b>외고반장</b></div>
+      <span class="datechip">7월 4일 금</span>
+    </div>
+    <div class="scroll">
+      <p class="h-greet">담당자님, 오늘 확인이 필요한<br>업무가 <span class="em" id="greetN">3건</span> 있습니다.</p>
+
+      <div class="card hero tap" id="cardN" onclick="openCase('nguyen')">
+        <h3>Nguyen V. 체류기간 연장 서류 요청</h3>
+        <div class="badges" id="nBadges">
+          <span class="bdg b-warn"><span class="d" style="background:var(--warning)"></span>D-30</span>
+          <span class="bdg b-crit">누락 2건</span><span class="bdg b-pend">승인 필요</span>
+        </div>
+        <div class="prep" id="nPrep" onclick="event.stopPropagation();openReplay()">
+          <span class="spark"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z" fill="currentColor"/></svg></span>
+          AI가 준비를 마쳤습니다<span class="lnk">런 #4788 보기</span>
+        </div>
+        <p class="reason" id="nReason">D-30이고 누락 서류 2건이 있어 오늘 요청이 필요합니다</p>
+        <div class="row" id="nCta">
+          <button class="btn line" onclick="event.stopPropagation();openDraft('nguyen')">초안 보기</button>
+          <button class="btn pri" onclick="event.stopPropagation();approvalRun('nguyen')">보내기 승인</button>
+        </div>
+      </div>
+
+      <div class="card tap" id="cardC" onclick="openPkg('candidate')">
+        <h3>Candidate A 입국 전 서류 패키지</h3>
+        <div class="badges" id="cBadges"><span class="bdg b-pend">승인 필요</span><span class="bdg b-info">행정사 검토 전</span></div>
+        <div class="row" style="margin-top:12px" id="cCta">
+          <button class="btn line" onclick="event.stopPropagation();openPkg('candidate')">검토 자료 보기</button>
+          <button class="btn sec" onclick="event.stopPropagation();openPkg('candidate')">승인하기</button>
+        </div>
+      </div>
+
+      <div class="card tap" onclick="gotoThread('tran')">
+        <h3>Tran T.H. 계약 종료 확인</h3>
+        <div class="badges"><span class="bdg b-info">응답 도착</span><span class="bdg b-neut">요약 확인 필요</span></div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn line" onclick="event.stopPropagation();gotoThread('tran')">응답 요약 보기</button>
+          <button class="btn sec" onclick="event.stopPropagation();openCase('tranCase')">다음 절차 확인</button>
+        </div>
+      </div>
+
+      <div class="sec-t">현황</div>
+      <div class="stats">
+        <div class="stat" onclick="setTab('cases')"><div class="n">2</div><div class="l">서류 보완</div></div>
+        <div class="stat" onclick="setTab('cases')"><div class="n" id="statP">2</div><div class="l">승인 대기</div></div>
+        <div class="stat" onclick="setTab('msgs')"><div class="n">1</div><div class="l">응답 도착</div></div>
+      </div>
+      <div class="safety">SHIELD승인 전에는 외부 발송이 차단됩니다.</div>
+    </div>
+    <div class="dock" style="border-top:none;padding-top:0">
+      <form class="cmd" onsubmit="startRun(event)">
+        <input id="cmdIn" placeholder="AI에게 요청하기">
+        <button type="submit" class="go"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 19V5m0 0l-6 6m6-6l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </form>
+    </div>
+    <nav class="tabbar"></nav>
+  </section>
+
+  <!-- ═══ 케이스 탭 ═══ -->
+  <section class="screen" id="cases">
+    <div class="appbar"><h1>케이스</h1><span class="sub">한별제조 · 6건</span></div>
+    <div class="scroll">
+      <div class="chips" id="caseChips">
+        <button class="chip on" onclick="filterCase(this,'all')">전체</button>
+        <button class="chip" onclick="filterCase(this,'crit')">즉시 확인</button>
+        <button class="chip" onclick="filterCase(this,'warn')">우선 확인</button>
+        <button class="chip" onclick="filterCase(this,'info')">확인 필요</button>
+      </div>
+      <div id="caseList"></div>
+    </div>
+    <nav class="tabbar"></nav>
+  </section>
+
+  <!-- ═══ 메시지 탭 ═══ -->
+  <section class="screen" id="msgs">
+    <div class="appbar"><h1>메시지</h1><span class="sub">컨택 3건</span></div>
+    <div class="scroll">
+      <div class="li" onclick="openDraft('nguyen')" id="msgNli">
+        <div class="av">N</div>
+        <div class="m"><b>Nguyen V. <span style="font-size:11px;color:var(--faint);font-weight:600">VN · Zalo</span></b>
+          <span id="msgNsub">서류 요청 초안 — 표준근로계약서·여권 사본</span></div>
+        <div class="r"><time>오늘</time><span class="bdg b-pend" id="msgNbdg">승인 대기</span></div>
+      </div>
+      <div class="li" onclick="gotoThread('tran')">
+        <div class="av">T</div>
+        <div class="m"><b>Tran T.H. <span style="font-size:11px;color:var(--faint);font-weight:600">VN · Zalo</span></b>
+          <span id="msgTsub">응답 도착 — AI 해석 준비됨 · 담당자 확인 필요</span></div>
+        <div class="r"><time>10:12</time><span class="bdg b-info" id="msgTbdg">응답 도착</span></div>
+      </div>
+      <div class="li" onclick="gotoThread('bayar')">
+        <div class="av">B</div>
+        <div class="m"><b>Bayar M. <span style="font-size:11px;color:var(--faint);font-weight:600">MN · SMS</span></b>
+          <span id="msgBsub">건강검진 일정 안내 — 발송 승인 완료 · 응답 대기</span></div>
+        <div class="r"><time>어제</time><span class="bdg b-succ">발송됨</span></div>
+      </div>
+      <p style="font-size:12.5px;color:var(--faint);margin-top:16px;text-align:center">모든 메시지는 승인 후에만 발송됩니다</p>
+    </div>
+    <nav class="tabbar"></nav>
+  </section>
+
+  <!-- ═══ 기록 탭 ═══ -->
+  <section class="screen" id="log">
+    <div class="appbar"><h1>판단 기록</h1><span class="sub">오늘 · 한별제조</span></div>
+    <div class="scroll">
+      <div class="chips" id="logChips">
+        <button class="chip on" onclick="filterEv(this,'all')">전체</button>
+        <button class="chip" onclick="filterEv(this,'risk')">위험 감지</button>
+        <button class="chip" onclick="filterEv(this,'draft')">초안 생성</button>
+        <button class="chip" onclick="filterEv(this,'approve')">승인</button>
+      </div>
+      <div id="evList"></div>
+      <p style="font-size:12.5px;color:var(--faint);margin-top:14px;text-align:center">기록은 수정·삭제할 수 없습니다</p>
+    </div>
+    <nav class="tabbar"></nav>
+  </section>
+
+  <!-- ═══ 스레드 (대화 뷰, 동적) ═══ -->
+  <section class="screen" id="thread">
+    <div class="appbar">
+      <button class="back" onclick="setTab('msgs')">BACK</button>
+      <h1 id="thName"></h1><span class="sub" id="thSub"></span>
+    </div>
+    <div class="scroll" id="thBody"></div>
+    <div class="dock"><div class="row" style="margin-top:0">
+      <button class="btn sec" id="thNew">새 메시지 초안 만들기</button>
+    </div></div>
+  </section>
+
+  <!-- ═══ 초안 화면 (동적, M3) ═══ -->
+  <section class="screen" id="mdraft">
+    <div class="appbar">
+      <button class="back" id="dBack">BACK</button>
+      <h1 id="dTitle"></h1><span class="sub" id="dChan"></span>
+    </div>
+    <div class="scroll">
+      <div class="badges" id="dBadges"></div>
+      <div class="seg" id="dSeg"></div>
+      <div class="draft" id="dText"></div>
+      <div style="margin:14px 0 4px" id="dChecks"></div>
+      <div class="sec-t">예상 응답 시나리오</div>
+      <div class="scen" id="dScen"></div>
+      <div class="safety">SHIELD승인 전에는 외부 발송이 차단됩니다.</div>
+    </div>
+    <div class="dock"><div class="row" style="margin-top:0">
+      <button class="btn line" onclick="openRevision()">수정 요청</button>
+      <button class="btn pri" id="dApprove">보내기 승인</button>
+    </div></div>
+  </section>
+
+  <!-- ═══ 패키지 화면 (동적, 행정사 검토) ═══ -->
+  <section class="screen" id="pkg">
+    <div class="appbar">
+      <button class="back" id="pBack">BACK</button>
+      <h1 id="pTitle"></h1><span class="sub" id="pSub"></span>
+    </div>
+    <div class="scroll" id="pBody"></div>
+    <div class="dock"><div class="row" style="margin-top:0" id="pFoot"></div></div>
+  </section>
+
+  <!-- ═══ 런 화면 (M4/M9 공용) ═══ -->
+  <section class="screen" id="m4">
+    <div class="appbar">
+      <button class="back" id="runBackBtn">BACK</button>
+      <h1 id="runTitle"></h1>
+    </div>
+    <div class="scroll">
+      <div class="replaytag" id="replayTag" style="display:none">완료된 실행 · 읽기 전용 재생</div>
+      <div class="runhead">
+        <div class="an"><span class="live" id="runDot"></span><span id="runAgent"></span></div>
+        <div class="rm" id="runMeta"></div>
+      </div>
+      <div class="goal" id="runGoal" style="display:none"></div>
+      <div id="runSteps"></div>
+      <div id="runResult" style="display:none"></div>
+    </div>
+    <div class="dock" id="runDock">
+      <p style="font-size:15px;font-weight:600;text-align:center;margin-bottom:10px" id="runQ"></p>
+      <div class="row" style="margin-top:0">
+        <button class="btn line" id="runAlt">수정 요청</button>
+        <button class="btn pri" id="runOk" disabled>최종 승인</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ 완료 화면 (동적, M5) ═══ -->
+  <section class="screen" id="m5">
+    <div class="scroll">
+      <div class="done-hero">
+        <div class="bigok"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l5 5L20 7" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h1 id="doneTitle"></h1>
+        <p id="doneSub"></p>
+      </div>
+      <div class="flow"><span style="color:var(--muted)" id="doneFrom"></span><span class="ar">→</span><span style="color:var(--success)" id="doneTo"></span></div>
+      <div class="card" style="margin-bottom:10px" id="doneRows"></div>
+      <div class="card" style="background:var(--surface);border:none">
+        <div class="bt" style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px">다음 할 일</div>
+        <p style="font-size:14px;line-height:1.6" id="doneNext"></p>
+      </div>
+    </div>
+    <div class="dock"><div class="row" style="margin-top:0">
+      <button class="btn line" onclick="backHome();setTab('log')">업무 기록 보기</button>
+      <button class="btn pri" onclick="backHome()">브리핑으로 돌아가기</button>
+    </div></div>
+  </section>
+
+  <!-- ═══ 공용 바텀시트 ═══ -->
+  <div class="ovl" id="ovl" onclick="closeSheet()"></div>
+  <div class="sheet" id="sheet" role="dialog">
+    <div class="handle" onclick="closeSheet()"></div>
+    <div class="sbody" id="sheetBody"></div>
+    <div class="sfoot" id="sheetFoot"></div>
+  </div>
+
+  <div class="toast" id="toastEl"></div>
+</div>
+<p class="hint">모든 버튼 동작 · Nguyen 승인 / Candidate·채용 패키지 / Bayar·Mohammad 케이스 / Tran 응답 해석 / 기록 상세 · 필터 / 수정 요청 / 새 초안 런</p>
+
+<script>
+/* ═══ 아이콘 ═══ */
+const I={
+home:'<svg viewBox="0 0 24 24" fill="none"><path d="M4 10.5L12 4l8 6.5V20a1 1 0 01-1 1h-4.5v-6h-5v6H5a1 1 0 01-1-1v-9.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+list:'<svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 9.5h8M8 14.5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+msg:'<svg viewBox="0 0 24 24" fill="none"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H9l-5 4V6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+doc:'<svg viewBox="0 0 24 24" fill="none"><path d="M7 3h7l4 4v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+check:'<svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+gear:'<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="2"/><path d="M12 2.8v3M12 18.2v3M21.2 12h-3M5.8 12h-3M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1M18.5 18.5l-2.1-2.1M7.6 7.6L5.5 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+think:'<svg viewBox="0 0 24 24" fill="none"><circle cx="6" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="18" cy="12" r="1.6" fill="currentColor"/></svg>',
+warn:'<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v8m0 4.2v.1" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
+wait:'<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="2"/><path d="M12 7.5V12l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+back:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M15 5l-7 7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+shield:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+spark:'<svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z" fill="currentColor"/></svg>'};
+document.querySelectorAll('.back').forEach(b=>{if(b.textContent==='BACK')b.innerHTML=I.back});
+document.querySelectorAll('.safety').forEach(s=>{s.innerHTML=s.innerHTML.replace('SHIELD',I.shield)});
+
+/* ═══ 탭/라우팅 ═══ */
+const TABS=[['m1','브리핑',I.home],['cases','케이스',I.list],['msgs','메시지',I.msg],['log','기록',I.doc]];
+let activeTab='m1';
+function renderTabs(){document.querySelectorAll('.tabbar').forEach(bar=>{
+  bar.innerHTML=TABS.map(([id,l,ic])=>`<button class="tab ${activeTab===id?'on':''}" onclick="setTab('${id}')">${ic}${l}</button>`).join('')})}
+function setTab(id){activeTab=id;show(id);renderTabs()}
+function show(id,push){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active','push'));
+  const el=document.getElementById(id);el.classList.add('active');if(push)el.classList.add('push');
+  el.querySelector('.scroll')?.scrollTo(0,0)}
+function backHome(){activeTab='m1';show('m1');renderTabs()}
+let tt;function toast(m){const t=document.getElementById('toastEl');t.textContent=m;t.classList.add('show');
+  clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2400)}
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc=s=>s;
+
+/* ═══ 공용 시트 ═══ */
+function openSheetHTML(body,foot){document.getElementById('sheetBody').innerHTML=body;
+  document.getElementById('sheetFoot').innerHTML=foot||'';
+  document.getElementById('ovl').classList.add('open');document.getElementById('sheet').classList.add('open')}
+function closeSheet(){document.getElementById('ovl').classList.remove('open');document.getElementById('sheet').classList.remove('open')}
+
+/* ═══ 상태 ═══ */
+const S={nguyenApproved:false,candidateApproved:false,hiringSent:false,bayarPkg:false,interpDone:false,tranReminder:false,mohammadSent:false};
+
+/* ═══ EVIDENCE ═══ */
+let EV=[
+ {t:'07:58',s:'프로액티브 런 #4788 실행',a:'시스템 · Visa Document Agent',cat:'run',caseId:'nguyen'},
+ {t:'07:58',s:'위험 감지 — Nguyen 체류만료 D-30 (HIGH)',a:'시스템 · risk_flagged',cat:'risk',caseId:'nguyen',cite:'출입국관리법 제25조 (A)'},
+ {t:'07:59',s:'VN/KR 서류요청 초안 생성',a:'시스템 · message_drafted · 근거 A',cat:'draft',caseId:'nguyen',cite:'출입국관리법 제25조 (A)'},
+ {t:'07:59',s:'승인 요청 생성 — 발송 차단 상태',a:'시스템 · approval_requested',cat:'approve',caseId:'nguyen'},
+ {t:'08:30',s:'오늘 브리핑 발행 (3건)',a:'시스템 · briefing_emitted',cat:'run'},
+];
+let evFilter='all';
+function nowHM(){const n=new Date();return String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')}
+function addEv(e){EV.unshift(Object.assign({t:nowHM()},e));renderEv()}
+function filterEv(chip,f){evFilter=f;document.querySelectorAll('#logChips .chip').forEach(c=>c.classList.remove('on'));
+  chip.classList.add('on');renderEv()}
+function renderEv(){
+  const list=EV.filter(e=>evFilter==='all'||e.cat===evFilter);
+  document.getElementById('evList').innerHTML=list.length?list.map((e,i)=>
+    `<div class="ev ${e.hl?'hl':''}" onclick="openEvDetail(${EV.indexOf(e)})">
+      <div class="rail"><div class="nd"></div><div class="line"></div></div>
+      <div class="cnt"><div class="et">${e.t}</div><div class="es">${e.s}</div><div class="ea">${e.a}</div></div></div>`).join('')
+    :'<p style="color:var(--muted);font-size:14px;padding:18px 0">조건에 맞는 기록이 없습니다</p>';
+}
+function openEvDetail(i){
+  const e=EV[i];
+  const catName={risk:'위험 감지',draft:'초안 생성',approve:'승인',run:'에이전트 런'}[e.cat]||'이벤트';
+  let body=`<h3 style="font-size:17px;font-weight:700;margin:6px 0 14px;line-height:1.45">${e.s}</h3>
+    <div class="blk">
+      <div class="kv"><span class="k">시각</span><b>오늘 ${e.t}</b></div>
+      <div class="kv"><span class="k">액터</span><b>${e.a.split('·')[0].trim()}</b></div>
+      <div class="kv"><span class="k">유형</span><b>${catName}</b></div>
+    </div>`;
+  if(e.cite)body+=`<div class="blk"><div class="bt">근거</div>
+    <div class="cite"><span class="g">A</span>${e.cite}<span class="src">국가법령정보센터 · 2025.11</span></div></div>`;
+  if(e.cat==='approve'&&e.chain)body+=`<div class="blk"><div class="bt">승인 체인</div>
+    <div class="kv"><span class="k">요청</span><b>07:59 · 시스템</b></div>
+    <div class="kv"><span class="k">결정</span><b>${e.t} · 김담당 (본인 확인)</b></div></div>`;
+  body+=`<div class="blk"><div class="bt">입력 스냅샷</div>
+    <div class="hashbox">sha256:a3f8c1…e92b — 원문은 저장되지 않습니다 (PII 비저장 원칙)</div></div>`;
+  const foot=e.caseId?`<div class="row" style="margin-top:0">
+    <button class="btn sec" onclick="closeSheet();openCase('${e.caseId==='nguyen'?'nguyen':e.caseId}')">관련 케이스 열기</button></div>`:'';
+  openSheetHTML(body,foot);
+}
+
+/* ═══ 케이스 시트 (M2 동적) ═══ */
+const CASE={
+nguyen:{
+ title:'Nguyen V. 체류기간 연장 서류 요청',
+ badges:[['b-warn','D-30'],['b-crit','누락 2건'],['b-pend','승인 필요']],
+ sum:'체류만료가 30일 남았고 서류 2건이 누락되어 요청이 필요합니다.',
+ kv:[['체류만료일','2026.08.03 · D-30'],['이전 요청','3일 전 이력 있음'],['컨택 채널','Zalo · 베트남어']],
+ docs:[['crit','표준근로계약서 사본','누락'],['crit','여권 사본','누락'],['succ','외국인등록증','확보']],
+ cites:[['A','출입국관리법 제25조 — 체류기간 연장허가','국가법령정보센터 · 2025.11'],['B','체류기간 연장 신청 구비서류 안내','HiKorea · 2026.01']],
+ acts:[['오늘 07:58','서류요청 준비 · 런 #4788','D-30 감지로 자동 실행 — 초안 생성 후 승인 대기','openReplay()'],
+       ['7.1 08:30','1차 서류 요청 · 런 #4741','여권 사본 요청 — 승인·발송 완료',"toast('완료된 런 — 데모 범위: #4788만 재생됩니다')"]],
+ wake:'다음: 발송 후 2일간 응답 없으면 리마인드 여부를 판단합니다',
+ foot:[['line','초안 보기',"closeSheet();openDraft('nguyen')"],['pri','승인하기',"closeSheet();approvalRun('nguyen')"]]},
+bayar:{
+ title:'Bayar M. 체류기간 경과',
+ badges:[['b-crit','D+3'],['b-crit','즉시 확인']],
+ sum:'체류기간이 3일 경과된 상태입니다. 행정사 검토가 필요합니다.',
+ guard:'기한 경과 케이스는 앱에서 처리할 수 없습니다 — 행정사 검토로만 진행됩니다 (high risk 강제 전달)',
+ kv:[['체류만료일','2026.07.01 · D+3'],['계약종료일','2026.07.01'],['비자','E-9-1 · 몽골']],
+ docs:[['succ','여권 사본','확보'],['succ','외국인등록증','확보'],['succ','표준근로계약서','확보']],
+ cites:[['A','출입국관리법 제25조 — 체류기간 연장허가','국가법령정보센터 · 2025.11'],['A','출입국관리법 제94조 — 벌칙(체류기간 초과)','국가법령정보센터 · 2025.11']],
+ acts:[['오늘 07:58','위험 감지 · CRITICAL','체류만료 경과 자동 탐지 — 행정사 검토 필요 표시','']],
+ wake:'다음: 검토 자료 승인 시 행정사 전달 준비 완료로 전환됩니다',
+ foot:[['pri','행정사 검토 자료 만들기',"closeSheet();approvalRun('bayarPkg')"]]},
+mohammad:{
+ title:'Mohammad I. 서류 보완',
+ badges:[['b-info','D-96'],['b-neut','확인 필요']],
+ sum:'건강검진 확인서가 만료 예정이라 갱신 요청이 필요합니다.',
+ kv:[['체류만료일','2026.10.08 · D-96'],['대상 서류','건강검진 확인서'],['컨택 채널','SMS · 방글라데시']],
+ docs:[['warn','건강검진 확인서','만료 예정'],['succ','여권 사본','확보'],['succ','외국인등록증','확보']],
+ cites:[['B','외국인근로자 건강검진 안내','고용24 · 2026.02']],
+ acts:[],wake:'다음: 요청 발송 승인 시 제출 기한 D-7 리마인드가 예약됩니다',
+ foot:[['line','요청 초안 보기',"closeSheet();openDraft('mohammad')"],['pri','승인하기',"closeSheet();approvalRun('mohammad')"]]},
+tranCase:{
+ title:'Tran T.H. 계약-체류 기간 확인',
+ badges:[['b-info','계약 D-45'],['b-neut','확인 필요']],
+ sum:'계약종료일이 체류만료일보다 빠릅니다. 재계약 여부 확인이 필요합니다.',
+ kv:[['계약종료일','2026.08.18 · D-45'],['체류만료일','2026.09.15'],['탐지 규칙','contract_visa_conflict']],
+ docs:[['warn','표준근로계약서','회사 확인 필요'],['warn','여권 사본','제출 예정 · 내일']],
+ cites:[['B','고용변동 신고 안내','고용24 · 2026.03']],
+ acts:[['오늘 10:12','응답 도착 · 해석 완료','계약서 회사 보관 · 여권 내일 제출 — 담당자 확인 대기','gotoThread(\'tran\')']],
+ wake:'다음: 서류 확보 시 재계약 검토 자료 준비를 제안합니다',
+ foot:[['line','응답 보기',"closeSheet();gotoThread('tran')"],['sec','케이스 확인 완료',"confirmTranCase()"]]},
+hiring:{
+ title:'신규 베트남 E-9 3명 채용 준비',
+ badges:[['b-line','이번 주'],['b-neut','준비 중']],
+ sum:'요청서 준비도 5/8 — 남은 확인 항목 3개가 있습니다.',
+ prog:62,
+ kv:[['공장 · 라인','화성 1공장 · 조립라인'],['인원 · 언어','E-9 3명 · 베트남어'],['마감','2026.07.20']],
+ docs:[['succ','내국인 구인노력 기간 확인','완료'],['succ','고용허가 신청서 준비','완료'],['warn','송출회사 요청서 확인','대기'],['warn','숙소 정보 정리','대기'],['warn','안전교육 자료 확인','대기']],
+ cites:[['B','고용허가제 사업주 고용절차','EPS · 2026.01'],['E','내부 채용 준비 체크리스트','내부 승인 템플릿']],
+ acts:[],wake:'다음: 8개 항목 완료 시 행정사 검토 요청을 제안합니다',
+ foot:[['line','요청서 보기',"closeSheet();openPkg('hiring')"],['pri','행정사 검토 요청',"closeSheet();approvalRun('hiring')"]]},
+};
+function openCase(id){
+  if(id==='nguyen'&&S.nguyenApproved){toast('오늘 승인 완료된 케이스입니다 · 응답 대기 중');return}
+  const c=CASE[id];
+  let b=`<h3 style="font-size:17px;font-weight:700;margin:6px 0 8px">${c.title}</h3>
+  <div class="badges">${c.badges.map(([cl,l])=>`<span class="bdg ${cl}">${l}</span>`).join('')}</div>
+  <p style="font-size:15px;line-height:1.6;margin-bottom:20px">${c.sum}</p>`;
+  if(c.guard)b+=`<div class="gnote">${c.guard}</div>`;
+  if(c.prog)b+=`<div class="blk"><div class="bt">준비도 ${c.prog}%</div><div class="prog"><i style="width:${c.prog}%"></i></div></div>`;
+  b+=`<div class="blk"><div class="bt">AI가 확인한 내용</div>${c.kv.map(([k,v])=>`<div class="kv"><span class="k">${k}</span><b>${v}</b></div>`).join('')}</div>`;
+  if(c.docs.length)b+=`<div class="blk"><div class="bt">서류 · 체크리스트</div>${c.docs.map(([tone,n,st])=>{
+    const col=tone==='crit'?'var(--critical)':tone==='warn'?'var(--warning)':'var(--success)';
+    const tcol=tone==='crit'?'#DC2626':tone==='warn'?'#EA580C':'var(--success)';
+    return `<div class="doc"><span class="dot" style="background:${col}"></span>${n}<span class="st" style="color:${tcol}">${st}</span></div>`}).join('')}</div>`;
+  b+=`<div class="blk"><div class="bt">근거</div>${c.cites.map(([g,t,s])=>`<div class="cite"><span class="g">${g}</span>${t}<span class="src">${s}</span></div>`).join('')}</div>`;
+  if(c.acts.length||c.wake){b+=`<div class="blk"><div class="bt">이 케이스의 에이전트 활동</div>`;
+    b+=c.acts.map(([t,ti,d,fn])=>`<div class="act" onclick="closeSheet();${fn}"><span class="t">${t}</span><span class="what"><b>${ti}</b><span>${d}</span></span></div>`).join('');
+    if(c.wake)b+=`<div class="nextwake">${c.wake}</div>`;b+=`</div>`}
+  const foot=`<div class="row" style="margin-top:0">${c.foot.map(([st,l,fn])=>`<button class="btn ${st}" onclick="${fn}">${l}</button>`).join('')}</div>`;
+  openSheetHTML(b,foot);
+}
+function confirmTranCase(){closeSheet();addEv({s:'Tran 계약-체류 케이스 확인 완료',a:'김담당 · case_reviewed',cat:'approve',caseId:'tranCase'});
+  toast('확인 완료 — 서류 확보 시 다음 제안이 브리핑에 표시됩니다')}
+
+/* ═══ 초안 (M3 동적) ═══ */
+const DRAFT={
+nguyen:{title:'서류 요청 메시지',chan:'Zalo',badges:[['b-warn','D-30'],['b-crit','누락 2건'],['b-pend','승인 전 차단']],
+ langs:[['한국어','안녕하세요 Nguyen 씨,\n체류기간 연장 준비를 위해 아래 서류가 필요합니다.\n\n· 표준근로계약서 사본\n· 여권 사본\n\n가능하면 2일 이내에 보내주세요.\n제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.\n\n감사합니다.'],
+        ['베트남어','Xin chào Nguyen,\nđể chuẩn bị gia hạn thời gian lưu trú, vui lòng gửi các giấy tờ sau.\n\n· Bản sao hợp đồng lao động tiêu chuẩn\n· Bản sao hộ chiếu\n\nVui lòng gửi trong vòng 2 ngày nếu có thể.\nGiấy tờ chỉ được dùng cho thủ tục hành chính về việc làm và lưu trú.\n\nCảm ơn bạn.']],
+ revised:'안녕하세요 Nguyen 씨, 잘 지내고 계신가요.\n체류기간 연장을 준비하고 있어 서류 두 가지를 부탁드리려고 합니다.\n\n· 표준근로계약서 사본\n· 여권 사본\n\n바쁘시겠지만 이번 주 안에 보내주시면 큰 도움이 됩니다.\n제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.\n\n항상 감사합니다.',
+ scen:[['긍정 응답','서류 수신 후 검토 자료에 반영'],['추가 질문','서류 형식 기준 재안내'],['응답 지연','2일 뒤 리마인드 제안']],
+ approveKey:'nguyen',back:'m1'},
+mohammad:{title:'건강검진 갱신 요청',chan:'SMS',badges:[['b-info','D-96'],['b-pend','승인 전 차단']],
+ langs:[['한국어','안녕하세요 Mohammad 씨,\n건강검진 확인서가 곧 만료됩니다.\n지정 병원에서 검진 후 확인서를 보내주세요.\n\n기한: 7월 18일까지\n제출하신 서류는 고용 관련 행정 절차에만 사용됩니다.'],
+        ['영어','Hello Mohammad,\nyour health check certificate will expire soon.\nPlease complete the check-up at a designated clinic and send the certificate.\n\nDeadline: July 18\nDocuments are used only for employment procedures.']],
+ revised:'안녕하세요 Mohammad 씨, 수고 많으십니다.\n건강검진 확인서 만료일이 다가와 미리 안내드립니다.\n지정 병원에서 검진을 받으신 뒤 확인서를 보내주시면 됩니다.\n\n기한: 7월 18일까지\n제출하신 서류는 고용 관련 행정 절차에만 사용됩니다.',
+ scen:[['긍정 응답','확인서 수신 후 상태 갱신'],['일정 문의','지정 병원 목록 안내'],['응답 지연','D-7 리마인드 예약']],
+ approveKey:'mohammad',back:'cases'},
+tranReminder:{title:'리마인드 초안',chan:'Zalo',badges:[['b-info','계약 D-45'],['b-pend','승인 전 차단']],
+ langs:[['한국어','안녕하세요 Tran 씨,\n어제 말씀하신 여권 사본을 오늘 보내주실 수 있을까요.\n계약 관련 준비에 필요합니다.\n\n감사합니다.'],
+        ['베트남어','Chào anh Tran,\nanh có thể gửi bản sao hộ chiếu hôm nay như đã nói không ạ.\nCần cho việc chuẩn bị hợp đồng.\n\nCảm ơn anh.']],
+ revised:'안녕하세요 Tran 씨, 바쁘신데 죄송합니다.\n어제 말씀해주신 여권 사본을 편하실 때 보내주시면 감사하겠습니다.\n계약 관련 준비에 필요해서요.\n\n고맙습니다.',
+ scen:[['긍정 응답','여권 수신 후 상태 갱신'],['일정 변경','제출 예정일 갱신'],['응답 지연','추가 리마인드 판단']],
+ approveKey:'tranReminder',back:'thread'},
+};
+let curDraft=null;
+function openDraft(key,fromRun){
+  const d=DRAFT[key];curDraft=key;
+  document.getElementById('dTitle').textContent=d.title;
+  document.getElementById('dChan').textContent=d.chan;
+  document.getElementById('dBadges').innerHTML=d.badges.map(([c,l])=>`<span class="bdg ${c}">${l}</span>`).join('');
+  document.getElementById('dSeg').innerHTML=d.langs.map(([l],i)=>
+    `<button class="${i===0?'on':''}" onclick="draftLang(${i},this)">${l}</button>`).join('');
+  document.getElementById('dText').textContent=d.langs[0][1];
+  document.getElementById('dChecks').innerHTML=
+    `<div class="chk">${I.check}개인정보 사용 목적 포함</div><div class="chk">${I.check}제출 기한 포함</div>`;
+  document.getElementById('dScen').innerHTML=d.scen.map(([b,s])=>
+    `<div class="sc"><b>${b}</b><span>${s}</span>${b.includes('지연')?'<span class="bdg b-info" style="padding:1px 7px">예정</span>':''}</div>`).join('');
+  document.getElementById('dBack').onclick=()=>{d.back==='thread'?show('thread'):setTab(d.back)};
+  document.getElementById('dApprove').onclick=()=>approvalRun(d.approveKey);
+  show('mdraft');
+}
+function draftLang(i,btn){const d=DRAFT[curDraft];
+  document.querySelectorAll('#dSeg button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');
+  document.getElementById('dText').textContent=(i===0&&d._rev)?d._rev:d.langs[i][1]}
+function openRevision(){
+  const d=DRAFT[curDraft];
+  openSheetHTML(`<h3 style="font-size:17px;font-weight:700;margin:6px 0 14px">수정 요청</h3>
+    <div class="chips" style="padding-bottom:8px">
+      <button class="chip" onclick="applyRev('polite')">더 정중하게</button>
+      <button class="chip" onclick="applyRev('short')">짧게 줄여줘</button>
+      <button class="chip" onclick="applyRev('due')">기한을 바꿔줘</button></div>
+    <textarea class="rev" id="revText" placeholder="직접 요청 입력 (예: 인사말을 추가해줘)"></textarea>
+    <p style="font-size:12.5px;color:var(--faint);margin-top:8px">수정 요청은 에이전트 런으로 초안을 다시 씁니다</p>`,
+   `<div class="row" style="margin-top:0"><button class="btn pri" onclick="applyRev('custom')">다시 쓰기</button></div>`);
+}
+function applyRev(kind){
+  closeSheet();const d=DRAFT[curDraft];
+  const el=document.getElementById('dText');
+  el.style.opacity=.35;el.textContent='AI가 초안을 다시 쓰고 있습니다…';
+  setTimeout(()=>{
+    d._rev=d.revised;el.style.opacity=1;el.textContent=d.revised;
+    document.querySelectorAll('#dSeg button').forEach((b,i)=>b.classList.toggle('on',i===0));
+    addEv({s:d.title+' 초안 재생성 ('+(kind==='polite'?'더 정중하게':kind==='short'?'짧게':kind==='due'?'기한 변경':'직접 요청')+')',
+      a:'시스템 · message_drafted · 수정 요청: 김담당',cat:'draft'});
+    toast('초안을 다시 썼습니다 — 확인 후 승인해주세요');
+  },reduce?0:900);
+}
+
+/* ═══ 패키지 (행정사 검토, 동적) ═══ */
+const PKG={
+candidate:{title:'Candidate A 입국 전 패키지',sub:'행정사 검토용 초안',
+ secs:[
+  ['후보자 기본 정보 (마스킹)',[['성명','Candidate A'],['국적','베트남'],['여권번호','M12***'],['희망 직무','조립']]],
+  ['준비 체크리스트 · 3/5',null,[['succ','근로계약서 사본','확보'],['succ','여권 사본','확보'],['succ','증명사진','확보'],['warn','건강진단서 원본','확인 필요'],['warn','입국 전 교육 수료증','확인 필요']]],
+  ['포함 근거',null,null,[['B','고용허가제 사업주 고용절차 안내','EPS · 2026.01'],['E','내부 입국 전 체크리스트','내부 승인 템플릿']]]],
+ note:'승인 후에도 정부 포털 자동 제출은 수행하지 않습니다.',
+ flowSteps:['시스템 초안 생성','담당자 검토','승인','행정사 전달'],flowNow:1,
+ foot:[['line','수정 요청',"toast('수정 요청 — 담당자 태스크로 기록됩니다')"],['pri','승인하기',"approvalRun('candidate')"]],back:'m1'},
+hiring:{title:'신규 인력 요청서',sub:'E-9 3명 · 화성 1공장',
+ secs:[
+  ['사업장 조건',[['업종','자동차부품 제조'],['지역','경기 화성'],['필요 인원','E-9 3명'],['희망 언어','베트남어'],['숙소','제공'],['근무 형태','주야 2교대']]],
+  ['확인 필요 항목 · 5/8',null,[['succ','내국인 구인노력 기간','확인 완료'],['succ','고용허가 신청서','준비 완료'],['warn','송출회사 요청서','확인 대기'],['warn','숙소 정보 정리','대기'],['warn','안전교육 자료','대기']]],
+  ['포함 근거',null,null,[['B','고용허가제 사업주 고용절차','EPS · 2026.01'],['B','허용업종 안내','고용24 · 2026.02']]]],
+ note:'요청서는 채용 확정이 아니라 준비 상태 점검 문서입니다. 후보자 평가 항목은 포함되지 않습니다.',
+ flowSteps:['요청서 초안','담당자 확인','행정사 검토 요청'],flowNow:1,
+ foot:[['pri','행정사 검토 요청',"approvalRun('hiring')"]],back:'cases'},
+};
+function openPkg(key){
+  if(key==='candidate'&&S.candidateApproved){toast('승인 완료 — 행정사 전달 준비 상태입니다');return}
+  const p=PKG[key];
+  document.getElementById('pTitle').textContent=p.title;
+  document.getElementById('pSub').textContent=p.sub;
+  document.getElementById('pBack').onclick=()=>setTab(p.back);
+  let b='';
+  p.secs.forEach(([t,kv,docs,cites])=>{
+    b+=`<div class="blk" style="margin-top:6px"><div class="bt">${t}</div>`;
+    if(kv)b+=kv.map(([k,v])=>`<div class="kv"><span class="k">${k}</span><b>${v}</b></div>`).join('');
+    if(docs)b+=docs.map(([tone,n,st])=>{
+      const col=tone==='warn'?'var(--warning)':'var(--success)';
+      const tc=tone==='warn'?'#EA580C':'var(--success)';
+      return `<div class="doc"><span class="dot" style="background:${col}"></span>${n}<span class="st" style="color:${tc}">${st}</span></div>`}).join('');
+    if(cites)b+=cites.map(([g,t2,s])=>`<div class="cite"><span class="g">${g}</span>${t2}<span class="src">${s}</span></div>`).join('');
+    b+=`</div>`});
+  b+=`<div class="blk"><div class="bt">승인 흐름</div>${p.flowSteps.map((s,i)=>
+    `<div class="doc"><span class="dot" style="background:${i<=p.flowNow?'var(--success)':'var(--hairline)'}"></span>${s}
+     <span class="st" style="color:${i<=p.flowNow?'var(--success)':'var(--faint)'}">${i<p.flowNow?'완료':i===p.flowNow?'진행 중':'대기'}</span></div>`).join('')}</div>`;
+  b+=`<div class="gnote">${p.note}</div>`;
+  document.getElementById('pBody').innerHTML=b;
+  document.getElementById('pFoot').innerHTML=p.foot.map(([st,l,fn])=>`<button class="btn ${st}" onclick="${fn}">${l}</button>`).join('');
+  show('pkg');
+}
+
+/* ═══ 런 렌더러 (M4/M9 공용) ═══ */
+let curApprove=null;
+function renderRun(cfg){
+  document.getElementById('runTitle').textContent=cfg.title;
+  document.getElementById('runAgent').textContent=cfg.agent;
+  document.getElementById('runMeta').textContent=cfg.meta;
+  document.getElementById('runDot').style.display=cfg.replay?'none':'inline-block';
+  document.getElementById('replayTag').style.display=cfg.replay?'block':'none';
+  const g=document.getElementById('runGoal');
+  if(cfg.goal){g.textContent='"'+cfg.goal+'"';g.style.display='block'}else g.style.display='none';
+  document.getElementById('runBackBtn').onclick=()=>{cfg.back==='thread'?show('thread'):cfg.back==='mdraft'?show('mdraft'):setTab(cfg.back||'m1')};
+  const dock=document.getElementById('runDock');
+  if(cfg.dock==='approve'){dock.style.display='block';
+    document.getElementById('runQ').textContent=cfg.q||'이대로 진행할까요?';
+    const alt=document.getElementById('runAlt');alt.textContent=cfg.altLabel||'수정 요청';
+    alt.onclick=cfg.onAlt||(()=>setTab(cfg.back||'m1'));
+    const ok=document.getElementById('runOk');ok.disabled=true;ok.onclick=()=>cfg.onApprove&&cfg.onApprove();
+  }else dock.style.display='none';
+  const box=document.getElementById('runSteps');box.innerHTML='';
+  const res=document.getElementById('runResult');res.style.display='none';res.innerHTML=cfg.result||'';
+  cfg.steps.forEach((s,i)=>{
+    const el=document.createElement('div');el.className='stp';
+    const cls=s.k==='guard'?'guard':s.k==='wait'?'act':'done';
+    const ic=s.k==='guard'?I.warn:s.k==='think'?I.think:s.k==='wait'?I.wait:s.k==='tool'?I.gear:I.check;
+    el.innerHTML=`<div class="rail"><div class="ic ${cls}">${ic}</div><div class="line"></div></div>
+      <div class="cnt"><div class="sl">${s.l}</div><div class="sd">${s.d}</div></div>`;
+    box.appendChild(el);
+    setTimeout(()=>el.classList.add('show'),cfg.replay||reduce?0:430*(i+1));
+  });
+  const doneAt=cfg.replay||reduce?0:430*cfg.steps.length+320;
+  setTimeout(()=>{if(cfg.result)res.style.display='block';
+    if(cfg.dock==='approve')document.getElementById('runOk').disabled=false;
+    if(cfg.onDone)cfg.onDone()},doneAt);
+  show('m4');
+}
+
+/* ═══ 완료 화면 ═══ */
+function showDone(cfg){
+  document.getElementById('doneTitle').textContent=cfg.title;
+  document.getElementById('doneSub').innerHTML=cfg.sub;
+  document.getElementById('doneFrom').textContent=cfg.from;
+  document.getElementById('doneTo').textContent=cfg.to;
+  document.getElementById('doneRows').innerHTML=cfg.rows.map(([k,v])=>
+    `<div class="kv"><span class="k">${k}</span><b>${v}</b></div>`).join('');
+  document.getElementById('doneNext').innerHTML=cfg.next;
+  show('m5',true);
+}
+
+/* ═══ 승인 런 설정 ═══ */
+const APPROVE={
+nguyen:{title:'승인 전 확인',agent:'Multilingual Contact Agent',meta:'판단 기록 #4789 · 자율성 Medium (승인 필요)',
+ back:'m1',q:'이 메시지로 컨택할까요?',altLabel:'수정 요청',onAlt:()=>openDraft('nguyen'),
+ steps:[{k:'tool',l:'근로자 프로필 확인 완료',d:'Nguyen Van A · 베트남 · E-9 · Zalo'},
+  {k:'tool',l:'이전 대화 기록 확인 완료',d:'3일 전 표준근로계약서 요청 이력 있음'},
+  {k:'tool',l:'메시지 초안 생성 완료',d:'베트남어 원문 + 한국어 번역'},
+  {k:'wait',l:'발송 전 승인 대기',d:'담당자 승인 후 근로자에게 발송됩니다'}],
+ apply(){S.nguyenApproved=true;
+  document.getElementById('nBadges').innerHTML='<span class="bdg b-warn">D-30</span><span class="bdg b-succ">승인 완료</span><span class="bdg b-info">응답 대기</span>';
+  document.getElementById('nPrep').style.display='none';
+  document.getElementById('nReason').textContent='발송 승인 완료 — 응답이 오면 자동으로 해석해 알려드립니다';
+  document.getElementById('nCta').innerHTML='<button class="btn sec" onclick="event.stopPropagation();toast(\'응답 대기 중 — 도착하면 알림으로 안내됩니다\')">응답 대기 중</button>';
+  document.getElementById('statP').textContent='1';
+  const c=document.getElementById('cardN');c.parentNode.insertBefore(c,document.querySelector('#m1 .sec-t'));
+  document.getElementById('msgNbdg').className='bdg b-succ';document.getElementById('msgNbdg').textContent='발송됨';
+  document.getElementById('msgNsub').textContent='서류 요청 발송 승인 완료 — 응답 대기';
+  document.getElementById('msgNli').onclick=()=>toast('발송 승인 완료 — 응답 도착 시 스레드가 열립니다');
+  addEv({s:'발송 승인 완료 — 판단 기록 #4789',a:'김담당 (본인 확인 완료) · approval_granted',cat:'approve',caseId:'nguyen',hl:true,chain:true});
+  showDone({title:'보내기 승인이 완료되었습니다',sub:'담당자님이 승인하여 케이스가 업데이트되었습니다.<br>승인 전에는 외부 발송이 차단되어 있었습니다.',
+   from:'승인 전',to:'발송 승인 완료',rows:[['체류만료','D-30'],['누락 서류','2건 → 요청됨'],['판단 기록','#4789 저장됨']],
+   next:'2일 내 응답이 없으면 리마인드를 제안합니다 <span class="bdg b-info" style="padding:2px 7px">예정</span>'})}},
+candidate:{title:'승인 전 확인',agent:'Workforce Agent',meta:'판단 기록 #4792 · 자율성 Medium (승인 필요)',
+ back:'m1',q:'이 패키지를 행정사 전달 준비 상태로 승인할까요?',altLabel:'수정 요청',onAlt:()=>openPkg('candidate'),
+ steps:[{k:'tool',l:'후보자 서류 상태 확인',d:'5개 중 3개 확보 · 2개 확인 필요'},
+  {k:'tool',l:'요건 충족 여부 점검',d:'준비도 기준 — 사람 평가 항목 없음'},
+  {k:'guard',l:'가드레일',d:'정부 포털 제출 불가 — 행정사 전달 준비까지만 진행합니다'},
+  {k:'wait',l:'전달 준비 승인 대기',d:'승인 후 행정사 전달 준비 완료로 전환됩니다'}],
+ apply(){S.candidateApproved=true;
+  document.getElementById('cBadges').innerHTML='<span class="bdg b-succ">승인 완료</span><span class="bdg b-info">전달 준비</span>';
+  document.getElementById('cCta').innerHTML='<button class="btn sec" onclick="event.stopPropagation();toast(\'행정사 전달 준비 완료 — 전달 실행은 PC에서\')">전달 준비 완료</button>';
+  document.getElementById('statP').textContent='0';
+  addEv({s:'Candidate A 패키지 승인 — 행정사 전달 준비',a:'김담당 (본인 확인 완료) · approval_granted',cat:'approve',hl:true,chain:true});
+  showDone({title:'패키지 승인이 완료되었습니다',sub:'행정사 전달 준비 상태로 전환되었습니다.<br>정부 포털 자동 제출은 수행하지 않습니다.',
+   from:'검토 중',to:'전달 준비 완료',rows:[['준비 체크리스트','3/5 확보'],['미확보 2건','전달문에 표기됨'],['판단 기록','#4792 저장됨']],
+   next:'행정사 회신이 오면 케이스에 반영을 제안합니다'})}},
+bayarPkg:{title:'승인 전 확인',agent:'Visa Document Agent',meta:'판단 기록 #4793 · high risk — 행정사 전달 강제',
+ back:'cases',q:'검토 자료를 행정사에게 전달할 준비로 승인할까요?',altLabel:'돌아가기',onAlt:()=>setTab('cases'),
+ steps:[{k:'tool',l:'케이스 상태 정리',d:'체류만료 D+3 · CRITICAL'},
+  {k:'tool',l:'관련 규정 수집',d:'출입국관리법 제25조·제94조 (근거 A)'},
+  {k:'tool',l:'검토 자료 초안 생성',d:'서류 3종 + 쟁점 요약 포함'},
+  {k:'guard',l:'가드레일 · high risk',d:'기한 경과 케이스 — 앱 처리 불가, 행정사 검토로만 진행됩니다'}],
+ apply(){S.bayarPkg=true;
+  addEv({s:'Bayar 행정사 검토 자료 승인 — 전달 준비',a:'김담당 (본인 확인 완료) · handoff_generated',cat:'approve',caseId:'bayar',hl:true,chain:true});
+  renderCases(curCaseFilter);
+  showDone({title:'검토 자료 승인이 완료되었습니다',sub:'행정사 전달 준비 상태입니다.<br>기한 경과 케이스는 전문가 검토로만 진행됩니다.',
+   from:'즉시 확인',to:'행정사 전달 준비',rows:[['체류 상태','D+3 경과'],['첨부 서류','3종 확보'],['판단 기록','#4793 저장됨']],
+   next:'행정사 검토 의견이 오면 알림으로 안내합니다'})}},
+mohammad:{title:'승인 전 확인',agent:'Multilingual Contact Agent',meta:'판단 기록 #4794 · 자율성 Medium (승인 필요)',
+ back:'cases',q:'이 요청을 발송 승인할까요?',altLabel:'수정 요청',onAlt:()=>openDraft('mohammad'),
+ steps:[{k:'tool',l:'서류 만료 확인',d:'건강검진 확인서 · 7.18 만료 예정'},
+  {k:'tool',l:'요청 초안 생성 완료',d:'한국어 + 영어'},
+  {k:'wait',l:'발송 전 승인 대기',d:'담당자 승인 후 발송됩니다'}],
+ apply(){S.mohammadSent=true;renderCases(curCaseFilter);
+  addEv({s:'Mohammad 건강검진 갱신 요청 발송 승인',a:'김담당 (본인 확인 완료) · approval_granted',cat:'approve',caseId:'mohammad',hl:true,chain:true});
+  showDone({title:'발송 승인이 완료되었습니다',sub:'요청이 발송 대기열에 등록되었습니다.',
+   from:'승인 전',to:'발송 승인 완료',rows:[['대상 서류','건강검진 확인서'],['기한','7월 18일'],['판단 기록','#4794 저장됨']],
+   next:'기한 D-7까지 미제출 시 리마인드를 제안합니다 <span class="bdg b-info" style="padding:2px 7px">예약</span>'})}},
+hiring:{title:'승인 전 확인',agent:'Workforce Agent',meta:'판단 기록 #4795 · 자율성 Medium (승인 필요)',
+ back:'cases',q:'요청서를 행정사 검토로 보낼까요?',altLabel:'돌아가기',onAlt:()=>openPkg('hiring'),
+ steps:[{k:'tool',l:'요청서 완성도 점검',d:'8개 항목 중 5개 완료'},
+  {k:'think',l:'미완료 항목 판단',d:'남은 3개는 행정사 확인과 병행 가능'},
+  {k:'guard',l:'가드레일',d:'후보자 평가·국적 선호 항목 없음 확인 — 준비 상태 점검만 포함'},
+  {k:'wait',l:'검토 요청 승인 대기',d:'승인 후 행정사에게 검토 요청됩니다'}],
+ apply(){S.hiringSent=true;renderCases(curCaseFilter);
+  addEv({s:'신규 채용 요청서 — 행정사 검토 요청 승인',a:'김담당 (본인 확인 완료) · handoff_generated',cat:'approve',caseId:'hiring',hl:true,chain:true});
+  showDone({title:'검토 요청이 승인되었습니다',sub:'요청서가 행정사 검토 대기 상태로 전환되었습니다.',
+   from:'준비 중',to:'행정사 검토 요청',rows:[['요청 인원','E-9 3명'],['준비도','5/8 (미완료 병행)'],['판단 기록','#4795 저장됨']],
+   next:'행정사 회신 시 남은 3개 항목과 함께 정리해 안내합니다'})}},
+tranReminder:{title:'승인 전 확인',agent:'Multilingual Contact Agent',meta:'판단 기록 #4796 · 자율성 Medium (승인 필요)',
+ back:'thread',q:'이 리마인드를 발송 승인할까요?',altLabel:'수정 요청',onAlt:()=>openDraft('tranReminder'),
+ steps:[{k:'tool',l:'대화 맥락 확인',d:'어제 여권 제출 약속 — 오늘 미수신'},
+  {k:'tool',l:'리마인드 초안 생성',d:'베트남어 + 한국어 · 부드러운 톤'},
+  {k:'wait',l:'발송 전 승인 대기',d:'담당자 승인 후 발송됩니다'}],
+ apply(){S.tranReminder=true;
+  addEv({s:'Tran 리마인드 발송 승인 — 판단 기록 #4796',a:'김담당 (본인 확인 완료) · approval_granted',cat:'approve',caseId:'tranCase',hl:true,chain:true});
+  const tb=document.getElementById('thBody');
+  if(tb.dataset.who==='tran')tb.insertAdjacentHTML('beforeend',
+    '<div class="bub out">Chào anh Tran, anh có thể gửi bản sao hộ chiếu hôm nay như đã nói không ạ.</div><div class="bubmeta out">발송 승인 완료 · 판단 기록 #4796 · '+nowHM()+'</div>');
+  document.getElementById('msgTsub').textContent='리마인드 발송 승인 완료 — 응답 대기';
+  showDone({title:'리마인드 승인이 완료되었습니다',sub:'승인된 리마인드가 발송 대기열에 등록되었습니다.',
+   from:'승인 전',to:'발송 승인 완료',rows:[['대상','Tran T.H. · Zalo'],['내용','여권 사본 요청'],['판단 기록','#4796 저장됨']],
+   next:'응답이 오면 자동으로 해석해 알려드립니다'})}},
+};
+function approvalRun(key){
+  const a=APPROVE[key];
+  renderRun({title:a.title,agent:a.agent,meta:a.meta,back:a.back,dock:'approve',q:a.q,
+    altLabel:a.altLabel,onAlt:a.onAlt,steps:a.steps,onApprove:()=>a.apply(),
+    result:`<div class="safety" style="margin-top:4px">${I.shield}이 액션은 판단 기록에 저장됩니다.</div>`});
+}
+
+/* ═══ 프로액티브 런 재생 ═══ */
+function openReplay(){
+  renderRun({title:'런 #4788 재생',agent:'Visa Document Agent',
+    meta:'오늘 07:58 · 자동 실행(이벤트: D-30 진입) · 판단 기록 #4788',back:'m1',replay:true,dock:'none',
+    steps:[
+      {k:'think',l:'D-30 진입 감지',d:'Nguyen V. 체류만료 2026.08.03 — 준비 필요 판단'},
+      {k:'tool',l:'서류 상태 점검',d:'check_document_gap — 표준근로계약서·여권 사본 누락'},
+      {k:'tool',l:'관련 규정 검색',d:'search_regulation — 출입국관리법 제25조 (근거 A)'},
+      {k:'tool',l:'핸드오프',d:'Visa → Multilingual Contact Agent · 요청 메시지 생성 위임'},
+      {k:'tool',l:'VN/KR 초안 생성',d:'generate_message_draft — 개인정보 목적·기한 포함'},
+      {k:'guard',l:'가드레일 · 여기서 정지',d:'외부 발송은 승인 전 차단 — 승인 요청을 생성하고 종료했습니다'}],
+    result:`<div class="card" style="background:var(--surface);border:none;margin-top:6px">
+      <p style="font-size:14px;line-height:1.65">이 런의 산출물이 오늘 브리핑의 <b>Nguyen 카드</b>입니다.<br>사람이 열기 전에 준비가 끝나 있었고, 남은 것은 승인뿐입니다.</p></div>
+      <div class="row"><button class="btn pri" onclick="backHome()">브리핑으로 돌아가기</button></div>`});
+}
+
+/* ═══ 커맨드 런 (M9) ═══ */
+function startRun(e){e.preventDefault();
+  const v=document.getElementById('cmdIn').value.trim()||'이번 달 급한 직원만 정리해줘';
+  document.getElementById('cmdIn').value='';
+  renderRun({title:'AI 요청 처리',agent:'Visa Document Agent',
+    meta:'판단 기록 #4790 · 자율성 Medium (승인 필요)',goal:v,back:'m1',dock:'none',
+    steps:[
+      {k:'think',l:'요청 분석',d:'의도: 이번 달 리스크 근로자 정리 → Visa Document Agent 라우팅'},
+      {k:'tool',l:'근로자 상태 조회',d:'get_worker_status — E-9 근로자 12명'},
+      {k:'tool',l:'D-day 계산',d:'calc_dday — Bayar D+3 · Nguyen D-30 · Tran 계약 D-45'},
+      {k:'guard',l:'가드레일 적용',d:'외부 발송은 승인 전 차단 — 승인 요청으로 전환했습니다'},
+      {k:'tool',l:'관련 규정 검색',d:'search_regulation — 출입국관리법 제25조 (근거 A)'}],
+    result:`<div class="sec-t" style="margin-top:8px">정리 결과 · 3명</div>
+      <div class="card tap" onclick="backHome();setTimeout(()=>openCase('bayar'),260)"><h3>Bayar M. — 체류기간 경과 D+3</h3>
+        <div class="badges" style="margin-bottom:0"><span class="bdg b-crit">D+3</span><span class="bdg b-crit">즉시 확인</span></div></div>
+      <div class="card tap" onclick="backHome();setTimeout(()=>openCase('nguyen'),260)"><h3>Nguyen V. — 체류만료 D-30</h3>
+        <div class="badges" style="margin-bottom:0"><span class="bdg b-warn">D-30</span><span class="bdg b-pend">승인 필요</span></div></div>
+      <div class="card tap" onclick="backHome();setTimeout(()=>openCase('tranCase'),260)"><h3>Tran T.H. — 계약 종료 D-45</h3>
+        <div class="badges" style="margin-bottom:0"><span class="bdg b-info">D-45</span><span class="bdg b-neut">확인 필요</span></div></div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:4px">이 실행은 판단 기록 #4790에 저장되었습니다</p>`});
+  addEv({s:'사용자 요청 런 #4790 — "'+v+'"',a:'김담당 · run_started',cat:'run'});
+}
+
+/* ═══ 스레드 ═══ */
+function gotoThread(who){
+  const tb=document.getElementById('thBody');tb.dataset.who=who;
+  if(who==='tran'){
+    document.getElementById('thName').textContent='Tran T.H.';
+    document.getElementById('thSub').textContent='베트남 · Zalo';
+    tb.innerHTML=`
+      <div class="syscap">7월 1일</div>
+      <div class="bub out">Chào anh Tran,\nhợp đồng của anh sẽ kết thúc vào ngày 18.8.\nVui lòng xác nhận bản sao hợp đồng lao động và hộ chiếu.</div>
+      <div class="bubmeta out">승인 후 발송됨 · 판단 기록 #4741 · 09:20</div>
+      <div class="syscap">오늘</div>
+      <div class="bub in">Hợp đồng lao động thì công ty đang giữ ạ.\nHộ chiếu ngày mai tôi sẽ gửi bản sao.</div>
+      <div class="bubmeta">10:12 · 수신</div>
+      ${S.interpDone?interpDoneHTML():interpHTML()}
+      <p style="font-size:12px;color:var(--faint);text-align:center;margin-top:2px">확인 전에는 상태가 확정되지 않습니다</p>`;
+    document.getElementById('thNew').onclick=()=>newDraftRun('tranReminder');
+  }else{
+    document.getElementById('thName').textContent='Bayar M.';
+    document.getElementById('thSub').textContent='몽골 · SMS';
+    tb.innerHTML=`
+      <div class="syscap">어제</div>
+      <div class="bub out">Сайн байна уу Bayar,\nэрүүл мэндийн үзлэгийн товыг баталгаажуулна уу.\n(건강검진 일정 확인 요청)</div>
+      <div class="bubmeta out">승인 후 발송됨 · 판단 기록 #4720 · 15:40</div>
+      <div class="aicard"><div class="ah"><span class="spark2">${I.spark}</span>에이전트 상태</div>
+        <p style="margin-bottom:0">아직 응답이 없습니다. <b>내일까지 미응답 시</b> 리마인드 여부를 판단합니다.</p></div>`;
+    document.getElementById('thNew').onclick=()=>toast('Bayar 후속 초안 — 데모 범위: Tran 스레드에서 시연됩니다');
+  }
+  activeTab='msgs';renderTabs();show('thread');
+}
+function interpHTML(){return `
+  <div class="aicard" id="interp">
+    <div class="ah"><span class="spark2">${I.spark}</span>AI 해석 · 담당자 확인 필요</div>
+    <p>표준근로계약서는 <b>회사가 보관 중</b>이라고 답했습니다. 여권 사본은 <b>내일 제출 예정</b>입니다.</p>
+    <div class="upd"><span class="f">표준근로계약서</span><span class="to"><span class="ar">누락 →</span> 회사 확인 필요</span></div>
+    <div class="upd"><span class="f">여권 사본</span><span class="to"><span class="ar">누락 →</span> 제출 예정 · 내일</span></div>
+    <div class="upd" style="border-bottom:none"><span class="f">추천</span><span class="to">회사 보관 계약서 확인</span></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn line sm" onclick="toast('해석 수정 — 에이전트 런으로 재해석합니다')">수정</button>
+      <button class="btn pri sm" onclick="confirmInterp()">상태 반영 확인</button>
+    </div></div>`}
+function interpDoneHTML(){return `
+  <div class="aicard"><div class="ah"><span class="spark2">${I.check.replace('width="2.4"','width="2.4"')}</span>AI 해석 · 확인 완료</div>
+    <p style="margin-bottom:0">상태 반영 완료 — 계약서 회사 확인 · 여권 제출 대기 (판단 기록 #4791)</p></div>`}
+function confirmInterp(){
+  if(S.interpDone)return;S.interpDone=true;
+  document.getElementById('msgTbdg').className='bdg b-neut';
+  document.getElementById('msgTbdg').textContent='확인 완료';
+  document.getElementById('msgTsub').textContent='상태 반영 완료 — 여권 제출 대기 · 계약서 회사 확인';
+  addEv({s:'Tran 응답 해석 확인 — 서류 상태 2건 갱신',a:'김담당 · status_confirmed · 기록 #4791',cat:'approve',caseId:'tranCase'});
+  gotoThread('tran');
+  toast('상태가 반영되었습니다 · 판단 기록 #4791 저장');
+}
+
+/* 새 초안 런 → 초안 화면 */
+function newDraftRun(key){
+  renderRun({title:'초안 생성',agent:'Multilingual Contact Agent',
+    meta:'판단 기록 #4796 · 자율성 Medium (승인 필요)',back:'thread',dock:'none',
+    steps:[
+      {k:'tool',l:'대화 맥락 확인',d:'어제 여권 제출 약속 — 오늘 미수신'},
+      {k:'tool',l:'템플릿 선택',d:'리마인드 · 부드러운 톤 · 야간 발송 제한 검사 통과'},
+      {k:'tool',l:'VN/KR 초안 생성',d:'generate_message_draft'},
+      {k:'wait',l:'초안 확인 대기',d:'확인 후 발송 승인으로 진행됩니다'}],
+    result:`<div class="row"><button class="btn pri" onclick="openDraft('tranReminder')">초안 확인하기</button></div>`});
+  addEv({s:'Tran 리마인드 초안 생성 런 #4796',a:'김담당 요청 · message_drafted',cat:'draft',caseId:'tranCase'});
+}
+
+/* ═══ 케이스 목록 ═══ */
+let curCaseFilter='all';
+function caseRows(){return [
+ {g:'승인 대기',sev:'warn',id:'nguyen',t:'Nguyen V. 체류기간 연장 서류 요청',
+  s:S.nguyenApproved?'발송 승인 완료 — 응답 대기':'D-30 · 누락 2건 · AI 준비 완료',
+  b:S.nguyenApproved?[['b-succ','승인 완료']]:[['b-warn','D-30'],['b-pend','승인 필요']],fn:"openCase('nguyen')"},
+ {g:'승인 대기',sev:'warn',id:'candidate',t:'Candidate A 입국 전 서류 패키지',
+  s:S.candidateApproved?'행정사 전달 준비 완료':'행정사 검토 전 확인 · 마감 7.20',
+  b:S.candidateApproved?[['b-succ','전달 준비']]:[['b-pend','승인 필요']],fn:"openPkg('candidate')"},
+ {g:'즉시 확인',sev:'crit',id:'bayar',t:'Bayar M. 체류기간 경과',
+  s:S.bayarPkg?'행정사 전달 준비 완료 · 회신 대기':'D+3 · 행정사 검토 준비 필요',
+  b:S.bayarPkg?[['b-succ','전달 준비']]:[['b-crit','D+3'],['b-crit','즉시 확인']],fn:"openCase('bayar')"},
+ {g:'확인 필요',sev:'info',id:'tranCase',t:'Tran T.H. 계약-체류 기간 확인',
+  s:'계약종료 D-45 · 체류만료 9.15 — 충돌 검토',b:[['b-info','D-45'],['b-neut','확인 필요']],fn:"openCase('tranCase')"},
+ {g:'확인 필요',sev:'info',id:'mohammad',t:'Mohammad I. 서류 보완',
+  s:S.mohammadSent?'갱신 요청 발송 승인 완료 · D-7 리마인드 예약':'건강검진 확인서 만료 예정',
+  b:S.mohammadSent?[['b-succ','요청 발송']]:[['b-info','D-96'],['b-neut','확인 필요']],fn:"openCase('mohammad')"},
+ {g:'예정',sev:'neut',id:'hiring',t:'신규 베트남 E-9 3명 채용 준비',
+  s:S.hiringSent?'행정사 검토 요청됨 · 회신 대기':'요청서 작성 중 · 5/8 완료',
+  b:S.hiringSent?[['b-succ','검토 요청됨']]:[['b-line','이번 주']],fn:"openCase('hiring')"},
+]}
+function filterCase(chip,sev){curCaseFilter=sev;
+  document.querySelectorAll('#caseChips .chip').forEach(c=>c.classList.remove('on'));chip.classList.add('on');
+  renderCases(sev)}
+function renderCases(sev='all'){
+  const rows=caseRows().filter(c=>sev==='all'||c.sev===sev);
+  const groups=[...new Set(rows.map(c=>c.g))];
+  document.getElementById('caseList').innerHTML=groups.map(g=>{
+    const items=rows.filter(c=>c.g===g);
+    return `<div class="sec-t" style="margin-top:14px">${g} · ${items.length}</div>`+items.map(c=>
+      `<div class="card tap" onclick="${c.fn}"><h3>${c.t}</h3>
+        <div class="badges" style="margin-bottom:0">${c.b.map(([cl,l])=>`<span class="bdg ${cl}">${l}</span>`).join('')}</div>
+        <p class="desc" style="margin-top:8px">${c.s}</p></div>`).join('');
+  }).join('')||'<p style="color:var(--muted);font-size:14px;padding:20px 0">조건에 맞는 케이스가 없습니다</p>';
+}
+
+renderTabs();renderCases();renderEv();
+</script>
+</body>
+</html>

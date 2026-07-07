@@ -1,0 +1,42 @@
+{
+  "$comment": "이 폴더(claude-config)는 repo에서 .claude/ 로 이름 변경. 이 파일은 .claude/settings.json 으로 복사. 훅 = 자동 안전장치.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx eslint --no-warn-ignored --quiet $CLAUDE_FILE_PATHS || echo 'LINT FAIL: 수정 후 진행'"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/pii-scan.mjs $CLAUDE_FILE_PATHS"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run verify --silent || echo 'VERIFY FAIL: 완료 선언 금지 — 실패 원인부터 보고'"
+          }
+        ]
+      }
+    ]
+  },
+  "$pii_scan_comment": "scripts/pii-scan.mjs 는 M0.1에서 생성: 변경 파일에서 등록번호 패턴 원문, 여권번호 원문, sendMessage( 신규 정의를 검사 — 발견 시 exit 1",
+  "permissions": {
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(rm -rf*)"
+    ]
+  }
+}

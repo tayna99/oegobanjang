@@ -1,0 +1,968 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: transparent; color: var(--text-primary, #1a1a1a); }
+
+  .nav-bar {
+    display: flex; gap: 4px; padding: 8px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border-primary, #e2e2e2);
+    background: var(--surface-1, #f8f8f8);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .nav-btn {
+    padding: 4px 10px; border: none; border-radius: 20px; cursor: pointer;
+    font-size: 11px; font-weight: 500; background: transparent;
+    color: var(--text-secondary, #666); transition: all 0.15s;
+  }
+  .nav-btn.active {
+    background: var(--accent-primary, #1a1a1a); color: #fff;
+  }
+  .nav-btn:hover:not(.active) { background: var(--border-primary, #e2e2e2); }
+
+  .page { display: none; padding: 20px; max-width: 900px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary, #1a1a1a); }
+  h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary, #1a1a1a); }
+  p { font-size: 12px; line-height: 1.6; color: var(--text-secondary, #555); margin-bottom: 8px; }
+
+  /* Architecture flow */
+  .arch-flow {
+    display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+    background: var(--surface-2, #f0f0f0); border-radius: 10px; padding: 20px; margin-bottom: 16px;
+  }
+  .arch-node {
+    background: var(--surface-1, #fff); border: 1.5px solid var(--border-primary, #ddd);
+    border-radius: 8px; padding: 10px 14px; text-align: center; min-width: 100px;
+    flex-shrink: 0;
+  }
+  .arch-node .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .arch-node .label { font-size: 11px; font-weight: 600; color: var(--text-primary, #1a1a1a); }
+  .arch-node .sub { font-size: 10px; color: var(--text-secondary, #777); margin-top: 2px; }
+  .arch-node.highlight { border-color: #4f6ef7; background: #f0f3ff; }
+  .arch-node.green { border-color: #22c55e; background: #f0fdf4; }
+  .arch-node.orange { border-color: #f59e0b; background: #fffbeb; }
+  .arch-arrow {
+    font-size: 16px; color: var(--text-secondary, #aaa); padding: 0 4px; flex-shrink: 0;
+  }
+
+  /* Table */
+  .viz-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 16px; }
+  .viz-table th {
+    background: var(--surface-2, #f5f5f5); padding: 7px 10px; text-align: left;
+    font-weight: 600; border-bottom: 2px solid var(--border-primary, #ddd); font-size: 11px;
+  }
+  .viz-table td { padding: 7px 10px; border-bottom: 1px solid var(--border-primary, #eee); vertical-align: top; }
+  .viz-table tr:last-child td { border-bottom: none; }
+  .viz-table tr:hover td { background: var(--surface-2, #fafafa); }
+
+  /* Pill/badge */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+  }
+  .badge-blue { background: #dbeafe; color: #1d4ed8; }
+  .badge-green { background: #dcfce7; color: #16a34a; }
+  .badge-orange { background: #fef3c7; color: #d97706; }
+  .badge-red { background: #fee2e2; color: #dc2626; }
+  .badge-purple { background: #ede9fe; color: #7c3aed; }
+  .badge-gray { background: var(--surface-2, #f3f4f6); color: var(--text-secondary, #666); }
+
+  /* Cards grid */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .card {
+    background: var(--surface-1, #fff); border: 1.5px solid var(--border-primary, #e5e7eb);
+    border-radius: 10px; padding: 14px;
+  }
+  .card .card-num { font-size: 10px; font-weight: 700; color: #4f6ef7; margin-bottom: 6px; }
+  .card .card-title { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .card .card-desc { font-size: 11px; color: var(--text-secondary, #666); line-height: 1.5; }
+
+  /* Section callout */
+  .callout {
+    background: #fffbeb; border-left: 3px solid #f59e0b; border-radius: 6px;
+    padding: 12px 14px; margin-bottom: 16px; font-size: 12px; line-height: 1.6;
+    color: var(--text-primary, #1a1a1a);
+  }
+
+  /* Priority list */
+  .priority-list { list-style: none; margin-bottom: 16px; }
+  .priority-list li {
+    display: flex; align-items: flex-start; gap: 10px; padding: 8px 0;
+    border-bottom: 1px solid var(--border-primary, #eee); font-size: 12px;
+  }
+  .priority-list li:last-child { border-bottom: none; }
+  .priority-num {
+    width: 22px; height: 22px; border-radius: 50%; background: #4f6ef7; color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0;
+  }
+
+  /* Screen mockup */
+  .screen-mock {
+    border: 2px solid var(--border-primary, #ddd); border-radius: 12px; padding: 0;
+    overflow: hidden; margin-bottom: 16px; background: var(--surface-1, #fff);
+  }
+  .screen-header {
+    background: var(--surface-2, #f5f5f5); padding: 10px 14px; border-bottom: 1px solid var(--border-primary, #ddd);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .screen-title { font-size: 12px; font-weight: 700; }
+  .screen-body { padding: 14px; }
+
+  /* Action button */
+  .action-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    cursor: default; margin-right: 6px; margin-bottom: 6px;
+  }
+  .action-btn.primary { background: #4f6ef7; color: #fff; }
+  .action-btn.secondary { background: var(--surface-2, #f3f4f6); color: var(--text-primary, #1a1a1a); border: 1px solid var(--border-primary, #ddd); }
+  .action-btn.locked { background: var(--surface-2, #f3f4f6); color: var(--text-secondary, #aaa); border: 1px dashed var(--border-primary, #ccc); }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 20px; margin-bottom: 16px; }
+  .timeline::before { content: ''; position: absolute; left: 6px; top: 8px; bottom: 8px; width: 2px; background: var(--border-primary, #ddd); }
+  .tl-item { position: relative; margin-bottom: 14px; }
+  .tl-dot {
+    position: absolute; left: -17px; top: 3px; width: 10px; height: 10px;
+    border-radius: 50%; background: #4f6ef7; border: 2px solid #fff; box-shadow: 0 0 0 1px #4f6ef7;
+  }
+  .tl-time { font-size: 10px; font-weight: 700; color: #4f6ef7; margin-bottom: 2px; }
+  .tl-label { font-size: 12px; font-weight: 600; }
+  .tl-desc { font-size: 11px; color: var(--text-secondary, #666); line-height: 1.5; }
+
+  /* State machine */
+  .state-flow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .state-box {
+    padding: 8px 14px; border-radius: 8px; font-size: 11px; font-weight: 600;
+    border: 2px solid;
+  }
+  .state-box.s-pending { border-color: #f59e0b; background: #fffbeb; color: #d97706; }
+  .state-box.s-approved { border-color: #22c55e; background: #f0fdf4; color: #16a34a; }
+  .state-arrow { font-size: 18px; color: var(--text-secondary, #aaa); }
+
+  /* JSON block */
+  .json-block {
+    background: #1e1e2e; border-radius: 8px; padding: 12px 14px; font-family: 'Courier New', monospace;
+    font-size: 10.5px; line-height: 1.6; overflow-x: auto; margin-bottom: 12px;
+    color: #cdd6f4;
+  }
+  .json-key { color: #89b4fa; }
+  .json-str { color: #a6e3a1; }
+  .json-num { color: #fab387; }
+  .json-bool { color: #cba6f7; }
+
+  /* Persona cards */
+  .persona-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .persona-card {
+    border: 1.5px solid var(--border-primary, #e5e7eb); border-radius: 10px; padding: 12px;
+  }
+  .persona-card .persona-icon { font-size: 22px; margin-bottom: 6px; }
+  .persona-card .persona-name { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+  .persona-card .persona-items { list-style: none; }
+  .persona-card .persona-items li { font-size: 11px; color: var(--text-secondary, #555); padding: 2px 0; line-height: 1.4; }
+  .persona-card .persona-items li::before { content: '• '; color: #4f6ef7; }
+
+  /* Warning box */
+  .warning-box {
+    background: #fff7ed; border: 1.5px solid #f97316; border-radius: 8px;
+    padding: 10px 14px; font-size: 11.5px; font-weight: 600; color: #c2410c;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Two-col layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+  /* Next action row */
+  .na-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--border-primary, #eee);
+  }
+  .na-row:last-child { border-bottom: none; }
+  .na-status { flex-shrink: 0; }
+  .na-label { font-size: 12px; font-weight: 600; }
+  .na-reason { font-size: 11px; color: var(--text-secondary, #666); margin-top: 2px; }
+
+  /* DB schema */
+  .db-section { margin-bottom: 20px; }
+  .db-title {
+    background: var(--surface-2, #f5f5f5); border-radius: 8px 8px 0 0;
+    padding: 8px 12px; font-size: 12px; font-weight: 700; border: 1px solid var(--border-primary, #ddd);
+    border-bottom: none;
+  }
+  .db-fields { border: 1px solid var(--border-primary, #ddd); border-radius: 0 0 8px 8px; overflow: hidden; }
+  .db-field { display: flex; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--border-primary, #eee); font-size: 11px; align-items: center; }
+  .db-field:last-child { border-bottom: none; }
+  .db-field-name { font-weight: 600; min-width: 160px; }
+  .db-field-type { color: #4f6ef7; font-size: 10px; }
+  .db-field-desc { color: var(--text-secondary, #666); flex: 1; }
+
+  /* Checklist */
+  .checklist { list-style: none; margin-bottom: 16px; }
+  .checklist li { display: flex; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border-primary, #eee); font-size: 12px; align-items: flex-start; }
+  .checklist li:last-child { border-bottom: none; }
+  .check-icon { flex-shrink: 0; font-size: 14px; }
+  .check-body { flex: 1; }
+  .check-title { font-weight: 600; }
+  .check-desc { font-size: 11px; color: var(--text-secondary, #666); margin-top: 2px; }
+</style>
+
+<h2 class="sr-only">AI 반장 데모 아키텍처 시각화 — Notion 문서 기반 10개 섹션</h2>
+
+<div class="nav-bar">
+  <button class="nav-btn active" onclick="showPage('p0')">🏗 아키텍처</button>
+  <button class="nav-btn" onclick="showPage('p1')">📨 이벤트</button>
+  <button class="nav-btn" onclick="showPage('p2')">🔀 라우팅</button>
+  <button class="nav-btn" onclick="showPage('p3')">📱 UI 화면</button>
+  <button class="nav-btn" onclick="showPage('p4')">👥 페르소나</button>
+  <button class="nav-btn" onclick="showPage('p5')">⚙ 에이전트 I/O</button>
+  <button class="nav-btn" onclick="showPage('p6')">🗃 DB 스키마</button>
+  <button class="nav-btn" onclick="showPage('p7')">🎬 데모 스크립트</button>
+  <button class="nav-btn" onclick="showPage('p8')">✅ 체크리스트</button>
+  <button class="nav-btn" onclick="showPage('p9')">📦 MVP</button>
+</div>
+
+<!-- Page 0: Architecture -->
+<div class="page active" id="p0">
+  <h2>🏗 한 줄 아키텍처</h2>
+  <div class="callout">
+    목표: <strong>챗 입력 없이 [브리핑 버튼]만 눌러도</strong> 3개 에이전트(비자서류 / 인력확보 / 다국어컨택)를 하드코딩 최소화로 호출하고, 결과를 <strong>Briefing → Next Action → Approval → Evidence/Log</strong>로 일관되게 실행한다.
+  </div>
+  <div class="arch-flow">
+    <div class="arch-node orange">
+      <span class="icon">🔘</span>
+      <span class="label">Trigger</span>
+      <span class="sub">브리핑 버튼</span>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-node highlight">
+      <span class="icon">🔀</span>
+      <span class="label">Router</span>
+      <span class="sub">설정+규칙/LLM</span>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-node highlight">
+      <span class="icon">🎯</span>
+      <span class="label">Orchestrator</span>
+      <span class="sub">에이전트 실행</span>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-node">
+      <span class="icon">📋</span>
+      <span class="label">Briefing UI</span>
+      <span class="sub">결과 카드</span>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-node orange">
+      <span class="icon">⚡</span>
+      <span class="label">Action 실행</span>
+      <span class="sub">Approval 게이트</span>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-node green">
+      <span class="icon">📝</span>
+      <span class="label">Evidence/Log</span>
+      <span class="sub">기록 저장</span>
+    </div>
+  </div>
+
+  <h3>3개 에이전트</h3>
+  <div class="cards-grid">
+    <div class="card">
+      <div class="card-num">Agent 1</div>
+      <div class="card-title">🛂 비자서류 에이전트</div>
+      <div class="card-desc">체류기간 D-day 감지, 누락 서류 확인, 제출 패키지 구성</div>
+    </div>
+    <div class="card">
+      <div class="card-num">Agent 2</div>
+      <div class="card-title">👷 인력확보 에이전트</div>
+      <div class="card-desc">채용 파이프라인, 입국 전 서류 패키지, 신규 채용 준비</div>
+    </div>
+    <div class="card">
+      <div class="card-num">Agent 3</div>
+      <div class="card-title">🌐 다국어컨택 에이전트</div>
+      <div class="card-desc">베트남어/한국어 메시지 초안 생성, 채널(Zalo) 발송 준비</div>
+    </div>
+  </div>
+
+  <h3>Briefing 카드 2-Step 흐름</h3>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-num">Step A · 0~10초</div>
+      <div class="card-title">📋 Briefing</div>
+      <div class="card-desc">브리핑 생성 버튼 → 라우팅/실행 → 브리핑 카드 1장<br><br>요약(1문장) · Top 3 · 리스크 · Next Action 버튼들</div>
+    </div>
+    <div class="card">
+      <div class="card-num">Step B</div>
+      <div class="card-title">⚡ Execute</div>
+      <div class="card-desc">Next Action 클릭 → Plan 생성 → (승인) → 실행 → Evidence/Log 기록</div>
+    </div>
+  </div>
+</div>
+
+<!-- Page 1: Event Envelope -->
+<div class="page" id="p1">
+  <h2>📨 표준 이벤트(Envelope): 버튼이 만드는 입력 규격</h2>
+  <p>브리핑 버튼은 "명령어"가 아니라 <strong>컨텍스트 스냅샷 이벤트</strong>를 만든다.</p>
+  <table class="viz-table">
+    <thead>
+      <tr><th>필드</th><th>예시값</th><th>설명</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>trigger_type</code></td>
+        <td><span class="badge badge-blue">briefing_button</span></td>
+        <td>입력 텍스트 없어도 OK</td>
+      </tr>
+      <tr>
+        <td><code>persona</code></td>
+        <td>
+          <span class="badge badge-purple">근로자</span>
+          <span class="badge badge-blue">행정사</span>
+          <span class="badge badge-green">인력담당자</span>
+        </td>
+        <td>라우팅 1순위 feature</td>
+      </tr>
+      <tr>
+        <td><code>policy</code></td>
+        <td>
+          <span class="badge badge-gray">Daily</span>
+          <span class="badge badge-orange">Risk</span>
+          <span class="badge badge-blue">Submission</span>
+          <span class="badge badge-green">Outreach</span>
+        </td>
+        <td>버튼 옵션 (기본값: Daily)</td>
+      </tr>
+      <tr>
+        <td><code>case_url</code></td>
+        <td>현재 보고 있는 케이스</td>
+        <td>항상 포함 (핵심 컨텍스트)</td>
+      </tr>
+      <tr>
+        <td><code>org_url</code></td>
+        <td>회사/고객 URL</td>
+        <td>템플릿/권한 스코프</td>
+      </tr>
+      <tr>
+        <td><code>language</code></td>
+        <td><code>ko</code> / <code>vi</code> / <code>en</code></td>
+        <td>다국어 에이전트 입력</td>
+      </tr>
+      <tr>
+        <td><code>constraints</code></td>
+        <td><code>needs_approval=true</code></td>
+        <td>외부 발송/제출은 승인 필수</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Policy 모드 4가지</h3>
+  <div class="cards-grid">
+    <div class="card">
+      <div class="card-num">Daily Briefing</div>
+      <div class="card-title">📅 일일 브리핑</div>
+      <div class="card-desc">오늘 해야 할 일 / 막힌 점 / Top 3 링크</div>
+    </div>
+    <div class="card">
+      <div class="card-num">Risk Briefing</div>
+      <div class="card-title">⚠️ 리스크 브리핑</div>
+      <div class="card-desc">리스크 / 기한 임박 / 미결정 / 컴플라이언스</div>
+    </div>
+    <div class="card">
+      <div class="card-num">Submission Prep</div>
+      <div class="card-title">📦 제출 준비</div>
+      <div class="card-desc">제출 패키지 구성 (체크리스트/문서 묶기)</div>
+    </div>
+    <div class="card">
+      <div class="card-num">Outreach</div>
+      <div class="card-title">💬 컨택 메시지</div>
+      <div class="card-desc">다국어 메시지 생성 중심, 발송은 승인 필요</div>
+    </div>
+  </div>
+</div>
+
+<!-- Page 2: Routing -->
+<div class="page" id="p2">
+  <h2>🔀 라우팅 설계: 하드코딩을 "설정(Policy/Rules)"으로 빼기</h2>
+
+  <h3>Router 출력물 (표준)</h3>
+  <div class="cards-grid">
+    <div class="card">
+      <div class="card-title">agents_to_run[]</div>
+      <div class="card-desc">이번 브리핑에서 호출할 에이전트 목록</div>
+    </div>
+    <div class="card">
+      <div class="card-title">briefing_template</div>
+      <div class="card-desc">브리핑 카드 출력 템플릿</div>
+    </div>
+    <div class="card">
+      <div class="card-title">next_actions[]</div>
+      <div class="card-desc">다음 액션 후보</div>
+    </div>
+    <div class="card">
+      <div class="card-title">approval_ruleset</div>
+      <div class="card-desc">승인 게이트 규칙</div>
+    </div>
+  </div>
+
+  <h3>라우팅 우선순위</h3>
+  <ul class="priority-list">
+    <li>
+      <div class="priority-num">1</div>
+      <div>
+        <strong>Rule layer (결정적)</strong>
+        <p>금지/필수/우선순위/승인 조건 — 항상 최우선 적용</p>
+      </div>
+    </li>
+    <li>
+      <div class="priority-num">2</div>
+      <div>
+        <strong>LLM layer (보조)</strong>
+        <p>상황 요약, Top 3 선택, 문구 구성 — Rule 이후 보완</p>
+      </div>
+    </li>
+    <li>
+      <div class="priority-num">3</div>
+      <div>
+        <strong>Fallback</strong>
+        <p>Rule만으로도 최소 브리핑 가능하도록 보장</p>
+      </div>
+    </li>
+  </ul>
+
+  <h3>Intent / Case / State 분류 (taxonomy.md 기반)</h3>
+  <table class="viz-table">
+    <thead><tr><th>분류</th><th>값들</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Intent</strong></td>
+        <td>
+          <span class="badge badge-blue">HIRING</span>
+          <span class="badge badge-blue">VISA_CHECK</span>
+          <span class="badge badge-blue">DOCUMENT_CHECK</span>
+          <span class="badge badge-blue">CONTACT</span>
+          <span class="badge badge-blue">BRIEFING</span>
+          <span class="badge badge-gray">UNSUPPORTED_*</span>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Case Type</strong></td>
+        <td>
+          <span class="badge badge-purple">new_hiring</span>
+          <span class="badge badge-purple">workplace_change_intake</span>
+          <span class="badge badge-purple">stay_extension</span>
+          <span class="badge badge-purple">employment_change</span>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>Workflow State</strong></td>
+        <td>draft · site_check · candidate_intake · contract_prep · risk_review · blocked · <span class="badge badge-orange">approval_pending</span> · <span class="badge badge-green">human_approved</span> · handoff_package · completed</td>
+      </tr>
+      <tr>
+        <td><strong>Tool Grade</strong></td>
+        <td>
+          <span class="badge badge-green">SAFE_READ</span>
+          <span class="badge badge-green">SAFE_CALCULATE</span>
+          <span class="badge badge-blue">SAFE_DRAFT</span>
+          <span class="badge badge-orange">APPROVAL_REQUIRED</span>
+          <span class="badge badge-red">FORBIDDEN</span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Page 3: UI Screens -->
+<div class="page" id="p3">
+  <h2>📱 UI 최소 3개 화면 (데모 완성)</h2>
+
+  <!-- Screen 1 -->
+  <div class="screen-mock">
+    <div class="screen-header">
+      <span class="screen-title">Screen 1 · 오늘 브리핑</span>
+      <span class="badge badge-blue">PC / Mobile</span>
+    </div>
+    <div class="screen-body">
+      <div class="cards-grid">
+        <div class="card" style="border-color:#4f6ef7; border-width:2px;">
+          <div class="card-num">카드 1 · 메인</div>
+          <div class="card-title">🔴 Nguyen V. 체류기간 연장 서류 요청</div>
+          <div class="card-desc" style="margin-bottom:8px;">
+            <span class="badge badge-red">D-30</span>
+            <span class="badge badge-orange">누락 2건</span>
+            <span class="badge badge-orange">승인 필요</span>
+          </div>
+          <div>
+            <span class="action-btn primary">초안 보기</span>
+            <span class="action-btn secondary">승인하기</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-num">카드 2 · 보조</div>
+          <div class="card-title">Candidate A 입국 전 서류 패키지</div>
+          <div class="card-desc" style="margin-bottom:8px;">행정사 검토 전 확인 필요</div>
+          <span class="action-btn secondary">검토 자료 보기</span>
+        </div>
+        <div class="card">
+          <div class="card-num">카드 3 · 보조</div>
+          <div class="card-title">신규 베트남 E-9 3명 채용 준비</div>
+          <div class="card-desc" style="margin-bottom:8px;">이번 주 / 준비 체크 필요</div>
+          <span class="action-btn secondary">체크리스트 보기</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 2 -->
+  <div class="screen-mock">
+    <div class="screen-header">
+      <span class="screen-title">Screen 2 · Nguyen 케이스 상세 패널</span>
+      <span class="badge badge-gray">오른쪽 패널 / 바텀시트</span>
+    </div>
+    <div class="screen-body">
+      <div class="two-col">
+        <div>
+          <h3 style="margin-bottom:8px;">필수 블록 4개</h3>
+          <div style="font-size:11.5px; line-height:1.7;">
+            <p><strong>① 왜 확인 필요?</strong> — 체류만료 D-30, 누락 서류 2건</p>
+            <p><strong>② 누락 서류</strong> — 표준근로계약서 사본, 여권 사본</p>
+            <p><strong>③ 이전 기록</strong> — 3일 전 서류 요청 이력 있음</p>
+            <p><strong>④ 다음 할 일</strong></p>
+          </div>
+          <div style="margin-top:8px;">
+            <div class="na-row">
+              <span class="na-status"><span class="badge badge-orange">승인 필요</span></span>
+              <div>
+                <div class="na-label">근로자에게 서류 요청 메시지 발송</div>
+                <div class="na-reason">D-30이고 누락 2건이라 오늘 요청이 필요</div>
+              </div>
+            </div>
+            <div class="na-row">
+              <span class="na-status"><span class="badge badge-gray">예정</span></span>
+              <div>
+                <div class="na-label">2일 내 미응답 시 리마인드 예약</div>
+                <div class="na-reason">3일 전 요청 이력 → 응답 지연 가능성</div>
+              </div>
+            </div>
+            <div class="na-row">
+              <span class="na-status"><span class="badge badge-gray">대기</span></span>
+              <div>
+                <div class="na-label">서류 수신 후 행정사 검토 자료 생성</div>
+                <div class="na-reason">서류 수신 후 활성화</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="warning-box">⚠️ 승인 전에는 외부 발송이 차단됩니다.</div>
+          <div style="margin-bottom:8px;">
+            <span class="action-btn primary">초안 보기</span>
+            <span class="action-btn primary">승인하기</span>
+          </div>
+          <div>
+            <span class="action-btn secondary">판단 기록 #4789</span>
+          </div>
+          <div style="margin-top:12px; font-size:11px; color:var(--text-secondary,#666); background:var(--surface-2,#f5f5f5); border-radius:6px; padding:10px;">
+            <strong>데모 핵심 메시지</strong><br>
+            "외고반장은 답변을 잘하는 챗봇이 아니라, <strong>다음 실행을 버튼으로 만들어서 업무를 앞으로 굴리는 시스템</strong>입니다."
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Screen 3 -->
+  <div class="screen-mock">
+    <div class="screen-header">
+      <span class="screen-title">Screen 3 · 판단 기록 #4789</span>
+      <span class="badge badge-green">타임라인</span>
+    </div>
+    <div class="screen-body">
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-dot"></div>
+          <div class="tl-time">2026-05-15 05:00</div>
+          <div class="tl-label">approval_requested</div>
+          <div class="tl-desc">승인 요청됨 · D-30 + 누락 서류 2건 근거</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:#22c55e; box-shadow: 0 0 0 1px #22c55e;"></div>
+          <div class="tl-time">2026-05-15 05:02</div>
+          <div class="tl-label">approval_completed</div>
+          <div class="tl-desc">대표 모바일 승인 완료 · 발송 준비됨</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Page 4: Personas -->
+<div class="page" id="p4">
+  <h2>👥 페르소나별 출력 가이드 (같은 버튼, 다른 정보)</h2>
+  <p style="margin-bottom:16px;">동일한 케이스(Nguyen)를 3개 페르소나가 다르게 본다.</p>
+  <div class="persona-grid">
+    <div class="persona-card" style="border-color:#7c3aed;">
+      <div class="persona-icon">👷</div>
+      <div class="persona-name" style="color:#7c3aed;">근로자</div>
+      <ul class="persona-items">
+        <li>해야 할 일/서류 준비</li>
+        <li>방문 일정/주의사항</li>
+        <li>쉬운 문장 (다국어)</li>
+        <li>Zalo 채널 수신</li>
+      </ul>
+    </div>
+    <div class="persona-card" style="border-color:#1d4ed8;">
+      <div class="persona-icon">⚖️</div>
+      <div class="persona-name" style="color:#1d4ed8;">행정사</div>
+      <ul class="persona-items">
+        <li>제출요건/누락/리스크</li>
+        <li>근거 메모 (전문가용)</li>
+        <li>source_id 포함</li>
+        <li>evidence_grade 표시</li>
+      </ul>
+    </div>
+    <div class="persona-card" style="border-color:#059669;">
+      <div class="persona-icon">📊</div>
+      <div class="persona-name" style="color:#059669;">인력담당자</div>
+      <ul class="persona-items">
+        <li>파이프라인/컨택 현황</li>
+        <li>병목/비용/리드타임</li>
+        <li>다음 주 채용 준비</li>
+        <li>케이스별 상태 집계</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>상태 머신 (승인 전/후)</h3>
+  <div style="margin-bottom:12px;">
+    <div class="state-flow">
+      <div class="state-box s-pending">approval_required<br><small style="font-weight:400;">승인 필요</small></div>
+      <div class="state-arrow">─ [승인하기] ─›</div>
+      <div class="state-box s-approved">approved<br><small style="font-weight:400;">승인 완료</small></div>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="card" style="border-color:#f59e0b;">
+      <div class="card-num">승인 전</div>
+      <div class="card-title">🔒 잠금 상태</div>
+      <div class="card-desc">
+        <span class="action-btn locked">🔒 서류 요청 메시지 발송</span>
+        <br><span style="font-size:10px; color:var(--text-secondary,#888);">승인 필요</span>
+      </div>
+    </div>
+    <div class="card" style="border-color:#22c55e;">
+      <div class="card-num">승인 후</div>
+      <div class="card-title">✅ 잠금 해제</div>
+      <div class="card-desc">
+        <span class="action-btn primary">✓ 서류 요청 메시지 발송</span>
+        <br><span style="font-size:10px; color:#16a34a;">실행 가능 (활성화)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Page 5: Agent I/O -->
+<div class="page" id="p5">
+  <h2>⚙ 3개 에이전트 공통 실행 규격 (표준 I/O)</h2>
+
+  <div class="two-col">
+    <div>
+      <h3>Input</h3>
+      <div style="background:var(--surface-2,#f5f5f5); border-radius:8px; padding:12px; font-size:12px; line-height:1.8;">
+        <code>CaseContext</code><br>
+        <code>Persona</code><br>
+        <code>Policy</code><br>
+        <code>Language</code><br>
+        <code>Constraints</code>
+      </div>
+    </div>
+    <div>
+      <h3>Output</h3>
+      <div style="background:var(--surface-2,#f5f5f5); border-radius:8px; padding:12px; font-size:12px; line-height:1.8;">
+        <code>briefing_items[]</code> — 카드에 꽂히는 단위<br>
+        <code>next_actions[]</code> — 버튼/플로우 연결<br>
+        <code>artifacts[]</code> — 문서/메시지/체크리스트<br>
+        <code>evidence[]</code> — 근거 링크/데이터 포인트
+      </div>
+    </div>
+  </div>
+
+  <h3>데모 데이터 스키마 (Nguyen 케이스)</h3>
+  <div class="json-block">
+{
+  <span class="json-key">"id"</span>: <span class="json-str">"task_4789"</span>,
+  <span class="json-key">"title"</span>: <span class="json-str">"Nguyen V. 체류기간 연장 서류 요청"</span>,
+  <span class="json-key">"badges"</span>: [<span class="json-str">"D-30"</span>, <span class="json-str">"누락 서류 2건"</span>, <span class="json-str">"승인 필요"</span>],
+  <span class="json-key">"status"</span>: <span class="json-str">"approval_required"</span>,
+  <span class="json-key">"worker"</span>: {
+    <span class="json-key">"displayName"</span>: <span class="json-str">"Nguyen V."</span>,
+    <span class="json-key">"nationality"</span>: <span class="json-str">"베트남"</span>,
+    <span class="json-key">"visaType"</span>: <span class="json-str">"E-9"</span>,
+    <span class="json-key">"contactChannel"</span>: <span class="json-str">"Zalo"</span>,
+    <span class="json-key">"worksite"</span>: <span class="json-str">"화성 2공장"</span>
+  },
+  <span class="json-key">"deadline"</span>: { <span class="json-key">"dDay"</span>: <span class="json-num">30</span>, <span class="json-key">"visaExpiryDate"</span>: <span class="json-str">"2026-06-20"</span> },
+  <span class="json-key">"missingDocuments"</span>: [<span class="json-str">"표준근로계약서 사본"</span>, <span class="json-str">"여권 사본"</span>],
+  <span class="json-key">"sendBlockedBeforeApproval"</span>: <span class="json-bool">true</span>,
+  <span class="json-key">"workLogId"</span>: <span class="json-str">"4789"</span>
+}
+  </div>
+
+  <h3>메시지 템플릿 (VN/KR)</h3>
+  <div class="two-col">
+    <div class="card">
+      <div class="card-num">🇻🇳 베트남어</div>
+      <div class="card-desc" style="font-family:monospace; font-size:11px; line-height:1.6;">
+        Xin chào Nguyen,<br>
+        vui lòng gửi bản sao hợp đồng<br>
+        lao động tiêu chuẩn và hộ chiếu.<br>
+        Cảm ơn bạn.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-num">🇰🇷 한국어</div>
+      <div class="card-desc" style="font-family:monospace; font-size:11px; line-height:1.6;">
+        안녕하세요 Nguyen 씨,<br>
+        표준근로계약서 사본과<br>
+        여권 사본을 보내주세요.<br>
+        감사합니다.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Page 6: DB Schema -->
+<div class="page" id="p6">
+  <h2>🗃 Notion DB 템플릿 (하드코딩을 설정으로 빼는 핵심 저장소)</h2>
+
+  <div class="db-section">
+    <div class="db-title">📋 Routing Policies (DB)</div>
+    <div class="db-fields">
+      <div class="db-field"><div class="db-field-name">Policy 이름</div><div class="db-field-type">Title</div><div class="db-field-desc">Daily / Risk / Submission / Outreach</div></div>
+      <div class="db-field"><div class="db-field-name">Persona</div><div class="db-field-type">Select</div><div class="db-field-desc">근로자 / 행정사 / 인력담당자</div></div>
+      <div class="db-field"><div class="db-field-name">agents_to_run</div><div class="db-field-type">Multi-select</div><div class="db-field-desc">비자서류 / 인력확보 / 다국어컨택</div></div>
+      <div class="db-field"><div class="db-field-name">approval_ruleset</div><div class="db-field-type">Text</div><div class="db-field-desc">외부 발송/제출 = 승인 필수</div></div>
+    </div>
+  </div>
+
+  <div class="db-section">
+    <div class="db-title">📁 Templates (DB)</div>
+    <div class="db-fields">
+      <div class="db-field"><div class="db-field-name">source_type</div><div class="db-field-type">Select</div><div class="db-field-desc">official_law / message_template / internal_checklist</div></div>
+      <div class="db-field"><div class="db-field-name">evidence_grade</div><div class="db-field-type">Select</div><div class="db-field-desc">A (공식법령) · B (공식절차) · E (내부템플릿)</div></div>
+      <div class="db-field"><div class="db-field-name">language</div><div class="db-field-type">Multi-select</div><div class="db-field-desc">ko / vi / en</div></div>
+      <div class="db-field"><div class="db-field-name">mission_agent</div><div class="db-field-type">Multi-select</div><div class="db-field-desc">visa_document / workforce / multilingual_contact</div></div>
+    </div>
+  </div>
+
+  <div class="db-section">
+    <div class="db-title">⚡ Agent Actions Catalog (DB)</div>
+    <div class="db-fields">
+      <div class="db-field"><div class="db-field-name">action_id</div><div class="db-field-type">Text</div><div class="db-field-desc">고유 액션 식별자</div></div>
+      <div class="db-field"><div class="db-field-name">tool_grade</div><div class="db-field-type">Select</div><div class="db-field-desc">SAFE_READ / SAFE_DRAFT / APPROVAL_REQUIRED / FORBIDDEN</div></div>
+      <div class="db-field"><div class="db-field-name">requires_human_approval</div><div class="db-field-type">Checkbox</div><div class="db-field-desc">외부 발송/법적 제출은 true</div></div>
+      <div class="db-field"><div class="db-field-name">output_schema_version</div><div class="db-field-type">Text</div><div class="db-field-desc">버전 관리</div></div>
+    </div>
+  </div>
+
+  <div class="db-section">
+    <div class="db-title">📝 Evidence Log (DB)</div>
+    <div class="db-fields">
+      <div class="db-field"><div class="db-field-name">event_type</div><div class="db-field-type">Select</div><div class="db-field-desc">intent_classified / approval_requested / approval_completed / risk_flagged</div></div>
+      <div class="db-field"><div class="db-field-name">case_url</div><div class="db-field-type">URL</div><div class="db-field-desc">해당 케이스 링크</div></div>
+      <div class="db-field"><div class="db-field-name">rag_sources</div><div class="db-field-type">Text</div><div class="db-field-desc">source_id 리스트 (근거 추적)</div></div>
+      <div class="db-field"><div class="db-field-name">trace_id</div><div class="db-field-type">Text</div><div class="db-field-desc">재현성/디버깅용</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Page 7: Demo Script -->
+<div class="page" id="p7">
+  <h2>🎬 데모 시연 스크립트 (5분 버전)</h2>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#6366f1; box-shadow:0 0 0 1px #6366f1;"></div>
+      <div class="tl-time">0:00 ~ 0:30</div>
+      <div class="tl-label">오늘 브리핑 진입</div>
+      <div class="tl-desc">
+        "외고반장은 입력 없이 오늘 처리할 일을 먼저 브리핑합니다."<br>
+        → 화면: Nguyen 카드 표시 · <span class="badge badge-red">D-30</span> <span class="badge badge-orange">누락 2건</span> <span class="badge badge-orange">승인 필요</span>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#6366f1; box-shadow:0 0 0 1px #6366f1;"></div>
+      <div class="tl-time">0:30 ~ 2:00</div>
+      <div class="tl-label">케이스 상세 · 왜 지금?</div>
+      <div class="tl-desc">
+        "왜 지금인가?" → D-30 · "무엇이 누락?" → 표준근로계약서/여권 사본<br>
+        "이미 요청했나?" → 3일 전 이력<br>
+        "외고반장은 여기서 <strong>Next Action을 버튼으로</strong> 만들어 둡니다."
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#6366f1; box-shadow:0 0 0 1px #6366f1;"></div>
+      <div class="tl-time">2:00 ~ 3:10</div>
+      <div class="tl-label">초안 보기 · 다국어 + 차단</div>
+      <div class="tl-desc">
+        [초안 보기] 클릭<br>
+        "베트남어 원문과 한국어 번역본을 동시에 준비합니다."<br>
+        <span style="color:#c2410c; font-weight:600;">⚠️ "승인 전에는 외부 발송이 차단됩니다."</span>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#22c55e; box-shadow:0 0 0 1px #22c55e;"></div>
+      <div class="tl-time">3:10 ~ 4:10</div>
+      <div class="tl-label">승인 · 상태 변화</div>
+      <div class="tl-desc">
+        [승인하기] 클릭<br>
+        → 상태: <span class="badge badge-orange">승인 필요</span> → <span class="badge badge-green">승인 완료</span><br>
+        → 토스트: "승인 완료 · 판단 기록 #4789에 저장됨"<br>
+        → <strong>Next Action 잠금 해제</strong> · '발송'이 실행 가능으로 전환
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot" style="background:#22c55e; box-shadow:0 0 0 1px #22c55e;"></div>
+      <div class="tl-time">4:10 ~ 5:00</div>
+      <div class="tl-label">판단 기록 #4789 · 다음 할 일</div>
+      <div class="tl-desc">
+        [판단 기록 #4789] 열기: approval_requested → approval_completed<br>
+        "이후 자동으로 리마인드/행정사 패키지로 이어집니다."
+      </div>
+    </div>
+  </div>
+
+  <h3>Live Agent 4단계 (데모 텍스트 고정본)</h3>
+  <div class="screen-mock">
+    <div class="screen-header"><span class="screen-title">⚡ AI 에이전트 처리 중...</span></div>
+    <div class="screen-body">
+      <ul class="priority-list">
+        <li><div class="priority-num" style="background:#22c55e;">✓</div><div>근로자 정보 확인 완료</div></li>
+        <li><div class="priority-num" style="background:#22c55e;">✓</div><div>이전 대화 기록 확인 완료 (3일 전 요청)</div></li>
+        <li><div class="priority-num" style="background:#22c55e;">✓</div><div>메시지 초안 생성 완료 (VN/KR)</div></li>
+        <li><div class="priority-num" style="background:#f59e0b;">⏳</div><div>발송 전 승인 대기</div></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Page 8: Checklist -->
+<div class="page" id="p8">
+  <h2>✅ 데모 패키지 점검: 빠진 것 체크리스트</h2>
+
+  <ul class="checklist">
+    <li>
+      <div class="check-icon">🔴</div>
+      <div class="check-body">
+        <div class="check-title">1순위 · 근로자 수신 단계(인박스) + 응답 1회</div>
+        <div class="check-desc">승인 후 근로자 인박스에 메시지 도착 화면 · 근로자 응답 1회 · 관리자 화면에 '응답 도착' 반영</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-icon">🔴</div>
+      <div class="check-body">
+        <div class="check-title">필수 · Next Action '추천 근거' 1줄</div>
+        <div class="check-desc">각 Next Action 옆에 왜 지금 이 행동을 추천하는지 1줄 표시<br>예: "D-30이고 누락 2건이라 오늘 요청이 필요"</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-icon">🟡</div>
+      <div class="check-body">
+        <div class="check-title">권장 · 조건 충족으로 Next Action 갱신 장면 1회</div>
+        <div class="check-desc">근로자 응답 도착 → 다음 행동 갱신 ("서류 제출 방법 안내" 활성화 등)</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-icon">🟡</div>
+      <div class="check-body">
+        <div class="check-title">권장 · 판단 기록 #4789에 '근거' 흔적 1~2개</div>
+        <div class="check-desc">D-30 계산 근거 · 누락 서류 판정 근거 · 3일 전 요청 이력 · source_id 1개(선택)</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-icon">🟡</div>
+      <div class="check-body">
+        <div class="check-title">권장 · 페르소나별 화면 10초 스냅샷</div>
+        <div class="check-desc">같은 케이스를 근로자/행정사/인력담당자가 다르게 보는 것을 빠르게 보여주기</div>
+      </div>
+    </li>
+    <li>
+      <div class="check-icon">🟡</div>
+      <div class="check-body">
+        <div class="check-title">권장 · 채널 배지 표시 1회</div>
+        <div class="check-desc">근로자 인박스 상단에 <span class="badge badge-blue">Zalo</span> 채널 배지/문구 → 현실감 상승</div>
+      </div>
+    </li>
+  </ul>
+</div>
+
+<!-- Page 9: MVP -->
+<div class="page" id="p9">
+  <h2>📦 MVP 범위 (2주 컷 제안)</h2>
+
+  <div class="cards-grid">
+    <div class="card" style="border-color:#22c55e; border-width:2px;">
+      <div class="card-num" style="color:#16a34a;">✅ 포함</div>
+      <div class="card-title">브리핑 버튼 1개</div>
+      <div class="card-desc">Policy 2개: Daily + Outreach<br>부터 시작</div>
+    </div>
+    <div class="card" style="border-color:#22c55e; border-width:2px;">
+      <div class="card-num" style="color:#16a34a;">✅ 포함</div>
+      <div class="card-title">페르소나 2개부터</div>
+      <div class="card-desc">행정사 + 인력담당자<br>근로자는 이후 추가</div>
+    </div>
+    <div class="card" style="border-color:#22c55e; border-width:2px;">
+      <div class="card-num" style="color:#16a34a;">✅ 반드시</div>
+      <div class="card-title">Evidence Log</div>
+      <div class="card-desc">나중에 후회 방지<br>처음부터 기록</div>
+    </div>
+    <div class="card" style="border-color:#f59e0b; border-width:2px;">
+      <div class="card-num" style="color:#d97706;">⏸ 다음 단계</div>
+      <div class="card-title">실제 발송</div>
+      <div class="card-desc">MVP에서는 "초안 생성 + 승인"까지만<br>실발송은 다음 단계</div>
+    </div>
+  </div>
+
+  <h3>필요한 UI 컴포넌트 6개</h3>
+  <div class="cards-grid">
+    <div class="card">
+      <div class="card-num">①</div>
+      <div class="card-title">브리핑 버튼</div>
+      <div class="card-desc">persona/policy 기본값 기억</div>
+    </div>
+    <div class="card">
+      <div class="card-num">②</div>
+      <div class="card-title">Briefing 카드 뷰</div>
+      <div class="card-desc">출처 에이전트 태그 포함</div>
+    </div>
+    <div class="card">
+      <div class="card-num">③</div>
+      <div class="card-title">Next Action 패널</div>
+      <div class="card-desc">승인 필요 배지 + 추천 근거 1줄</div>
+    </div>
+    <div class="card">
+      <div class="card-num">④</div>
+      <div class="card-title">Approval 모달</div>
+      <div class="card-desc">발송/제출/법적 문구</div>
+    </div>
+    <div class="card">
+      <div class="card-num">⑤</div>
+      <div class="card-title">템플릿 선택기</div>
+      <div class="card-desc">회사 기본 + 케이스 특화</div>
+    </div>
+    <div class="card">
+      <div class="card-num">⑥</div>
+      <div class="card-title">Evidence / Log 탭</div>
+      <div class="card-desc">재현성/디버깅</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const idx = ['p0','p1','p2','p3','p4','p5','p6','p7','p8','p9'].indexOf(id);
+  document.querySelectorAll('.nav-btn')[idx].classList.add('active');
+}
+</script>

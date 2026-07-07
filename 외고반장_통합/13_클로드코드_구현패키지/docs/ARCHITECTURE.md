@@ -1,0 +1,81 @@
+# ARCHITECTURE — 에이전트용 지도
+
+> 목적: 코드를 읽기 전에 이 파일로 위치를 잡는다. 코드 변경으로 이 지도가 낡으면 **같은 PR에서 갱신**한다.
+
+## 1. 제품 한 줄
+
+알림 → 오늘 브리핑(M1) → 케이스 시트(M2) → 초안(M3) → 승인(M4) → 완료(M5) 루프가 본체.
+에이전트 런(M9)과 프로액티브 런이 준비물을 만들고, 사람은 승인만 한다. 모든 판단은 Evidence(M8)에 남는다.
+
+## 2. 진입점
+
+| 무엇을 찾을 때 | 여기서 시작 |
+|---|---|
+| 라우팅·딥링크 | `src/app/router.tsx` — 딥링크 맵은 스펙 `2단계_알림카탈로그` §3과 1:1 |
+| 화면 셸(탭바/헤더) | `src/app/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
+| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래 |
+| 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
+| 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore |
+| 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
+| mock 데이터 | `src/mocks/fixtures.ts` — Nguyen/Tran/Bayar/Candidate/Mohammad/채용 |
+
+## 3. 화면 ↔ 라우트 ↔ 스펙
+
+| 라우트 | 화면 | 스펙 원본 |
+|---|---|---|
+| `/` | M1 브리핑 홈 | 1단계 M1, 탭별기획 §1 |
+| `/cases` `?filter=` | M7 케이스 목록 (+M2 시트) | 1단계 M2·M7, 탭별기획 §2 |
+| `/case/:id/draft` | M3 초안 | 1단계 M3 |
+| `/case/:id/approve` | M4 승인 직전 (런 화면 mode=approval) | 1단계 M4 |
+| `/run/:id` | M9 런 / 재생 | 1단계 M9 (v1.2) |
+| `/messages` `/thread/:id` | 메시지·M6 응답 해석 | 1단계 M6, 탭별기획 §3 |
+| `/evidence` `?ref=` | M8 판단 기록 | 1단계 M8, 탭별기획 §4 |
+| `/package/:id` | 행정사 패키지 | 프로토타입 v3 pkg 화면 |
+| `/done` | M5 완료 (라우트보다 push 화면) | 1단계 M5 |
+
+## 4. 데이터 흐름 (단방향)
+
+```
+mocks/fixtures ──▶ stores (zustand)
+                     │ caseStore: 케이스·NextAction 상태 전이
+                     │ approvalStore: 승인 요청/결정 (idempotency key)
+                     │ evidenceStore: append-only 이벤트 로그
+                     ▼
+               features/* 화면 (구독) ──액션──▶ stores 갱신 ──▶ evidenceStore.append (항상)
+```
+
+- 규칙: 화면은 store를 직접 mutate하지 않는다 — store의 액션 함수만 호출
+- 승인만 예외적으로 "서버 확정 후 반영" 패턴 (MVP에선 mockApi.approve()가 서버 역할)
+
+## 5. 런 시스템 (에이전틱 코어)
+
+```
+runEngine.execute(config: RunConfig)
+  ├─ mode: 'command'(M9) | 'approval'(M4) | 'replay'(#4788)
+  ├─ steps: RunStep[] (thinking|tool_call|guardrail|handoff|replan)
+  ├─ 스트리밍: 스텝 순차 emit → UI StepTimeline 렌더
+  └─ 종료: ResultBlock | requestApproval() — 발송 도구는 존재하지 않음
+```
+
+- MVP의 런은 **각본 기반**(fixtures의 step 배열 재생). 실 LLM 연결은 백엔드 단계 — 인터페이스(RunConfig)를 바꾸지 않고 교체 가능해야 한다
+- 프로액티브 런 = `startedBy:'event'` + 도구 화이트리스트(읽기+초안) + 종착점 승인 요청
+
+## 6. 의존 방향 (위반 금지)
+
+```
+app → features → components, stores, mocks
+components ↛ features (공용 컴포넌트는 도메인을 모른다)
+stores ↛ features
+```
+
+## 7. 흐름도 — 승인 해피패스
+
+```
+M1 카드 [보내기 승인]
+→ router: /case/nguyen/approve
+→ runEngine(mode:approval) 스트리밍 → 완료 후 승인 버튼 enable
+→ approvalStore.decide(approved, idempotencyKey)
+→ caseStore 전이(approval_pending→human_approved)
+→ evidenceStore.append(approval_granted)
+→ M5 push-in → 복귀 시 M1 카드 상태 반영
+```
