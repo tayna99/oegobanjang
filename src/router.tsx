@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
+import { CaseListPage } from '@/features/cases/CaseListPage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { RunPage } from '@/features/run/RunPage';
 import { DraftPage } from '@/features/draft/DraftPage';
@@ -17,7 +18,7 @@ export const routeConfig: RouteObject[] = [
     element: <Shell />,
     children: [
       { index: true, element: <BriefingHomePage /> },
-      { path: ROUTE_PATHS.cases, element: <PlaceholderScreen name="M7 케이스 목록" /> },
+      { path: ROUTE_PATHS.cases, element: <CaseListPage /> },
       {
         path: ROUTE_PATHS.case,
         loader: validateIdParam('caseId'),
