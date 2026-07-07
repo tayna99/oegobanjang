@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -6,6 +7,7 @@ import {
   caseFilterLabel,
   type CaseFilterPreset,
   type CaseGroup,
+  type CaseGroupKey,
 } from '@/lib/cases';
 import type { CaseCard, Severity } from '@/types';
 
@@ -86,8 +88,18 @@ export function CaseListScreen({
   onClearFilter,
   onOpenCase,
 }: CaseListScreenProps) {
+  const [expandedGroups, setExpandedGroups] = useState<Partial<Record<CaseGroupKey, boolean>>>({});
   const visibleCount = groups.reduce((sum, group) => sum + group.cases.length, 0);
   const hasAppliedPreset = preset !== 'all';
+
+  function isGroupCollapsed(group: CaseGroup): boolean {
+    return group.collapsed && !expandedGroups[group.key];
+  }
+
+  function toggleGroup(group: CaseGroup) {
+    if (!group.collapsed) return;
+    setExpandedGroups((current) => ({ ...current, [group.key]: !current[group.key] }));
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-screen-sm flex-col gap-5 px-4 pb-24 pt-5">
@@ -144,23 +156,43 @@ export function CaseListScreen({
         <section className="space-y-5" aria-label="케이스 그룹">
           {groups
             .filter((group) => group.cases.length > 0 || group.key === 'completed')
-            .map((group) => (
-              <section key={group.key} className="space-y-3">
+            .map((group) => {
+              const collapsed = isGroupCollapsed(group);
+              const header = (
                 <div className="flex h-8 items-center justify-between">
                   <h2 className="text-sm font-semibold text-muted">
                     {group.label} · {group.cases.length}
                   </h2>
-                  {group.collapsed ? <span className="text-xs font-medium text-muted">접힘</span> : null}
+                  {group.collapsed ? (
+                    <span className="text-xs font-medium text-muted">{collapsed ? '접힘' : '펼침'}</span>
+                  ) : null}
                 </div>
-                {!group.collapsed ? (
-                  <div className="space-y-3">
-                    {group.cases.map((card) => (
-                      <CaseListItem key={card.caseId} card={card} onOpenCase={onOpenCase} />
-                    ))}
-                  </div>
-                ) : null}
-              </section>
-            ))}
+              );
+
+              return (
+                <section key={group.key} className="space-y-3">
+                  {group.collapsed ? (
+                    <button
+                      type="button"
+                      className="w-full text-left"
+                      aria-expanded={!collapsed}
+                      onClick={() => toggleGroup(group)}
+                    >
+                      {header}
+                    </button>
+                  ) : (
+                    header
+                  )}
+                  {!collapsed ? (
+                    <div className="space-y-3">
+                      {group.cases.map((card) => (
+                        <CaseListItem key={card.caseId} card={card} onOpenCase={onOpenCase} />
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
         </section>
       )}
     </main>

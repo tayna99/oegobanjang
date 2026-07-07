@@ -1,4 +1,4 @@
-import type { CaseCard, Severity } from '@/types';
+import type { CaseCard, NextActionKind, Severity } from '@/types';
 
 export type CaseFilterPreset = 'all' | 'crit' | 'warn' | 'info' | 'approval';
 
@@ -46,6 +46,15 @@ const SEVERITY_RANK: Record<Severity, number> = {
   LOW: 3,
 };
 
+const ACTION_KIND_RANK: Record<NextActionKind, number> = {
+  approve: 0,
+  draft: 1,
+  confirm: 2,
+  thread: 3,
+  package: 4,
+  detail: 5,
+};
+
 export function normalizeCaseFilter(value: string | null | undefined): CaseFilterPreset {
   return value && FILTER_KEYS.has(value as CaseFilterPreset) ? (value as CaseFilterPreset) : 'all';
 }
@@ -69,6 +78,8 @@ export function sortCaseList(cards: CaseCard[]): CaseCard[] {
     const aDay = a.dDay ?? Number.POSITIVE_INFINITY;
     const bDay = b.dDay ?? Number.POSITIVE_INFINITY;
     if (aDay !== bDay) return aDay - bDay;
+    const byType = ACTION_KIND_RANK[a.primaryAction.kind] - ACTION_KIND_RANK[b.primaryAction.kind];
+    if (byType !== 0) return byType;
     return a.caseId.localeCompare(b.caseId);
   });
 }
