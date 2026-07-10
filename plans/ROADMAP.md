@@ -2,6 +2,7 @@
 
 > 태스크 1개 = Claude Code 세션 1개 크기. 순서대로. 각 태스크: 위임 레벨(L1 자율 / L2 계획 승인 / L3 협업) + 읽을 스펙 + DoD(검증 명령).
 > 진행 기록은 `plans/HANDOFF.md`에 남긴다 (에이전트가 태스크 종료 시 갱신).
+> 디자인 기준(2026-07-11 확정): claude.ai/design "Mobile screen design" 프로젝트의 **Montage(Wanted) 시스템** — `rules/design.md`(v2)와 `docs/DESIGN_SYNC_AUDIT_2026-07-11.md` 참조. 전환 작업은 M2.5.
 
 ## M0 — Sanity 기반 (코드보다 검증 먼저)
 
@@ -31,7 +32,22 @@
 | 2.1 | M7 케이스 목록 (필터 칩·그룹·딥링크 프리셋) | L1 | 1단계 M7, 탭별기획 §2 | 필터·정렬 deterministic 테스트 |
 | 2.2 | 메시지 탭 + 스레드 대화 뷰 + M6 응답 해석(isFinal:false→확인) | L2 | 1단계 M6, 탭별기획 §3 | 해석 확인 시 상태 갱신+evidence 테스트 |
 | 2.3 | M8 판단 기록 (타임라인·필터·이벤트 상세 시트·딥링크 하이라이트) | L1 | 1단계 M8, 탭별기획 §4 | 해시만 표시(원문 없음) 테스트 |
-| 2.4 | 행정사 패키지 화면 (candidate/hiring 데이터 구동) | L1 | prototype_v3 pkg | 승인 흐름 단계 렌더 테스트 |
+| 2.4 | 행정사 패키지 화면 (candidate/hiring 데이터 구동) | L1 | prototype_v3 pkg, PC.dc.html 운영관제형 §2d | 승인 흐름 단계 렌더 테스트 |
+
+## M2.5 — 디자인 시스템 v2(Montage) 전환 · PC 확장 화면
+
+> 근거: 디자인 프로젝트(claude.ai/design `bd0fd8f8-615f-48e9-875b-eb5c9e9b398d`)의 `외고반장 PC.dc.html` **통합 재설계(3a·3b·3c) — 사용자 확정(2026-07-11)** + `rules/design.md`(v2) + `docs/DESIGN_SYNC_AUDIT_2026-07-11.md`(매핑표 §3, 판단 §5).
+> 순서: 2.2~2.4 착수 전에 2.5.1~2.5.3을 먼저 끝내는 것을 권장(신규 탭을 v2 토큰으로 바로 구현해 이중 리스킨 방지). 2.5.6은 M3 완료 후.
+> 결정(2026-07-11): CSV 업로드 화면 → **4.4로 신설**(아래 M4 표). 모바일 개편안(`외고반장 Mobile.dc.html` 승인 큐 중심) → **보류, M2.5 범위 밖**(사유: AUDIT §5-4).
+
+| # | 태스크 | 레벨 | 스펙 | DoD |
+|---|---|---|---|---|
+| 2.5.1 | tokens.css v2 — Montage atomic+semantic 2계층·light/dark(`[data-theme="dark"]`) 이식, Tailwind theme `var(--color-*)` 재배선, PC 밀도 타입램프(10.5~13.5px) 토큰 등록 | L1 | rules/design.md(v2) §1·2·3, colors_and_type.css | 토큰 스냅샷 갱신, 다크 테마 스위치 렌더 테스트, Pretendard 로드 확인, PC 타입램프 임의값 0건 |
+| 2.5.2 | 공용 컴포넌트 v2 — Badge→Chip 개명·severity 색표 교체, Button/Card 라디우스·아웃라인(inset box-shadow)·모션(0.2s ease) 전환 | L2 | rules/design.md(v2) §4·5 | Chip severity 색 규칙 테이블 테스트, 아웃라인 inset box-shadow 스냅샷, 기존 테스트 전건 통과 |
+| 2.5.3 | 기구현 화면(M1 전체·2.1 케이스 목록) v2 리스킨 + ui-matcher 기준을 디자인 프로젝트로 교체 + rules/design.md 부록 A 삭제 | L2 | AUDIT §3 매핑표 | 1.6 E2E 통과, verify PASS, 임의 hex 0건(verifier grep) |
+| 2.5.4 | PC 케이스 워크벤치(3b, 3열: 목록·상세·AI 패널) — Shell lg+ 레이아웃 확장, 기존 라우트·스토어 재사용 | L2 | PC.dc.html §3b, 탭별기획 §2 | 3열 렌더·목록↔상세 동기 테스트, 모바일 회귀 없음 |
+| 2.5.5 | PC 거버넌스(3c) — 판단 기록 확장·근거 라이브러리·감사 내보내기 | L2 | PC.dc.html §3c, 탭별기획 §4 | 내보내기 산출물 해시만(원문 없음) 테스트 |
+| 2.5.6 | PC 컨트롤 타워(3a) — 파이프라인·KPI·우선 처리 큐 (**M3 완료 후 착수** — 파이프라인 데이터 의존) | L3 | PC.dc.html §3a, 9단계 P0 | 큐 정렬(위험×D-day) deterministic 테스트, KPI=스토어 파생값 |
 
 ## M3 — 에이전틱 차별화 (9단계 P0)
 
@@ -49,6 +65,7 @@
 | 4.1 | 온보딩 O1~O5 (수기 4필드 → 첫 브리핑 동기 생성 연출) | L2 | 3단계 | E2E: 근로자 1명 등록→첫 카드 도달 |
 | 4.2 | 역할 분기(owner/manager 홈·권한 가드) | L2 | 7단계 §2·6 | 라우트 가드 테스트 (owner의 M9 쓰기 도구 차단) |
 | 4.3 | 승인 본인확인 목업(PIN) + 대리 승인 배지 | L2 | 7단계 §3·4 | 승인 이벤트에 결정자·본인/대리 기록 |
+| 4.4 | CSV 일괄 업로드(PC) — 근로자 대량 등록, 4.1 온보딩과 동일 데이터 계약 공유 | L2 | 통합설계 D4·D6, 8단계 E4 | 잘못된 행(헤더 누락·중복 사번) 검증 실패 테스트, 성공 시 근로자 N명 스토어 반영 테스트 |
 
 ## 백엔드 접속점 (이후 — 별도 계획)
 

@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-07] 2.1 — 완료 (사후 이기 2026-07-11)
+- 한 일: M7 케이스 목록을 `/cases`에 연결 — 필터 칩, 딥링크 프리셋(`?filter=crit|warn|info|approval`), 고정 그룹 순서(승인 대기→즉시 확인→확인 필요→예정→완료(접힘)). 필터·그룹·정렬 로직은 `src/lib/cases.ts` selector로 분리, 화면은 `src/features/cases/`의 `CaseListPage`/`CaseListScreen`. compact 아이템은 CTA 없이 `/case/:caseId`로 진입. (Codex 세션 구현 — PR #2, 커밋 `66e299e`·`e70005f`, 머지 `5531370`)
+- 남은 일 / 중단 지점: 없음. 다음은 ROADMAP 2.2 — 단 M2.5(디자인 시스템 v2 전환) 신설로 2.5.1~2.5.3 선행 권장(ROADMAP 헤더·M2.5 참조).
+- 결정 사항 (다음 세션이 알아야 할 것): M7 필터·정렬 로직은 컴포넌트가 아니라 `src/lib/cases.ts` selector를 기준으로 유지한다.
+- verify 상태: 당시 세션 기록 PASS(`npm run test:run -- src/lib/cases.test.ts src/features/cases/CaseListPage.test.tsx`), 전체 verify는 별도 최종 검증으로 미룸. 이기 세션(문서 전용, Node 미설치 환경)에서는 재실행 불가.
+- 지도/규칙 갱신: 원 기록이 번들 사본 `외고반장_통합/13_클로드코드_구현패키지/plans/HANDOFF.md`에 작성되어 있어 이 파일로 이기함(ROADMAP ✅ 표시도 번들 사본에만 존재). **이후 세션은 반드시 루트 `plans/HANDOFF.md`에 기록할 것.**
+
+---
+
 ### [2026-07-07] 1.6 — 완료
 - 한 일: M3/M4/M5 승인 해피패스 루프 구현. `src/features/draft/DraftPage.tsx`를 추가해 `/case/:caseId/draft`에서 DRAFT fixture 기반 초안, 언어 토글, 수정 요청 BottomSheet, 수정 반영 후 승인 검토 이동을 제공. `src/features/run/RunPage.tsx`의 approval mode 승인 버튼을 `approvalStore.requestApproval/decide` + `caseStore.transition(caseId, 'human_approved')` + `evidenceStore.append(approval_decided)`에 연결하고 `/done`으로 이동. `src/features/done/DonePage.tsx`를 추가해 “발송 승인 완료” 전용 완료 화면을 렌더하되 실제 카톡/문자/정부 제출은 실행하지 않음을 명시. `ApprovalCard`는 `human_approved` 상태에서 “승인 완료” 배지를 표시. 실제 라우터 기반 통합 테스트 `src/features/approvalFlow.test.tsx`를 추가해 `/case/nguyen` → M2 → M3 → M4 → M5 → M1 상태 반영을 검증.
 - 남은 일 / 중단 지점: Playwright 패키지/스크립트는 현재 프로젝트에 없어 ROADMAP의 “playwright E2E”는 Vitest 라우터 통합 테스트로 대체했다. 진짜 브라우저 E2E가 필요하면 Playwright 의존성과 `npm run test:e2e` 스크립트를 별도 태스크로 추가해야 한다. 수정 요청 시트는 고정 “부드럽게 다듬기” 프리셋 1개만 제공한다(자연어 수정 요청/다중 프리셋은 범위 밖).
