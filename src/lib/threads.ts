@@ -2,7 +2,7 @@
 // §3.4 "응답 도착 스레드는 리스트 최상단 고정". 정렬·배지 계산은 여기 한 곳에만
 // (rules/frontend.md "파생값은 selector로 — 컴포넌트에서 정렬·필터 로직 재구현 금지").
 import type { BadgeTone } from './badgeTone';
-import type { MessageThread } from '@/types';
+import type { Message, MessageThread } from '@/types';
 
 export interface ThreadBadge {
   label: string;
@@ -56,4 +56,28 @@ export function sortThreads(threads: MessageThread[]): MessageThread[] {
 
 export function countArrivedResponses(threads: MessageThread[]): number {
   return threads.filter((thread) => thread.interpretationStatus === 'pending_review').length;
+}
+
+// 스레드 상세(M6/타임라인) 시각 표기 — UTC 기준으로 고정해 실행 타임존과 무관하게
+// deterministic하다(GOTCHAS §4 "시간 의존 테스트는 기준일 주입"과 같은 원칙).
+// mocks/threads.ts의 at 값은 v3 원본 주석의 "09:20" 등 표시 시각과 UTC 시·분이 그대로 맞도록 넣어뒀다.
+export function formatClockTime(iso: string): string {
+  const date = new Date(iso);
+  const hh = String(date.getUTCHours()).padStart(2, '0');
+  const mm = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+export function formatDateCaption(iso: string): string {
+  const date = new Date(iso);
+  return `${date.getUTCMonth() + 1}월 ${date.getUTCDate()}일`;
+}
+
+// 타임라인 모드 원문 카드 — 스레드의 가장 최근 수신(in) 메시지. 없으면 undefined
+// (아직 응답이 없는 스레드 = empty 상태).
+export function latestInboundMessage(thread: MessageThread): Message | undefined {
+  for (let i = thread.messages.length - 1; i >= 0; i -= 1) {
+    if (thread.messages[i].direction === 'in') return thread.messages[i];
+  }
+  return undefined;
 }
