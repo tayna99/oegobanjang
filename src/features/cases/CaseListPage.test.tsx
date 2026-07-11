@@ -71,7 +71,7 @@ describe('CaseListPage', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/case/tranCase'));
     expect(screen.getByText('적용됨: 확인 필요')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('bottom-sheet-scrim'));
+    fireEvent.click(await screen.findByTestId('bottom-sheet-scrim'));
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/cases');
