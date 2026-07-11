@@ -46,7 +46,9 @@ function ThemeToggle({ className }: { className?: string }) {
       onClick={toggleTheme}
       aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
       className={cn(
-        'flex size-9 items-center justify-center rounded-in text-muted transition-colors duration-btn ease-v2 active:bg-surface',
+        // 터치 타깃 48px(rules/frontend.md) — 아이콘(20px)은 그대로, 히트 영역만 패딩 대신
+        // size로 확보(정사각 아이콘 버튼이라 justify/items-center로 중앙 정렬 유지가 더 단순).
+        'flex size-12 items-center justify-center rounded-in text-muted transition-colors duration-btn ease-v2 active:bg-surface',
         className,
       )}
     >
