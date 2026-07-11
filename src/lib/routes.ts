@@ -8,6 +8,7 @@ export const ROUTES = {
   case: (caseId: string) => `/case/${caseId}`,
   caseDraft: (caseId: string) => `/case/${caseId}/draft`,
   caseApprove: (caseId: string) => `/case/${caseId}/approve`,
+  caseHistory: (caseId: string) => `/case/${caseId}/history`, // 2d 승인 이력 (M2.6.4 신설)
   run: (runId: string) => `/run/${runId}`,
   messages: '/messages',
   thread: (threadId: string) => `/thread/${threadId}`,
@@ -24,6 +25,7 @@ export const ROUTE_PATHS = {
   case: 'case/:caseId',
   caseDraft: 'case/:caseId/draft',
   caseApprove: 'case/:caseId/approve',
+  caseHistory: 'case/:caseId/history',
   run: 'run/:runId',
   messages: 'messages',
   thread: 'thread/:threadId',

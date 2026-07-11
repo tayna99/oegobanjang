@@ -7,7 +7,16 @@ import type { CaseSheet } from '@/mocks/fixtures';
 
 export const CASE_STAGES = ['감지', '근거 수집', '초안 생성', '승인 대기', '실행 (mock)'] as const;
 
-// 파이프라인 단계 라벨 — 디자인 §3a 타일·§2a 스탯 로우 어휘(블루프린트 §3).
+// 모바일 §2a 진행 배지의 짧은 어휘(감지/근거 수집/초안 생성) — PC §3a 어휘와 표기가 다르다.
+export const AGENT_STAGE_LABELS_SHORT: Record<AgentStage, string> = {
+  detected: '감지',
+  collecting: '근거 수집',
+  drafted: '초안 생성',
+  awaiting_approval: '승인 대기',
+  executed: '실행',
+};
+
+// 파이프라인 단계 라벨 — 디자인 §3a 타일·큐 컬럼 어휘(블루프린트 §3).
 // CASE_STAGES(워크벤치 스테퍼)와 표기가 다른 것은 디자인 원문이 다르기 때문 — 임의 통일 금지.
 export const AGENT_STAGE_LABELS: Record<AgentStage, string> = {
   detected: '감지됨',

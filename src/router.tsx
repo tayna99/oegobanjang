@@ -4,6 +4,8 @@ import { Shell } from '@/Shell';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
+import { CaseHistoryPage } from '@/features/case/CaseHistoryPage';
+import { ApprovePage } from '@/features/approve/ApprovePage';
 import { RunPage } from '@/features/run/RunPage';
 import { DraftPage } from '@/features/draft/DraftPage';
 import { DonePage } from '@/features/done/DonePage';
@@ -30,9 +32,15 @@ export const routeConfig: RouteObject[] = [
         element: <DraftPage />,
       },
       {
+        // M2.6.3: 승인은 사람 체크리스트 페이지(2c)가 담당 — 에이전트 런은 /run/:runId로 이동.
         path: ROUTE_PATHS.caseApprove,
         loader: validateIdParam('caseId'),
-        element: <RunPage />,
+        element: <ApprovePage />,
+      },
+      {
+        path: ROUTE_PATHS.caseHistory,
+        loader: validateIdParam('caseId'),
+        element: <CaseHistoryPage />,
       },
       {
         path: ROUTE_PATHS.run,

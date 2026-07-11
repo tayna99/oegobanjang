@@ -25,9 +25,10 @@
 |---|---|---|
 | `/` | M1 브리핑 홈 | 1단계 M1, 탭별기획 §1 |
 | `/cases` `?filter=` | M7 케이스 목록 (+M2 시트) | 1단계 M2·M7, 탭별기획 §2 |
-| `/case/:caseId` (bare) | M2 케이스 바텀시트 (M1 위에 오버레이) | 2단계 딥링크맵 §3 (N03 등) |
+| `/case/:caseId` (bare) | 2b 사례 검토 전면 페이지(모바일) / PC 워크벤치 선택 상태(lg+) — M2.6.2에서 바텀시트 대체 | 2단계 딥링크맵 §3 (N03 등), Mobile.dc.html §2b |
 | `/case/:id/draft` | M3 초안 | 1단계 M3 |
-| `/case/:id/approve` | M4 승인 직전 (런 화면 mode=approval) | 1단계 M4 |
+| `/case/:id/approve` | 2c 최종 승인 체크리스트(필수 4/4 게이트 + 반려 사유) — M2.6.3에서 런 화면 대체, 에이전트 런은 /run/:runId 전용 | Mobile.dc.html §2c |
+| `/case/:id/history` | 2d 승인 이력(생애 타임라인, 사람 결정만 primary) — M2.6.4 신설 | Mobile.dc.html §2d, 탭별기획 §4.2 |
 | `/run/:id` | M9 런 / 재생 | 1단계 M9 (v1.2) |
 | `/messages` `/thread/:id` | 메시지·M6 응답 해석 | 1단계 M6, 탭별기획 §3 |
 | `/evidence` `?ref=` | M8 판단 기록 | 1단계 M8, 탭별기획 §4 |

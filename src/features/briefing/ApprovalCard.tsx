@@ -1,96 +1,53 @@
 import { Chip } from '@/components/Chip';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
-import { IconSpark } from '@/components/icons';
-import { useNextAction } from '@/lib/actionNav';
-import { useNav } from '@/lib/nav';
-import { dDayLabel, dDayTone } from '@/lib/dday';
+import { dDayLabel } from '@/lib/dday';
 import { severityTone } from '@/lib/chipTone';
 import type { CaseCard } from '@/types';
 
+// 승인 큐 카드 — reference/design-system/외고반장 Mobile.dc.html §2a(52~75행) 이식(M2.6.1).
+// CTA는 "검토" 1개뿐이다: 카드에서는 검토만, 승인은 체크리스트 화면(2c)에서만
+// (GOTCHAS §3 개정 2026-07-11 — 구 2CTA 규칙 대체). preparedRunRef 재생 링크는
+// 2b 검토 페이지의 판단 기록 링크로 이동했다(블루프린트 §2 데모 대응).
+// 버튼 높이는 디자인 34px 대신 h-btn-sm(44px) — 터치 타깃 44px 규칙(rules/frontend.md)이 우선.
+
 export interface ApprovalCardProps {
   data: CaseCard;
-  layout: 'hero' | 'compact';
-  recommendReason?: string;
-  onOpen: () => void;
+  onReview: () => void;
   offlineDisabled?: boolean;
 }
 
-export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDisabled }: ApprovalCardProps) {
-  const handleAction = useNextAction();
-  const nav = useNav();
+const SEVERITY_LABEL: Record<CaseCard['severity'], string> = {
+  CRITICAL: '긴급',
+  HIGH: '높음',
+  MEDIUM: '중간',
+  LOW: '낮음',
+};
 
+export function ApprovalCard({ data, onReview, offlineDisabled }: ApprovalCardProps) {
   return (
-    <Card
-      variant={layout === 'hero' ? 'hero' : 'default'}
-      interactive
-      onClick={onOpen}
-      data-case-id={data.caseId}
-      className="mb-3 cursor-pointer"
-    >
-      <h3 className="mb-0.5 pr-2 text-body1 font-semibold leading-snug">{data.title}</h3>
-      {/* 근로자 부제 — Mobile §2a 카드 서브라인 "Nguyen Van A · 제조1팀" (2.5.4b, title은 업무 단위로 분리) */}
-      {data.workerRef && (
-        <p className="mb-2 text-label1 text-subtle">
-          {data.workerRef.displayName} · {data.workerRef.team}
-        </p>
-      )}
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {data.dDay !== undefined && <Chip tone={dDayTone(data.dDay)}>{dDayLabel(data.dDay)}</Chip>}
-        {data.missingDocCount !== undefined && data.missingDocCount > 0 && (
-          <Chip tone="critical">누락 {data.missingDocCount}건</Chip>
+    <Card data-case-id={data.caseId} className="mb-3 flex items-center gap-3 p-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
+          <Chip tone={severityTone(data.severity)}>
+            {SEVERITY_LABEL[data.severity]}
+            {data.dDay !== undefined ? ` · ${dDayLabel(data.dDay)}` : ''}
+          </Chip>
+          {data.missingDocCount !== undefined && data.missingDocCount > 0 && (
+            <Chip tone="critical">누락 {data.missingDocCount}건</Chip>
+          )}
+          {data.state === 'returned' && <Chip tone="high">반려됨 · 보완 필요</Chip>}
+        </div>
+        <h3 className="truncate text-label1 font-semibold text-ink">{data.title}</h3>
+        {data.workerRef && (
+          <p className="truncate text-pc-xs text-subtle">
+            {data.workerRef.displayName} · {data.workerRef.team}
+          </p>
         )}
-        {data.state === 'human_approved' ? (
-          <Chip tone="positive">승인 완료</Chip>
-        ) : (
-          data.approvalRequired && <Chip tone="approval">승인 필요</Chip>
-        )}
-        <Chip tone={severityTone(data.severity)}>{data.severity}</Chip>
       </div>
-
-      {data.preparedBy === 'agent' && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (data.preparedRunRef) nav.toRun(data.preparedRunRef.replace('#', ''));
-          }}
-          className="mb-3.5 flex w-full items-center gap-2 rounded-in bg-surface px-3 py-2.5 text-left text-label1 font-medium"
-        >
-          <span className="flex size-[22px] shrink-0 items-center justify-center rounded-lg border border-hairline bg-canvas text-primary">
-            <IconSpark width={11} height={11} />
-          </span>
-          <span>AI가 준비를 마쳤습니다</span>
-          {data.preparedRunRef && <span className="ml-auto shrink-0 text-label1 font-semibold text-primary">런 {data.preparedRunRef} 보기 →</span>}
-        </button>
-      )}
-
-      {layout === 'hero' && recommendReason && <p className="mb-1 text-body2 text-muted">{recommendReason}</p>}
-
-      <div className="mt-4 flex gap-2.5">
-        <Button
-          variant="outline"
-          disabled={offlineDisabled && data.secondaryAction.requiresApproval}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleAction(data.caseId, data.secondaryAction);
-          }}
-          className="flex-1"
-        >
-          {data.secondaryAction.label}
-        </Button>
-        <Button
-          variant={layout === 'hero' ? 'primary' : 'secondary'}
-          disabled={offlineDisabled && data.primaryAction.requiresApproval}
-          onClick={(e) => {
-            e.stopPropagation();
-            handleAction(data.caseId, data.primaryAction);
-          }}
-          className="flex-1"
-        >
-          {data.primaryAction.label}
-        </Button>
-      </div>
+      <Button variant="primary" size="sm" disabled={offlineDisabled} onClick={onReview} className="shrink-0">
+        검토
+      </Button>
     </Card>
   );
 }

@@ -47,6 +47,10 @@ export interface CaseSheet {
   nextWake?: string; // AgentActivityBlock.nextWake.condition
 }
 
+// "실행(주) 12 · mock 발송" — 주간 실행(mock) 집계는 백엔드 접속점 전까지 데모 고정값
+// (디자인 §2a 스탯 로우·§3a 타일 5번. 활성 케이스에서 파생 불가한 지난주 이력 값).
+export const EXECUTED_WEEKLY_MOCK = 12;
+
 export const CASE_CARDS: CaseCard[] = [
   {
     caseId: 'batbayar',
