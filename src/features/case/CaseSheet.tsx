@@ -2,6 +2,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { useNextAction } from '@/lib/actionNav';
 import type { CaseSheet as CaseSheetData } from '@/mocks/fixtures';
+import { usableCitations } from '@/stores/citationStore';
 import type { CaseCard } from '@/types';
 
 export interface CaseSheetProps {
@@ -16,7 +17,8 @@ export interface CaseSheetProps {
 export function CaseSheet({ card, sheet, open, onClose }: CaseSheetProps) {
   const handleAction = useNextAction();
   // GOTCHAS §2 "근거 품질 게이트": citation 0건이면 승인 버튼을 locked로 강등.
-  const citationLocked = sheet.citations.length === 0;
+  // F등급(합성 데이터)은 근거로 세지 않는다(§3c 각주 비준, 2.5.4b).
+  const citationLocked = usableCitations(sheet.citations).length === 0;
 
   return (
     <BottomSheet
@@ -43,16 +45,16 @@ export function CaseSheet({ card, sheet, open, onClose }: CaseSheetProps) {
       }
     >
       {/* 1. CaseSummaryBlock */}
-      <h3 className="mb-2 mt-1 text-base font-semibold leading-snug">{card.title}</h3>
-      <p className="mb-5 text-sm leading-relaxed">{sheet.summary}</p>
+      <h3 className="mb-2 mt-1 text-body1 font-semibold leading-snug">{card.title}</h3>
+      <p className="mb-5 text-body2 leading-relaxed">{sheet.summary}</p>
       {sheet.guardNote && (
-        <div className="mb-5 rounded-in bg-pendbg px-3.5 py-3 text-sm leading-relaxed text-pending">
+        <div className="mb-5 rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
           {sheet.guardNote}
         </div>
       )}
       {sheet.readinessPercent !== undefined && (
         <div className="mb-5">
-          <div className="mb-2 text-xs font-semibold text-muted">준비도 {sheet.readinessPercent}%</div>
+          <div className="mb-2 text-caption1 font-semibold text-muted">준비도 {sheet.readinessPercent}%</div>
           <div className="h-1.5 overflow-hidden rounded-full bg-surface">
             <div className="h-full rounded-full bg-primary" style={{ width: `${sheet.readinessPercent}%` }} />
           </div>
@@ -61,9 +63,9 @@ export function CaseSheet({ card, sheet, open, onClose }: CaseSheetProps) {
 
       {/* 2. AICheckedBlock */}
       <div className="mb-5">
-        <div className="mb-2 text-xs font-semibold text-muted">AI가 확인한 내용</div>
+        <div className="mb-2 text-caption1 font-semibold text-muted">AI가 확인한 내용</div>
         {sheet.checkedItems.map(({ label, value }) => (
-          <div key={label} className="flex justify-between border-b border-surface py-2.5 text-sm last:border-none">
+          <div key={label} className="flex justify-between border-b border-surface py-2.5 text-label1 last:border-none">
             <span className="text-muted">{label}</span>
             <span className="font-semibold tabular-nums">{value}</span>
           </div>
@@ -73,11 +75,11 @@ export function CaseSheet({ card, sheet, open, onClose }: CaseSheetProps) {
       {/* 3. MissingDocChecklist */}
       {sheet.docs && sheet.docs.length > 0 && (
         <div className="mb-5">
-          <div className="mb-2 text-xs font-semibold text-muted">서류 · 체크리스트</div>
+          <div className="mb-2 text-caption1 font-semibold text-muted">서류 · 체크리스트</div>
           {sheet.docs.map(({ name, statusLabel }) => (
-            <div key={name} className="flex items-center gap-2.5 border-b border-surface py-2.5 text-sm last:border-none">
+            <div key={name} className="flex items-center gap-2.5 border-b border-surface py-2.5 text-label1 last:border-none">
               <span>{name}</span>
-              <span className="ml-auto text-xs font-semibold text-muted">{statusLabel}</span>
+              <span className="ml-auto text-caption1 font-semibold text-muted">{statusLabel}</span>
             </div>
           ))}
         </div>
@@ -85,19 +87,19 @@ export function CaseSheet({ card, sheet, open, onClose }: CaseSheetProps) {
 
       {/* 4. CitationBlock */}
       <div className="mb-5">
-        <div className="mb-2 text-xs font-semibold text-muted">근거</div>
+        <div className="mb-2 text-caption1 font-semibold text-muted">근거</div>
         {citationLocked ? (
-          <div className="rounded-in bg-pendbg px-3.5 py-3 text-sm leading-relaxed text-pending">
+          <div className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
             공식 근거가 연결되지 않았습니다. 승인 전 확인이 필요합니다.
           </div>
         ) : (
           sheet.citations.map((c) => (
-            <div key={c.title} className="mb-2 rounded-chip bg-surface px-3.5 py-3 text-sm leading-relaxed">
-              <span className="mr-1.5 inline-flex size-[18px] items-center justify-center rounded border border-hairline bg-canvas text-xs font-bold text-primary">
+            <div key={c.title} className="mb-2 rounded-chip bg-surface px-3.5 py-3 text-body2 leading-relaxed">
+              <span className="mr-1.5 inline-flex size-[18px] items-center justify-center rounded border border-hairline bg-canvas text-caption1 font-bold text-primary">
                 {c.grade}
               </span>
               {c.title}
-              <span className="block text-xs text-muted">
+              <span className="block text-caption1 text-muted">
                 {c.source} · {c.updatedAt}
               </span>
             </div>
@@ -108,18 +110,18 @@ export function CaseSheet({ card, sheet, open, onClose }: CaseSheetProps) {
       {/* 5. AgentActivityBlock */}
       {(sheet.activity.length > 0 || sheet.nextWake) && (
         <div className="mb-5">
-          <div className="mb-2 text-xs font-semibold text-muted">이 케이스의 에이전트 활동</div>
+          <div className="mb-2 text-caption1 font-semibold text-muted">이 케이스의 에이전트 활동</div>
           {sheet.activity.length > 0 &&
             sheet.activity.map((a) => (
-              <div key={a.label} className="flex gap-2.5 py-2 text-sm">
-                <span className="min-w-16 shrink-0 text-xs text-muted tabular-nums">{a.at}</span>
+              <div key={a.label} className="flex gap-2.5 py-2 text-label1">
+                <span className="min-w-16 shrink-0 text-caption1 text-muted tabular-nums">{a.at}</span>
                 <span>
                   <b className="block font-semibold">{a.label}</b>
-                  <span className="text-xs text-muted">{a.detail}</span>
+                  <span className="text-caption1 text-muted">{a.detail}</span>
                 </span>
               </div>
             ))}
-          {sheet.nextWake && <div className="mt-1.5 rounded-in bg-surface px-3 py-2.5 text-xs text-muted">{sheet.nextWake}</div>}
+          {sheet.nextWake && <div className="mt-1.5 rounded-in bg-surface px-3 py-2.5 text-caption1 text-muted">{sheet.nextWake}</div>}
         </div>
       )}
     </BottomSheet>

@@ -8,6 +8,7 @@ const HEADER = { companyName: '화성1공장', date: '2026.07.06', unreadNotific
 
 const CARD: CaseCard = {
   caseId: 'nguyen',
+  caseCode: 'case_002',
   title: 'Nguyen V. 체류기간 연장 서류 요청',
   severity: 'HIGH',
   dDay: 30,
@@ -76,8 +77,8 @@ describe('BriefingScreen — 상태 5종', () => {
 
   it('offline: 오프라인 배너를 보여주고 승인 CTA를 비활성화한다', () => {
     renderScreen({ status: 'offline', cachedCards: [CARD], lastSyncedAt: '08:12' });
-    expect(screen.getByText(/오프라인/)).toBeInTheDocument();
-    expect(screen.getByText('08:12')).toBeInTheDocument();
+    // 경고형 배너(2.5.4b, Montage 공용 컴포넌트 §4) — 시각 표기는 제거되고 고정 카피만.
+    expect(screen.getByText('오프라인 상태입니다 · 재연결 시 자동 동기화')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '승인하기' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '초안 보기' })).not.toBeDisabled();
   });

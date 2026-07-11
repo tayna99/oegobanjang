@@ -20,7 +20,7 @@ describe('CaseSheetPage', () => {
     // 배경(M1 브리핑 카드)과 시트(CaseSheet h3)가 같은 케이스 제목을 각자 렌더하므로
     // getByText는 모호해진다 — getAllByText로 "적어도 하나 이상 보인다"만 확인하고,
     // 시트에만 있는 내용(체크리스트 항목)으로 시트가 실제로 열렸는지 구분한다.
-    expect(screen.getAllByText('Nguyen V. 체류기간 연장 서류 요청').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('체류기간 연장 서류 요청').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('체류만료일')).toBeInTheDocument(); // CaseSheet의 AICheckedBlock 전용 내용
     expect(screen.getByText(/오늘 확인이 필요한 업무가/)).toBeInTheDocument();
   });

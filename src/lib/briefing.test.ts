@@ -5,6 +5,7 @@ import type { CaseCard } from '@/types';
 function card(overrides: Partial<CaseCard>): CaseCard {
   return {
     caseId: 'x',
+    caseCode: 'case_x',
     title: 't',
     severity: 'LOW',
     state: 'draft',

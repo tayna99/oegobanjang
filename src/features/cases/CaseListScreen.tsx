@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge } from '@/components/Badge';
+import { Chip } from '@/components/Chip';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import {
@@ -28,9 +28,9 @@ const SEVERITY_LABEL: Record<Severity, string> = {
   LOW: '참고',
 };
 
-const SEVERITY_TONE: Record<Severity, 'critical' | 'warning' | 'neutral'> = {
+const SEVERITY_TONE: Record<Severity, 'critical' | 'high' | 'neutral'> = {
   CRITICAL: 'critical',
-  HIGH: 'warning',
+  HIGH: 'high',
   MEDIUM: 'neutral',
   LOW: 'neutral',
 };
@@ -64,16 +64,21 @@ function CaseListItem({ card, onOpenCase }: { card: CaseCard; onOpenCase: (caseI
     >
       <Card className="space-y-2 p-4 transition hover:border-ink/30 hover:shadow-sm focus-within:border-ink">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="min-w-0 flex-1 text-base font-semibold leading-snug text-ink">{card.title}</h3>
-          <span aria-hidden="true" className="mt-0.5 text-sm font-semibold text-muted">›</span>
+          <h3 className="min-w-0 flex-1 text-body1 font-semibold leading-snug text-ink">{card.title}</h3>
+          <span aria-hidden="true" className="mt-0.5 text-label1 font-semibold text-muted">›</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge tone={SEVERITY_TONE[card.severity]}>{SEVERITY_LABEL[card.severity]}</Badge>
-          {due ? <Badge tone={card.dDay !== undefined && card.dDay < 0 ? 'critical' : 'neutral'}>{due}</Badge> : null}
-          {card.approvalRequired ? <Badge tone="neutral">승인 필요</Badge> : null}
-          {card.missingDocCount ? <Badge tone="warning">서류 {card.missingDocCount}</Badge> : null}
+          <Chip tone={SEVERITY_TONE[card.severity]}>{SEVERITY_LABEL[card.severity]}</Chip>
+          {due ? <Chip tone={card.dDay !== undefined && card.dDay < 0 ? 'critical' : 'neutral'}>{due}</Chip> : null}
+          {/* "승인 필요" 라벨은 그 의미와 일치하는 approval(블루) 톤을 쓴다 — v1은 neutral(회색)로
+              텍스트와 색이 어긋나 있었다(2026-07-11 톤 재정비 중 발견, GOTCHAS 임의값 금지 연장선). */}
+          {card.approvalRequired ? <Chip tone="approval">승인 필요</Chip> : null}
+          {card.missingDocCount ? <Chip tone="high">서류 {card.missingDocCount}</Chip> : null}
         </div>
-        <p className="truncate text-sm text-muted">{caseDescription(card)}</p>
+        {/* 부제 — Mobile §2a 서브라인(근로자 · 팀). 근로자 없는 케이스만 설명 문장 유지. */}
+        <p className="truncate text-label1 text-subtle">
+          {card.workerRef ? `${card.workerRef.displayName} · ${card.workerRef.team}` : caseDescription(card)}
+        </p>
       </Card>
     </button>
   );
@@ -104,8 +109,8 @@ export function CaseListScreen({
   return (
     <main className="mx-auto flex w-full max-w-screen-sm flex-col gap-5 px-4 pb-24 pt-5">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-ink">케이스</h1>
-        <p className="text-sm text-muted">
+        <h1 className="text-heading2 font-semibold text-ink">케이스</h1>
+        <p className="text-label1 text-muted">
           {companyName} · 총 {totalCount}건
         </p>
       </header>
@@ -121,10 +126,12 @@ export function CaseListScreen({
                 aria-pressed={selected}
                 onClick={() => onSelectFilter(filter.key === 'all' ? undefined : filter.key)}
                 className={[
-                  'h-[38px] shrink-0 rounded-[14px] border px-4 text-sm font-semibold transition',
+                  // rounded-[14px]/border-line은 임의값·미정의 색상 클래스였다(GOTCHAS 위반,
+                  // 2026-07-11 토큰 마이그레이션 중 발견해 rounded-chip/border-hairline으로 정정).
+                  'h-[38px] shrink-0 rounded-chip border px-4 text-label1 font-semibold transition',
                   selected
                     ? 'border-ink bg-ink text-white'
-                    : 'border-line bg-surface text-ink hover:border-ink/30',
+                    : 'border-hairline bg-surface text-ink hover:border-ink/30',
                 ].join(' ')}
               >
                 {filter.label}
@@ -134,8 +141,8 @@ export function CaseListScreen({
         </div>
 
         {hasAppliedPreset ? (
-          <div className="flex items-center justify-between rounded-[8px] border border-line bg-surface px-3 py-2">
-            <span className="text-sm font-medium text-ink">적용됨: {caseFilterLabel(preset)}</span>
+          <div className="flex items-center justify-between rounded-in border border-hairline bg-surface px-3 py-2">
+            <span className="text-label1 font-medium text-ink">적용됨: {caseFilterLabel(preset)}</span>
             <Button variant="outline" size="sm" onClick={onClearFilter}>
               해제
             </Button>
@@ -144,8 +151,8 @@ export function CaseListScreen({
       </section>
 
       {visibleCount === 0 ? (
-        <section className="rounded-[8px] border border-line bg-surface p-5 text-center">
-          <p className="text-sm text-muted">조건에 맞는 케이스가 없습니다</p>
+        <section className="rounded-in border border-hairline bg-surface p-5 text-center">
+          <p className="text-body2 text-muted">조건에 맞는 케이스가 없습니다</p>
           {hasAppliedPreset ? (
             <Button className="mt-3" variant="secondary" onClick={onClearFilter}>
               필터 해제
@@ -160,11 +167,11 @@ export function CaseListScreen({
               const collapsed = isGroupCollapsed(group);
               const header = (
                 <div className="flex h-8 items-center justify-between">
-                  <h2 className="text-sm font-semibold text-muted">
+                  <h2 className="text-label1 font-semibold text-muted">
                     {group.label} · {group.cases.length}
                   </h2>
                   {group.collapsed ? (
-                    <span className="text-xs font-medium text-muted">{collapsed ? '접힘' : '펼침'}</span>
+                    <span className="text-caption1 font-medium text-muted">{collapsed ? '접힘' : '펼침'}</span>
                   ) : null}
                 </div>
               );

@@ -9,8 +9,8 @@ export interface BriefingHeaderProps {
 export function BriefingHeader({ companyName, date, unreadNotifications }: BriefingHeaderProps) {
   return (
     <header className="flex items-center justify-between gap-3 py-2">
-      <span className="text-base font-bold">{companyName}</span>
-      <span className="rounded-chip border border-hairline px-3 py-1.5 text-sm font-semibold text-muted">
+      <span className="text-body1 font-bold">{companyName}</span>
+      <span className="rounded-chip border border-hairline px-3 py-1.5 text-label1 font-semibold text-muted">
         {date}
         {unreadNotifications > 0 && (
           <span className="ml-1.5 inline-block size-1.5 rounded-full bg-critical align-middle" aria-hidden="true" />

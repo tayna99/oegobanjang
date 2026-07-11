@@ -1,34 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import type { ApprovalStatus, CaseState, Severity } from '@/types';
-import { approvalStatusTone, caseStateTone, severityTone } from './badgeTone';
+import { approvalStatusTone, caseStateTone, severityTone } from './chipTone';
 
-describe('severityTone — 위험도 배지 색 규칙 (스펙 §0.2)', () => {
+describe('severityTone — 위험도 Chip 색 규칙 (스펙 §0.2, v2 색상표 rules/design.md §5)', () => {
   it.each([
     ['CRITICAL', 'critical'],
-    ['HIGH', 'warning'],
-    ['MEDIUM', 'info'],
+    ['HIGH', 'high'],
+    ['MEDIUM', 'medium'],
     ['LOW', 'neutral'],
   ] as [Severity, ReturnType<typeof severityTone>][])('%s → %s', (severity, tone) => {
     expect(severityTone(severity)).toBe(tone);
   });
 });
 
-describe('approvalStatusTone — 승인 상태 배지 색 규칙 (스펙 §0.2)', () => {
+describe('approvalStatusTone — 승인 상태 Chip 색 규칙', () => {
   it.each([
-    ['pending', 'pending'],
-    ['approved', 'success'],
+    ['pending', 'approval'],
+    ['approved', 'positive'],
     ['rejected', 'neutral'],
-    ['locked', 'pending'],
+    ['locked', 'approval'],
   ] as [ApprovalStatus, ReturnType<typeof approvalStatusTone>][])('%s → %s', (status, tone) => {
     expect(approvalStatusTone(status)).toBe(tone);
   });
 });
 
-describe('caseStateTone — 케이스 상태 배지 색 규칙 (스펙 §0.2)', () => {
+describe('caseStateTone — 케이스 상태 Chip 색 규칙', () => {
   it.each([
-    ['risk_review', 'warning'],
-    ['approval_pending', 'pending'],
-    ['human_approved', 'success'],
+    ['risk_review', 'high'],
+    ['approval_pending', 'approval'],
+    ['human_approved', 'positive'],
     ['completed', 'neutral'],
     ['blocked', 'critical'],
   ] as [CaseState, ReturnType<typeof caseStateTone>][])('%s → %s', (state, tone) => {

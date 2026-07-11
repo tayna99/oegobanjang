@@ -1,52 +1,74 @@
-// EV 이벤트 이식 — reference/prototype_v3.html의 초기 EV 시드(§499)를
-// EvidenceEvent(src/types.ts)로 정규화 (M0.5, docs/SPEC_INDEX.md 이식표).
-// v3의 EV는 이후 addEv() 호출로 승인·응답 등에 append되지만, 그 뒤 항목들은
-// evidenceStore.append()가 실제 상호작용 시점에 만들어야 할 런타임 이벤트다 —
-// 여기서는 "오늘 아침, 앱을 열기 전 이미 기록된" 초기 시드 5건만 이식한다.
+// EV 시드 — 2.5.4b에서 디자인 §3c 감사 로그(외고반장 PC.dc.html 594~599행) 대역으로 치환.
+// #4783~#4791 + 브리핑 발행(9단계 briefing_emitted 계약 유지, §3a 활동 스트림 08:00).
+// hash는 표시용 접두("sha256:9f2c…e1a7") — 원문 PII는 어디에도 없다(INSERT-only, 해시만).
+// 이후 항목들은 evidenceStore.append()가 실제 상호작용 시점에 만드는 런타임 이벤트다.
 import type { EvidenceEvent } from '@/types';
 
 export const EVIDENCE_SEED: EvidenceEvent[] = [
   {
-    id: 'nguyen-run-started',
-    type: 'plan_created',
-    at: '2026-07-04T07:58:00.000Z',
-    caseId: 'nguyen',
-    evidenceRef: '#4788',
-    summary: '프로액티브 런 #4788 실행',
-    actor: '시스템 · Visa Document Agent',
+    id: 'batbayar-export-0031',
+    type: 'exported',
+    at: '2026-07-02T14:10:00.000Z',
+    caseId: 'batbayar',
+    evidenceRef: '#4783',
+    summary: 'Batbayar E. · 행정사 패키지 PDF (export_0031)',
+    actor: '김담당',
+    hash: 'sha256:aa72…3c19',
   },
   {
-    id: 'nguyen-risk-flagged',
+    id: 'batbayar-risk-critical',
     type: 'risk_flagged',
-    at: '2026-07-04T07:58:00.000Z',
-    caseId: 'nguyen',
-    evidenceRef: '#4788',
-    summary: '위험 감지 — Nguyen 체류만료 D-30 (HIGH)',
-    actor: '시스템 · risk_flagged',
+    at: '2026-07-08T08:00:00.000Z',
+    caseId: 'batbayar',
+    evidenceRef: '#4787',
+    summary: 'Batbayar E. · 체류기간 경과 CRITICAL 탐지',
+    actor: 'system',
+    hash: 'sha256:1d95…b8f2',
   },
   {
-    id: 'nguyen-draft-created',
-    type: 'tool_executed',
-    at: '2026-07-04T07:59:00.000Z',
+    id: 'nguyen-risk-high',
+    type: 'risk_flagged',
+    at: '2026-07-09T08:00:00.000Z',
     caseId: 'nguyen',
     evidenceRef: '#4788',
-    summary: 'VN/KR 서류요청 초안 생성',
-    actor: '시스템 · message_drafted · 근거 A',
+    summary: 'Nguyen Van A · 체류만료 D-30 HIGH 상향',
+    actor: 'system',
+    hash: 'sha256:77e0…41cc',
   },
   {
     id: 'nguyen-approval-requested',
     type: 'approval_requested',
-    at: '2026-07-04T07:59:00.000Z',
+    at: '2026-07-09T08:00:00.000Z',
     caseId: 'nguyen',
-    evidenceRef: '#4788',
-    summary: '승인 요청 생성 — 발송 차단 상태',
-    actor: '시스템 · approval_requested',
+    evidenceRef: '#4789',
+    summary: 'Nguyen Van A · 서류요청 발송 승인 요청 생성',
+    actor: 'system',
+    hash: 'sha256:c2af…9b30',
+  },
+  {
+    id: 'siti-approval-requested',
+    type: 'approval_requested',
+    at: '2026-07-09T08:00:00.000Z',
+    caseId: 'siti',
+    evidenceRef: '#4790',
+    summary: 'Siti R. · 신고서 초안 확인 요청 생성',
+    actor: 'system',
+    hash: 'sha256:52d8…a94e',
+  },
+  {
+    id: 'pham-approval-decided',
+    type: 'approval_decided',
+    at: '2026-07-09T16:02:00.000Z',
+    evidenceRef: '#4791',
+    summary: 'Pham Duc M. · 서류 리마인드 발송 승인',
+    actor: '김담당 (본인)',
+    hash: 'sha256:9f2c…e1a7',
   },
   {
     id: 'briefing-emitted',
     type: 'final_response_generated',
-    at: '2026-07-04T08:30:00.000Z',
-    summary: '오늘 브리핑 발행 (3건)',
-    actor: '시스템 · briefing_emitted',
+    at: '2026-07-10T08:00:00.000Z',
+    summary: '브리핑 생성 완료 · 케이스 6건',
+    actor: 'system',
   },
 ];

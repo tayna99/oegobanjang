@@ -18,7 +18,7 @@ describe('RunPage', () => {
 
   it('/run/:runId(command)로 진입하면 runKey가 일치하는 RunConfig를 렌더한다', async () => {
     render(
-      <MemoryRouter initialEntries={['/run/4790']}>
+      <MemoryRouter initialEntries={['/run/4797']}>
         <Routes>
           <Route path="/run/:runId" element={<RunPage />} />
         </Routes>

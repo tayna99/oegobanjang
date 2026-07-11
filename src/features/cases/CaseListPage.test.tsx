@@ -22,8 +22,8 @@ describe('CaseListPage', () => {
     expect(screen.getByRole('button', { name: '즉시 확인' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('적용됨: 즉시 확인')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '즉시 확인 · 1' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Bayar M\./ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Nguyen V\./ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /체류기간 만료 경과/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /체류기간 연장 서류 요청/ })).not.toBeInTheDocument();
   });
 
   it('clears an applied preset back to the full case list', () => {
@@ -33,14 +33,14 @@ describe('CaseListPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '해제' }));
 
     expect(screen.queryByText('적용됨: 승인 대기')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Nguyen V\./ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Bayar M\./ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /체류기간 연장 서류 요청/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /체류기간 만료 경과/ })).toBeInTheDocument();
   });
 
   it('opens the case sheet from a compact list item', async () => {
     const router = renderAt('/cases');
 
-    fireEvent.click(screen.getByRole('button', { name: /Tran T\.H\./ }));
+    fireEvent.click(screen.getByRole('button', { name: /계약-체류 만료일 불일치 검토/ }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/case/tranCase'));
   });
@@ -67,11 +67,14 @@ describe('CaseListPage', () => {
   it('returns to the filtered case list after opening and closing a case sheet', async () => {
     const router = renderAt('/cases?filter=info');
 
-    fireEvent.click(screen.getByRole('button', { name: /Tran T\.H\./ }));
+    fireEvent.click(screen.getByRole('button', { name: /계약-체류 만료일 불일치 검토/ }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/case/tranCase'));
+    // /case/:caseId loader가 비동기라 router state 갱신 후에도 DOM 커밋이 한 틱 늦을 수
+    // 있다(전체 스위트에서만 간헐 실패하던 원인). 시트 DOM이 실제로 나타날 때까지 기다린다.
+    const scrim = await screen.findByTestId('bottom-sheet-scrim', {}, { timeout: 5000 });
     expect(screen.getByText('적용됨: 확인 필요')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('bottom-sheet-scrim'));
+    fireEvent.click(scrim);
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/cases');

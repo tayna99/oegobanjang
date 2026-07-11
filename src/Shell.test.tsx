@@ -3,6 +3,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { Shell } from './Shell';
+import { useThemeStore } from '@/stores/themeStore';
 
 function renderShell(initialPath: string, options: { strict?: boolean } = {}) {
   const router = createMemoryRouter(
@@ -88,5 +89,29 @@ describe('Shell', () => {
       await router.navigate(-1);
     });
     expect(router.state.location.pathname).toBe('/');
+  });
+
+  // M2.5.1 DoD "다크 테마 스위치 렌더 테스트" — Montage v2 semantic 토큰은
+  // [data-theme="dark"]로 이미 분기돼 있으므로(tokens.css), 토글은 <html data-theme>만
+  // 갱신하면 된다. 다른 테스트가 store 상태를 남기지 않도록 시작 시 light로 고정한다.
+  describe('테마 토글', () => {
+    it('버튼을 누르면 <html data-theme>가 light ↔ dark로 전환된다', () => {
+      useThemeStore.getState().setTheme('light');
+      renderShell('/');
+
+      const toggles = screen.getAllByRole('button', { name: '다크 모드로 전환' });
+      expect(document.documentElement.dataset.theme).toBe('light');
+
+      act(() => {
+        toggles[0].click();
+      });
+      expect(document.documentElement.dataset.theme).toBe('dark');
+      expect(screen.getAllByRole('button', { name: '라이트 모드로 전환' }).length).toBeGreaterThan(0);
+
+      act(() => {
+        screen.getAllByRole('button', { name: '라이트 모드로 전환' })[0].click();
+      });
+      expect(document.documentElement.dataset.theme).toBe('light');
+    });
   });
 });

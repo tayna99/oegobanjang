@@ -26,8 +26,8 @@ export function SummaryStatRow({ stats }: SummaryStatRowProps) {
           className="flex-1 rounded-chip border border-hairline bg-canvas p-3.5 text-left transition-shadow duration-fast active:shadow-card"
         >
           <Icon width={20} height={20} className="text-muted" />
-          <div className="mt-1.5 text-xl font-bold tabular-nums">{count}</div>
-          <div className="text-xs font-medium text-muted">
+          <div className="mt-1.5 text-heading2 font-bold tabular-nums">{count}</div>
+          <div className="text-caption1 font-medium text-muted">
             <span>{label}</span> <span>{unit}</span>
           </div>
         </button>

@@ -10,8 +10,8 @@ import type { SummaryStat } from './SummaryStatRow';
 
 // role 소스가 아직 없다(4.2 온보딩·권한 몫) — 지금은 데모 담당자 페르소나로 고정.
 const CURRENT_ROLE: Role = 'manager';
-// 근로자 등록 데이터가 아직 없다(3단계 온보딩 몫) — 지금은 "근로자 있음"을 기본값으로 둔다.
-const CURRENT_WORKER_COUNT = 5;
+// 근로자 등록 데이터가 아직 없다(3단계 온보딩 몫) — 디자인 세계관 6인 로스터(2.5.4b).
+const CURRENT_WORKER_COUNT = 6;
 
 export function BriefingHomePage() {
   const nav = useNav();
@@ -52,7 +52,7 @@ export function BriefingHomePage() {
 
   return (
     <BriefingScreen
-      header={{ companyName: '화성 1공장', date: '2026.07.06', unreadNotifications: 0 }}
+      header={{ companyName: '그린푸드 제조', date: '2026.07.10', unreadNotifications: 0 }}
       state={
         visible.length > 0
           ? { status: 'default', cards: visible, stats, greeting: greetingText(CURRENT_ROLE, visible.length) }

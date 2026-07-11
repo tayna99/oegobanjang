@@ -17,7 +17,7 @@ describe('BriefingHomePage', () => {
       </MemoryRouter>,
     );
     expect(Object.keys(useCaseStore.getState().cases)).toHaveLength(CASE_CARDS.length);
-    expect(screen.getByText(/Nguyen V\./)).toBeInTheDocument();
+    expect(screen.getByText('체류기간 연장 서류 요청')).toBeInTheDocument();
   });
 
   it('이미 caseStore에 데이터가 있으면 다시 시드하지 않는다', () => {
