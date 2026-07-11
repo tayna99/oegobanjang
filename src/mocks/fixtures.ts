@@ -263,8 +263,9 @@ export const CASE_SHEETS: Record<string, CaseSheet> = {
     ],
     // 확인 전 상태 — 해석 카드(src/mocks/threads.ts TRAN_INTERPRETATION.updates)의
     // "누락 → 회사 확인 필요" / "누락 → 제출 예정 · 내일" 전이가 성립하려면 확인 전 값은
-    // 반드시 '누락'이어야 한다. 담당자가 응답 해석을 확인(confirmInterp)한 뒤에만
-    // company_check/requested로 갱신된다(그 갱신 로직은 이 태스크 범위 밖).
+    // 반드시 '누락'이어야 한다. 담당자가 응답 해석을 확인(threadStore.confirmInterpretation)한
+    // 뒤 caseStore.docUpdates에 쌓인 값이 CaseSheetPage에서 statusLabel에 오버레이된다
+    // (status 열거값 자체는 이 화면에서 쓰이지 않으므로 바꾸지 않는다).
     docs: [
       { name: '표준근로계약서', status: 'missing', statusLabel: '누락' },
       { name: '여권 사본', status: 'missing', statusLabel: '누락' },
