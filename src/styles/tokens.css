@@ -27,6 +27,11 @@
   --color-label-alternative: rgba(55, 56, 60, .61);
   --color-label-assistive: rgba(55, 56, 60, .28);
   --color-label-disable: rgba(55, 56, 60, .16);
+  /* .43 계층(2.5.4b) — 디자인 전반의 타임스탬프·해시·비활성 CTA 텍스트.
+     colors_and_type.css에는 없는 이 프로젝트 확장(블루프린트 §3). */
+  --color-label-muted43: rgba(55, 56, 60, .43);
+  /* 진행바 트랙(.12) — 디자인 §3a/§3b 진행바 배경. */
+  --color-track: rgba(112, 115, 124, .12);
   --color-bg-normal: #ffffff;
   --color-bg-alternative: #F7F7F8;
   --color-bg-canvas-alt: #EAEBEC;
@@ -58,6 +63,12 @@
   --chip-approval-bg: var(--atomic-blue-95);
   --chip-neutral-fg: var(--color-label-neutral);
   --chip-neutral-bg: var(--color-fill-normal);
+  /* 파이프라인 단계 칩 2쌍(2.5.4b) — 디자인 §3a/§2a: 초안 생성=보라, 감지=시안.
+     Montage 램프 밖 색이라 이 프로젝트 확장으로 등록(블루프린트 §3). */
+  --chip-draft-fg: #4F29E5;
+  --chip-draft-bg: #F0ECFE;
+  --chip-detected-fg: #006F82;
+  --chip-detected-bg: #DEFAFF;
 
   /* ---- radius (Montage: 버튼 8~12·Chip 6~10·카드 ~12, 사이즈별) ---- */
   --r-btn: 10px;      /* 기본 버튼 + 일반 입력/공지 박스(구 r-in) */
@@ -146,6 +157,12 @@
   --chip-positive-fg: #1ED45A;
   --chip-positive-bg: rgba(30, 212, 90, .16);
   --chip-approval-bg: rgba(51, 133, 255, .16);
+  --chip-draft-fg: #9E86FC;
+  --chip-draft-bg: rgba(125, 94, 247, .16);
+  --chip-detected-fg: #28D0ED;
+  --chip-detected-bg: rgba(40, 208, 237, .14);
+  --color-label-muted43: rgba(174, 176, 182, .43);
+  --color-track: rgba(112, 115, 124, .22);
 }
 
 @media (prefers-reduced-motion: reduce) {

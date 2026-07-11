@@ -12,11 +12,14 @@ interface ApprovalStoreState {
   seenKeys: Set<string>;
   /** 승인 요청 생성 — 액션의 종착점. 직접 발송 함수는 두지 않는다. */
   requestApproval: (actionId: string) => Approval;
-  /** pending → approved|rejected. 같은 idempotencyKey 재호출은 no-op(중복 승인 차단). */
+  /** pending → approved|rejected. 같은 idempotencyKey 재호출은 no-op(중복 승인 차단).
+   *  reason은 반려 사유 — 판단 기록에 남는다(Mobile §2c, 2.5.4b).
+   *  승인은 액션(케이스) 단위로만 — 일괄 승인 API는 만들지 않는다(PC §3a 각주 비준). */
   decide: (
     actionId: string,
     decision: 'approved' | 'rejected',
     idempotencyKey: string,
+    reason?: string,
   ) => Approval;
   /** 승인된 액션만 mock dispatch 경계까지. 미승인이면 가드레일 위반. */
   dispatch: (actionId: string) => DispatchResult;
@@ -37,7 +40,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     return approval;
   },
 
-  decide: (actionId, decision, idempotencyKey) => {
+  decide: (actionId, decision, idempotencyKey, reason) => {
     // 중복 승인 차단: 이미 처리한 키면 상태를 바꾸지 않고 현재값 반환(no-op).
     if (get().seenKeys.has(idempotencyKey)) {
       return get().approvals[actionId];
@@ -51,7 +54,7 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
         `pending 상태에서만 결정 가능: 현재 ${current.status}`,
       );
     }
-    const next: Approval = { ...current, status: decision, idempotencyKey };
+    const next: Approval = { ...current, status: decision, idempotencyKey, reason };
     set((s) => {
       const seenKeys = new Set(s.seenKeys);
       seenKeys.add(idempotencyKey);

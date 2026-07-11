@@ -46,9 +46,9 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     expect(listRail).toBeInTheDocument();
     expect(evidenceRail).toBeInTheDocument();
 
-    // 자동 선택: 그룹·정렬 규칙(lib/cases)상 첫 케이스 = nguyen(승인 대기·HIGH).
+    // 자동 선택: 그룹·정렬 규칙(lib/cases)상 첫 케이스 = siti(승인 대기·HIGH·D-3).
     expect(
-      within(detail).getByRole('heading', { name: 'Nguyen V. 체류기간 연장 서류 요청' }),
+      within(detail).getByRole('heading', { name: '고용변동 신고 기한 임박' }),
     ).toBeInTheDocument();
     // CTA는 데이터 구동 라벨 그대로(카피 창작 금지) + 근거 있음 → 잠금 아님.
     expect(within(detail).getByRole('button', { name: '승인하기' })).toBeEnabled();
@@ -63,12 +63,12 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     const router = renderAt('/cases');
     const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
 
-    fireEvent.click(within(listRail).getByRole('button', { name: /Bayar M\./ }));
+    fireEvent.click(within(listRail).getByRole('button', { name: /체류기간 만료 경과/ }));
 
     // /case/:caseId loader가 비동기라 router state보다 DOM 커밋이 늦을 수 있다 — DOM 기준으로 대기.
     // 전체 스위트 병렬 부하에서 기본 1초가 모자랄 수 있어 여유를 준다.
-    await screen.findByRole('heading', { name: 'Bayar M. 체류기간 경과' }, { timeout: 5000 });
-    expect(router.state.location.pathname).toBe('/case/bayar');
+    await screen.findByRole('heading', { name: '체류기간 만료 경과 · 행정사 검토' }, { timeout: 5000 });
+    expect(router.state.location.pathname).toBe('/case/batbayar');
     const detail = screen.getByRole('region', { name: '케이스 상세' });
     // bayar 가드노트가 상세에 노출된다.
     expect(within(detail).getByText(/행정사 검토로만 진행됩니다/)).toBeInTheDocument();
@@ -78,17 +78,17 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     const router = renderAt('/cases?filter=approval');
     const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
 
-    fireEvent.click(within(listRail).getByRole('button', { name: /Mohammad I\./ }));
-    await screen.findByRole('heading', { name: 'Mohammad I. 서류 보완' }, { timeout: 5000 });
-    await waitFor(() => expect(router.state.location.pathname).toBe('/case/mohammad'));
+    fireEvent.click(within(listRail).getByRole('button', { name: /체류기간 연장 서류 요청/ }));
+    await screen.findByRole('heading', { name: '체류기간 연장 서류 요청' }, { timeout: 5000 });
+    await waitFor(() => expect(router.state.location.pathname).toBe('/case/nguyen'));
 
     const railAfter = screen.getByRole('navigation', { name: '케이스 목록 레일' });
     expect(within(railAfter).getByRole('button', { name: /^승인 대기 \d/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     );
-    // 승인 대기 프리셋: nguyen·mohammad만 남는다.
-    expect(within(railAfter).queryByRole('button', { name: /Tran T\.H\./ })).not.toBeInTheDocument();
+    // 승인 대기 프리셋: siti·nguyen만 남는다(6인 로스터).
+    expect(within(railAfter).queryByRole('button', { name: /계약-체류 만료일 불일치/ })).not.toBeInTheDocument();
   });
 
   it('딥링크 /case/:caseId가 해당 케이스를 선택 상태로 연다', async () => {
@@ -96,22 +96,23 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     // /case/:caseId 라우트는 loader(validateIdParam)가 있어 첫 렌더가 비동기다.
     const detail = await screen.findByRole('region', { name: '케이스 상세' }, { timeout: 5000 });
     expect(
-      within(detail).getByRole('heading', { name: 'Tran T.H. 계약-체류 기간 확인' }),
+      within(detail).getByRole('heading', { name: '계약-체류 만료일 불일치 검토' }),
     ).toBeInTheDocument();
   });
 
-  it('검색어가 목록 레일을 제목 기준으로 거른다', () => {
+  it('검색어가 목록 레일을 제목·근로자명 기준으로 거른다', () => {
     renderAt('/cases');
     fireEvent.change(screen.getByRole('searchbox', { name: '케이스 검색' }), {
-      target: { value: 'Siti' },
+      target: { value: '존재하지않는검색어' },
     });
     const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
     expect(within(listRail).getByText('조건에 맞는 케이스가 없습니다')).toBeInTheDocument();
 
+    // 근로자명 매칭("이름, 케이스 검색" — §3b placeholder): 제목엔 없는 이름으로도 찾는다.
     fireEvent.change(screen.getByRole('searchbox', { name: '케이스 검색' }), {
       target: { value: 'Nguyen' },
     });
-    expect(within(listRail).getByRole('button', { name: /Nguyen V\./ })).toBeInTheDocument();
+    expect(within(listRail).getByRole('button', { name: /체류기간 연장 서류 요청/ })).toBeInTheDocument();
   });
 });
 

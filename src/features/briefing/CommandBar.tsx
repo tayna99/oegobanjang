@@ -6,9 +6,9 @@ export interface CommandBarProps {
 }
 
 // 1단계 스펙 §0.3 CommandBar — 제출 시 M9 에이전트 런을 시작한다. MVP는 자연어
-// 파싱이 없어 제출 내용과 무관하게 항상 command 데모 런(#4790, "이번 달 급한
-// 직원만 정리해줘")으로 진입한다 — 실 파싱은 백엔드 단계
-// (docs/superpowers/specs/2026-07-06-run-engine-steptimeline-design.md).
+// 파싱이 없어 제출 내용과 무관하게 항상 command 데모 런(#4797, "이번 달 급한
+// 직원만 정리해줘")으로 진입한다 — 실 파싱은 백엔드 단계. (#4790은 디자인 §3c에서
+// Siti 승인 요청으로 확정되어 2.5.4b에서 재번호.)
 export function CommandBar({ suggestions }: CommandBarProps) {
   const [value, setValue] = useState('');
   const nav = useNav();
@@ -33,7 +33,7 @@ export function CommandBar({ suggestions }: CommandBarProps) {
         onSubmit={(e) => {
           e.preventDefault();
           setValue('');
-          nav.toRun('4790');
+          nav.toRun('4797');
         }}
         className="flex gap-2"
       >

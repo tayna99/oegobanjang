@@ -3,6 +3,39 @@
 // 필요한 화면 태스크가 그때 이식한다(GOTCHAS: 필요한 만큼만).
 import type { SVGProps } from 'react';
 
+// 탭바 아이콘 3종 — Montage 공용 컴포넌트.dc.html §1 원본(2.5.4b).
+// 브리핑=문서형, 케이스=폴더, 기록=시계. IconHome/IconList/IconDoc은 다른 소비처가 있어 유지.
+export function IconBriefing(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 10h8M8 14h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function IconFolder(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M4 8a2 2 0 012-2h4l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function IconClock(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M12 8v4l3 2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function IconHome(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" {...props}>

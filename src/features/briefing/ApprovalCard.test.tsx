@@ -6,6 +6,7 @@ import type { CaseCard } from '@/types';
 
 const NGUYEN: CaseCard = {
   caseId: 'nguyen',
+  caseCode: 'case_002',
   title: 'Nguyen V. 체류기간 연장 서류 요청',
   severity: 'HIGH',
   dDay: 30,

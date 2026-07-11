@@ -75,7 +75,10 @@ function CaseListItem({ card, onOpenCase }: { card: CaseCard; onOpenCase: (caseI
           {card.approvalRequired ? <Chip tone="approval">승인 필요</Chip> : null}
           {card.missingDocCount ? <Chip tone="high">서류 {card.missingDocCount}</Chip> : null}
         </div>
-        <p className="truncate text-label1 text-muted">{caseDescription(card)}</p>
+        {/* 부제 — Mobile §2a 서브라인(근로자 · 팀). 근로자 없는 케이스만 설명 문장 유지. */}
+        <p className="truncate text-label1 text-subtle">
+          {card.workerRef ? `${card.workerRef.displayName} · ${card.workerRef.team}` : caseDescription(card)}
+        </p>
       </Card>
     </button>
   );

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { RunScreen } from './RunScreen';
 import type { RunViewState } from './RunScreen';
@@ -36,8 +36,11 @@ describe('RunScreen', () => {
     render(<RunScreen state={STREAMING_STATE} />);
     const guardrailItem = screen.getByText('정부 포털 제출 불가').closest('li');
     const toolCallItem = screen.getByText('Nguyen Van A').closest('li');
-    expect(guardrailItem).toHaveClass('bg-warnbg');
-    expect(toolCallItem).not.toHaveClass('bg-warnbg');
+    // 세로형 재설계(2.5.4b): 가드레일 구분은 li 배경이 아니라 경고 톤 칩·라벨이다.
+    // (이 목 스텝은 label도 '가드레일'이라 kind 칩과 텍스트가 중복 — 클래스로 칩을 판별한다.)
+    const guardrailTexts = within(guardrailItem as HTMLElement).getAllByText('가드레일');
+    expect(guardrailTexts.some((el) => el.className.includes('bg-warnbg'))).toBe(true);
+    expect(within(toolCallItem as HTMLElement).queryByText('가드레일')).not.toBeInTheDocument();
   });
 
   it('readOnly(replay)에서는 승인/대안 버튼을 렌더하지 않는다', () => {
@@ -48,7 +51,7 @@ describe('RunScreen', () => {
 
   it('offline 상태에서는 오프라인 배너와 승인 불가 안내를 보여준다', () => {
     render(<RunScreen state={{ status: 'offline', lastSyncedAt: '10:00' }} />);
-    expect(screen.getByText(/^오프라인 ·/)).toBeInTheDocument();
+    expect(screen.getByText('오프라인 상태입니다 · 재연결 시 자동 동기화')).toBeInTheDocument();
     expect(screen.getByText('오프라인 상태에서는 승인을 진행할 수 없습니다.')).toBeInTheDocument();
   });
 

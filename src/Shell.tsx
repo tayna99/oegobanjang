@@ -1,15 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/cn';
-import { IconDoc, IconHome, IconList, IconMoon, IconMsg, IconSun } from '@/components/icons';
+import { IconBriefing, IconClock, IconFolder, IconMoon, IconMsg, IconSun } from '@/components/icons';
 import { ROUTES } from '@/lib/routes';
 import { useThemeStore } from '@/stores/themeStore';
 
 const TABS = [
-  { to: ROUTES.home, label: '브리핑', Icon: IconHome },
-  { to: ROUTES.cases(), label: '케이스', Icon: IconList },
+  // 아이콘·색 — Montage 공용 컴포넌트.dc.html §1(2.5.4b): 브리핑=문서형, 케이스=폴더, 기록=시계.
+  { to: ROUTES.home, label: '브리핑', Icon: IconBriefing },
+  { to: ROUTES.cases(), label: '케이스', Icon: IconFolder },
   { to: ROUTES.messages, label: '메시지', Icon: IconMsg },
-  { to: ROUTES.evidence(), label: '기록', Icon: IconDoc },
+  { to: ROUTES.evidence(), label: '기록', Icon: IconClock },
 ] as const;
 
 // 딥링크로 바로 진입한 경우(최초 위치가 '/'가 아님) 백스택을 M1 → 목적지로
@@ -101,7 +102,8 @@ export function Shell() {
             className={({ isActive }) =>
               cn(
                 'flex flex-1 flex-col items-center justify-center gap-1 text-tabbar-label font-semibold',
-                isActive ? 'text-primary' : 'text-faint',
+                // 비활성 탭 = label.alternative(.61) — Montage 공용 컴포넌트 §1 (구 faint .28은 대비 부족)
+                isActive ? 'text-primary' : 'text-subtle',
               )
             }
           >

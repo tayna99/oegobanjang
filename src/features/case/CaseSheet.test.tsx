@@ -7,7 +7,8 @@ import type { CaseSheet as CaseSheetData } from '@/mocks/fixtures';
 
 const CARD: CaseCard = {
   caseId: 'nguyen',
-  title: 'Nguyen V. 체류기간 연장 서류 요청',
+  caseCode: 'case_002',
+  title: '체류기간 연장 서류 요청',
   severity: 'HIGH',
   dDay: 30,
   missingDocCount: 2,

@@ -8,7 +8,8 @@ import { useIsDesktop } from '@/lib/useIsDesktop';
 import { CaseListScreen } from './CaseListScreen';
 import { CaseWorkbenchPage } from './CaseWorkbenchPage';
 
-const COMPANY_NAME = '화성 1공장';
+// 디자인 세계관 사업장명(2.5.4b) — §3a/§3b 상단 바 "그린푸드 제조".
+const COMPANY_NAME = '그린푸드 제조';
 
 interface CaseListPageProps {
   filterOverride?: string | null;

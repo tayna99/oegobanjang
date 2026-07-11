@@ -10,6 +10,7 @@ const action = (id: string) => id;
 function seedCase(state: CaseCard['state']): CaseCard {
   const card: CaseCard = {
     caseId: 'c1',
+    caseCode: 'case_test',
     title: '테스트 케이스',
     severity: 'HIGH',
     state,
@@ -160,5 +161,34 @@ describe('가드레일 보강 — Case 상태 전이', () => {
     expect(() =>
       useCaseStore.getState().transition('c1', 'risk_review'),
     ).toThrow(GuardrailError);
+  });
+
+  it('반려(returned) 왕복 — 승인 대기↔반려만 허용 (Mobile §2c, 2.5.4b)', () => {
+    seedCase('approval_pending');
+    const { transition } = useCaseStore.getState();
+    transition('c1', 'returned');
+    expect(useCaseStore.getState().cases['c1'].state).toBe('returned');
+    transition('c1', 'approval_pending');
+    expect(useCaseStore.getState().cases['c1'].state).toBe('approval_pending');
+    // returned에서 승인/완료로 건너뛰기는 불가.
+    useCaseStore.getState().transition('c1', 'returned');
+    expect(() => useCaseStore.getState().transition('c1', 'human_approved')).toThrow(GuardrailError);
+  });
+});
+
+describe('가드레일 보강 — 반려 사유·케이스 단위 승인 (2.5.4b)', () => {
+  it('반려 시 사유가 승인 기록에 남는다 ("반려 시 사유가 판단 기록에 남고 …" Mobile §2c)', () => {
+    const store = useApprovalStore.getState();
+    store.requestApproval('a1');
+    const rejected = store.decide('a1', 'rejected', 'key-1', '근거 문서 최신성 확인 필요');
+    expect(rejected.status).toBe('rejected');
+    expect(rejected.reason).toBe('근거 문서 최신성 확인 필요');
+  });
+
+  it('승인은 액션 단위 API만 존재한다 — 일괄 승인 금지 (PC §3a "승인은 케이스 단위로만" 비준)', () => {
+    const store = useApprovalStore.getState() as unknown as Record<string, unknown>;
+    expect(store.decideAll).toBeUndefined();
+    expect(store.approveAll).toBeUndefined();
+    expect(store.batchDecide).toBeUndefined();
   });
 });

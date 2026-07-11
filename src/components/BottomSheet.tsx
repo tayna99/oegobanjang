@@ -27,7 +27,7 @@ export function BottomSheet({ open, onClose, dismissible = true, footer, childre
           aria-label="시트 닫기"
           className="flex justify-center py-3"
         >
-          <span className="h-1 w-9 rounded-full bg-hairline" />
+          <span className="h-1 w-9 rounded-full bg-line" />
         </button>
         <div className="flex-1 overflow-y-auto px-6 pb-2">{children}</div>
         {footer && <div className="border-t border-hairline px-6 py-3">{footer}</div>}

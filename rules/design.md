@@ -65,10 +65,20 @@ Tailwind theme에서는 hex를 복제하지 말고 `var(--color-*)`를 참조한
 | MEDIUM | `#9C5800`(`orange-30`) | `#FFFCF7`(`orange-99`) |
 | 완료(승인/positive) | `#009632` | `#D9FFE6` |
 | 승인 필요(정보) | `#0066FF` | `#EAF2FE` |
+| 초안 생성(파이프라인) | `#4F29E5` | `#F0ECFE` |
+| 감지(파이프라인) | `#006F82` | `#DEFAFF` |
+
+파이프라인 2행은 2.5.4b에서 추가(디자인 §3a/§2a — Montage 램프 밖 프로젝트 확장, `--chip-draft-*`/`--chip-detected-*`). 근거 등급에 **F(합성 데이터)** 가 추가됐다 — **F등급은 근거로 사용 불가**(§3c 각주 비준, `usableCitations`가 citation-0 잠금 판정에서 제외).
 
 ## 6. Montage에 없어서 자체 제작인 컴포넌트
 
-BottomSheet, SafetyNotice, OfflineBanner, Skeleton, StepTimeline, 모바일 탭바 — Montage 라이브러리엔 없다. 위 토큰/규칙(라디우스, 아웃라인, 모션, 컬러 페어링)만 지켜서 유지·리스킨한다. 그 외 시각 요소를 임의로 발명하지 말 것.
+BottomSheet, SafetyNotice, OfflineBanner, Skeleton, StepTimeline, 모바일 탭바 — 시각·모션 스펙의 원본은 `reference/design-system/Montage 공용 컴포넌트.dc.html`(2026-07-11 고정)이며 2.5.4b에서 전부 정합 완료:
+- **SafetyNotice 2형** — neutral(고정 문구 전용, children 불가) / emphasis(오렌지 경고, 상황 문구)
+- **OfflineBanner 경고형** — orange-95 배경 + "오프라인 상태입니다 · 재연결 시 자동 동기화" + 재시도 링크(onRetry 있을 때만)
+- **Skeleton shimmer** — fill 토큰 그라데이션 1.6s ease(reduced-motion 정지), 기하 유지
+- **StepTimeline 세로형** — done=초록 체크 원 / streaming 마지막=파랑 펄스 링(step-ring) / 가드레일=경고 톤 칩·라벨(숨김 금지)
+- **탭바** — 활성 primary / 비활성 label.alternative(.61), 아이콘: 브리핑=문서형·케이스=폴더·기록=시계
+그 외 시각 요소를 임의로 발명하지 말 것.
 
 ## 7. 상태 표현 (v1에서 승계 — 디자인 시스템 독립 규칙)
 

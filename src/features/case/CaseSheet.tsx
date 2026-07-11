@@ -2,6 +2,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { useNextAction } from '@/lib/actionNav';
 import type { CaseSheet as CaseSheetData } from '@/mocks/fixtures';
+import { usableCitations } from '@/stores/citationStore';
 import type { CaseCard } from '@/types';
 
 export interface CaseSheetProps {
@@ -16,7 +17,8 @@ export interface CaseSheetProps {
 export function CaseSheet({ card, sheet, open, onClose }: CaseSheetProps) {
   const handleAction = useNextAction();
   // GOTCHAS §2 "근거 품질 게이트": citation 0건이면 승인 버튼을 locked로 강등.
-  const citationLocked = sheet.citations.length === 0;
+  // F등급(합성 데이터)은 근거로 세지 않는다(§3c 각주 비준, 2.5.4b).
+  const citationLocked = usableCitations(sheet.citations).length === 0;
 
   return (
     <BottomSheet

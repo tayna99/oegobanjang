@@ -1,7 +1,7 @@
 // DRAFT 레지스트리 이식 — reference/prototype_v3.html의 DRAFT(§618)를
 // 1단계 스펙 §M3 컴포넌트 계약으로 정규화 (M0.5, docs/SPEC_INDEX.md 이식표: KR/VN/EN + revised).
-// 스펙 §M3의 LangToggle은 'ko'|'vi'|'id'만 정의하지만 v3 실데이터는 영어(mohammad)도 쓴다 —
-// SPEC_INDEX 이식표가 명시한 "EN" 반영을 위해 로컬 타입에 'en'을 포함한다.
+// 스펙 §M3의 LangToggle은 'ko'|'vi'|'id'만 정의하지만 이식표가 "EN"도 명시해
+// 로컬 타입에 'en'을 유지한다(2.5.4b 로스터 치환 후 현재 en 초안은 없음).
 
 export type DraftLangCode = 'ko' | 'vi' | 'en';
 
@@ -54,26 +54,6 @@ export const DRAFTS: Record<string, DraftFixture> = {
     revisedText:
       '안녕하세요 Nguyen 씨, 잘 지내고 계신가요.\n체류기간 연장을 준비하고 있어 서류 두 가지를 부탁드리려고 합니다.\n\n· 표준근로계약서 사본\n· 여권 사본\n\n바쁘시겠지만 이번 주 안에 보내주시면 큰 도움이 됩니다.\n제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.\n\n항상 감사합니다.',
   },
-  mohammad: {
-    draftKey: 'mohammad',
-    caseId: 'mohammad',
-    title: '건강검진 갱신 요청',
-    channel: 'SMS',
-    langs: [
-      {
-        lang: 'ko',
-        label: '한국어',
-        text: '안녕하세요 Mohammad 씨,\n건강검진 확인서가 곧 만료됩니다.\n지정 병원에서 검진 후 확인서를 보내주세요.\n\n기한: 7월 18일까지\n제출하신 서류는 고용 관련 행정 절차에만 사용됩니다.',
-      },
-      {
-        lang: 'en',
-        label: '영어',
-        text: 'Hello Mohammad,\nyour health check certificate will expire soon.\nPlease complete the check-up at a designated clinic and send the certificate.\n\nDeadline: July 18\nDocuments are used only for employment procedures.',
-      },
-    ],
-    revisedText:
-      '안녕하세요 Mohammad 씨, 수고 많으십니다.\n건강검진 확인서 만료일이 다가와 미리 안내드립니다.\n지정 병원에서 검진을 받으신 뒤 확인서를 보내주시면 됩니다.\n\n기한: 7월 18일까지\n제출하신 서류는 고용 관련 행정 절차에만 사용됩니다.',
-  },
   tranReminder: {
     draftKey: 'tranReminder',
     caseId: 'tranCase',
@@ -101,11 +81,6 @@ export const DRAFT_SCENARIOS: Record<string, DraftScenario[]> = {
     scenario('긍정 응답', '서류 수신 후 검토 자료에 반영'),
     scenario('추가 질문', '서류 형식 기준 재안내'),
     scenario('응답 지연', '2일 뒤 리마인드 제안'),
-  ],
-  mohammad: [
-    scenario('긍정 응답', '확인서 수신 후 상태 갱신'),
-    scenario('일정 문의', '지정 병원 목록 안내'),
-    scenario('응답 지연', 'D-7 리마인드 예약'),
   ],
   tranReminder: [
     scenario('긍정 응답', '여권 수신 후 상태 갱신'),

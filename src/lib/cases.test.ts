@@ -41,10 +41,11 @@ describe('case list selectors', () => {
       'scheduled',
       'completed',
     ]);
+    // 6인 로스터(2.5.4b): 승인 대기 = siti(D-3)·nguyen(D-30) — 같은 HIGH라 D-day 오름차순.
     expect(groups.map((group) => group.cases.map((item) => item.caseId))).toEqual([
-      ['nguyen', 'mohammad'],
-      ['bayar'],
-      ['tranCase', 'hiring'],
+      ['siti', 'nguyen'],
+      ['batbayar'],
+      ['tranCase', 'rahmat', 'oyunaa'],
       [],
       [],
     ]);
@@ -59,11 +60,11 @@ describe('case list selectors', () => {
 
   it('applies deep-link presets before grouping', () => {
     expect(buildCaseGroups(CASE_CARDS, 'crit').flatMap((group) => group.cases.map((item) => item.caseId))).toEqual([
-      'bayar',
+      'batbayar',
     ]);
     expect(buildCaseGroups(CASE_CARDS, 'approval').flatMap((group) => group.cases.map((item) => item.caseId))).toEqual([
+      'siti',
       'nguyen',
-      'mohammad',
     ]);
   });
 

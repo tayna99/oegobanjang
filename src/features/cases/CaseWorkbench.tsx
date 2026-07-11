@@ -10,6 +10,7 @@ import { cn } from '@/lib/cn';
 import { dDayLabel, dDayTone, type DDayTone } from '@/lib/dday';
 import { CASE_SHEETS, type CaseSheet } from '@/mocks/fixtures';
 import { DRAFTS } from '@/mocks/drafts';
+import { usableCitations } from '@/stores/citationStore';
 import type { CaseCard, Severity } from '@/types';
 
 // PC 케이스 워크벤치(M2.5.4) — reference/design-system/외고반장 PC.dc.html §3b(234~455행)
@@ -65,6 +66,8 @@ function initials(card: CaseCard): string {
 }
 
 function readinessPercent(card: CaseCard, sheet?: CaseSheet): number {
+  // 근거 완성도(디자인 §3a 컬럼, 2.5.4b 필드)가 진행바의 1차 소스.
+  if (card.evidenceCompleteness !== undefined) return card.evidenceCompleteness;
   if (sheet?.readinessPercent !== undefined) return sheet.readinessPercent;
   return Math.round((caseStageIndex(card, sheet) / (CASE_STAGES.length - 1)) * 100);
 }
@@ -111,8 +114,8 @@ function CaseListRow({
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-pc-sm font-semibold text-ink">{card.title}</span>
-        <span className="truncate text-pc-2xs text-muted">
-          {card.workerRef ? `${card.workerRef.nationality} · ${groupLabelFor(card)}` : groupLabelFor(card)}
+        <span className="truncate text-pc-2xs text-subtle">
+          {card.workerRef ? `${card.workerRef.team} · ${groupLabelFor(card)}` : groupLabelFor(card)}
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
@@ -381,7 +384,13 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
   const visibleCards = useMemo(() => {
     const flat = groups.flatMap((group) => group.cases);
     const trimmed = query.trim().toLowerCase();
-    return trimmed ? flat.filter((card) => card.title.toLowerCase().includes(trimmed)) : flat;
+    if (!trimmed) return flat;
+    // "이름, 케이스 검색"(§3b placeholder) — 제목 + 근로자명 둘 다 매칭(2.5.4b).
+    return flat.filter(
+      (card) =>
+        card.title.toLowerCase().includes(trimmed) ||
+        (card.workerRef?.displayName.toLowerCase().includes(trimmed) ?? false),
+    );
   }, [groups, query]);
 
   // 목록↔상세 동기: URL의 caseId가 진실이고, 없으면 보이는 첫 케이스를 기본 선택한다.
@@ -389,7 +398,8 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
     (selectedCaseId && cards.find((card) => card.caseId === selectedCaseId)) || visibleCards[0];
   const sheet = selected ? CASE_SHEETS[selected.caseId] : undefined;
   // GOTCHAS §2 근거 품질 게이트 — CaseSheet와 동일한 잠금 규칙.
-  const citationLocked = sheet ? sheet.citations.length === 0 : true;
+  // F등급(합성 데이터)은 근거로 세지 않는다(§3c 각주 비준, 2.5.4b).
+  const citationLocked = sheet ? usableCitations(sheet.citations).length === 0 : true;
 
   return (
     <section aria-label="케이스 워크벤치" className="flex h-[calc(100dvh-4rem)] overflow-hidden bg-surface">
@@ -471,8 +481,15 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
                       {groupLabelFor(selected)}
                     </Chip>
                   </div>
-                  <p className="truncate text-caption1 text-muted">
-                    {sheet.summary}
+                  {/* 메타 라인 — §3b 321행 구조("E-9 · 제조1팀 · … · case_002 · 판단 기록 #") */}
+                  <p className="truncate text-caption1 text-subtle">
+                    {[
+                      selected.workerRef && `E-9 · ${selected.workerRef.team} · ${selected.workerRef.nationality}`,
+                      selected.stayExpiryDate && `체류만료 ${selected.stayExpiryDate}`,
+                      selected.caseCode,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                     {selected.preparedRunRef ? (
                       <>
                         {' · 판단 기록 '}

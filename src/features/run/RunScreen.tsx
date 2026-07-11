@@ -56,7 +56,7 @@ export function RunScreen({ state, onApprove, onAlt }: RunScreenProps) {
   return (
     <div className="p-5">
       <h2 className="mb-3 text-heading2 font-semibold text-ink">{state.title}</h2>
-      <StepTimeline steps={state.steps} />
+      <StepTimeline steps={state.steps} streaming={state.engineStatus === 'streaming'} />
       {!state.readOnly && (
         <>
           <p className="mb-1 mt-4 text-body2 text-ink">{state.question}</p>

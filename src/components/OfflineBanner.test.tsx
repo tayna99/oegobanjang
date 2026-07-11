@@ -1,18 +1,24 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { OfflineBanner } from './OfflineBanner';
 
+// 경고형 재설계(2.5.4b, Montage 공용 컴포넌트 §4) 계약:
+// 오렌지 배너 + 고정 카피 + onRetry가 있을 때만 "재시도" 링크.
 describe('OfflineBanner', () => {
-  it('전달된 lastSyncedAt이 텍스트에 그대로 나타난다', () => {
-    render(<OfflineBanner lastSyncedAt="14:32" />);
-    expect(screen.getByText(/마지막 업데이트/)).toBeInTheDocument();
-    // lastSyncedAt은 자체 span으로 분리돼 있다 — 1.3 BriefingScreen 오프라인 테스트가
-    // getByText(정확한 시각)로 단독 조회해야 하기 때문(get-node-text는 직계 텍스트 노드만 본다).
-    expect(screen.getByText('14:32')).toBeInTheDocument();
+  it('경고형 고정 카피를 렌더한다', () => {
+    render(<OfflineBanner />);
+    expect(screen.getByText('오프라인 상태입니다 · 재연결 시 자동 동기화')).toBeInTheDocument();
   });
 
-  it('"오프라인" 텍스트가 항상 보인다', () => {
-    render(<OfflineBanner lastSyncedAt="09:00" />);
-    expect(screen.getByText(/오프라인/)).toBeInTheDocument();
+  it('onRetry가 있으면 재시도 버튼을 렌더하고 클릭 시 호출한다', () => {
+    const onRetry = vi.fn();
+    render(<OfflineBanner onRetry={onRetry} />);
+    fireEvent.click(screen.getByRole('button', { name: '재시도' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('onRetry가 없으면 재시도 버튼이 없다', () => {
+    render(<OfflineBanner lastSyncedAt="14:32" />);
+    expect(screen.queryByRole('button', { name: '재시도' })).not.toBeInTheDocument();
   });
 });

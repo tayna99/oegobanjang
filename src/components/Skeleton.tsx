@@ -3,11 +3,13 @@ import { cn } from '@/lib/cn';
 
 export type SkeletonProps = HTMLAttributes<HTMLDivElement>;
 
-// rules/design.md "스켈레톤 #e5e8ef 블록, 카드 기하 유지" — 크기/모양은 호출부 className이 결정한다.
+// Skeleton — Montage 공용 컴포넌트.dc.html §5(2.5.4b): pulse 단색 대신 shimmer 그라데이션
+// (1.6s ease infinite, 스프링 없음). 크기/모양은 호출부 className이 결정한다.
+// .skeleton-shimmer는 src/index.css @layer utilities 정의(reduced-motion 시 정지).
 export function Skeleton({ className, ...props }: SkeletonProps) {
   return (
     <div
-      className={cn('animate-pulse rounded-in bg-hairline motion-reduce:animate-none', className)}
+      className={cn('skeleton-shimmer rounded-in', className)}
       aria-hidden="true"
       {...props}
     />

@@ -27,6 +27,15 @@
 
 ---
 
+### [2026-07-11] 2.5.4b — 완료 (Design-first 파운데이션)
+- 한 일: 블루프린트 §3·§4 전면 구현. **① 6인 로스터 치환**(fixtures 전면 재작성 — Batbayar E./Nguyen Van A/Siti R./Tran Thi H./Rahmat P./Oyunaa T., mohammad·hiring 제거, title은 업무 단위로 분리, 사업장명 그린푸드 제조·기준일 07.10). **② 타입 확장** — WorkerRef.team, CaseCard.caseCode/assignee/stayExpiryDate/evidenceCompleteness/agentStage, CaseState.returned(+caseStore 전이 표), CitationGrade.F, EvidenceType 3종(review_started/checklist_completed/exported), Approval.reason(+decide 4번째 인자). **③ 중앙 근거 라이브러리** — `src/mocks/citations.ts`(cit_001~cit_021, §3c 8행+§2d 1행) + `citationStore`(KPI·연계 수 셀렉터 파생, `usableCitations` F 제외 필터 — CaseSheet·워크벤치 잠금 판정에 적용). **④ Evidence 시드** — §3c 대역(#4783~#4791)·해시·행위자(김담당 (본인)/system)로 재작성, 커맨드 런 #4790→**#4797** 재번호(디자인에서 #4790=Siti 승인 요청으로 확정). **⑤ 토큰** — chip draft(보라)/detected(시안) 2쌍(+다크), label .43(dim)/.61(subtle) 계층, track. **⑥ 컴포넌트 킷 6종 정합**(Montage 공용 컴포넌트.dc.html) — SafetyNotice 2형(neutral 고정문구 불변+emphasis), OfflineBanner 경고형(+재시도), Skeleton shimmer, StepTimeline 세로형(펄스 링·가드레일 칩), 탭바 비활성 .61+아이콘 3종 교체(IconBriefing/IconFolder/IconClock 신설), BottomSheet 핸들 line 토큰. 화면 반영: ApprovalCard·CaseList 근로자 부제, 워크벤치 팀 부제·구조화 메타·근거 완성도 진행바·이름 검색.
+- 남은 일 / 중단 지점: 없음. 다음은 블루프린트 §8 순서 — **M2.6(모바일 2a→2b→2c→2d)** → 2.5.5 → 2.5.6. GOTCHAS의 "카드 CTA 2개" 규칙은 M2.6에서 1개("검토")로 개정 예고만 해둠(그 전까지 2개 유지).
+- 결정 사항 (다음 세션이 알아야 할 것): ① 케이스 근거는 반드시 `libCitation('cit_*')` 참조로 연결한다 — 값 복제 금지(라이브러리가 단일 출처, citationStore 테스트가 id 보유를 강제). ② `agentStage`가 있으면 스테퍼·파이프라인 파생에서 상태보다 우선한다. ③ 텍스트 계층: 부제·비활성 탭=`text-subtle`(.61), 타임스탬프·해시=`text-dim`(.43) — muted(.88)는 본문 보조용. ④ 반려는 approval_pending↔returned 왕복만 허용(가드레일 테스트 있음).
+- verify 상태: PASS(typecheck 0, lint 0, **41 files/223 tests** — 신규 10개 포함, build OK). 브라우저 실측: 모바일 홈(6건 인사·Batbayar 히어로·근로자 부제·탭바 비활성 rgba(55,56,60,0.61)+아이콘 4종), 데스크톱 워크벤치(6행 큐 순서·팀 부제·meta "E-9 · 포장팀 · 인도네시아 · case_003"), /run/4797 커맨드 런 정상, 콘솔 에러 0.
+- 지도/규칙 갱신: `rules/design.md` §5(파이프라인 칩 2행+F등급)·§6(킷 6종 스펙 명시), `docs/GOTCHAS.md`(케이스 단위 승인·F등급 추가, CTA 규칙 개정 예고).
+
+---
+
 ### [2026-07-11] 2.5.4 — 완료 (+ Design-first 블루프린트 수립)
 - 한 일: **PC 케이스 워크벤치(3열)** 구현 — `reference/design-system/외고반장 PC.dc.html` §3b 기준. `src/features/cases/CaseWorkbench.tsx`(목록 레일 290px·상세·AI/근거 레일 340px, 진행 스테퍼·서류 체크리스트·다국어 초안·타임라인·승인/전달 상태·행정사 전달 잠금·가드레일 문구 2종) + `CaseWorkbenchPage.tsx`(컨테이너, /cases·/case/:id 공유) + `src/lib/useIsDesktop.ts`(matchMedia+resize 이중 리스너, jsdom 기본 false) + `src/lib/caseStage.ts`(진행/전달 단계 파생 — 발송 mock 미도달 가드) + 토큰 3종(shadow rail-active/rail-focus/step-current). 필터·그룹·정렬은 `lib/cases` selector 재사용, CTA는 데이터 구동 라벨 그대로, citation-0 잠금 동일 적용. **오래된 테스트 플레이크 근본 수정**: `/case/:caseId` loader 비동기 커밋 경합 — `CaseListPage.test.tsx` scrim 대기와 신규 테스트 모두 DOM 기준 `findBy*`(+5s)로 전환.
 - 남은 일 / 중단 지점: 없음(2.5.4 자체는). 단, **디자인 소스 채택 지시(2026-07-11)** 로 후속 전체 설계가 `docs/DESIGN_FIRST_BLUEPRINT_2026-07-11.md`에 수립됨 — 다음 착수는 블루프린트 §8 순서: **2.5.4b 파운데이션**(6인 로스터·모델 확장·citationStore·토큰 2쌍·컴포넌트 킷 6종) → M2.6(모바일 2a~2d) → 2.5.5 → 2.5.6. 워크벤치의 로스터·담당·근거 완성도 표시는 2.5.4b에서 소급 적용.

@@ -28,7 +28,13 @@ export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDis
       data-case-id={data.caseId}
       className="mb-3 cursor-pointer"
     >
-      <h3 className="mb-2 pr-2 text-body1 font-semibold leading-snug">{data.title}</h3>
+      <h3 className="mb-0.5 pr-2 text-body1 font-semibold leading-snug">{data.title}</h3>
+      {/* 근로자 부제 — Mobile §2a 카드 서브라인 "Nguyen Van A · 제조1팀" (2.5.4b, title은 업무 단위로 분리) */}
+      {data.workerRef && (
+        <p className="mb-2 text-label1 text-subtle">
+          {data.workerRef.displayName} · {data.workerRef.team}
+        </p>
+      )}
       <div className="mb-3 flex flex-wrap gap-1.5">
         {data.dDay !== undefined && <Chip tone={dDayTone(data.dDay)}>{dDayLabel(data.dDay)}</Chip>}
         {data.missingDocCount !== undefined && data.missingDocCount > 0 && (

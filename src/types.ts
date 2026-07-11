@@ -7,9 +7,14 @@ export type CaseState =
   | 'draft'
   | 'risk_review'
   | 'approval_pending'
+  | 'returned' // 반려 — 승인 요청이 사유와 함께 되돌아온 상태 (Mobile.dc.html §2c, 블루프린트 §3)
   | 'human_approved'
   | 'completed'
   | 'blocked';
+
+// 에이전트 파이프라인 단계 — 디자인 §3a/§2a 어휘(블루프린트 §3). CaseState(승인 규율)와
+// 별개 축: 에이전트가 케이스를 어디까지 준비했는지를 나타낸다.
+export type AgentStage = 'detected' | 'collecting' | 'drafted' | 'awaiting_approval' | 'executed';
 
 export type Role = 'manager' /* 담당자 */ | 'owner' /* 대표 */;
 
@@ -17,7 +22,11 @@ export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'locked';
 
 export type NextActionState = 'ready' | 'locked' | 'scheduled' | 'waiting';
 
-export type CitationGrade = 'A' | 'B' | 'C' | 'E';
+// F = 합성 데이터 — 근거로 사용 불가(디자인 §3c 각주, 2026-07-11 비준). C는 정의만 유지.
+export type CitationGrade = 'A' | 'B' | 'C' | 'E' | 'F';
+
+// 근거 라이브러리 레코드 상태 — 디자인 §3c 상태 칩(공식 근거/검토 필요/부족 stale/내부 기준).
+export type CitationStatus = 'official' | 'review_needed' | 'stale' | 'internal';
 
 export type NextActionKind = 'approve' | 'draft' | 'detail' | 'thread' | 'package' | 'confirm';
 
@@ -30,31 +39,44 @@ export interface NextActionRef {
 }
 
 export interface WorkerRef {
-  displayName: string;
+  displayName: string; // 디자인 표기 전체 이름 ("Nguyen Van A") — 블루프린트 §3
   nationality: string;
+  team: string; // "제조1팀" — 디자인 §2a/§3a/§3b 부제의 소속 (블루프린트 §3)
   maskLevel: 'masked';
 }
 
 export interface CaseCard {
-  caseId: string;
-  title: string; // "Nguyen V. 체류기간 연장 서류 요청" (업무 단위)
+  caseId: string; // 내부 슬러그(라우팅 키) — 화면 표기는 caseCode를 쓴다
+  caseCode: string; // "case_002" — 디자인 §2b/§3b 표기용 케이스 코드
+  title: string; // "체류기간 연장 서류 요청" — 업무 단위(근로자명 미포함, 블루프린트 §3)
   workerRef?: WorkerRef;
   severity: Severity;
   dDay?: number; // 음수=경과
+  stayExpiryDate?: string; // "2026.08.09" — 디자인 §2b/§3b 메타 라인
   missingDocCount?: number;
+  assignee?: string; // "김담당"/"박주임" — 디자인 §3a 담당 컬럼
+  evidenceCompleteness?: number; // 0~100 — 디자인 §3a 근거 완성도
+  agentStage?: AgentStage; // 파이프라인 단계 — 없으면 상태에서 파생(caseStage.ts)
   state: CaseState;
   approvalRequired: boolean;
-  primaryAction: NextActionRef; // CTA 2개 고정 원칙
+  primaryAction: NextActionRef;
   secondaryAction: NextActionRef;
   preparedBy: 'agent' | 'rule'; // 프로액티브 런이 준비한 카드는 'agent'
   preparedRunRef?: string; // "AI가 준비를 마쳤습니다 · 런 #4791 보기" 링크
 }
 
 export interface Citation {
+  id?: string; // "cit_001" — 근거 라이브러리 레코드 참조(블루프린트 §3)
   grade: CitationGrade;
   title: string;
   source: string;
   updatedAt: string;
+}
+
+// 근거 라이브러리 레코드 — 디자인 §3c. 케이스 시트의 Citation은 이 레코드의 부분집합이다.
+export interface CitationRecord extends Citation {
+  id: string;
+  status: CitationStatus;
 }
 
 // --- 스토어 계약 (M0.4) ---
@@ -63,6 +85,7 @@ export interface Approval {
   actionId: string;
   status: ApprovalStatus;
   idempotencyKey: string; // 중복 승인 차단 키 (GOTCHAS §2)
+  reason?: string; // 반려 사유 — "반려 시 사유가 판단 기록에 남고 요청이 되돌아갑니다" (Mobile §2c)
 }
 
 // Evidence Log 이벤트 타입 (AGENTS.md §9). 원문·PII 필드는 두지 않는다 — 해시만.
@@ -74,6 +97,9 @@ export type EvidenceType =
   | 'risk_flagged'
   | 'approval_requested'
   | 'approval_decided'
+  | 'review_started' // 사례 검토 진입 (Mobile §2d 타임라인, 블루프린트 §3)
+  | 'checklist_completed' // 승인 체크리스트 완료 (Mobile §2d)
+  | 'exported' // 패키지 내보내기 (PC §3c 감사 로그 '내보내기' — export_00NN)
   | 'final_response_generated';
 
 export interface EvidenceEvent {

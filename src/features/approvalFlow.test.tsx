@@ -44,7 +44,7 @@ describe('M1~M5 approval happy path', () => {
     fireEvent.click(screen.getByRole('button', { name: '오늘 브리핑으로' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
 
-    const nguyenCard = screen.getByText('Nguyen V. 체류기간 연장 서류 요청').closest('[data-case-id="nguyen"]');
+    const nguyenCard = screen.getByText('체류기간 연장 서류 요청').closest('[data-case-id="nguyen"]');
     expect(nguyenCard).not.toBeNull();
     expect(within(nguyenCard as HTMLElement).getByText('승인 완료')).toBeInTheDocument();
 

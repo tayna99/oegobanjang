@@ -17,6 +17,8 @@ const TONE_CLASSES: Record<ChipTone, string> = {
   medium: 'bg-medbg text-medium',
   positive: 'bg-succbg text-success',
   approval: 'bg-approvalbg text-approval',
+  draft: 'bg-draftbg text-draft',
+  detected: 'bg-detectedbg text-detected',
   neutral: 'bg-neutbg text-neutral',
   line: 'bg-canvas shadow-outline text-muted',
 };

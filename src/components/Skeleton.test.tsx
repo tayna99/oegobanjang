@@ -13,14 +13,9 @@ describe('Skeleton', () => {
     const el = container.firstChild as HTMLElement;
     expect(el.className).toContain('h-4');
     expect(el.className).toContain('w-24');
-    expect(el.className).toContain('bg-hairline');
-    expect(el.className).toContain('animate-pulse');
-  });
-
-  it('motion-reduce에서 애니메이션을 끄는 클래스를 포함한다', () => {
-    const { container } = render(<Skeleton />);
-    const el = container.firstChild as HTMLElement;
-    expect(el.className).toContain('motion-reduce:animate-none');
+    // shimmer 그라데이션(2.5.4b, Montage 공용 컴포넌트 §5) — reduced-motion 정지는
+    // index.css의 @media 규칙이 담당한다.
+    expect(el.className).toContain('skeleton-shimmer');
   });
 
   it('스크린 리더에서 감춰진다(aria-hidden)', () => {
