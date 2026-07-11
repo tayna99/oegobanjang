@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
+import { MessagesPage } from '@/features/messages/MessagesPage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { RunPage } from '@/features/run/RunPage';
 import { DraftPage } from '@/features/draft/DraftPage';
@@ -39,7 +40,7 @@ export const routeConfig: RouteObject[] = [
         loader: validateIdParam('runId'),
         element: <RunPage />,
       },
-      { path: ROUTE_PATHS.messages, element: <PlaceholderScreen name="메시지" /> },
+      { path: ROUTE_PATHS.messages, element: <MessagesPage /> },
       {
         path: ROUTE_PATHS.thread,
         loader: validateIdParam('threadId'),
