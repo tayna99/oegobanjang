@@ -13,6 +13,7 @@ exports[`tokens.css의 디자인 토큰이 v3 :root와 일치한다 1`] = `
   "critbg": "rgba(239,68,68,.08)",
   "critical": "#EF4444",
   "critical-text": "#DC2626",
+  "dot-size": "7px",
   "e-in": "cubic-bezier(.2,0,0,1)",
   "e-std": "cubic-bezier(.4,0,.2,1)",
   "faint": "#b4bbcb",

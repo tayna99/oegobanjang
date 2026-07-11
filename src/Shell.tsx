@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { IconDoc, IconHome, IconList, IconMsg } from '@/components/icons';
+import { countArrivedResponses } from '@/lib/threads';
 import { ROUTES } from '@/lib/routes';
+import { useThreadStore } from '@/stores/threadStore';
 
 const TABS = [
   { to: ROUTES.home, label: '브리핑', Icon: IconHome },
@@ -34,6 +36,11 @@ function useDeepLinkBackstack() {
 
 export function Shell() {
   useDeepLinkBackstack();
+  // 메시지 탭 도트 인디케이터 — threadStore 파생값은 lib/threads.ts의 selector 하나로만
+  // 계산한다(rules/frontend.md "파생값은 selector로").
+  const hasArrivedResponses = useThreadStore(
+    (s) => countArrivedResponses(Object.values(s.threads)) > 0,
+  );
 
   return (
     <div className="min-h-dvh bg-canvas text-ink">
@@ -75,7 +82,16 @@ export function Shell() {
               )
             }
           >
-            <Icon width={22} height={22} />
+            <span className="relative inline-flex">
+              <Icon width={22} height={22} />
+              {to === ROUTES.messages && hasArrivedResponses && (
+                <span
+                  aria-hidden="true"
+                  data-testid="tab-messages-dot"
+                  className="absolute -right-0.5 -top-0.5 h-dot w-dot rounded-full bg-info"
+                />
+              )}
+            </span>
             {label}
           </NavLink>
         ))}

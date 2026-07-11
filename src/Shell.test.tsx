@@ -1,8 +1,23 @@
 import { StrictMode } from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { Shell } from './Shell';
+import { useThreadStore } from '@/stores/threadStore';
+import type { MessageThread } from '@/types';
+
+function pendingReviewThread(threadId: string): MessageThread {
+  return {
+    threadId,
+    workerRef: { displayName: 'Test W.', nationality: '베트남', maskLevel: 'masked' },
+    channel: 'zalo',
+    channelLabel: 'Zalo',
+    messages: [],
+    interpretationStatus: 'pending_review',
+    preview: '응답 도착 — 테스트',
+    timeLabel: '오늘',
+  };
+}
 
 function renderShell(initialPath: string, options: { strict?: boolean } = {}) {
   const router = createMemoryRouter(
@@ -30,6 +45,25 @@ function renderShell(initialPath: string, options: { strict?: boolean } = {}) {
 }
 
 describe('Shell', () => {
+  beforeEach(() => {
+    useThreadStore.getState().reset();
+  });
+
+  it('응답 도착(pending_review) 스레드가 있으면 메시지 탭에 도트를 렌더한다', () => {
+    useThreadStore.getState().upsert(pendingReviewThread('t1'));
+    renderShell('/');
+    const tabBar = screen.getByRole('navigation', { name: '모바일 탭바' });
+    const messagesLink = within(tabBar).getByRole('link', { name: /메시지/ });
+    expect(within(messagesLink).getByTestId('tab-messages-dot')).toBeInTheDocument();
+  });
+
+  it('응답 도착 스레드가 없으면 메시지 탭에 도트를 렌더하지 않는다', () => {
+    renderShell('/');
+    const tabBar = screen.getByRole('navigation', { name: '모바일 탭바' });
+    const messagesLink = within(tabBar).getByRole('link', { name: /메시지/ });
+    expect(within(messagesLink).queryByTestId('tab-messages-dot')).not.toBeInTheDocument();
+  });
+
   it('모바일 탭바 4개를 렌더한다', () => {
     renderShell('/');
     // vite.config.ts의 test.css: false로 인해 이 테스트 환경에서는 Tailwind의

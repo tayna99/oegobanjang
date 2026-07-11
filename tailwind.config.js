@@ -46,6 +46,8 @@ export default {
         'badge-gap': 'var(--badge-gap)',
         // SafetyNotice(프로토타입 v3 .safety) — gap-safety-gap.
         'safety-gap': 'var(--safety-gap)',
+        // 탭바 도트 인디케이터 지름(7px, 프로토타입 v3 .dot) — w-dot/h-dot.
+        dot: 'var(--dot-size)',
       },
       fontSize: {
         // 탭바 라벨 폰트 크기(11px, 탭별기획 §0.2 "라벨 11/600").
