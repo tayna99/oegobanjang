@@ -29,7 +29,7 @@
 | # | 태스크 | 레벨 | 스펙 | DoD |
 |---|---|---|---|---|
 | 2.1 | M7 케이스 목록 (필터 칩·그룹·딥링크 프리셋) | L1 | 1단계 M7, 탭별기획 §2 | 필터·정렬 deterministic 테스트 |
-| 2.2 | 메시지 탭 + 스레드 대화 뷰 + M6 응답 해석(isFinal:false→확인) | L2 | 1단계 M6, 탭별기획 §3 | 해석 확인 시 상태 갱신+evidence 테스트 |
+| 2.2 | 메시지 탭 + 스레드 대화 뷰 + M6 응답 해석(isFinal:false→확인) — **완료** (`plans/HANDOFF.md` 2026-07-11 항목 참고) | L2 | 1단계 M6, 탭별기획 §3 | 해석 확인 시 상태 갱신+evidence 테스트 |
 | 2.3 | M8 판단 기록 (타임라인·필터·이벤트 상세 시트·딥링크 하이라이트) | L1 | 1단계 M8, 탭별기획 §4 | 해시만 표시(원문 없음) 테스트 |
 | 2.4 | 행정사 패키지 화면 (candidate/hiring 데이터 구동) | L1 | prototype_v3 pkg | 승인 흐름 단계 렌더 테스트 |
 
@@ -54,4 +54,6 @@
 
 - mockApi → FastAPI(기존 Daily Briefing PRD 백엔드)로 교체. 계약: `src/types.ts` = PRD §11 Data Contracts
 - runEngine 각본 → LangGraph createAgent 스트리밍으로 교체 (RunConfig 인터페이스 유지)
-- 발송 어댑터·알림톡은 계속 범위 밖 (승인 기반 어댑터, PRD Sprint 6)
+- 발송 어댑터·알림톡은 계속 범위 밖 (승인 기반 어댑터, PRD Sprint 6)¹
+
+¹ outbox(발송 대기열)+`SmsAdapter`+응답 링크 인바운드까지의 로드맵은 `docs/MESSAGING_CHANNELS.md` §5(단계 로드맵)에 정리돼 있다 — 이 저장소는 현재 ①(프론트 Message 도메인 + `MockAdapter`)까지만.

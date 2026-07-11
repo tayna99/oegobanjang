@@ -18,6 +18,21 @@
 
 ---
 
+### [2026-07-11] 2.2 — 완료
+- 한 일: 메시지 탭 + 스레드 대화 뷰 + M6 응답 해석(`isFinal:false`→확인) 전체를 5커밋으로 구현: `docs/MESSAGING_CHANNELS.md` 신설(발신 Approval→Outbox→ChannelAdapter, 수신 응답 링크→정규화→Interpretation 두 파이프라인을 분리 문서화 — `src/types.ts`에 옮길 `Channel`/`MessageDeliveryStatus`/`Message`/`Interpretation`/`MessageThread`의 스펙 원본) → `src/mocks/threads.ts`(`THREADS` 3건 nguyen/tran/bayar + `threadIdForCase` caseId→threadId 매핑) → `src/stores/threadStore.ts`(`upsert`/`confirmInterpretation` — pending_review에서만 진행, confirmed 재호출은 idempotent no-op) → `src/lib/threads.ts`(정렬·배지 셀렉터: `sortThreads`/`threadBadge`/`countArrivedResponses`/`formatClockTime`/`formatDateCaption`/`latestInboundMessage`) → `src/features/messages/`(`MessagesScreen`+`MessagesPage`, CaseListPage와 동일한 컨테이너/프레젠테이션 분리) → `src/features/thread/`(`ThreadScreen`(default 안에 interpretation/timeline 2모드 포함 5상태)+`InterpretationCard`+`MessageBubble`+`ThreadPage`) → `router.tsx`에 `/messages`·`/thread/:id` 연결 → 마지막 커밋에서 `actionNav`의 `kind:'thread'`가 `threadIdForCase`로 M6에 바로 이동(매핑 없으면 메시지 탭 폴백)하도록, `BriefingHomePage`의 "응답 도착" 통계를 threadStore 실계산으로, Shell 탭바 메시지 탭에 응답 도착 도트 인디케이터를 배선.
+- 남은 일 / 중단 지점: 없음(2.2 자체 완료). 다음은 ROADMAP 2.3(M8 판단 기록, 타임라인·필터·이벤트 상세 시트·딥링크 하이라이트) — L1.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  - Tran의 발신(out) 메시지 `evidenceRef`를 v3 원문 `#4741` 대신 `#4742`로 바꿨다. `#4741`은 이미 `src/mocks/fixtures.ts`의 `CASE_SHEETS.nguyen.activity`("1차 서류 요청" 런)에서 쓰이고 있어(판단 기록 번호는 케이스를 넘나들어도 유일해야 한다) 그대로 옮기면 충돌하므로 새 번호를 배정했다(`src/mocks/threads.ts` 파일 머리말 주석에 근거 기록).
+  - `InterpretationCard`(M6 KoreanSummary)를 v3처럼 파랑 배경 카드로 만들지 않고 `surface` 톤 카드로 구현했다 — "화면당 primary 파랑 CTA는 1개까지만" 원칙을 지키려면 파랑은 하단 "상태 반영 확인" 버튼 하나에만 남겨야 했기 때문이다.
+  - 스레드(근로자 단위)와 케이스(업무 단위)를 의도적으로 1:1 매핑하지 않았다. `docs/GLOSSARY.md`의 결정 D2("케이스는 업무 단위, 근로자 단위 아님")를 메시징 도메인에도 그대로 적용한 것으로, 한 근로자(스레드)가 여러 케이스를 순차로 가로지를 수 있어 `caseId`↔`threadId` 매핑은 `MessageThread`에 내장하지 않고 `src/mocks/threads.ts`의 `threadIdForCase` 조회 테이블로 별도 관리한다(Tran은 `tranCase`↔`tran`처럼 식별자가 다르고, Bayar는 우연히 `caseId`·`threadId`가 둘 다 `'bayar'`일 뿐 이 함수가 보장하는 계약은 아니다).
+  - Toast 컴포넌트가 여전히 없어(1.1부터 알려진 갭, 계속 미해결) 해석 확인 완료를 토스트 대신 `ThreadScreen`의 인라인 카드로 대체했다 — `interpretationStatus:'confirmed'`가 되면 타임라인 모드에서 `interpretation.confirmedCardText`를 대화 하단에 카드로 렌더한다.
+  - v3의 해석 화면 [수정] 버튼과 초안 재생성 런(`#4796`)은 이번 범위에서 제외했다. 대신 `Interpretation.recommendedActions`를 문자열 라벨이 아니라 `NextActionRef`로 승격해 M3(초안) 직행 버튼 하나로 단순화했다 — [수정]/재생성 런 연결은 다음 후속 태스크로 남긴다.
+  - `tranReminder`(Bayar 리마인드 런) 승인 완료 시 스레드 preview가 자동 갱신되는 것(v3 §853 근처 렌더 로직)은 이번 범위에서 구현하지 않았다. `RunPage`/`approvalStore`는 threadStore를 전혀 참조하지 않으므로, `tranReminder`를 승인해도 `bayar` 스레드의 preview("건강검진 일정 안내 — 발송 승인 완료 · 응답 대기")는 갱신되지 않고 그대로 남는다 — 후속 항목으로 명시해 둔다.
+- verify 상태: PASS (`npm run verify`: typecheck 0, lint 0, test 46 files/253 tests passed, build OK).
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` §2(진입점 표에 `src/features/messages/`·`src/features/thread/`·`src/lib/threads.ts`·`threadStore`·`src/mocks/threads.ts` 반영)·§3(`/messages`·`/thread/:id` 행을 구현 완료 상태로 갱신)·§4(데이터 흐름 다이어그램에 threadStore 라인 추가). `docs/GLOSSARY.md`에 Channel/Outbox(발송 대기열)/응답 링크 3행 추가. `plans/ROADMAP.md`에 2.2 완료 표기 + "발송 어댑터·알림톡은 범위 밖" 문장에 `docs/MESSAGING_CHANNELS.md` §5 참조 각주 추가.
+
+---
+
 ### [2026-07-07] 1.6 — 완료
 - 한 일: M3/M4/M5 승인 해피패스 루프 구현. `src/features/draft/DraftPage.tsx`를 추가해 `/case/:caseId/draft`에서 DRAFT fixture 기반 초안, 언어 토글, 수정 요청 BottomSheet, 수정 반영 후 승인 검토 이동을 제공. `src/features/run/RunPage.tsx`의 approval mode 승인 버튼을 `approvalStore.requestApproval/decide` + `caseStore.transition(caseId, 'human_approved')` + `evidenceStore.append(approval_decided)`에 연결하고 `/done`으로 이동. `src/features/done/DonePage.tsx`를 추가해 “발송 승인 완료” 전용 완료 화면을 렌더하되 실제 카톡/문자/정부 제출은 실행하지 않음을 명시. `ApprovalCard`는 `human_approved` 상태에서 “승인 완료” 배지를 표시. 실제 라우터 기반 통합 테스트 `src/features/approvalFlow.test.tsx`를 추가해 `/case/nguyen` → M2 → M3 → M4 → M5 → M1 상태 반영을 검증.
 - 남은 일 / 중단 지점: Playwright 패키지/스크립트는 현재 프로젝트에 없어 ROADMAP의 “playwright E2E”는 Vitest 라우터 통합 테스트로 대체했다. 진짜 브라우저 E2E가 필요하면 Playwright 의존성과 `npm run test:e2e` 스크립트를 별도 태스크로 추가해야 한다. 수정 요청 시트는 고정 “부드럽게 다듬기” 프리셋 1개만 제공한다(자연어 수정 요청/다중 프리셋은 범위 밖).
