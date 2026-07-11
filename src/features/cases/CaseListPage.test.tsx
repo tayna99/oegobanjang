@@ -69,9 +69,12 @@ describe('CaseListPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Tran T\.H\./ }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/case/tranCase'));
+    // /case/:caseId loader가 비동기라 router state 갱신 후에도 DOM 커밋이 한 틱 늦을 수
+    // 있다(전체 스위트에서만 간헐 실패하던 원인). 시트 DOM이 실제로 나타날 때까지 기다린다.
+    const scrim = await screen.findByTestId('bottom-sheet-scrim', {}, { timeout: 5000 });
     expect(screen.getByText('적용됨: 확인 필요')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('bottom-sheet-scrim'));
+    fireEvent.click(scrim);
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/cases');

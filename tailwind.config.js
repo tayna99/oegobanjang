@@ -85,6 +85,10 @@ export default {
         // rules/design.md v2 §4: 아웃라인 버튼/칩은 border 대신 inset box-shadow(레이아웃 시프트 방지).
         outline: 'inset 0 0 0 1px var(--color-line-normal)',
         'outline-strong': 'inset 0 0 0 1.5px var(--color-line-normal)',
+        // PC 워크벤치(디자인 §3b): 선택 행 좌측 2px 인디케이터 / primary 1px 아웃라인 / 현재 단계 링.
+        'rail-active': 'inset 2px 0 0 var(--color-primary-normal)',
+        'rail-focus': 'inset 0 0 0 1px var(--color-primary-normal)',
+        'step-current': '0 0 0 4px var(--chip-approval-bg)',
       },
       transitionDuration: {
         fast: 'var(--fast)',

@@ -27,6 +27,15 @@
 
 ---
 
+### [2026-07-11] 2.5.4 — 완료 (+ Design-first 블루프린트 수립)
+- 한 일: **PC 케이스 워크벤치(3열)** 구현 — `reference/design-system/외고반장 PC.dc.html` §3b 기준. `src/features/cases/CaseWorkbench.tsx`(목록 레일 290px·상세·AI/근거 레일 340px, 진행 스테퍼·서류 체크리스트·다국어 초안·타임라인·승인/전달 상태·행정사 전달 잠금·가드레일 문구 2종) + `CaseWorkbenchPage.tsx`(컨테이너, /cases·/case/:id 공유) + `src/lib/useIsDesktop.ts`(matchMedia+resize 이중 리스너, jsdom 기본 false) + `src/lib/caseStage.ts`(진행/전달 단계 파생 — 발송 mock 미도달 가드) + 토큰 3종(shadow rail-active/rail-focus/step-current). 필터·그룹·정렬은 `lib/cases` selector 재사용, CTA는 데이터 구동 라벨 그대로, citation-0 잠금 동일 적용. **오래된 테스트 플레이크 근본 수정**: `/case/:caseId` loader 비동기 커밋 경합 — `CaseListPage.test.tsx` scrim 대기와 신규 테스트 모두 DOM 기준 `findBy*`(+5s)로 전환.
+- 남은 일 / 중단 지점: 없음(2.5.4 자체는). 단, **디자인 소스 채택 지시(2026-07-11)** 로 후속 전체 설계가 `docs/DESIGN_FIRST_BLUEPRINT_2026-07-11.md`에 수립됨 — 다음 착수는 블루프린트 §8 순서: **2.5.4b 파운데이션**(6인 로스터·모델 확장·citationStore·토큰 2쌍·컴포넌트 킷 6종) → M2.6(모바일 2a~2d) → 2.5.5 → 2.5.6. 워크벤치의 로스터·담당·근거 완성도 표시는 2.5.4b에서 소급 적용.
+- 결정 사항 (다음 세션이 알아야 할 것): ① 데스크톱 분기는 CSS hidden이 아니라 `useIsDesktop` **렌더 분기** — 모바일에서 데스크톱 트리가 마운트되지 않아 기존 테스트·접근성 트리가 오염되지 않는다. 새 PC 화면(2.5.5/2.5.6)도 같은 패턴을 쓸 것. ② 선택 상태의 진실은 URL(/case/:id) — 검색으로 레일에서 걸러져도 상세는 URL 케이스를 유지. ③ returnTo는 반드시 `ROUTES.cases()`로 생성(CaseSheetPage의 safeCaseListReturnTo 화이트리스트 통과 조건).
+- verify 상태: PASS(typecheck 0, lint 0, **40 files/213 tests**, build OK — 플레이크 수정 후 2회 연속 전건 통과). 브라우저 실측(1280px): 3열 렌더·행 클릭→URL/상세 동기·선택 인디케이터·다크 모드 토큰 전환·필터 프리셋(aria-pressed)·스테퍼/전달 단계 라벨 디자인 원문 일치 확인, 콘솔 에러 0. 모바일(375px) 리로드: 워크벤치 미마운트+바텀시트 플로우 무결. **주의: 멀티에이전트 검증 워크플로우는 2회 모두 외부 요인(중단 1회, 서브에이전트 세션 한도 1회 — 17:40 리셋)으로 실패해 동일 항목을 인라인 수행함**(정적 grep 배터리·코드 리뷰·verify — 전부 클린).
+- 지도/규칙 갱신: `plans/ROADMAP.md`에 블루프린트 §6 반영(2.5.4b·M2.6 신설, 2.5.5/2.5.6/2.4 스펙 보강). GOTCHAS·rules/design.md 개정은 2.5.4b 구현과 함께(블루프린트 §7).
+
+---
+
 ### [2026-07-11] 2.5.3 — 완료
 - 한 일: 기존 화면 13개 파일의 타이포그래피를 Montage v2 타입 스케일(`text-heading1`/`heading2`/`body1`/`body2`/`label1`/`caption1`, tailwind.config.js에 2.5.1에서 이미 등록돼 있던 유틸리티)로 전환. 역할 분류 규칙: 화면 최상단 h1/h2 제목→heading2(20px, CaseListScreen은 24→20 보정·DonePage/DraftPage/RunScreen은 18→20 승격으로 통일), 카드/시트 h3 제목→body1(16px), 인사문장·빈상태 큰 강조→heading1(22px), 서술형 문장(설명·안내·에러 메시지)→body2(15px), 버튼/칩/행 라벨 같은 UI 크롬→label1(14px), 캡션·타임스탬프→caption1(12px). 기존 font-weight/leading-* 클래스는 그대로 유지(사이즈 토큰만 교체). Workflow로 13개 파일 병렬 치환 + 적대적 감사 에이전트를 돌려 놓친 3곳(`CaseSheet.tsx:114`, `DonePage.tsx:31`, `DraftPage.tsx:69` — 전부 "text-sm" 잔존)을 찾아 직접 수정. `.claude/agents/ui-matcher.md`를 prototype_v3 기준에서 디자인 프로젝트(+ Chip tone 명칭·타이포·아웃라인 체크 항목 추가)로 교체하면서, 초안이 잘못 인용한 `외고반장 Mobile.dc.html`(보류 결정된 모바일 개편안)을 "기준 아님"으로 정정.
 - 남은 일 / 중단 지점: 없음 — M2.5는 2.5.1~2.5.3 전부 완료. 다음은 ROADMAP 2.5.4(PC 케이스 워크벤치) 또는 2.2(메시지 탭).

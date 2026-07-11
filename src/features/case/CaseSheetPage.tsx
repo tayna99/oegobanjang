@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
+import { CaseWorkbenchPage } from '@/features/cases/CaseWorkbenchPage';
 import { useNav } from '@/lib/nav';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
 import { CaseSheet } from './CaseSheet';
@@ -28,6 +30,7 @@ export function CaseSheetPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const nav = useNav();
+  const isDesktop = useIsDesktop();
   const cases = useCaseStore((s) => s.cases);
   const upsert = useCaseStore((s) => s.upsert);
   const routeState = location.state as CaseRouteState | null;
@@ -38,6 +41,12 @@ export function CaseSheetPage() {
       CASE_CARDS.forEach(upsert);
     }
   }, [upsert]);
+
+  // lg+ 에서는 바텀시트 대신 PC 워크벤치가 해당 케이스를 선택 상태로 렌더한다(M2.5.4).
+  // returnTo에 실려 온 필터를 워크벤치 목록 레일에도 그대로 적용해 컨텍스트를 보존한다.
+  if (isDesktop) {
+    return <CaseWorkbenchPage selectedCaseId={caseId} filterOverride={filterFromReturnTo(returnTo)} />;
+  }
 
   const card = caseId ? cases[caseId] : undefined;
   const sheet = caseId ? CASE_SHEETS[caseId] : undefined;
