@@ -36,18 +36,18 @@
 
 ## M2.5 — 디자인 시스템 v2(Montage) 전환 · PC 확장 화면
 
-> 근거: 디자인 프로젝트(claude.ai/design `bd0fd8f8-615f-48e9-875b-eb5c9e9b398d`)의 `외고반장 PC.dc.html` **통합 재설계(3a·3b·3c) — 사용자 확정(2026-07-11)** + `rules/design.md`(v2) + `docs/DESIGN_SYNC_AUDIT_2026-07-11.md`(매핑표 §3, 판단 §5).
+> 근거: `reference/design-system/외고반장 PC.dc.html`(저장소에 고정된 사본, 원본은 claude.ai/design `bd0fd8f8-615f-48e9-875b-eb5c9e9b398d` — 고정 경위는 `reference/design-system/README.md`)의 **통합 재설계(3a·3b·3c) — 사용자 확정(2026-07-11)** + `rules/design.md`(v2) + `docs/DESIGN_SYNC_AUDIT_2026-07-11.md`(매핑표 §3, 판단 §5).
 > 순서: 2.2~2.4 착수 전에 2.5.1~2.5.3을 먼저 끝내는 것을 권장(신규 탭을 v2 토큰으로 바로 구현해 이중 리스킨 방지). 2.5.6은 M3 완료 후.
-> 결정(2026-07-11): CSV 업로드 화면 → **4.4로 신설**(아래 M4 표). 모바일 개편안(`외고반장 Mobile.dc.html` 승인 큐 중심) → **보류, M2.5 범위 밖**(사유: AUDIT §5-4).
+> 결정(2026-07-11): CSV 업로드 화면 → **4.4로 신설**(아래 M4 표). 모바일 개편안(`reference/design-system/외고반장 Mobile.dc.html` 승인 큐 중심) → **보류, M2.5 범위 밖**(사유: AUDIT §5-4).
 
 | # | 태스크 | 레벨 | 스펙 | DoD |
 |---|---|---|---|---|
 | 2.5.1 | tokens.css v2 — Montage atomic+semantic 2계층·light/dark(`[data-theme="dark"]`) 이식, Tailwind theme `var(--color-*)` 재배선, PC 밀도 타입램프(10.5~13.5px) 토큰 등록 | L1 | rules/design.md(v2) §1·2·3, colors_and_type.css | 토큰 스냅샷 갱신, 다크 테마 스위치 렌더 테스트, Pretendard 로드 확인, PC 타입램프 임의값 0건 |
 | 2.5.2 | 공용 컴포넌트 v2 — Badge→Chip 개명·severity 색표 교체, Button/Card 라디우스·아웃라인(inset box-shadow)·모션(0.2s ease) 전환 | L2 | rules/design.md(v2) §4·5 | Chip severity 색 규칙 테이블 테스트, 아웃라인 inset box-shadow 스냅샷, 기존 테스트 전건 통과 |
 | 2.5.3 | 기구현 화면(M1 전체·2.1 케이스 목록) v2 리스킨 + ui-matcher 기준을 디자인 프로젝트로 교체 + rules/design.md 부록 A 삭제 | L2 | AUDIT §3 매핑표 | 1.6 E2E 통과, verify PASS, 임의 hex 0건(verifier grep) |
-| 2.5.4 | PC 케이스 워크벤치(3b, 3열: 목록·상세·AI 패널) — Shell lg+ 레이아웃 확장, 기존 라우트·스토어 재사용 | L2 | PC.dc.html §3b, 탭별기획 §2 | 3열 렌더·목록↔상세 동기 테스트, 모바일 회귀 없음 |
-| 2.5.5 | PC 거버넌스(3c) — 판단 기록 확장·근거 라이브러리·감사 내보내기 | L2 | PC.dc.html §3c, 탭별기획 §4 | 내보내기 산출물 해시만(원문 없음) 테스트 |
-| 2.5.6 | PC 컨트롤 타워(3a) — 파이프라인·KPI·우선 처리 큐 (**M3 완료 후 착수** — 파이프라인 데이터 의존) | L3 | PC.dc.html §3a, 9단계 P0 | 큐 정렬(위험×D-day) deterministic 테스트, KPI=스토어 파생값 |
+| 2.5.4 | PC 케이스 워크벤치(3b, 3열: 목록·상세·AI 패널) — Shell lg+ 레이아웃 확장, 기존 라우트·스토어 재사용 | L2 | `reference/design-system/외고반장 PC.dc.html` §3b, 탭별기획 §2 | 3열 렌더·목록↔상세 동기 테스트, 모바일 회귀 없음 |
+| 2.5.5 | PC 거버넌스(3c) — 판단 기록 확장·근거 라이브러리·감사 내보내기 | L2 | `reference/design-system/외고반장 PC.dc.html` §3c, 탭별기획 §4 | 내보내기 산출물 해시만(원문 없음) 테스트 |
+| 2.5.6 | PC 컨트롤 타워(3a) — 파이프라인·KPI·우선 처리 큐 (**M3 완료 후 착수** — 파이프라인 데이터 의존) | L3 | `reference/design-system/외고반장 PC.dc.html` §3a, 9단계 P0 | 큐 정렬(위험×D-day) deterministic 테스트, KPI=스토어 파생값 |
 
 ## M3 — 에이전틱 차별화 (9단계 P0)
 

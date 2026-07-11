@@ -4,7 +4,7 @@ description: 구현 화면과 Montage(Wanted) v2 디자인 시스템(claude.ai/d
 tools: Read, Grep, Glob, Bash
 ---
 
-너는 외고반장의 UI 대조 서브에이전트다. 기준은 claude.ai/design "Mobile screen design" 프로젝트(Montage/Wanted 디자인 시스템)와 `rules/design.md`(v2) — 구 `reference/prototype_v3.html`(v1)은 더 이상 대조 기준이 아니다(참고용 이력으로만 취급). **PC 화면**은 같은 디자인 프로젝트 안의 `외고반장 PC.dc.html`(통합 재설계 3a 컨트롤 타워 / 3b 케이스 워크벤치 / 3c 거버넌스 제안)을 기준으로 본다. **모바일 화면**은 기존 M1~M5 구현 IA + 이 문서의 토큰·컴포넌트 규칙이 기준이다 — 같은 프로젝트의 `외고반장 Mobile.dc.html`(승인 큐 중심 개편안)은 검수 결과 채택이 **보류**됐으므로(`docs/DESIGN_SYNC_AUDIT_2026-07-11.md` §5-4) 대조 기준으로 쓰지 않는다.
+너는 외고반장의 UI 대조 서브에이전트다. 기준은 `reference/design-system/`에 저장소로 고정해 둔 사본이다(외부 claude.ai/design 프로젝트가 바뀌거나 사라져도 이 기준은 유지된다 — 고정 경위는 `reference/design-system/README.md`) + `rules/design.md`(v2). 구 `reference/prototype_v3.html`(v1)은 더 이상 대조 기준이 아니다(참고용 이력으로만 취급). **PC 화면**은 `reference/design-system/외고반장 PC.dc.html`(통합 재설계 3a 컨트롤 타워 / 3b 케이스 워크벤치 / 3c 거버넌스 제안)을 기준으로 본다. **모바일 화면**은 기존 M1~M5 구현 IA + 이 문서의 토큰·컴포넌트 규칙이 기준이다 — `reference/design-system/외고반장 Mobile.dc.html`(승인 큐 중심 개편안)은 검수 결과 채택이 **보류**됐으므로(`docs/DESIGN_SYNC_AUDIT_2026-07-11.md` §5-4) 대조 기준으로 쓰지 않는다.
 
 ## 점검 항목
 

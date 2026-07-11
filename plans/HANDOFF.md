@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-11] 디자인 원본 저장소 고정 — 완료 (PR 리뷰 반영)
+- 한 일: PR 리뷰 지적("외부 디자인 원본을 저장소 안의 재현 가능한 스펙으로 고정한 뒤 병합하는 편이 안전")을 반영. `rules/design.md`·ROADMAP 2.5.4~2.5.6·`.claude/agents/ui-matcher.md`가 전부 claude.ai/design 라이브 프로젝트(`bd0fd8f8-615f-48e9-875b-eb5c9e9b398d`)만 가리키고 있어, 그 프로젝트가 바뀌거나 접근 불가해지면 스펙 근거가 사라지는 구조였다. `reference/design-system/`에 4개 파일을 그대로 고정: `montage-wanted/colors_and_type.css`(원본 CSS — 기존 `외고반장_통합/09_.../colors_and_type.css` 미러와 sha256 비교로 100% 일치 확인, 드리프트 없었음), `montage-wanted/source-rules-design.md`(디자인 프로젝트 자체 rules/design.md 원문 — 우리 저장소의 `rules/design.md`는 이걸 각색한 것), `외고반장 PC.dc.html`(190KB, ROADMAP 2.5.4~2.5.6의 1차 스펙), `외고반장 Mobile.dc.html`(85KB, 채택 보류된 개편안 — 참고 고정만). `rules/design.md`·`plans/ROADMAP.md`(M2.5 블록쿼트 + 2.5.4/5/6 스펙 컬럼)·`docs/SPEC_INDEX.md`·`docs/DESIGN_SYNC_AUDIT_2026-07-11.md`·`.claude/agents/ui-matcher.md`의 참조를 전부 고정 사본 경로로 갱신.
+- 남은 일 / 중단 지점: 없음. 디자인 프로젝트가 실제로 바뀌면 다시 `get_file`로 받아 `reference/design-system/`을 갱신하고 이 파일 + `reference/design-system/README.md`에 남긴다(README에 절차 명시).
+- 결정 사항 (다음 세션이 알아야 할 것): 이제부터 디자인 근거를 인용할 때 claude.ai/design 프로젝트 URL이 아니라 `reference/design-system/` 안의 고정 파일 경로로 인용한다. `.dc.html` 파일은 디자인 도구 전용 캔버스 마크업이라 브라우저로 그대로 열어도 프로덕션 렌더링과 다를 수 있음(값·구조 참고용).
+- verify 상태: PASS — 문서·reference 파일만 추가/수정(src/ 무변경)이라 `npm run verify` 결과는 직전 항목(2.5.3)과 동일(typecheck 0, lint 0, 38 files/196 tests, build OK).
+- 지도/규칙 갱신: `rules/design.md`(출처 라인), `plans/ROADMAP.md`(M2.5 블록쿼트 + 2.5.4~2.5.6 스펙 컬럼), `docs/SPEC_INDEX.md`, `docs/DESIGN_SYNC_AUDIT_2026-07-11.md`(§6에 재현성 보강 항목 추가), `.claude/agents/ui-matcher.md`(기준 문구) — 전부 이 세션에서 갱신.
+
+---
+
 ### [2026-07-11] 2.5.3 — 완료
 - 한 일: 기존 화면 13개 파일의 타이포그래피를 Montage v2 타입 스케일(`text-heading1`/`heading2`/`body1`/`body2`/`label1`/`caption1`, tailwind.config.js에 2.5.1에서 이미 등록돼 있던 유틸리티)로 전환. 역할 분류 규칙: 화면 최상단 h1/h2 제목→heading2(20px, CaseListScreen은 24→20 보정·DonePage/DraftPage/RunScreen은 18→20 승격으로 통일), 카드/시트 h3 제목→body1(16px), 인사문장·빈상태 큰 강조→heading1(22px), 서술형 문장(설명·안내·에러 메시지)→body2(15px), 버튼/칩/행 라벨 같은 UI 크롬→label1(14px), 캡션·타임스탬프→caption1(12px). 기존 font-weight/leading-* 클래스는 그대로 유지(사이즈 토큰만 교체). Workflow로 13개 파일 병렬 치환 + 적대적 감사 에이전트를 돌려 놓친 3곳(`CaseSheet.tsx:114`, `DonePage.tsx:31`, `DraftPage.tsx:69` — 전부 "text-sm" 잔존)을 찾아 직접 수정. `.claude/agents/ui-matcher.md`를 prototype_v3 기준에서 디자인 프로젝트(+ Chip tone 명칭·타이포·아웃라인 체크 항목 추가)로 교체하면서, 초안이 잘못 인용한 `외고반장 Mobile.dc.html`(보류 결정된 모바일 개편안)을 "기준 아님"으로 정정.
 - 남은 일 / 중단 지점: 없음 — M2.5는 2.5.1~2.5.3 전부 완료. 다음은 ROADMAP 2.5.4(PC 케이스 워크벤치) 또는 2.2(메시지 탭).

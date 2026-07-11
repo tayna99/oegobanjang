@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
+  <link rel="stylesheet" href="_ds/montage-wanted-design-system-019e203d-1226-70d2-89dc-5cf5dc0a81a4/colors_and_type.css">
+  <script src="_ds/montage-wanted-design-system-019e203d-1226-70d2-89dc-5cf5dc0a81a4/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; background: #EAEBEC; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<section style="padding:56px 64px;display:flex;flex-direction:column;gap:32px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
+    <div style="font-size:24px;line-height:32px;font-weight:700;letter-spacing:-0.023em;color:#171719">모바일 개편 — 승인 큐 중심 (레퍼런스 종합)</div>
+    <div style="font-size:14px;line-height:20px;color:rgba(55,56,60,0.61)">안4(승인 큐 규율) + 안2(케이스 디테일) + 안1(에이전트 상태 요약) 종합. 카드에서는 <b>검토만</b>, 승인은 체크리스트 화면에서. <a href="#2a" style="color:#0066FF;text-decoration:none">2a</a> 오늘 브리핑 · <a href="#2b" style="color:#0066FF;text-decoration:none">2b</a> 사례 검토 · <a href="#2c" style="color:#0066FF;text-decoration:none">2c</a> 최종 승인 · <a href="#2d" style="color:#0066FF;text-decoration:none">2d</a> 승인 이력</div>
+  </div>
+
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+
+    <!-- 2a 오늘 브리핑 -->
+    <div id="2a" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <a href="#2a" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">2a</a>
+        <span style="font-size:13px;font-weight:600;color:#171719">오늘 브리핑 — 에이전트 요약 + 검토 큐</span>
+      </div>
+      <div data-screen-label="2a 모바일 오늘 브리핑" style="width:375px;height:780px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07),0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;display:flex;flex-direction:column">
+        <div style="padding:26px 20px 10px;display:flex;align-items:flex-end;justify-content:space-between">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="font-size:22px;line-height:28px;font-weight:700;letter-spacing:-0.023em;color:#171719">오늘 브리핑</div>
+            <div style="font-size:12.5px;color:rgba(55,56,60,0.61)">7월 10일 (금) · 그린푸드 제조</div>
+          </div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 4a6 6 0 016 6v3l1.5 2.5H4.5L6 13v-3a6 6 0 016-6z" stroke="#70737C" stroke-width="1.8" stroke-linejoin="round"></path><path d="M10 19a2 2 0 004 0" stroke="#70737C" stroke-width="1.8" stroke-linecap="round"></path></svg>
+        </div>
+        <div style="margin:6px 16px 0;background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:10px 12px;display:flex;justify-content:space-between">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px"><span style="font-size:15px;font-weight:700;color:#006F82">6</span><span style="font-size:10px;color:rgba(55,56,60,0.61)">감지</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px"><span style="font-size:15px;font-weight:700;color:#0066FF">5</span><span style="font-size:10px;color:rgba(55,56,60,0.61)">근거 수집</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px"><span style="font-size:15px;font-weight:700;color:#4F29E5">4</span><span style="font-size:10px;color:rgba(55,56,60,0.61)">초안</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px"><span style="font-size:15px;font-weight:700;color:#D47800">3</span><span style="font-size:10px;color:rgba(55,56,60,0.61)">승인 대기</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:1px"><span style="font-size:15px;font-weight:700;color:#009632">12</span><span style="font-size:10px;color:rgba(55,56,60,0.61)">실행(주)</span></div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:14px 16px 12px;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:12.5px;font-weight:600;color:rgba(55,56,60,0.61);padding:0 4px">내가 처리할 승인 3건</div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06);padding:13px 14px;display:flex;align-items:center;gap:11px">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;gap:5px"><span style="background:#FEECEC;color:#E52222;border-radius:5px;padding:1px 6px;font-size:10.5px;font-weight:700">긴급 · D+2</span><span style="background:rgba(112,115,124,0.08);color:rgba(55,56,60,0.88);border-radius:5px;padding:1px 6px;font-size:10.5px;font-weight:500">누락 2건</span></div>
+              <span style="font-size:14px;line-height:19px;font-weight:600;color:#171719">체류기간 만료 경과 · 행정사 검토</span>
+              <span style="font-size:11.5px;color:rgba(55,56,60,0.61)">Batbayar E. · 제조2팀</span>
+            </div>
+            <div style="height:34px;padding:0 14px;border-radius:8px;background:#0066FF;color:#fff;font-size:12.5px;font-weight:600;display:flex;align-items:center;flex-shrink:0">검토</div>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06);padding:13px 14px;display:flex;align-items:center;gap:11px">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;gap:5px"><span style="background:#FEF4E6;color:#D47800;border-radius:5px;padding:1px 6px;font-size:10.5px;font-weight:700">높음 · D-30</span><span style="background:rgba(112,115,124,0.08);color:rgba(55,56,60,0.88);border-radius:5px;padding:1px 6px;font-size:10.5px;font-weight:500">누락 2건</span></div>
+              <span style="font-size:14px;line-height:19px;font-weight:600;color:#171719">체류기간 연장 서류 요청</span>
+              <span style="font-size:11.5px;color:rgba(55,56,60,0.61)">Nguyen Van A · 제조1팀</span>
+            </div>
+            <div style="height:34px;padding:0 14px;border-radius:8px;background:#0066FF;color:#fff;font-size:12.5px;font-weight:600;display:flex;align-items:center;flex-shrink:0">검토</div>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06);padding:13px 14px;display:flex;align-items:center;gap:11px">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+              <div style="display:flex;gap:5px"><span style="background:#FEF4E6;color:#D47800;border-radius:5px;padding:1px 6px;font-size:10.5px;font-weight:700">높음 · D-3</span><span style="background:rgba(112,115,124,0.08);color:rgba(55,56,60,0.88);border-radius:5px;padding:1px 6px;font-size:10.5px;font-weight:500">누락 1건</span></div>
+              <span style="font-size:14px;line-height:19px;font-weight:600;color:#171719">고용변동 신고 기한 임박</span>
+              <span style="font-size:11.5px;color:rgba(55,56,60,0.61)">Siti R. · 포장팀</span>
+            </div>
+            <div style="height:34px;padding:0 14px;border-radius:8px;background:#0066FF;color:#fff;font-size:12.5px;font-weight:600;display:flex;align-items:center;flex-shrink:0">검토</div>
+          </div>
+          <div style="font-size:12.5px;font-weight:600;color:rgba(55,56,60,0.61);padding:6px 4px 0">에이전트 진행 중 3건</div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:11px 14px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="background:#F0ECFE;color:#4F29E5;border-radius:4px;padding:0 5px;font-size:10px;font-weight:600;flex-shrink:0">초안 생성</span><span style="flex:1;font-size:12px;color:#171719">Tran Thi H. · 만료일 불일치 검토</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">D-45</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="background:#EAF2FE;color:#0066FF;border-radius:4px;padding:0 5px;font-size:10px;font-weight:600;flex-shrink:0">근거 수집</span><span style="flex:1;font-size:12px;color:#171719">Rahmat P. · 필수 서류 누락</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">—</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="background:#DEFAFF;color:#006F82;border-radius:4px;padding:0 5px;font-size:10px;font-weight:600;flex-shrink:0">감지</span><span style="flex:1;font-size:12px;color:#171719">Oyunaa T. · 계약 만료 모니터링</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">D-75</span></div>
+          </div>
+        </div>
+        <div style="padding:8px 20px;display:flex;align-items:center;justify-content:center;gap:6px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+          <span style="font-size:11px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다.</span>
+        </div>
+        <div style="display:flex;border-top:1px solid rgba(112,115,124,0.08);background:#FFFFFF;padding:8px 8px 22px">
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:#0066FF"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"></rect><path d="M8 10h8M8 14h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg><span style="font-size:10.5px;font-weight:600">브리핑</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:rgba(55,56,60,0.61)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 8a2 2 0 012-2h4l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg><span style="font-size:10.5px;font-weight:600">케이스</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:rgba(55,56,60,0.61)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 6.5A2.5 2.5 0 016.5 4h11A2.5 2.5 0 0120 6.5v6A2.5 2.5 0 0117.5 15H10l-4 4v-4H6.5A2.5 2.5 0 014 12.5v-6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg><span style="font-size:10.5px;font-weight:600">메시지</span></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:rgba(55,56,60,0.61)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span style="font-size:10.5px;font-weight:600">기록</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2b 사례 검토 -->
+    <div id="2b" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <a href="#2b" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">2b</a>
+        <span style="font-size:13px;font-weight:600;color:#171719">사례 검토 — 위험 요약 · 누락 · 근거 · 초안</span>
+      </div>
+      <div data-screen-label="2b 모바일 사례 검토" style="width:375px;height:780px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07),0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;display:flex;flex-direction:column">
+        <div style="padding:26px 20px 12px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;gap:12px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 5L8 12L15 19" stroke="#171719" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span style="font-size:16px;font-weight:700;color:#171719">사례 검토</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:16px 16px 12px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:5px"><span style="background:#FEF4E6;color:#D47800;border-radius:5px;padding:1px 7px;font-size:11px;font-weight:700">HIGH · D-30</span><span style="font-size:11px;color:rgba(55,56,60,0.43);align-self:center">case_002 · 판단 기록 #4788</span></div>
+            <span style="font-size:17px;line-height:24px;font-weight:700;color:#171719">체류기간 연장 서류 요청</span>
+            <span style="font-size:12.5px;color:rgba(55,56,60,0.61)">Nguyen Van A · 제조1팀 · 체류만료 2026.08.09</span>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:12px 14px;display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:11px;font-weight:700;color:rgba(55,56,60,0.61)">왜 확인이 필요한가요</span>
+            <span style="font-size:13px;line-height:19px;color:rgba(55,56,60,0.88)">체류만료 D-30. 연장 신청에 필요한 서류 2건이 누락되어 근로자에게 요청이 필요합니다.</span>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);overflow:hidden">
+            <div style="padding:10px 14px 8px;font-size:11px;font-weight:700;color:rgba(55,56,60,0.61)">누락 서류 (2)</div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-top:1px solid rgba(112,115,124,0.08)"><div style="width:14px;height:14px;border:1.5px solid rgba(112,115,124,0.43);border-radius:4px"></div><span style="flex:1;font-size:13px;color:#171719">여권 사본</span><span style="background:#FEECEC;color:#E52222;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600">누락</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-top:1px solid rgba(112,115,124,0.08)"><div style="width:14px;height:14px;border:1.5px solid rgba(112,115,124,0.43);border-radius:4px"></div><span style="flex:1;font-size:13px;color:#171719">표준근로계약서 사본</span><span style="background:#FEECEC;color:#E52222;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600">누락</span></div>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);overflow:hidden">
+            <div style="padding:10px 14px 8px;font-size:11px;font-weight:700;color:rgba(55,56,60,0.61)">연결 근거 (2)</div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-top:1px solid rgba(112,115,124,0.08)"><span style="width:20px;height:20px;border-radius:5px;background:#EAF2FE;color:#0066FF;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">A</span><span style="flex:1;font-size:12.5px;color:#171719">출입국관리법 시행규칙 · 연장 제출서류</span></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 14px;border-top:1px solid rgba(112,115,124,0.08)"><span style="width:20px;height:20px;border-radius:5px;background:#EAF2FE;color:#0066FF;font-size:10.5px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">E</span><span style="flex:1;font-size:12.5px;color:#171719">내부 승인 템플릿 · 서류요청 (VN)</span></div>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+              <span style="font-size:11px;font-weight:700;color:rgba(55,56,60,0.61)">초안 미리보기</span>
+              <div style="display:flex;gap:4px">
+                <span style="border-radius:7px;padding:3px 10px;font-size:11px;font-weight:600;background:rgba(0,102,255,0.05);box-shadow:inset 0 0 0 1px rgba(0,102,255,0.43);color:#0066FF">VN</span>
+                <span style="border-radius:7px;padding:3px 10px;font-size:11px;font-weight:600;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:rgba(55,56,60,0.61)">KR</span>
+              </div>
+            </div>
+            <div style="background:#F7F7F8;border-radius:9px;padding:11px 12px;font-size:12.5px;line-height:19px;color:rgba(55,56,60,0.88)">Chào anh Nguyen Van A, để gia hạn thời gian lưu trú, vui lòng gửi 2 giấy tờ sau trước ngày 15/07: 1) Bản sao hộ chiếu, 2) Bản sao hợp đồng lao động. Cảm ơn anh.</div>
+          </div>
+        </div>
+        <div style="padding:12px 16px 26px;border-top:1px solid rgba(112,115,124,0.08);background:#FFFFFF">
+          <div style="height:48px;border-radius:12px;background:#0066FF;color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center">검토 계속</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2c 최종 승인 -->
+    <div id="2c" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <a href="#2c" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">2c</a>
+        <span style="font-size:13px;font-weight:600;color:#171719">최종 승인 — 체크리스트 · 차단 배너 · 반려 사유</span>
+      </div>
+      <div data-screen-label="2c 모바일 최종 승인" style="width:375px;height:780px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07),0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;display:flex;flex-direction:column">
+        <div style="padding:26px 20px 12px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;gap:12px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 5L8 12L15 19" stroke="#171719" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span style="font-size:16px;font-weight:700;color:#171719">최종 승인</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:16px 16px 12px;display:flex;flex-direction:column;gap:12px">
+          <div style="background:#FEF4E6;border-radius:12px;padding:12px 14px;display:flex;gap:10px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#D47800" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#D47800" stroke-width="2"></path></svg>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <span style="font-size:13px;font-weight:700;color:#9C5800">승인 전 외부 발송이 차단됩니다</span>
+              <span style="font-size:11.5px;line-height:16px;color:#9C5800">승인 완료 시 발송 실행이 가능해지며, 승인자는 판단 기록에 남습니다.</span>
+            </div>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:12px 14px;display:flex;flex-direction:column;gap:3px">
+            <span style="font-size:11px;font-weight:700;color:rgba(55,56,60,0.61)">승인 대상</span>
+            <span style="font-size:14px;font-weight:600;color:#171719">서류요청 메시지 발송 (VN) · Nguyen Van A</span>
+            <span style="font-size:11.5px;color:rgba(55,56,60,0.61)">HIGH · D-30 · 누락 서류 2건 요청</span>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);overflow:hidden">
+            <div style="padding:10px 14px 8px;display:flex;justify-content:space-between"><span style="font-size:11px;font-weight:700;color:rgba(55,56,60,0.61)">승인 체크리스트</span><span style="font-size:10.5px;font-weight:600;color:#009632">필수 4/4</span></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;padding:9px 14px;border-top:1px solid rgba(112,115,124,0.08)"><div style="width:15px;height:15px;border-radius:99px;background:#0066FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3.5" stroke-linecap="round"></path></svg></div><span style="font-size:12.5px;line-height:18px;color:#171719">위험도·영향 검토 완료 (HIGH · D-30)</span></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;padding:9px 14px;border-top:1px solid rgba(112,115,124,0.08)"><div style="width:15px;height:15px;border-radius:99px;background:#0066FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3.5" stroke-linecap="round"></path></svg></div><span style="font-size:12.5px;line-height:18px;color:#171719">누락 서류·연결 근거 확인 (근거 2건)</span></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;padding:9px 14px;border-top:1px solid rgba(112,115,124,0.08)"><div style="width:15px;height:15px;border-radius:99px;background:#0066FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3.5" stroke-linecap="round"></path></svg></div><span style="font-size:12.5px;line-height:18px;color:#171719">단정형 표현 없음 · 표현 가이드 준수</span></div>
+            <div style="display:flex;align-items:flex-start;gap:9px;padding:9px 14px;border-top:1px solid rgba(112,115,124,0.08)"><div style="width:15px;height:15px;border-radius:99px;background:#0066FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3.5" stroke-linecap="round"></path></svg></div><span style="font-size:12.5px;line-height:18px;color:#171719">VN/KR 초안 내용 확인</span></div>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:12px 14px;display:flex;flex-direction:column;gap:7px">
+            <span style="font-size:11px;font-weight:700;color:rgba(55,56,60,0.61)">의견 / 반려 사유 <span style="font-weight:400;color:rgba(55,56,60,0.43)">(선택)</span></span>
+            <div style="height:64px;border-radius:9px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);padding:9px 11px;font-size:12.5px;color:rgba(55,56,60,0.43)">추가 의견이 있으면 입력하세요.</div>
+          </div>
+        </div>
+        <div style="padding:12px 16px 26px;border-top:1px solid rgba(112,115,124,0.08);background:#FFFFFF;display:flex;flex-direction:column;gap:8px">
+          <div style="height:48px;border-radius:12px;background:#0066FF;color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center">승인하기</div>
+          <div style="height:44px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;background:#FFFFFF">반려하기</div>
+          <span style="text-align:center;font-size:10.5px;color:rgba(55,56,60,0.43)">반려 시 사유가 판단 기록에 남고 요청이 되돌아갑니다.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2d 승인 이력 -->
+    <div id="2d" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <a href="#2d" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">2d</a>
+        <span style="font-size:13px;font-weight:600;color:#171719">승인 이력 — 요청부터 기록까지 추적</span>
+      </div>
+      <div data-screen-label="2d 모바일 승인 이력" style="width:375px;height:780px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07),0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;display:flex;flex-direction:column">
+        <div style="padding:26px 20px 12px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;gap:12px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 5L8 12L15 19" stroke="#171719" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span style="font-size:16px;font-weight:700;color:#171719">승인 이력</span>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:16px 16px 12px;display:flex;flex-direction:column;gap:12px">
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:14px;display:flex;align-items:center;gap:11px">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#1ED45A"></circle><path d="M7.5 12.5L10.5 15.5L16.5 9" stroke="#0F0F10" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            <div style="flex:1;display:flex;flex-direction:column;gap:1px">
+              <span style="font-size:14.5px;font-weight:700;color:#171719">승인 완료 · 판단 기록 #4789</span>
+              <span style="font-size:11.5px;color:rgba(55,56,60,0.61)">서류요청 메시지 발송 (VN) · Nguyen Van A</span>
+            </div>
+            <span style="font-size:11px;color:rgba(55,56,60,0.43);align-self:flex-start">1시간 32분</span>
+          </div>
+          <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:16px 14px">
+            <div style="display:flex;gap:10px"><div style="display:flex;flex-direction:column;align-items:center;width:10px;flex-shrink:0"><div style="width:10px;height:10px;border-radius:99px;background:#0066FF;margin-top:4px"></div><div style="width:2px;flex:1;background:rgba(112,115,124,0.12)"></div></div><div style="padding-bottom:14px;display:flex;flex-direction:column;gap:2px"><div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;font-weight:700;color:#0066FF">승인 요청 생성</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">system · 08:00</span></div><span style="font-size:11.5px;line-height:16px;color:rgba(55,56,60,0.88)">request_document 액션 · blocked_until_approved=true</span></div></div>
+            <div style="display:flex;gap:10px"><div style="display:flex;flex-direction:column;align-items:center;width:10px;flex-shrink:0"><div style="width:10px;height:10px;border-radius:99px;background:#006F82;margin-top:4px"></div><div style="width:2px;flex:1;background:rgba(112,115,124,0.12)"></div></div><div style="padding-bottom:14px;display:flex;flex-direction:column;gap:2px"><div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;font-weight:700;color:#006F82">검토 시작</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">김담당 · 09:12</span></div><span style="font-size:11.5px;line-height:16px;color:rgba(55,56,60,0.88)">모바일에서 사례 검토 진입</span></div></div>
+            <div style="display:flex;gap:10px"><div style="display:flex;flex-direction:column;align-items:center;width:10px;flex-shrink:0"><div style="width:10px;height:10px;border-radius:99px;background:#4F29E5;margin-top:4px"></div><div style="width:2px;flex:1;background:rgba(112,115,124,0.12)"></div></div><div style="padding-bottom:14px;display:flex;flex-direction:column;gap:2px"><div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;font-weight:700;color:#4F29E5">체크리스트 완료</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">김담당 · 09:28</span></div><span style="font-size:11.5px;line-height:16px;color:rgba(55,56,60,0.88)">필수 4항목 확인 · 근거 2건 연결 확인</span></div></div>
+            <div style="display:flex;gap:10px"><div style="display:flex;flex-direction:column;align-items:center;width:10px;flex-shrink:0"><div style="width:10px;height:10px;border-radius:99px;background:#009632;margin-top:4px"></div><div style="width:2px;flex:1;background:rgba(112,115,124,0.12)"></div></div><div style="padding-bottom:14px;display:flex;flex-direction:column;gap:2px"><div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;font-weight:700;color:#009632">최종 승인</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">김담당 (본인) · 09:32</span></div><span style="font-size:11.5px;line-height:16px;color:rgba(55,56,60,0.88)">승인 확정 · 발송 실행 가능 상태로 전환</span></div></div>
+            <div style="display:flex;gap:10px"><div style="display:flex;flex-direction:column;align-items:center;width:10px;flex-shrink:0"><div style="width:10px;height:10px;border-radius:99px;background:#009632;margin-top:4px"></div><div style="width:2px;flex:1;background:rgba(112,115,124,0.12)"></div></div><div style="padding-bottom:14px;display:flex;flex-direction:column;gap:2px"><div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;font-weight:700;color:#009632">판단 기록 저장</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">system · 09:32</span></div><span style="font-size:11.5px;line-height:16px;color:rgba(55,56,60,0.88)">#4789 · 해시 기록 sha256:4b81…07dd</span></div></div>
+            <div style="display:flex;gap:10px"><div style="display:flex;flex-direction:column;align-items:center;width:10px;flex-shrink:0"><div style="width:10px;height:10px;border-radius:99px;background:rgba(112,115,124,0.32);margin-top:4px"></div></div><div style="display:flex;flex-direction:column;gap:2px"><div style="display:flex;gap:6px;align-items:center"><span style="font-size:12px;font-weight:700;color:rgba(55,56,60,0.61)">발송 실행 (mock)</span><span style="font-size:10.5px;color:rgba(55,56,60,0.43)">예정 · PC에서</span></div><span style="font-size:11.5px;line-height:16px;color:rgba(55,56,60,0.88)">실제 전송 없이 audit trail만 기록</span></div></div>
+          </div>
+        </div>
+        <div style="padding:8px 20px 26px;display:flex;align-items:center;justify-content:center;gap:6px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+          <span style="font-size:11px;color:rgba(55,56,60,0.61)">모든 판단·승인은 Evidence Log에 기록됩니다.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section style="padding:56px 64px;display:flex;flex-direction:column;gap:32px">
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div style="font-size:24px;line-height:32px;font-weight:700;letter-spacing:-0.023em;color:#171719">외고반장 모바일 화면 — M1~M4</div>
+    <div style="font-size:14px;line-height:20px;color:rgba(55,56,60,0.61)">승인/확인 중심 최소 동선 · Montage(Wanted) 디자인 시스템 · <a href="#1a" style="color:#0066FF;text-decoration:none">1a</a> 인터랙티브 프로토타입 · <a href="#1b" style="color:#0066FF;text-decoration:none">1b</a> 정적 화면 M1~M4 · <a href="#1c" style="color:#0066FF;text-decoration:none">1c</a>/<a href="#1d" style="color:#0066FF;text-decoration:none">1d</a> 브리핑 카드 레이아웃 대안</div>
+  </div>
+
+  <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+
+    <!-- ═══════════ 1a. Interactive prototype ═══════════ -->
+    <div id="1a" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#1a" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">1a</a>
+        <div style="display:flex;flex-direction:column">
+          <div style="font-size:15px;font-weight:600;color:#171719">인터랙티브 프로토타입</div>
+          <div style="font-size:12px;color:rgba(55,56,60,0.61)">카드 탭 → 바텀시트(M2) → 승인 → 토스트(M3)</div>
+        </div>
+      </div>
+
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div data-screen-label="M1 오늘 브리핑 (인터랙티브)" style="position:relative;height:100%;overflow:hidden;background:#F7F7F8;display:flex;flex-direction:column">
+
+          <!-- header -->
+          <div style="padding:72px 20px 12px;display:flex;align-items:flex-end;justify-content:space-between">
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div style="font-size:24px;line-height:32px;font-weight:700;letter-spacing:-0.023em;color:#171719">오늘 브리핑</div>
+              <div style="font-size:13px;line-height:18px;color:rgba(55,56,60,0.61)">7월 6일 (월) · 그린푸드 제조</div>
+            </div>
+            <button onClick="{{ reset }}" style="border:none;background:rgba(112,115,124,0.08);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:500;color:rgba(55,56,60,0.88);cursor:pointer;font-family:inherit">새로고침</button>
+          </div>
+
+          <!-- card list -->
+          <div style="flex:1;overflow-y:auto;padding:8px 16px 16px;display:flex;flex-direction:column;gap:12px">
+            <div style="font-size:13px;line-height:18px;font-weight:500;color:rgba(55,56,60,0.61);padding:0 4px">승인 필요 {{ pendingCount }}건</div>
+            <sc-for list="{{ cards }}" as="card" hint-placeholder-count="3">
+              <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="font-size:16px;line-height:24px;font-weight:600;color:#171719">{{ card.title }}</div>
+                  <div style="font-size:13px;line-height:18px;color:rgba(55,56,60,0.61)">{{ card.name }} · {{ card.team }}</div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <span style="background:{{ card.sevBg }};color:{{ card.sevColor }};border-radius:6px;padding:3px 8px;font-size:12px;line-height:16px;font-weight:600">{{ card.sevLabel }}</span>
+                  <span style="background:rgba(112,115,124,0.08);color:rgba(55,56,60,0.88);border-radius:6px;padding:3px 8px;font-size:12px;line-height:16px;font-weight:500">{{ card.missingLabel }}</span>
+                  <sc-if value="{{ card.notApproved }}" hint-placeholder-val="{{ true }}">
+                    <span style="background:#EAF2FE;color:#0066FF;border-radius:6px;padding:3px 8px;font-size:12px;line-height:16px;font-weight:600">승인 필요</span>
+                  </sc-if>
+                  <sc-if value="{{ card.isApproved }}" hint-placeholder-val="{{ false }}">
+                    <span style="background:#D9FFE6;color:#009632;border-radius:6px;padding:3px 8px;font-size:12px;line-height:16px;font-weight:600">승인 완료</span>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ card.notApproved }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;gap:8px">
+                    <button onClick="{{ card.open }}" style="flex:1;height:40px;border:none;border-radius:10px;background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">초안 보기</button>
+                    <button onClick="{{ card.open }}" style="flex:1;height:40px;border:none;border-radius:10px;background:#0066FF;color:#FFFFFF;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">{{ approveLabel }}</button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ card.isApproved }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:8px;background:#F7F7F8;border-radius:10px;padding:10px 12px">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#009632" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    <span style="font-size:13px;line-height:18px;color:rgba(55,56,60,0.88)">{{ card.next }}</span>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- M4 guard line -->
+          <div style="padding:12px 20px 44px;border-top:1px solid rgba(112,115,124,0.08);background:#FFFFFF;display:flex;align-items:center;justify-content:center;gap:6px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+            <span style="font-size:12px;line-height:16px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다.</span>
+          </div>
+
+          <!-- M3 toast -->
+          <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;top:64px;left:16px;right:16px;z-index:60;background:#212225;border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:10px;box-shadow:0px 6px 10px -4px rgba(23,23,23,0.08), 0px 16px 24px -6px rgba(23,23,23,0.28)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#1ED45A"></circle><path d="M7.5 12.5L10.5 15.5L16.5 9" stroke="#0F0F10" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span style="font-size:14px;line-height:20px;font-weight:500;color:#F7F7F8">{{ toastText }}</span>
+            </div>
+          </sc-if>
+
+          <!-- M2 bottom sheet -->
+          <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+            <div data-screen-label="M2 케이스 바텀시트" style="position:absolute;inset:0;z-index:50">
+              <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(23,23,25,0.52)"></div>
+              <div style="position:absolute;left:0;right:0;bottom:0;max-height:82%;background:#FFFFFF;border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden">
+                <div style="display:flex;justify-content:center;padding:10px 0 2px"><div style="width:36px;height:4px;border-radius:100px;background:rgba(112,115,124,0.22)"></div></div>
+                <div style="overflow-y:auto;padding:12px 20px 0;display:flex;flex-direction:column;gap:18px">
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <span style="align-self:flex-start;background:{{ sheetSevBg }};color:{{ sheetSevColor }};border-radius:6px;padding:3px 8px;font-size:12px;line-height:16px;font-weight:600">{{ sheetSevLabel }}</span>
+                    <div style="font-size:18px;line-height:26px;font-weight:700;letter-spacing:-0.002em;color:#171719">{{ sheetTitle }}</div>
+                    <div style="font-size:14px;line-height:22px;color:rgba(55,56,60,0.88)">{{ sheetSummary }}</div>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <div style="font-size:13px;line-height:18px;font-weight:600;color:rgba(55,56,60,0.61)">누락 서류</div>
+                    <div style="display:flex;flex-direction:column;border:1px solid rgba(112,115,124,0.16);border-radius:12px;overflow:hidden">
+                      <sc-for list="{{ sheetDocs }}" as="doc" hint-placeholder-count="2">
+                        <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(112,115,124,0.08)">
+                          <div style="width:18px;height:18px;border:1.5px solid rgba(112,115,124,0.43);border-radius:5px;flex-shrink:0"></div>
+                          <span style="flex:1;font-size:14px;line-height:20px;color:#171719">{{ doc.name }}</span>
+                          <span style="background:#FEECEC;color:#E52222;border-radius:6px;padding:2px 7px;font-size:11px;line-height:14px;font-weight:600">누락</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <div style="display:flex;align-items:center;justify-content:space-between">
+                      <div style="font-size:13px;line-height:18px;font-weight:600;color:rgba(55,56,60,0.61)">초안 미리보기</div>
+                      <div style="display:flex;gap:6px">
+                        <button onClick="{{ setLangA }}" style="border:none;cursor:pointer;font-family:inherit;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:600;background:{{ aBg }};box-shadow:{{ aShadow }};color:{{ aColor }}">{{ sheetLangALabel }}</button>
+                        <button onClick="{{ setLangK }}" style="border:none;cursor:pointer;font-family:inherit;border-radius:8px;padding:5px 12px;font-size:13px;font-weight:600;background:{{ kBg }};box-shadow:{{ kShadow }};color:{{ kColor }}">KR</button>
+                      </div>
+                    </div>
+                    <div style="background:#F7F7F8;border-radius:12px;padding:14px;font-size:14px;line-height:22px;color:rgba(55,56,60,0.88);white-space:pre-wrap">{{ draftText }}</div>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <div style="font-size:13px;line-height:18px;font-weight:600;color:rgba(55,56,60,0.61)">근거 (Evidence)</div>
+                    <div style="display:flex;flex-direction:column;gap:6px">
+                      <sc-for list="{{ sheetEvidence }}" as="ev" hint-placeholder-count="2">
+                        <div style="display:flex;align-items:center;gap:10px;background:#FFFFFF;border:1px solid rgba(112,115,124,0.16);border-radius:10px;padding:10px 12px">
+                          <span style="width:22px;height:22px;border-radius:6px;background:#EAF2FE;color:#0066FF;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">{{ ev.grade }}</span>
+                          <span style="flex:1;font-size:13px;line-height:18px;color:#171719">{{ ev.label }}</span>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 6L15 12L9 18" stroke="#989BA2" stroke-width="2" stroke-linecap="round"></path></svg>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+
+                  <div style="display:flex;align-items:center;justify-content:center;gap:6px;padding-bottom:2px">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+                    <span style="font-size:12px;line-height:16px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다.</span>
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;padding:14px 20px 40px;border-top:1px solid rgba(112,115,124,0.08)">
+                  <button onClick="{{ closeSheet }}" style="flex:1;height:48px;border:none;border-radius:12px;background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">반려</button>
+                  <button onClick="{{ approve }}" style="flex:2;height:48px;border:none;border-radius:12px;background:#0066FF;color:#FFFFFF;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit">{{ approveLabel }}</button>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+      </x-import>
+    </div>
+
+    <!-- ═══════════ 1b. Static M1–M4 ═══════════ -->
+    <div id="1b" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#1b" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">1b</a>
+        <div style="display:flex;flex-direction:column">
+          <div style="font-size:15px;font-weight:600;color:#171719">정적 화면 M1~M4</div>
+          <div style="font-size:12px;color:rgba(55,56,60,0.61)">각 상태를 나란히 — 문서/리뷰용</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+
+        <!-- M1 static -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">M1 · 오늘 브리핑</div>
+          <div data-screen-label="M1 오늘 브리핑" style="width:375px;height:700px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07), 0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;display:flex;flex-direction:column">
+            <div style="padding:28px 20px 12px;display:flex;align-items:flex-end;justify-content:space-between">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <div style="font-size:24px;line-height:32px;font-weight:700;letter-spacing:-0.023em;color:#171719">오늘 브리핑</div>
+                <div style="font-size:13px;line-height:18px;color:rgba(55,56,60,0.61)">7월 6일 (월) · 그린푸드 제조</div>
+              </div>
+              <div style="background:rgba(112,115,124,0.08);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:500;color:rgba(55,56,60,0.88)">새로고침</div>
+            </div>
+            <div style="flex:1;overflow:hidden;padding:8px 16px 16px;display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:13px;font-weight:500;color:rgba(55,56,60,0.61);padding:0 4px">승인 필요 3건</div>
+              <div style="background:#fff;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="font-size:16px;line-height:24px;font-weight:600;color:#171719">체류기간 만료 경과 · 행정사 검토</div>
+                  <div style="font-size:13px;color:rgba(55,56,60,0.61)">Batbayar E. · 제조2팀</div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <span style="background:#FEECEC;color:#E52222;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">CRITICAL · D+2</span>
+                  <span style="background:rgba(112,115,124,0.08);color:rgba(55,56,60,0.88);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:500">누락 2건</span>
+                  <span style="background:#EAF2FE;color:#0066FF;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">승인 필요</span>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <div style="flex:1;height:40px;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center">초안 보기</div>
+                  <div style="flex:1;height:40px;border-radius:10px;background:#0066FF;color:#fff;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center">승인하기</div>
+                </div>
+              </div>
+              <div style="background:#fff;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="font-size:16px;line-height:24px;font-weight:600;color:#171719">체류기간 연장 서류 요청</div>
+                  <div style="font-size:13px;color:rgba(55,56,60,0.61)">Nguyen Van A · 제조1팀</div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <span style="background:#FEF4E6;color:#D47800;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">HIGH · D-30</span>
+                  <span style="background:rgba(112,115,124,0.08);color:rgba(55,56,60,0.88);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:500">누락 2건</span>
+                  <span style="background:#EAF2FE;color:#0066FF;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">승인 필요</span>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <div style="flex:1;height:40px;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center">초안 보기</div>
+                  <div style="flex:1;height:40px;border-radius:10px;background:#0066FF;color:#fff;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center">승인하기</div>
+                </div>
+              </div>
+              <div style="background:#fff;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="font-size:16px;line-height:24px;font-weight:600;color:#171719">고용변동 신고 기한 임박</div>
+                  <div style="font-size:13px;color:rgba(55,56,60,0.61)">Siti R. · 포장팀</div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <span style="background:#FEF4E6;color:#D47800;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">HIGH · D-3</span>
+                  <span style="background:rgba(112,115,124,0.08);color:rgba(55,56,60,0.88);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:500">누락 1건</span>
+                  <span style="background:#EAF2FE;color:#0066FF;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">승인 필요</span>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <div style="flex:1;height:40px;border-radius:10px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center">초안 보기</div>
+                  <div style="flex:1;height:40px;border-radius:10px;background:#0066FF;color:#fff;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center">승인하기</div>
+                </div>
+              </div>
+            </div>
+            <div style="padding:12px 20px 20px;border-top:1px solid rgba(112,115,124,0.08);background:#fff;display:flex;align-items:center;justify-content:center;gap:6px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+              <span style="font-size:12px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- M2 static -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">M2 · 케이스 바텀시트</div>
+          <div data-screen-label="M2 케이스 바텀시트" style="width:375px;height:700px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07), 0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;position:relative">
+            <div style="padding:28px 20px 12px;opacity:0.5">
+              <div style="font-size:24px;line-height:32px;font-weight:700;color:#171719">오늘 브리핑</div>
+            </div>
+            <div style="position:absolute;inset:0;background:rgba(23,23,25,0.52)"></div>
+            <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;display:flex;flex-direction:column">
+              <div style="display:flex;justify-content:center;padding:10px 0 2px"><div style="width:36px;height:4px;border-radius:100px;background:rgba(112,115,124,0.22)"></div></div>
+              <div style="padding:12px 20px 0;display:flex;flex-direction:column;gap:16px">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <span style="align-self:flex-start;background:#FEF4E6;color:#D47800;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">HIGH · D-30</span>
+                  <div style="font-size:18px;line-height:26px;font-weight:700;color:#171719">체류기간 연장 서류 요청 · Nguyen Van A</div>
+                  <div style="font-size:14px;line-height:22px;color:rgba(55,56,60,0.88)">체류만료 D-30. 연장 신청에 필요한 서류 2건이 누락되어 근로자에게 요청이 필요합니다.</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="font-size:13px;font-weight:600;color:rgba(55,56,60,0.61)">누락 서류</div>
+                  <div style="display:flex;flex-direction:column;border:1px solid rgba(112,115,124,0.16);border-radius:12px;overflow:hidden">
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(112,115,124,0.08)">
+                      <div style="width:18px;height:18px;border:1.5px solid rgba(112,115,124,0.43);border-radius:5px"></div>
+                      <span style="flex:1;font-size:14px;color:#171719">여권 사본</span>
+                      <span style="background:#FEECEC;color:#E52222;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:600">누락</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px 14px">
+                      <div style="width:18px;height:18px;border:1.5px solid rgba(112,115,124,0.43);border-radius:5px"></div>
+                      <span style="flex:1;font-size:14px;color:#171719">표준근로계약서 사본</span>
+                      <span style="background:#FEECEC;color:#E52222;border-radius:6px;padding:2px 7px;font-size:11px;font-weight:600">누락</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:center;justify-content:space-between">
+                    <div style="font-size:13px;font-weight:600;color:rgba(55,56,60,0.61)">초안 미리보기</div>
+                    <div style="display:flex;gap:6px">
+                      <span style="border-radius:8px;padding:5px 12px;font-size:13px;font-weight:600;background:rgba(0,102,255,0.05);box-shadow:inset 0 0 0 1px rgba(0,102,255,0.43);color:#0066FF">VN</span>
+                      <span style="border-radius:8px;padding:5px 12px;font-size:13px;font-weight:600;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:rgba(55,56,60,0.61)">KR</span>
+                    </div>
+                  </div>
+                  <div style="background:#F7F7F8;border-radius:12px;padding:14px;font-size:14px;line-height:22px;color:rgba(55,56,60,0.88)">Chào anh Nguyen Van A, để gia hạn thời gian lưu trú, vui lòng gửi 2 giấy tờ sau trước ngày 15/07: 1) Bản sao hộ chiếu, 2) Bản sao hợp đồng lao động. Cảm ơn anh.</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;border:1px solid rgba(112,115,124,0.16);border-radius:10px;padding:10px 12px">
+                  <span style="width:22px;height:22px;border-radius:6px;background:#EAF2FE;color:#0066FF;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">A</span>
+                  <span style="flex:1;font-size:13px;color:#171719">출입국관리법 시행규칙 · 체류기간 연장 제출서류</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 6L15 12L9 18" stroke="#989BA2" stroke-width="2" stroke-linecap="round"></path></svg>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;padding:14px 20px 20px;border-top:1px solid rgba(112,115,124,0.08);margin-top:16px">
+                <div style="flex:1;height:48px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center">반려</div>
+                <div style="flex:2;height:48px;border-radius:12px;background:#0066FF;color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center">승인하기</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- M3 static -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">M3 · 승인 완료 결과</div>
+          <div data-screen-label="M3 승인 완료" style="width:375px;height:700px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07), 0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;display:flex;flex-direction:column;position:relative">
+            <div style="position:absolute;top:16px;left:16px;right:16px;z-index:10;background:#212225;border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:10px;box-shadow:0px 6px 10px -4px rgba(23,23,23,0.08), 0px 16px 24px -6px rgba(23,23,23,0.28)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#1ED45A"></circle><path d="M7.5 12.5L10.5 15.5L16.5 9" stroke="#0F0F10" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span style="font-size:14px;font-weight:500;color:#F7F7F8">승인 완료 · 판단 기록 #4789 저장</span>
+            </div>
+            <div style="padding:76px 20px 12px">
+              <div style="font-size:24px;line-height:32px;font-weight:700;color:#171719">오늘 브리핑</div>
+              <div style="font-size:13px;color:rgba(55,56,60,0.61)">7월 6일 (월) · 그린푸드 제조</div>
+            </div>
+            <div style="flex:1;padding:8px 16px;display:flex;flex-direction:column;gap:12px">
+              <div style="background:#fff;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);padding:16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;flex-direction:column;gap:2px">
+                  <div style="font-size:16px;line-height:24px;font-weight:600;color:#171719">체류기간 연장 서류 요청</div>
+                  <div style="font-size:13px;color:rgba(55,56,60,0.61)">Nguyen Van A · 제조1팀</div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <span style="background:#FEF4E6;color:#D47800;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">HIGH · D-30</span>
+                  <span style="background:#D9FFE6;color:#009632;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">승인 완료</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;background:#F7F7F8;border-radius:10px;padding:10px 12px">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#009632" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <span style="font-size:13px;color:rgba(55,56,60,0.88)">다음: 발송 실행 가능 (PC에서)</span>
+                </div>
+              </div>
+            </div>
+            <div style="padding:12px 20px 20px;border-top:1px solid rgba(112,115,124,0.08);background:#fff;display:flex;align-items:center;justify-content:center;gap:6px">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+              <span style="font-size:12px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- M4 guide -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">M4 · 표현 가이드 (안전/신뢰)</div>
+          <div data-screen-label="M4 표현 가이드" style="width:375px;background:#fff;border-radius:16px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);padding:24px;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:14px;font-weight:600;color:#171719">고정 문구 — 모든 모바일 화면에 노출</div>
+              <div style="display:flex;align-items:center;gap:8px;background:#F7F7F8;border-radius:10px;padding:12px 14px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+                <span style="font-size:13px;color:rgba(55,56,60,0.88)">승인 전에는 외부 발송이 차단됩니다.</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:14px;font-weight:600;color:#171719">단정형 문장 금지 — 가능/불가능 판단 없음</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                  <span style="color:#E52222;font-size:14px;font-weight:700;line-height:20px">✕</span>
+                  <span style="font-size:13px;line-height:20px;color:rgba(55,56,60,0.61);text-decoration:line-through">"체류 연장이 가능합니다"</span>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                  <span style="color:#009632;font-size:14px;font-weight:700;line-height:20px">✓</span>
+                  <span style="font-size:13px;line-height:20px;color:#171719">"연장 요건 확인이 필요합니다"</span>
+                </div>
+                <div style="display:flex;gap:10px;align-items:flex-start">
+                  <span style="color:#009632;font-size:14px;font-weight:700;line-height:20px">✓</span>
+                  <span style="font-size:13px;line-height:20px;color:#171719">"다음 안전한 행동은 서류 요청입니다"</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:14px;font-weight:600;color:#171719">모바일 동선 원칙</div>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:20px;color:rgba(55,56,60,0.88)">
+                <div>· 승인/확인이 1순위 — 설정·템플릿·로그 탐색은 후순위</div>
+                <div>· 기본 진입은 오늘 브리핑 카드, 상세는 바텀시트로 종결</div>
+                <div>· 승인 후 다음 할 일 1줄로 PC 후속 작업 연결</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ 1c. Card layout B ═══════════ -->
+    <div id="1c" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#1c" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">1c</a>
+        <div style="display:flex;flex-direction:column">
+          <div style="font-size:15px;font-weight:600;color:#171719">카드 레이아웃 B — 컴팩트 리스트</div>
+          <div style="font-size:12px;color:rgba(55,56,60,0.61)">행 탭 = 초안 보기 · 우측 승인 버튼</div>
+        </div>
+      </div>
+      <div data-screen-label="M1 카드 레이아웃 B" style="width:375px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07), 0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;display:flex;flex-direction:column">
+        <div style="padding:28px 20px 12px">
+          <div style="font-size:24px;line-height:32px;font-weight:700;color:#171719">오늘 브리핑</div>
+          <div style="font-size:13px;color:rgba(55,56,60,0.61)">7월 6일 (월) · 승인 필요 3건</div>
+        </div>
+        <div style="margin:8px 16px 16px;background:#fff;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(112,115,124,0.08)">
+            <div style="width:8px;height:8px;border-radius:99px;background:#FF4242;flex-shrink:0"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:1px;min-width:0">
+              <div style="font-size:15px;line-height:22px;font-weight:600;color:#171719;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">체류기간 만료 경과 · 행정사 검토</div>
+              <div style="font-size:12px;color:rgba(55,56,60,0.61)">Batbayar E. · D+2 · 누락 2건</div>
+            </div>
+            <div style="height:34px;padding:0 14px;border-radius:8px;background:#0066FF;color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center">승인</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(112,115,124,0.08)">
+            <div style="width:8px;height:8px;border-radius:99px;background:#FF9200;flex-shrink:0"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:1px;min-width:0">
+              <div style="font-size:15px;line-height:22px;font-weight:600;color:#171719;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">체류기간 연장 서류 요청</div>
+              <div style="font-size:12px;color:rgba(55,56,60,0.61)">Nguyen Van A · D-30 · 누락 2건</div>
+            </div>
+            <div style="height:34px;padding:0 14px;border-radius:8px;background:#0066FF;color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center">승인</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 16px">
+            <div style="width:8px;height:8px;border-radius:99px;background:#FF9200;flex-shrink:0"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:1px;min-width:0">
+              <div style="font-size:15px;line-height:22px;font-weight:600;color:#171719;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">고용변동 신고 기한 임박</div>
+              <div style="font-size:12px;color:rgba(55,56,60,0.61)">Siti R. · D-3 · 누락 1건</div>
+            </div>
+            <div style="height:34px;padding:0 14px;border-radius:8px;background:#0066FF;color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center">승인</div>
+          </div>
+        </div>
+        <div style="padding:0 20px 12px;text-align:center;font-size:12px;color:rgba(55,56,60,0.43)">행을 누르면 초안을 확인할 수 있습니다</div>
+        <div style="padding:12px 20px 20px;border-top:1px solid rgba(112,115,124,0.08);background:#fff;display:flex;align-items:center;justify-content:center;gap:6px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+          <span style="font-size:12px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════ 1d. Card layout C ═══════════ -->
+    <div id="1d" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#1d" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">1d</a>
+        <div style="display:flex;flex-direction:column">
+          <div style="font-size:15px;font-weight:600;color:#171719">카드 레이아웃 C — Severity 강조</div>
+          <div style="font-size:12px;color:rgba(55,56,60,0.61)">D-day를 크게 · 위험도 좌측 컬러 블록</div>
+        </div>
+      </div>
+      <div data-screen-label="M1 카드 레이아웃 C" style="width:375px;background:#F7F7F8;border-radius:28px;border:1px solid #E1E2E4;box-shadow:0px 4px 6px -2px rgba(23,23,23,0.07), 0px 10px 15px -3px rgba(23,23,23,0.07);overflow:hidden;display:flex;flex-direction:column">
+        <div style="padding:28px 20px 12px">
+          <div style="font-size:24px;line-height:32px;font-weight:700;color:#171719">오늘 브리핑</div>
+          <div style="font-size:13px;color:rgba(55,56,60,0.61)">7월 6일 (월) · 승인 필요 3건</div>
+        </div>
+        <div style="padding:8px 16px 16px;display:flex;flex-direction:column;gap:12px">
+          <div style="background:#fff;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex">
+            <div style="width:76px;background:#FEECEC;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex-shrink:0">
+              <span style="font-size:20px;line-height:24px;font-weight:700;color:#E52222">D+2</span>
+              <span style="font-size:10px;font-weight:700;letter-spacing:0.05em;color:#E52222">CRITICAL</span>
+            </div>
+            <div style="flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <div style="font-size:15px;line-height:22px;font-weight:600;color:#171719">체류기간 만료 경과 · 행정사 검토</div>
+                <div style="font-size:12px;color:rgba(55,56,60,0.61)">Batbayar E. · 누락 2건 · 승인 필요</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div style="height:36px;flex:1;border-radius:8px;background:#0066FF;color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">승인하기</div>
+                <div style="height:36px;padding:0 12px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:13px;font-weight:600;display:flex;align-items:center">초안</div>
+              </div>
+            </div>
+          </div>
+          <div style="background:#fff;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex">
+            <div style="width:76px;background:#FEF4E6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex-shrink:0">
+              <span style="font-size:20px;line-height:24px;font-weight:700;color:#D47800">D-30</span>
+              <span style="font-size:10px;font-weight:700;letter-spacing:0.05em;color:#D47800">HIGH</span>
+            </div>
+            <div style="flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <div style="font-size:15px;line-height:22px;font-weight:600;color:#171719">체류기간 연장 서류 요청</div>
+                <div style="font-size:12px;color:rgba(55,56,60,0.61)">Nguyen Van A · 누락 2건 · 승인 필요</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div style="height:36px;flex:1;border-radius:8px;background:#0066FF;color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">승인하기</div>
+                <div style="height:36px;padding:0 12px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:13px;font-weight:600;display:flex;align-items:center">초안</div>
+              </div>
+            </div>
+          </div>
+          <div style="background:#fff;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06), 0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex">
+            <div style="width:76px;background:#FEF4E6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex-shrink:0">
+              <span style="font-size:20px;line-height:24px;font-weight:700;color:#D47800">D-3</span>
+              <span style="font-size:10px;font-weight:700;letter-spacing:0.05em;color:#D47800">HIGH</span>
+            </div>
+            <div style="flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;flex-direction:column;gap:1px">
+                <div style="font-size:15px;line-height:22px;font-weight:600;color:#171719">고용변동 신고 기한 임박</div>
+                <div style="font-size:12px;color:rgba(55,56,60,0.61)">Siti R. · 누락 1건 · 승인 필요</div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div style="height:36px;flex:1;border-radius:8px;background:#0066FF;color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center">승인하기</div>
+                <div style="height:36px;padding:0 12px;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);color:#171719;font-size:13px;font-weight:600;display:flex;align-items:center">초안</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 20px 20px;border-top:1px solid rgba(112,115,124,0.08);background:#fff;display:flex;align-items:center;justify-content:center;gap:6px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+          <span style="font-size:12px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다.</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;approveLabel&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;승인하기&quot;,&quot;승인 요청&quot;],&quot;default&quot;:&quot;승인 요청&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;프로토타입&quot;},&quot;defaultLang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;현지어&quot;,&quot;KR&quot;],&quot;default&quot;:&quot;KR&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;프로토타입&quot;}}">
+class Component extends DCLogic {
+  state = { open: null, lang: 'a', approved: {}, toast: null };
+
+  cases() {
+    return [
+      {
+        id: 'c1', name: 'Batbayar E.', team: '제조2팀',
+        title: '체류기간 만료 경과 · 행정사 검토', sev: 'CRITICAL', dday: 'D+2',
+        summary: '체류기간이 2일 경과했습니다. 행정사 검토용 패키지 초안 전달에 승인이 필요합니다.',
+        missing: [ { name: '고용변동 신고서 초안' }, { name: '체류 경과 사유서' } ],
+        langALabel: 'MN',
+        draftA: 'Сайн байна уу, Батбаяр. Оршин суух хугацаатай холбоотой баримт бичгийг 07/09-ний дотор бэлтгэж өгнө үү. 1) Мэдэгдлийн маягт 2) Тайлбар бичиг.',
+        draftK: '안녕하세요 Batbayar님, 체류기간 경과 관련 확인이 필요합니다. 7월 9일까지 아래 서류를 준비해 주세요. 1) 고용변동 신고서 2) 경과 사유서',
+        evidence: [
+          { grade: 'A', label: '출입국관리법 · 체류기간 경과 시 조치' },
+          { grade: 'E', label: '내부 승인 템플릿 · 행정사 전달 패키지' },
+        ],
+        record: '#4788', next: '다음: 행정사 패키지 검토 (PC에서)',
+      },
+      {
+        id: 'c2', name: 'Nguyen Van A', team: '제조1팀',
+        title: '체류기간 연장 서류 요청', sev: 'HIGH', dday: 'D-30',
+        summary: '체류만료 D-30. 연장 신청에 필요한 서류 2건이 누락되어 근로자에게 요청이 필요합니다.',
+        missing: [ { name: '여권 사본' }, { name: '표준근로계약서 사본' } ],
+        langALabel: 'VN',
+        draftA: 'Chào anh Nguyen Van A, để gia hạn thời gian lưu trú, vui lòng gửi 2 giấy tờ sau trước ngày 15/07: 1) Bản sao hộ chiếu, 2) Bản sao hợp đồng lao động. Cảm ơn anh.',
+        draftK: '안녕하세요 Nguyen Van A님, 체류기간 연장 신청을 위해 아래 서류가 필요합니다. 7월 15일까지 제출해 주세요. 1) 여권 사본 2) 표준근로계약서 사본',
+        evidence: [
+          { grade: 'A', label: '출입국관리법 시행규칙 · 체류기간 연장 제출서류' },
+          { grade: 'E', label: '내부 승인 템플릿 · 서류요청 (VN)' },
+        ],
+        record: '#4789', next: '다음: 발송 실행 가능 (PC에서)',
+      },
+      {
+        id: 'c3', name: 'Siti R.', team: '포장팀',
+        title: '고용변동 신고 기한 임박', sev: 'HIGH', dday: 'D-3',
+        summary: '근로계약 변경에 따른 고용변동 신고 기한이 3일 남았습니다. 신고서 초안 확인이 필요합니다.',
+        missing: [ { name: '고용변동 신고서' } ],
+        langALabel: 'ID',
+        draftA: 'Halo Ibu Siti, terkait perubahan kontrak kerja, mohon konfirmasi dokumen laporan sebelum 09/07. Terima kasih.',
+        draftK: '안녕하세요 Siti님, 근로계약 변경에 따른 신고 준비를 위해 7월 9일까지 확인 부탁드립니다.',
+        evidence: [
+          { grade: 'B', label: '고용24 · 외국인근로자 고용변동 신고 안내' },
+          { grade: 'E', label: '내부 승인 템플릿 · 신고 준비 체크리스트' },
+        ],
+        record: '#4790', next: '다음: 리마인드 예정 (D-1)',
+      },
+    ];
+  }
+
+  renderVals() {
+    const sevStyle = {
+      CRITICAL: { bg: '#FEECEC', color: '#E52222' },
+      HIGH: { bg: '#FEF4E6', color: '#D47800' },
+      MEDIUM: { bg: '#FFFCF7', color: '#9C5800' },
+    };
+    const data = this.cases();
+    const approveLabel = this.props.approveLabel ?? '승인하기';
+
+    const cards = data.map((c) => {
+      const s = sevStyle[c.sev] || sevStyle.HIGH;
+      const isApproved = !!this.state.approved[c.id];
+      return {
+        ...c,
+        sevBg: s.bg, sevColor: s.color,
+        sevLabel: c.sev + ' · ' + c.dday,
+        missingLabel: '누락 ' + c.missing.length + '건',
+        isApproved, notApproved: !isApproved,
+        open: () => this.setState({ open: c.id, lang: (this.props.defaultLang ?? '현지어') === 'KR' ? 'k' : 'a' }),
+      };
+    });
+
+    const cur = data.find((c) => c.id === this.state.open) || data[0];
+    const curSev = sevStyle[cur.sev] || sevStyle.HIGH;
+    const isA = this.state.lang === 'a';
+    const activeChip = { bg: 'rgba(0,102,255,0.05)', shadow: 'inset 0 0 0 1px rgba(0,102,255,0.43)', color: '#0066FF' };
+    const idleChip = { bg: 'transparent', shadow: 'inset 0 0 0 1px rgba(112,115,124,0.22)', color: 'rgba(55,56,60,0.61)' };
+    const a = isA ? activeChip : idleChip;
+    const k = isA ? idleChip : activeChip;
+
+    return {
+      cards,
+      approveLabel,
+      pendingCount: cards.filter((c) => !c.isApproved).length,
+      reset: () => this.setState({ approved: {}, toast: null, open: null }),
+
+      sheetOpen: !!this.state.open,
+      closeSheet: () => this.setState({ open: null }),
+      sheetTitle: cur.title + ' · ' + cur.name,
+      sheetSummary: cur.summary,
+      sheetSevBg: curSev.bg, sheetSevColor: curSev.color,
+      sheetSevLabel: cur.sev + ' · ' + cur.dday,
+      sheetDocs: cur.missing,
+      sheetEvidence: cur.evidence,
+      sheetLangALabel: cur.langALabel,
+      draftText: isA ? cur.draftA : cur.draftK,
+      setLangA: () => this.setState({ lang: 'a' }),
+      setLangK: () => this.setState({ lang: 'k' }),
+      aBg: a.bg, aShadow: a.shadow, aColor: a.color,
+      kBg: k.bg, kShadow: k.shadow, kColor: k.color,
+
+      approve: () => {
+        const id = this.state.open;
+        if (!id) return;
+        const rec = (data.find((c) => c.id === id) || {}).record || '#0000';
+        this.setState((s) => ({
+          approved: { ...s.approved, [id]: true },
+          open: null,
+          toast: '승인 완료 · 판단 기록 ' + rec + ' 저장',
+        }));
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => this.setState({ toast: null }), 3500);
+      },
+
+      toastVisible: !!this.state.toast,
+      toastText: this.state.toast || '',
+    };
+  }
+
+  componentWillUnmount() { clearTimeout(this._toastTimer); }
+}
+</script>
+</body>
+</html>

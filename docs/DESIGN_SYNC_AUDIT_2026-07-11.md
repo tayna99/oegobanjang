@@ -134,6 +134,8 @@
 - `docs/SPEC_INDEX.md` → 시각 기준 v1/v2 이원화 반영(prototype_v3=기구현 유지보수용, v2=신규·M2.5 기준)
 - 본 보고서
 
+**재현성 보강(2026-07-11, PR 리뷰 지적 반영):** 위 조치까지도 `rules/design.md`·ROADMAP 2.5.4~2.5.6·`ui-matcher.md`가 여전히 claude.ai/design 라이브 프로젝트를 가리켰다 — 그 프로젝트가 바뀌거나 접근 불가해지면 스펙 근거가 사라지는 구조였다. `reference/design-system/`에 `colors_and_type.css`(저장소에 이미 있던 미러와 대조 결과 100% 일치 확인), 디자인 프로젝트 자체 `rules/design.md` 원문, `외고반장 PC.dc.html`·`외고반장 Mobile.dc.html` 전문을 그대로 고정했다(고정 방식·한계는 `reference/design-system/README.md`). `rules/design.md`·ROADMAP·`ui-matcher.md`의 참조를 이 고정 사본으로 갱신.
+
 **결정 완료(2026-07-11, 사용자 확정):**
 - **PC 통합 재설계(3a·3b·3c) 채택** — ROADMAP M2.5로 확정. 단계 도입 순서(3b→3c→3a)는 §5 그대로.
 - **4-3 PC 타입 램프 토큰화** — 임의값 방치 대신 `--fs-pc-*` 보조 스케일로 등록하기로 결정. `rules/design.md` §3, ROADMAP 2.5.1 DoD에 반영.

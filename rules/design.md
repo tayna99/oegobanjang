@@ -2,7 +2,7 @@
 
 > **이행 상태(2026-07-11 갱신): 2.5.1·2.5.2·2.5.3 완료.** `tokens.css`·`tailwind.config.js`·Chip(구 Badge)·Button 아웃라인·기존 화면 타이포그래피(heading1/heading2/body1/body2/label1/caption1)까지 전부 이 문서(v2) 기준으로 전환됐다 — 코드에 v1 hex·임시 타입 크기는 더 이상 없다. `.claude/agents/ui-matcher.md`도 이 프로젝트/문서를 기준으로 가리키도록 교체됨. 이 문서는 ROADMAP **M2.5**(디자인 시스템 v2 전환)의 바인딩 스펙이다.
 > - PC 화면(2.5.4~2.5.6)은 이 문서를 그대로 기준으로 삼는다.
-> 출처: claude.ai/design "Mobile screen design" 프로젝트 `rules/design.md` + `colors_and_type.css`(저장소 미러: `외고반장_통합/09_배포_패키지/외고반장_handoff_배포패키지_압축해제본/project/colors_and_type.css`).
+> 출처(고정본, 2026-07-11): `reference/design-system/montage-wanted/colors_and_type.css` + `source-rules-design.md` — claude.ai/design "Mobile screen design" 프로젝트에서 가져온 원본을 저장소에 재현 가능하게 고정한 사본이다(라이브 프로젝트가 바뀌거나 사라져도 이 문서의 근거는 유지된다). 고정 경위: `reference/design-system/README.md`.
 > 정합 검수·마이그레이션 매핑표: `docs/DESIGN_SYNC_AUDIT_2026-07-11.md` §3.
 
 ## 1. 토큰 계층 — 2단 구조 그대로 이식

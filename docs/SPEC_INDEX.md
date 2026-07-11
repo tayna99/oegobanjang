@@ -16,7 +16,7 @@
 | `8단계_데모시나리오_v1.md` | 데모 4막 대본 | M3 데모 폴리시 태스크 |
 | `9단계_에이전틱성_비판검토_v1.md` | 프로액티브 런·오케스트레이터·자율성 사다리 | 런 엔진·프로액티브 태스크 |
 | `reference/prototype_v3.html` | **v1 UI 시각 기준 + mock 데이터 + 인터랙션 각본** | 기구현(M0~2.1) 화면 유지보수 태스크 |
-| `rules/design.md`(v2) + claude.ai/design "Mobile screen design" 프로젝트 | **v2(Montage) 디자인 기준** — 토큰 2계층·컴포넌트 규칙·PC 3화면(`외고반장 PC.dc.html`). 검수: `docs/DESIGN_SYNC_AUDIT_2026-07-11.md` | M2.5 및 2.2 이후 신규 화면 태스크 |
+| `rules/design.md`(v2) + `reference/design-system/`(저장소 고정 사본) | **v2(Montage) 디자인 기준** — 토큰 2계층·컴포넌트 규칙·PC 3화면(`외고반장 PC.dc.html`). 원본은 claude.ai/design 프로젝트지만 라이브 의존을 없애기 위해 2026-07-11 저장소에 고정(`reference/design-system/README.md`). 검수: `docs/DESIGN_SYNC_AUDIT_2026-07-11.md` | M2.5 및 2.2 이후 신규 화면 태스크 |
 
 ## 프로토타입 v3에서 이식할 것 (v1 이식 기록 — M0~M1에서 완료)
 
