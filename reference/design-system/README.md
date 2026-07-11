@@ -9,7 +9,8 @@
 | `montage-wanted/colors_and_type.css` | `_ds/montage-wanted-design-system-.../colors_and_type.css` | Montage(Wanted) 디자인 시스템의 원본 CSS 커스텀 프로퍼티. `src/styles/tokens.css`는 이 파일의 값을 그대로 이식한 것(§3 매핑표는 `docs/DESIGN_SYNC_AUDIT_2026-07-11.md`). 저장소에 이미 있던 `외고반장_통합/09_배포_패키지/.../colors_and_type.css` 사본과 대조해 **내용 100% 일치**(줄바꿈 문자만 다름, sha256 비교로 확인) — 드리프트 없음.
 | `montage-wanted/source-rules-design.md` | 프로젝트 `rules/design.md` | 디자인 프로젝트가 자체적으로 정의한 적용 규칙 원문. **이 저장소의 `rules/design.md`(v2)는 이 파일을 바탕으로 우리 프로젝트 규칙(부록·이행 배너 등)을 얹어 각색한 것**이다 — 원문과 각색본을 구분해 추적할 수 있게 둘 다 남긴다.
 | `외고반장 PC.dc.html` | 프로젝트 루트 `외고반장 PC.dc.html` | PC 디자인 3안 원본(통합 재설계 3a·3b·3c / 운영 관제형 2a~2d / v1 프로토타입). ROADMAP **2.5.4~2.5.6**(PC 케이스 워크벤치·거버넌스·컨트롤 타워)의 1차 스펙 — 지금까지는 이 경로 없이 라이브 프로젝트만 가리켰다. `docs/DESIGN_SYNC_AUDIT_2026-07-11.md` §5의 판단(통합 재설계 채택)이 바로 이 파일 내용에 근거한다.
-| `외고반장 Mobile.dc.html` | 프로젝트 루트 `외고반장 Mobile.dc.html` | 모바일 개편안(승인 큐 중심) 원본. 검수 결과 **채택 보류**(`docs/DESIGN_SYNC_AUDIT_2026-07-11.md` §5-4) — 참고용으로 고정만 해둔다. `.claude/agents/ui-matcher.md`의 대조 기준이 아니다.
+| `외고반장 Mobile.dc.html` | 프로젝트 루트 `외고반장 Mobile.dc.html` | 모바일 개편안(승인 큐 중심) 원본. 최초 검수에서는 보류였으나 **2026-07-11 사용자 지시로 디자인 소스 채택 대상에 포함** — 채택 설계는 design-first 블루프린트 문서를 따른다.
+| `Montage 공용 컴포넌트.dc.html` | 프로젝트 루트 `Montage 공용 컴포넌트.dc.html` | 자체 제작 컴포넌트 6종(모바일 탭바·BottomSheet·SafetyNotice 2종·OfflineBanner·Skeleton·StepTimeline)의 시각·모션 스펙 원본(2026-07-11 고정). `src/components/*`가 이 스펙과 정합해야 한다.
 
 ## 고정 방식 · 한계
 
