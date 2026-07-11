@@ -101,15 +101,23 @@ export interface Message {
   externalId?: string; // 어댑터가 반환한 채널사 메시지 ID. MockAdapter는 항상 undefined
 }
 
+// Interpretation.updates 원소 — 서류 상태 등 필드 단위 갱신 제안 1건
+export interface InterpretationUpdate {
+  field: string; // 갱신 대상 필드명("표준근로계약서" 등)
+  from: string; // 갱신 전 상태 라벨
+  to: string; // 갱신 후 상태 라벨
+  badgeTone: string; // src/lib/badgeTone.ts BadgeTone 값 — Interpretation은 badgeTone 구현을 몰라야 하므로 string으로 느슨하게 연결
+}
+
 export interface Interpretation {
   interpretationId: string;
   threadId: string;
   caseId: string;
   summaryKo: string; // 근로자 응답의 한국어 요약 — 원문 문장을 포함하지 않는다
   confidence: 'high' | 'low'; // low면 "해석이 불확실합니다. 원문을 확인해주세요" 안내 필요 (1단계 M6)
-  updates: { field: string; from: string; to: string; badgeTone: string }[];
-  recommendedActions: { label: string; reason: string; state: NextActionRef['state'] }[];
-  isFinal: false; // 담당자 확인 전 확정 금지 (GLOSSARY.md: Interpretation)
+  updates: InterpretationUpdate[];
+  recommendedActions: { action: NextActionRef; reason: string }[]; // 기존 NextActionRef 재사용 — 문자열 라벨로 분기 금지(rules/frontend.md)
+  isFinal: false; // 담당자 확인 전 확정 금지 (GLOSSARY.md: Interpretation "isFinal:false 필수")
   confirmedSummary?: string; // onConfirm 이후 확정된 요약. Evidence summary와 동일 문장이어야 함
   confirmedCardText?: string; // 확정 후 케이스 카드/브리핑에 노출할 축약 문구
   evidenceRef?: string;
