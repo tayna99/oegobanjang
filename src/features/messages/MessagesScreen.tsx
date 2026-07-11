@@ -61,9 +61,11 @@ export function MessagesScreen({ state, onOpenThread, onStartFromCases, onRetry 
 
       {state.status === 'loading' && (
         <div className="mt-4 space-y-3" aria-hidden="true">
-          <Skeleton className="h-[72px] rounded-card" />
-          <Skeleton className="h-[72px] rounded-card" />
-          <Skeleton className="h-[72px] rounded-card" />
+          {/* 임의 bracket 값(h-[72px]) 대신 표준 스케일 사용 — GOTCHAS §4 "Tailwind 임의값 금지"
+              (BriefingScreen 스켈레톤과 동일하게 정확한 실제 행 높이 대신 근접한 표준값으로 근사). */}
+          <Skeleton className="h-20 rounded-card" />
+          <Skeleton className="h-20 rounded-card" />
+          <Skeleton className="h-20 rounded-card" />
         </div>
       )}
 
