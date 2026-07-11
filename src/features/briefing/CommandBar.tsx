@@ -22,7 +22,7 @@ export function CommandBar({ suggestions }: CommandBarProps) {
               key={s}
               type="button"
               onClick={() => setValue(s)}
-              className="whitespace-nowrap rounded-chip border border-hairline bg-canvas px-3.5 py-2 text-sm text-muted"
+              className="whitespace-nowrap rounded-chip border border-hairline bg-canvas px-3.5 py-2 text-label1 text-muted"
             >
               {s}
             </button>

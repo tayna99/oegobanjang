@@ -13,10 +13,15 @@ describe('Button', () => {
   it.each([
     ['primary', 'bg-primary'],
     ['secondary', 'bg-surface'],
-    ['outline', 'border-hairline'],
+    ['outline', 'shadow-outline'],
   ] as const)('variant=%s는 구분 클래스 %s를 포함한다', (variant, expectedClass) => {
     render(<Button variant={variant}>버튼</Button>);
     expect(screen.getByRole('button', { name: '버튼' }).className).toContain(expectedClass);
+  });
+
+  it("variant='outline'은 border 클래스를 쓰지 않는다(inset box-shadow, rules/design.md v2 §4)", () => {
+    render(<Button variant="outline">버튼</Button>);
+    expect(screen.getByRole('button', { name: '버튼' }).className).not.toMatch(/\bborder\b/);
   });
 
   it("size='sm'은 h-btn-sm 클래스를 렌더한다", () => {

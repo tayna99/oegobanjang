@@ -74,10 +74,10 @@ export function BriefingScreen({ state, header, onOpenCase, onSeeAllCases }: Bri
 
       {state.status === 'default' && (
         <>
-          <p className="my-2.5 text-xl font-bold leading-snug">{state.greeting}</p>
+          <p className="my-2.5 text-heading1 font-bold leading-snug">{state.greeting}</p>
           <CardList cards={state.cards} onOpenCase={onOpenCase} />
           {state.cards.length > 3 && (
-            <button type="button" onClick={onSeeAllCases} className="mb-4 text-sm font-semibold text-primary">
+            <button type="button" onClick={onSeeAllCases} className="mb-4 text-label1 font-semibold text-primary">
               케이스에서 {state.cards.length - 3}건 더 보기
             </button>
           )}
@@ -93,8 +93,8 @@ export function BriefingScreen({ state, header, onOpenCase, onSeeAllCases }: Bri
 
       {state.status === 'empty' && state.hasWorkers && (
         <div className="mt-3">
-          <p className="text-xl font-bold">오늘 승인할 업무가 없습니다.</p>
-          {state.nextScheduledHint && <p className="mt-2 text-sm text-muted">{state.nextScheduledHint}</p>}
+          <p className="text-heading1 font-bold">오늘 승인할 업무가 없습니다.</p>
+          {state.nextScheduledHint && <p className="mt-2 text-body2 text-muted">{state.nextScheduledHint}</p>}
           <Button variant="outline" onClick={onSeeAllCases} className="mt-4">
             케이스 전체 보기
           </Button>
@@ -103,8 +103,8 @@ export function BriefingScreen({ state, header, onOpenCase, onSeeAllCases }: Bri
 
       {state.status === 'empty' && !state.hasWorkers && (
         <div className="mt-3">
-          <p className="text-xl font-bold">오늘 승인할 업무가 없습니다.</p>
-          <p className="mt-2 text-sm text-muted">근로자를 등록하면 매일 브리핑이 시작됩니다</p>
+          <p className="text-heading1 font-bold">오늘 승인할 업무가 없습니다.</p>
+          <p className="mt-2 text-body2 text-muted">근로자를 등록하면 매일 브리핑이 시작됩니다</p>
           <Button variant="primary" onClick={onSeeAllCases} className="mt-4">
             근로자 등록
           </Button>
@@ -113,13 +113,13 @@ export function BriefingScreen({ state, header, onOpenCase, onSeeAllCases }: Bri
 
       {state.status === 'error' && (
         <div className="mt-3">
-          <p className="text-base font-semibold">브리핑을 불러오지 못했습니다</p>
+          <p className="text-body1 font-semibold">브리핑을 불러오지 못했습니다</p>
           <Button variant="outline" onClick={onSeeAllCases} className="mt-3">
             다시 시도
           </Button>
           {state.hasCachedData && (
             <>
-              <p className="mt-4 rounded-in bg-pendbg px-3 py-2 text-sm text-pending">어제 데이터입니다</p>
+              <p className="mt-4 rounded-in bg-approvalbg px-3 py-2 text-label1 text-approval">어제 데이터입니다</p>
               <div className="mt-3">
                 <CardList cards={state.cachedCards} onOpenCase={onOpenCase} offline />
               </div>

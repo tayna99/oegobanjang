@@ -37,15 +37,15 @@ describe('dDayLabel', () => {
   });
 });
 
-describe('dDayTone — 색 규칙 경계', () => {
+describe('dDayTone — 색 규칙 경계 (v2, 2026-07-11 새로 짬)', () => {
   it.each([
     [-3, 'critical'], // D+ 경과
     [0, 'critical'], // D-0
-    [1, 'warning'],
-    [30, 'warning'], // D-30 경계
-    [31, 'info'], // 주황→파랑 플립
-    [90, 'info'], // D-90 경계
-    [91, 'neutral'], // 파랑→회색 플립
+    [1, 'high'],
+    [30, 'high'], // D-30 경계
+    [31, 'medium'], // 진한 오렌지→흐린 오렌지 전환(v1은 파랑이었으나 v2는 블루=승인 필요 전용)
+    [90, 'medium'], // D-90 경계
+    [91, 'neutral'], // 오렌지→회색 플립
   ] as const)('dDay %i → %s', (dDay, tone) => {
     expect(dDayTone(dDay)).toBe(tone);
   });

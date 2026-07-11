@@ -28,14 +28,14 @@ export interface RunScreenProps {
 // UI/엔진 계약만 다룬다(docs/superpowers/specs/2026-07-06-run-engine-steptimeline-design.md).
 export function RunScreen({ state, onApprove, onAlt }: RunScreenProps) {
   if (state.status === 'loading') {
-    return <div className="p-5 text-sm text-muted">분석 중…</div>;
+    return <div className="p-5 text-label1 text-muted">분석 중…</div>;
   }
 
   if (state.status === 'offline') {
     return (
       <div>
         <OfflineBanner lastSyncedAt={state.lastSyncedAt} />
-        <div className="p-5 text-sm text-muted">오프라인 상태에서는 승인을 진행할 수 없습니다.</div>
+        <div className="p-5 text-body2 text-muted">오프라인 상태에서는 승인을 진행할 수 없습니다.</div>
       </div>
     );
   }
@@ -43,7 +43,7 @@ export function RunScreen({ state, onApprove, onAlt }: RunScreenProps) {
   if (state.status === 'error') {
     return (
       <div className="p-5">
-        <p className="text-sm text-critical-text">{state.message}</p>
+        <p className="text-body2 text-critical-text">{state.message}</p>
         {state.reason === 'out_of_scope' && (
           <Button variant="outline" className="mt-3" onClick={onAlt}>
             행정사 검토 요청
@@ -55,11 +55,11 @@ export function RunScreen({ state, onApprove, onAlt }: RunScreenProps) {
 
   return (
     <div className="p-5">
-      <h2 className="mb-3 text-lg font-semibold text-ink">{state.title}</h2>
+      <h2 className="mb-3 text-heading2 font-semibold text-ink">{state.title}</h2>
       <StepTimeline steps={state.steps} />
       {!state.readOnly && (
         <>
-          <p className="mb-1 mt-4 text-sm text-ink">{state.question}</p>
+          <p className="mb-1 mt-4 text-body2 text-ink">{state.question}</p>
           <div className="mt-2 flex gap-2.5">
             <Button variant="outline" onClick={onAlt} className="flex-1">
               {state.altLabel}

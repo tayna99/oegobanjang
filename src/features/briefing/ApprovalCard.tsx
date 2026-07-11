@@ -1,11 +1,11 @@
-import { Badge } from '@/components/Badge';
+import { Chip } from '@/components/Chip';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { IconSpark } from '@/components/icons';
 import { useNextAction } from '@/lib/actionNav';
 import { useNav } from '@/lib/nav';
 import { dDayLabel, dDayTone } from '@/lib/dday';
-import { severityTone } from '@/lib/badgeTone';
+import { severityTone } from '@/lib/chipTone';
 import type { CaseCard } from '@/types';
 
 export interface ApprovalCardProps {
@@ -28,18 +28,18 @@ export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDis
       data-case-id={data.caseId}
       className="mb-3 cursor-pointer"
     >
-      <h3 className="mb-2 pr-2 text-base font-semibold leading-snug">{data.title}</h3>
+      <h3 className="mb-2 pr-2 text-body1 font-semibold leading-snug">{data.title}</h3>
       <div className="mb-3 flex flex-wrap gap-1.5">
-        {data.dDay !== undefined && <Badge tone={dDayTone(data.dDay)}>{dDayLabel(data.dDay)}</Badge>}
+        {data.dDay !== undefined && <Chip tone={dDayTone(data.dDay)}>{dDayLabel(data.dDay)}</Chip>}
         {data.missingDocCount !== undefined && data.missingDocCount > 0 && (
-          <Badge tone="critical">누락 {data.missingDocCount}건</Badge>
+          <Chip tone="critical">누락 {data.missingDocCount}건</Chip>
         )}
         {data.state === 'human_approved' ? (
-          <Badge tone="success">승인 완료</Badge>
+          <Chip tone="positive">승인 완료</Chip>
         ) : (
-          data.approvalRequired && <Badge tone="pending">승인 필요</Badge>
+          data.approvalRequired && <Chip tone="approval">승인 필요</Chip>
         )}
-        <Badge tone={severityTone(data.severity)}>{data.severity}</Badge>
+        <Chip tone={severityTone(data.severity)}>{data.severity}</Chip>
       </div>
 
       {data.preparedBy === 'agent' && (
@@ -49,17 +49,17 @@ export function ApprovalCard({ data, layout, recommendReason, onOpen, offlineDis
             e.stopPropagation();
             if (data.preparedRunRef) nav.toRun(data.preparedRunRef.replace('#', ''));
           }}
-          className="mb-3.5 flex w-full items-center gap-2 rounded-in bg-surface px-3 py-2.5 text-left text-sm font-medium"
+          className="mb-3.5 flex w-full items-center gap-2 rounded-in bg-surface px-3 py-2.5 text-left text-label1 font-medium"
         >
           <span className="flex size-[22px] shrink-0 items-center justify-center rounded-lg border border-hairline bg-canvas text-primary">
             <IconSpark width={11} height={11} />
           </span>
           <span>AI가 준비를 마쳤습니다</span>
-          {data.preparedRunRef && <span className="ml-auto shrink-0 text-sm font-semibold text-primary">런 {data.preparedRunRef} 보기 →</span>}
+          {data.preparedRunRef && <span className="ml-auto shrink-0 text-label1 font-semibold text-primary">런 {data.preparedRunRef} 보기 →</span>}
         </button>
       )}
 
-      {layout === 'hero' && recommendReason && <p className="mb-1 text-sm text-muted">{recommendReason}</p>}
+      {layout === 'hero' && recommendReason && <p className="mb-1 text-body2 text-muted">{recommendReason}</p>}
 
       <div className="mt-4 flex gap-2.5">
         <Button

@@ -18,6 +18,30 @@
 
 ---
 
+### [2026-07-11] 2.5.3 — 완료
+- 한 일: 기존 화면 13개 파일의 타이포그래피를 Montage v2 타입 스케일(`text-heading1`/`heading2`/`body1`/`body2`/`label1`/`caption1`, tailwind.config.js에 2.5.1에서 이미 등록돼 있던 유틸리티)로 전환. 역할 분류 규칙: 화면 최상단 h1/h2 제목→heading2(20px, CaseListScreen은 24→20 보정·DonePage/DraftPage/RunScreen은 18→20 승격으로 통일), 카드/시트 h3 제목→body1(16px), 인사문장·빈상태 큰 강조→heading1(22px), 서술형 문장(설명·안내·에러 메시지)→body2(15px), 버튼/칩/행 라벨 같은 UI 크롬→label1(14px), 캡션·타임스탬프→caption1(12px). 기존 font-weight/leading-* 클래스는 그대로 유지(사이즈 토큰만 교체). Workflow로 13개 파일 병렬 치환 + 적대적 감사 에이전트를 돌려 놓친 3곳(`CaseSheet.tsx:114`, `DonePage.tsx:31`, `DraftPage.tsx:69` — 전부 "text-sm" 잔존)을 찾아 직접 수정. `.claude/agents/ui-matcher.md`를 prototype_v3 기준에서 디자인 프로젝트(+ Chip tone 명칭·타이포·아웃라인 체크 항목 추가)로 교체하면서, 초안이 잘못 인용한 `외고반장 Mobile.dc.html`(보류 결정된 모바일 개편안)을 "기준 아님"으로 정정.
+- 남은 일 / 중단 지점: 없음 — M2.5는 2.5.1~2.5.3 전부 완료. 다음은 ROADMAP 2.5.4(PC 케이스 워크벤치) 또는 2.2(메시지 탭).
+- 결정 사항 (다음 세션이 알아야 할 것): 화면 h1/h2는 이제 전부 heading2(20px)로 통일한다 — 기존처럼 화면마다 다른 크기(18/20/24px)를 쓰지 않는다. 새 화면 타이포는 이 6단계 스케일 중에서 고르고, `text-lg`/`text-xl`/`text-2xl` 같은 임시 크기는 (Button.tsx/Chip.tsx 등 컴포넌트 자체 내부 스타일 제외) 다시 쓰지 않는다.
+- verify 상태: PASS (`npm run verify`: typecheck 0, lint 0, 38 files/196 tests 통과, build OK). 브라우저(Vite dev) 실측으로 heading2(20/28px, -0.24px 자간)·heading1(22/30px)·body1(16/22px, 기존 leading-snug 유지) 계산값이 토큰과 일치함을 확인, 콘솔 에러 없음.
+- 지도/규칙 갱신: `rules/design.md` 상단 배너를 "2.5.1·2.5.2·2.5.3 완료"로 갱신. `.claude/agents/ui-matcher.md` 전면 교체(위 참조).
+
+---
+
+### [2026-07-11] 2.5.1·2.5.2 — 완료
+- 한 일:
+  - **2.5.1**: `src/styles/tokens.css`를 Montage(Wanted) v2 atomic+semantic 토큰으로 전면 교체(라이트 기본 + `[data-theme="dark"]`), `tailwind.config.js`는 유틸리티 이름(`canvas`/`ink`/`critical`/`rounded-in`/`shadow-card` 등)을 그대로 두고 `var()` 대상만 재배선해 20여개 소비 파일 무변경 색상 전환 달성. `--fs-pc-*`(PC 밀도 타입램프)·Montage 타입 스케일(`heading1`~`caption1`)을 Tailwind `fontSize`에 등록(아직 어느 화면도 적용 안 함, 2.5.3·2.5.4+ 몫). **라이트/다크 토글 UI 신규 구현**: `src/stores/themeStore.ts`(zustand, localStorage 영속 + `prefers-color-scheme` 폴백) + `Shell.tsx`에 토글 버튼(PC 헤더·모바일 우상단 고정) + `icons.tsx`에 `IconSun`/`IconMoon` 추가. 브라우저 실사용 검증 중 **Chip 배경이 라이트 전용 고정 hex라 다크 배경에서 붕 뜨는 문제**를 발견해 `chip-*-bg`/`-fg`에 다크 전용 오버라이드(옅은 rgba 틴트 + Montage 자체 다크 상태색) 추가.
+  - **2.5.2**: `src/components/Badge.tsx`→`Chip.tsx`, `src/lib/badgeTone.ts`→`chipTone.ts` 개명. **톤 이름을 값과 함께 새로 설계**(`rules/design.md` §5 기준) — v1의 `pending`(amber)/`info`(blue)라는 모호한 이름을 없애고 `approval`(승인 필요=블루)/`medium`(MEDIUM 위험도=흐린 오렌지)으로 분리(v1은 이 둘의 색이 정반대였다). `src/lib/dday.ts`의 `DDayTone`도 동일하게 `warning`→`high`, `info`→`medium`으로 새로 짬(D-31~90 배지가 파랑에서 흐린 오렌지로 바뀜 — 블루는 이제 "승인 필요" 전용). `Button.tsx` outline 배리언트를 `border` → `shadow-outline`(inset box-shadow)으로 교체, 사이즈별 라디우스(`rounded-in` 10px/`rounded-btn-sm` 8px) 도입. 소비 파일 전부 갱신: `DraftPage`/`DonePage`/`CaseListScreen`/`ApprovalCard`/`CaseSheet`/`BriefingScreen`.
+  - **덤으로 발견해 고침**(토큰 마이그레이션 중 같은 파일을 만지다 발견, GOTCHAS 임의값 금지 위반): `CaseListScreen.tsx`의 `rounded-[14px]`/`rounded-[8px]`(임의값) → `rounded-chip`/`rounded-in`, 존재하지 않는 `border-line` 클래스 → `border-hairline`. 같은 파일의 "승인 필요" Chip이 텍스트와 안 맞게 `neutral`(회색) 톤이었던 것을 `approval`(블루)로 정정.
+- 남은 일 / 중단 지점: 2.5.3(기존 화면에 Montage 타입 스케일 실제 적용 + `.claude/agents/ui-matcher.md` 기준을 prototype_v3→디자인 프로젝트로 교체)이 남음 — 색상·라디우스·그림자·모션은 이미 전부 v2, 글자 크기만 과거 Tailwind 임시값. `rules/design.md`의 부록 A(v1 요약)는 이미 삭제함(코드에 v1 hex가 더 안 남아 조건 충족). 이 머신엔 Node가 기본 설치돼 있지 않아 포터블 Node(`%LOCALAPPDATA%/nodejs-portable`, PATH는 `~/.bashrc`에 등록됨— 새 대화 세션의 셸에선 안 읽힐 수 있으니 안 되면 `export PATH=".../node-v22.14.0-win-x64:$PATH"` 재실행)로 대체 설치했다.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  - Chip/DDay 톤 이름 규칙: **'pending'·'info' 같은 모호한 이름은 다시 쓰지 않는다** — 색상표(rules/design.md §5)의 실제 의미를 이름에 반영한다(critical/high/medium/positive/approval/neutral/line).
+  - D-31~90 D-day 배지는 이제 파랑이 아니라 흐린 오렌지다(블루는 승인 필요 전용) — 의도된 변경, 되돌리지 말 것.
+  - Chip 배경은 라이트/다크 각각 다른 값을 가진다(다크는 rgba 틴트) — 새 톤 추가 시 `[data-theme="dark"]` 블록에도 짝을 넣을 것.
+- verify 상태: PASS — `tsc --noEmit` 0, `eslint .` 0, 38 files/196 tests 통과(마이그레이션 전 존재하던 `CaseListPage.test.tsx`의 `bottom-sheet-scrim` 클릭 테스트가 전체 스위트에서 가끔 실패하는 건 파일 단독 실행 시 100% 통과 확인 — 순서 의존 플레이키, 이번 변경과 무관, 미수정), `vite build` OK. 브라우저(Vite dev, localhost:5173)에서 토글 클릭 실측: `data-theme` 전환·`localStorage` 영속·Chip 4종(critical/high/medium/approval) 라이트·다크 양쪽 실제 계산된 색상이 토큰표와 정확히 일치함을 확인.
+- 지도/규칙 갱신: `rules/design.md` 상단 배너를 "2.5.1·2.5.2 완료"로 갱신하고 부록 A(v1 토큰 요약) 삭제.
+
+---
+
 ### [2026-07-07] 2.1 — 완료 (사후 이기 2026-07-11)
 - 한 일: M7 케이스 목록을 `/cases`에 연결 — 필터 칩, 딥링크 프리셋(`?filter=crit|warn|info|approval`), 고정 그룹 순서(승인 대기→즉시 확인→확인 필요→예정→완료(접힘)). 필터·그룹·정렬 로직은 `src/lib/cases.ts` selector로 분리, 화면은 `src/features/cases/`의 `CaseListPage`/`CaseListScreen`. compact 아이템은 CTA 없이 `/case/:caseId`로 진입. (Codex 세션 구현 — PR #2, 커밋 `66e299e`·`e70005f`, 머지 `5531370`)
 - 남은 일 / 중단 지점: 없음. 다음은 ROADMAP 2.2 — 단 M2.5(디자인 시스템 v2 전환) 신설로 2.5.1~2.5.3 선행 권장(ROADMAP 헤더·M2.5 참조).

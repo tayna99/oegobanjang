@@ -37,16 +37,18 @@ export function dDayLabel(dDay: number): string {
   return `D+${-dDay}`;
 }
 
-export type DDayTone = 'critical' | 'warning' | 'info' | 'neutral';
+export type DDayTone = 'critical' | 'high' | 'medium' | 'neutral';
 
 /**
- * 배지 색 규칙 (스펙 표):
- * 만료 경과(D+)·D-0 → critical(빨강) / D-1~30 → warning(주황)
- * / D-31~90 → info(파랑) / D-91+ → neutral(회색)
+ * Chip 색 규칙 (스펙 표, v2 색상표 — 2026-07-11 새로 짬):
+ * 만료 경과(D+)·D-0 → critical(빨강) / D-1~30 → high(진한 오렌지)
+ * / D-31~90 → medium(흐린 오렌지) / D-91+ → neutral(회색)
+ * v1은 D-31~90을 info(파랑)로 표시했으나, v2에서 블루는 "승인 필요" 전용이라
+ * D-day 잔여일 표시에는 쓰지 않는다 — 대신 같은 오렌지 계열의 옅은 톤(medium)을 쓴다.
  */
 export function dDayTone(dDay: number): DDayTone {
   if (dDay <= 0) return 'critical';
-  if (dDay <= 30) return 'warning';
-  if (dDay <= 90) return 'info';
+  if (dDay <= 30) return 'high';
+  if (dDay <= 90) return 'medium';
   return 'neutral';
 }

@@ -26,9 +26,9 @@ export function StepTimeline({ steps }: StepTimelineProps) {
             step.kind === 'guardrail' ? 'border-warning bg-warnbg' : 'border-hairline bg-surface',
           )}
         >
-          {step.kind !== 'guardrail' && <p className="text-xs font-semibold text-muted">{KIND_LABEL[step.kind]}</p>}
-          <p className="text-sm font-medium text-ink">{step.label}</p>
-          <p className="text-sm text-muted">{step.detail}</p>
+          {step.kind !== 'guardrail' && <p className="text-caption1 font-semibold text-muted">{KIND_LABEL[step.kind]}</p>}
+          <p className="text-label1 font-medium text-ink">{step.label}</p>
+          <p className="text-body2 text-muted">{step.detail}</p>
         </li>
       ))}
     </ol>

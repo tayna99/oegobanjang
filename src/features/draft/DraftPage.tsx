@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Badge } from '@/components/Badge';
+import { Chip } from '@/components/Chip';
 import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -28,7 +28,7 @@ export function DraftPage() {
   if (!draft || !caseId || !activeLang) {
     return (
       <div className="p-5">
-        <p className="text-sm text-muted">초안을 찾을 수 없습니다.</p>
+        <p className="text-body2 text-muted">초안을 찾을 수 없습니다.</p>
         <Button variant="outline" className="mt-4" onClick={() => nav.toHome()}>
           오늘 브리핑으로
         </Button>
@@ -42,10 +42,10 @@ export function DraftPage() {
     <div className="p-5">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-ink">{draft.title}</h2>
-          <p className="mt-1 text-sm text-muted">{draft.channel} 초안</p>
+          <h2 className="text-heading2 font-semibold text-ink">{draft.title}</h2>
+          <p className="mt-1 text-label1 text-muted">{draft.channel} 초안</p>
         </div>
-        <Badge tone={revised ? 'success' : 'pending'}>{revised ? '수정 반영' : '승인 전'}</Badge>
+        <Chip tone={revised ? 'positive' : 'approval'}>{revised ? '수정 반영' : '승인 전'}</Chip>
       </div>
 
       <div className="mb-3 flex gap-2">
@@ -64,9 +64,9 @@ export function DraftPage() {
         ))}
       </div>
 
-      <Card className="whitespace-pre-line text-sm leading-relaxed">{text}</Card>
+      <Card className="whitespace-pre-line text-body2 leading-relaxed">{text}</Card>
 
-      <p className="mt-4 rounded-in bg-pendbg px-3.5 py-3 text-sm text-pending">
+      <p className="mt-4 rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
         승인 전에는 외부 발송이 차단됩니다.
       </p>
 
@@ -96,11 +96,11 @@ export function DraftPage() {
           </Button>
         }
       >
-        <h3 className="mb-2 text-base font-semibold">수정 요청 시트</h3>
-        <p className="mb-4 text-sm leading-relaxed text-muted">
+        <h3 className="mb-2 text-body1 font-semibold">수정 요청 시트</h3>
+        <p className="mb-4 text-body2 leading-relaxed text-muted">
           근로자에게 더 부드럽게 들리도록 요청 문장을 다듬습니다. 실제 발송은 승인 이후에도 이 MVP에서 실행하지 않습니다.
         </p>
-        <div className="rounded-in bg-surface px-3.5 py-3 text-sm leading-relaxed">
+        <div className="rounded-in bg-surface px-3.5 py-3 text-label1 leading-relaxed">
           요청 톤: 정중하고 부담이 적은 문장
         </div>
       </BottomSheet>

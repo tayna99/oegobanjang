@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/cn';
-import { IconDoc, IconHome, IconList, IconMsg } from '@/components/icons';
+import { IconDoc, IconHome, IconList, IconMoon, IconMsg, IconSun } from '@/components/icons';
 import { ROUTES } from '@/lib/routes';
+import { useThemeStore } from '@/stores/themeStore';
 
 const TABS = [
   { to: ROUTES.home, label: '브리핑', Icon: IconHome },
@@ -32,28 +33,55 @@ function useDeepLinkBackstack() {
   }, []);
 }
 
+// 라이트/다크 전환 버튼 — Montage v2 semantic 토큰이 [data-theme="dark"]로 이미
+// 분기돼 있어(tokens.css) 여기서는 토글만 하면 전체 화면이 전환된다(M2.5.1).
+function ThemeToggle({ className }: { className?: string }) {
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const isDark = theme === 'dark';
+
+  return (
+    <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
+      className={cn(
+        'flex size-9 items-center justify-center rounded-in text-muted transition-colors duration-btn ease-v2 active:bg-surface',
+        className,
+      )}
+    >
+      {isDark ? <IconSun width={20} height={20} /> : <IconMoon width={20} height={20} />}
+    </button>
+  );
+}
+
 export function Shell() {
   useDeepLinkBackstack();
 
   return (
     <div className="min-h-dvh bg-canvas text-ink">
       <header className="hidden h-16 items-center gap-6 border-b border-hairline px-6 lg:flex">
-        <span className="text-base font-bold">외고반장</span>
-        <nav aria-label="주 메뉴" className="flex gap-4">
+        <span className="text-body1 font-bold">외고반장</span>
+        <nav aria-label="주 메뉴" className="flex flex-1 gap-4">
           {TABS.map(({ to, label }) => (
             <NavLink
               key={label}
               to={to}
               end={to === ROUTES.home}
               className={({ isActive }) =>
-                cn('text-sm font-medium', isActive ? 'text-primary' : 'text-muted')
+                cn('text-label1 font-medium', isActive ? 'text-primary' : 'text-muted')
               }
             >
               {label}
             </NavLink>
           ))}
         </nav>
+        <ThemeToggle />
       </header>
+
+      <div className="fixed right-3 top-3 z-20 lg:hidden">
+        <ThemeToggle className="bg-canvas shadow-outline" />
+      </div>
 
       <main className="pb-tabbar lg:pb-0">
         <Outlet />

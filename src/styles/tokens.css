@@ -1,33 +1,153 @@
-/* 디자인 토큰 — reference/prototype_v3.html :root 그대로 이식 (M0.2).
-   값은 원본과 1:1. 새 토큰/tone은 여기 + rules/design.md 표에 먼저 추가한다. */
+/* 디자인 토큰 v2 — Montage(Wanted) 디자인 시스템 이식 (M2.5.1).
+   출처: claude.ai/design 프로젝트 colors_and_type.css + rules/design.md(v2).
+   atomic → semantic 2계층 유지, semantic만 [data-theme="dark"]에서 교체.
+   Tailwind 유틸리티 이름(canvas/ink/critical/rounded-in 등)은 v1과 최대한 동일하게
+   유지해 기존 20여개 소비 파일을 건드리지 않고 값만 전환한다(docs/DESIGN_SYNC_AUDIT_2026-07-11.md §3).
+   새 토큰/tone은 여기 + rules/design.md 표에 먼저 추가한다. */
 :root {
-  --canvas:#ffffff; --surface:#f2f3f8; --surface-dim:#f5f5f5;
-  --ink:#354153; --muted:#8b93a7; --faint:#b4bbcb; --hairline:#e5e8ef;
-  --primary:#0066FF; --primary-press:#005EEB;
-  --critical:#EF4444; --warning:#F97316; --pending:#B45309; --pendbg:rgba(245,158,11,.10);
-  --info:#2563EB; --success:#00913A; --succbg:rgba(0,191,64,.10); --neutral:#6B7280;
-  --r-in:12px; --r-chip:14px; --r-card:16px; --r-sheet:20px;
-  --sh-card:0 4px 8px rgba(0,0,0,.10); --sh-lift:0 8px 16px rgba(0,0,0,.10); --sh-sheet:0 -6px 24px rgba(0,0,0,.12);
-  --fast:150ms; --std:240ms; --slow:360ms;
-  --e-in:cubic-bezier(.2,0,0,1); --e-std:cubic-bezier(.4,0,.2,1);
-  /* 탭바 치수 — 탭별기획 §0.2 "탭바 62px", "라벨 11/600" (GOTCHAS §4: 임의값 금지) */
-  --tabbar-h:62px; --tabbar-label-fs:11px;
-  /* 배지 배경 틴트(8~10%, rules/design.md) — pendbg/succbg는 M0.2에 이미 있음.
-     나머지 4색 + 배지 전용 텍스트 색(기본 토큰보다 살짝 짙게, 프로토타입 v3 .bdg 규칙). */
-  --critbg:rgba(239,68,68,.08); --warnbg:rgba(249,115,22,.09);
-  --infobg:rgba(37,99,235,.08); --neutbg:rgba(107,114,128,.08);
-  --critical-text:#DC2626; --warning-text:#EA580C;
-  /* 배지 radius(8px) — 칩(14px)·카드(16px)와 다른 별도 값 (프로토타입 v3 .bdg) */
-  --r-badge:8px;
-  /* 눌림 배경 — Button secondary:active 등 surface 계열의 진한 눌림 상태 공용 */
-  --surface-press:#e9ebf3;
-  /* 버튼 치수(프로토타입 v3 .btn: 기본 높이 50/패딩 18/간격 7/폰트 15, sm 높이 44 — 나머지는 기본 Tailwind 스케일과 일치) */
-  --btn-h:50px; --btn-h-sm:44px; --btn-px:18px; --btn-gap:7px; --btn-fs:15px;
-  /* 배지 세부 치수(프로토타입 v3 .bdg: padding 3px 8px, gap 5px — 8px는 Tailwind px-2와 동일해 별도 등록 불필요) */
-  --badge-py:3px; --badge-gap:5px;
-  /* SafetyNotice 치수(프로토타입 v3 .safety: 아이콘 간격 9px, 폰트 13px) */
-  --safety-gap:9px; --safety-fs:13px;
-  /* 바텀시트 최대 높이(86%, 프로토타입 v3 .sheet) */
-  --sheet-max-h:86%;
+  /* ---- atomic: 색상 램프(테마 불변) ---- */
+  --atomic-blue-45: #005EEB;
+  --atomic-blue-50: #0066FF;
+  --atomic-blue-95: #EAF2FE;
+  --atomic-cn-10: #171719;
+  --atomic-red-40: #E52222;
+  --atomic-red-95: #FEECEC;
+  --atomic-orange-30: #9C5800;
+  --atomic-orange-40: #D47800;
+  --atomic-orange-95: #FEF4E6;
+  --atomic-orange-99: #FFFCF7;
+  --atomic-green-40: #009632;
+  --atomic-green-95: #D9FFE6;
+
+  /* ---- semantic: 라이트(기본) ---- */
+  --color-primary-normal: var(--atomic-blue-50);
+  --color-primary-strong: var(--atomic-blue-45);
+  --color-label-normal: var(--atomic-cn-10);
+  --color-label-neutral: rgba(55, 56, 60, .88);
+  --color-label-alternative: rgba(55, 56, 60, .61);
+  --color-label-assistive: rgba(55, 56, 60, .28);
+  --color-label-disable: rgba(55, 56, 60, .16);
+  --color-bg-normal: #ffffff;
+  --color-bg-alternative: #F7F7F8;
+  --color-bg-canvas-alt: #EAEBEC;
+  --color-bg-elevated: #ffffff;
+  --color-bg-elevated-alt: #F7F7F8;
+  --color-line-normal: rgba(112, 115, 124, .22);
+  --color-line-neutral: rgba(112, 115, 124, .16);
+  --color-line-solid-normal: #E1E2E4;
+  --color-fill-normal: rgba(112, 115, 124, .08);
+  --color-fill-strong: rgba(112, 115, 124, .16);
+  --color-material-dimmer: rgba(23, 23, 25, .52);
+  --color-inverse-bg: #1B1C1E;
+  --color-inverse-label: #F7F7F8;
+  --color-surface-press: #e9ebf3; /* Montage 미정의 — v1 값 유지(마이크로 인터랙션 전용) */
+
+  /* ---- Chip 색 페어(도메인 전용 — 이 프로젝트 정의, rules/design.md §5) ----
+     "pending"/"info" 같은 모호한 이름 대신 색상표를 그대로 이름에 반영한다.
+     승인 필요(approval)=블루, MEDIUM=흐린 오렌지 — v1의 blue/amber 자리가
+     서로 바뀌므로 값만 옮기지 말고 이름부터 새로 정의한다(2026-07-11 결정). */
+  --chip-critical-fg: var(--atomic-red-40);
+  --chip-critical-bg: var(--atomic-red-95);
+  --chip-high-fg: var(--atomic-orange-40);
+  --chip-high-bg: var(--atomic-orange-95);
+  --chip-medium-fg: var(--atomic-orange-30);
+  --chip-medium-bg: var(--atomic-orange-99);
+  --chip-positive-fg: var(--atomic-green-40);
+  --chip-positive-bg: var(--atomic-green-95);
+  --chip-approval-fg: var(--color-primary-normal);
+  --chip-approval-bg: var(--atomic-blue-95);
+  --chip-neutral-fg: var(--color-label-neutral);
+  --chip-neutral-bg: var(--color-fill-normal);
+
+  /* ---- radius (Montage: 버튼 8~12·Chip 6~10·카드 ~12, 사이즈별) ---- */
+  --r-btn: 10px;      /* 기본 버튼 + 일반 입력/공지 박스(구 r-in) */
+  --r-btn-sm: 8px;    /* 작은 버튼 */
+  --r-chip: 8px;      /* Chip 컴포넌트 자체 반경(v1 r-badge와 동일 유지) */
+  --r-pill: 10px;     /* 필터·통계 등 알약형 UI(구 r-chip 14px 대체) */
+  --r-card: 12px;
+  --r-sheet: 20px;    /* Montage에 없는 자체 컴포넌트값(rules/design.md §6) — 유지 */
+
+  /* ---- shadow(Montage 5단계 + spread) ---- */
+  --shadow-xsmall: 0px 1px 2px -1px rgba(23, 23, 23, .10);
+  --shadow-small: 0px 2px 4px -2px rgba(23, 23, 23, .06), 0px 4px 6px -1px rgba(23, 23, 23, .06);
+  --shadow-medium: 0px 4px 6px -2px rgba(23, 23, 23, .07), 0px 10px 15px -3px rgba(23, 23, 23, .07);
+  --shadow-large: 0px 6px 10px -4px rgba(23, 23, 23, .08), 0px 16px 24px -6px rgba(23, 23, 23, .08);
+  --shadow-xlarge: 0px 10px 15px -5px rgba(23, 23, 23, .10), 0px 24px 38px -10px rgba(23, 23, 23, .12);
+  --sh-sheet: 0 -6px 24px rgba(0, 0, 0, .12); /* 바텀시트 전용(자체 발명), 유지 */
+
+  /* ---- motion ---- */
+  --fast: 150ms; --std: 240ms; --slow: 360ms; /* 스트리밍/시트 등 기존 연출 유지 */
+  --e-in: cubic-bezier(.2, 0, 0, 1);
+  --e-std: cubic-bezier(.4, 0, .2, 1);
+  --btn-dur: 0.2s;  /* rules/design.md v2 §4: 버튼 0.2s ease */
+  --chip-dur: 0.3s; /* rules/design.md v2 §4: 칩 0.3s ease */
+  --e-v2: ease;     /* 문자 그대로 "ease" — cubic-bezier 근사치 아님 */
+
+  /* ---- 타이포(Montage 스케일) ---- */
+  --font-family: 'Pretendard', 'Pretendard JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --fs-heading1: 1.375rem; --lh-heading1: 1.875rem; --ls-heading1: -0.0194em;
+  --fs-heading2: 1.25rem; --lh-heading2: 1.75rem; --ls-heading2: -0.012em;
+  --fs-body1: 1rem; --lh-body1: 1.5rem; --ls-body1: 0.0057em;
+  --fs-body2: 0.9375rem; --lh-body2: 1.375rem; --ls-body2: 0.0096em;
+  --fs-label1: 0.875rem; --lh-label1: 1.25rem; --ls-label1: 0.0145em;
+  --fs-caption1: 0.75rem; --lh-caption1: 1rem; --ls-caption1: 0.0252em;
+  --fw-regular: 400; --fw-medium: 500; --fw-bold: 600; --fw-display-bold: 700;
+
+  /* ---- PC 밀도 타입램프(이 프로젝트 자체 확장 — 결정 2026-07-11, rules/design.md §3) ----
+     외고반장 PC.dc.html이 표준 --fs-* 스케일 밖 하프픽셀 크기를 광범위하게 쓴다.
+     임의값으로 방치하지 않고 여기 등록한다. 모바일 화면에는 적용하지 않는다. */
+  --fs-pc-2xs: 10.5px;
+  --fs-pc-xs: 11.5px;
+  --fs-pc-sm: 12.5px;
+  --fs-pc-md: 13.5px;
+
+  /* ---- 이 프로젝트 전용 치수(Montage 밖) ---- */
+  --tabbar-h: 62px; --tabbar-label-fs: 11px;
+  --btn-h: 50px; --btn-h-sm: 44px; --btn-px: 18px; --btn-gap: 7px; --btn-fs: 15px;
+  --chip-py: 3px; --chip-gap: 5px;
+  --safety-gap: 9px; --safety-fs: 13px;
+  --sheet-max-h: 86%;
 }
-@media (prefers-reduced-motion:reduce){:root{--fast:0ms;--std:0ms;--slow:0ms}}
+
+/* Montage 시맨틱 다크 테마 — atomic 값은 고정, semantic만 교체 */
+[data-theme='dark'] {
+  --color-primary-normal: #3385FF;
+  --color-primary-strong: #1A75FF;
+  --color-label-normal: #F7F7F8;
+  --color-label-neutral: rgba(194, 196, 200, .88);
+  --color-label-alternative: rgba(174, 176, 182, .61);
+  --color-label-assistive: rgba(174, 176, 182, .28);
+  --color-label-disable: rgba(152, 155, 162, .16);
+  --color-bg-normal: #1B1C1E;
+  --color-bg-alternative: #0F0F10;
+  --color-bg-canvas-alt: #0F0F10;
+  --color-bg-elevated: #212225;
+  --color-bg-elevated-alt: #141415;
+  --color-line-normal: rgba(112, 115, 124, .32);
+  --color-line-neutral: rgba(112, 115, 124, .28);
+  --color-line-solid-normal: #37383C;
+  --color-fill-normal: rgba(112, 115, 124, .22);
+  --color-fill-strong: rgba(112, 115, 124, .28);
+  --color-material-dimmer: rgba(23, 23, 25, .74);
+  --color-inverse-bg: #ffffff;
+  --color-inverse-label: #171719;
+  --color-surface-press: #14151a;
+
+  /* Chip 색 페어 다크 오버라이드 — 라이트 전용 atomic hex(예: red-95 #FEECEC)를
+     그대로 두면 어두운 배경 위에서 밝은 파스텔 배경이 붕 뜬다(2026-07-11, 브라우저
+     실사용 검증 중 발견). fg는 Montage 자체 다크 상태색(status-negative/cautionary/
+     positive) 재사용, bg는 옅은 rgba 틴트로 다크 서피스에 자연히 섞이게 한다. */
+  --chip-critical-fg: #FF6363;
+  --chip-critical-bg: rgba(255, 99, 99, .16);
+  --chip-high-fg: #FFA938;
+  --chip-high-bg: rgba(255, 169, 56, .16);
+  --chip-medium-fg: #FFC06E;
+  --chip-medium-bg: rgba(255, 169, 56, .10);
+  --chip-positive-fg: #1ED45A;
+  --chip-positive-bg: rgba(30, 212, 90, .16);
+  --chip-approval-bg: rgba(51, 133, 255, .16);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --fast: 0ms; --std: 0ms; --slow: 0ms; --btn-dur: 0ms; --chip-dur: 0ms; }
+}

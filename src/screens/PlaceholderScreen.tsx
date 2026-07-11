@@ -8,7 +8,7 @@ interface PlaceholderScreenProps {
 export function PlaceholderScreen({ name }: PlaceholderScreenProps) {
   return (
     <div className="p-5 text-muted">
-      <p className="text-sm">{name} — 아직 구현되지 않았습니다.</p>
+      <p className="text-body2">{name} — 아직 구현되지 않았습니다.</p>
     </div>
   );
 }
