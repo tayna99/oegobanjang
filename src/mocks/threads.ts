@@ -19,9 +19,9 @@ const TRAN_INTERPRETATION: Interpretation = {
   confidence: 'high',
   updates: [
     // v3 937행 — 표준근로계약서: 누락 → 회사 확인 필요
-    { field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'warning' },
+    { updateId: 'tran-doc-contract', field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'warning' },
     // v3 938행 — 여권 사본: 누락 → 제출 예정 · 내일
-    { field: '여권 사본', from: '누락', to: '제출 예정 · 내일', badgeTone: 'warning' },
+    { updateId: 'tran-doc-passport', field: '여권 사본', from: '누락', to: '제출 예정 · 내일', badgeTone: 'warning' },
   ],
   recommendedActions: [
     {

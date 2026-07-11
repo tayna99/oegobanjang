@@ -11,7 +11,7 @@ const INTERPRETATION: Interpretation = {
   caseId: 'tranCase',
   summaryKo: '표준근로계약서는 회사가 보관 중이라고 답했습니다.',
   confidence: 'high',
-  updates: [{ field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'warning' }],
+  updates: [{ updateId: 'tran-doc-contract', field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'warning' }],
   recommendedActions: [],
   isFinal: false,
   confirmedSummary: 'Tran 응답 해석 확인 — 서류 상태 2건 갱신',
@@ -86,7 +86,7 @@ describe('ThreadScreen — 상태 5종', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: '상태 반영 확인' }));
-    expect(onConfirm).toHaveBeenCalledWith(['표준근로계약서']);
+    expect(onConfirm).toHaveBeenCalledWith(['tran-doc-contract']);
   });
 
   it('default/timeline: 메시지 버블과 확인 완료 카드, 하단 초안 버튼을 렌더한다', () => {

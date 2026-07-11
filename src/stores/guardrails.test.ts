@@ -70,7 +70,7 @@ const baseInterpretation: Interpretation = {
   summaryKo: '테스트 요약',
   confidence: 'high',
   updates: [
-    { field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'warning' },
+    { updateId: 'u1', field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'warning' },
   ],
   recommendedActions: [],
   isFinal: false,
@@ -226,14 +226,36 @@ describe('가드레일 4 — 해석 확인(threadStore.confirmInterpretation)', 
     );
   });
 
-  it('성공 케이스: pending_review → confirmed 전이 및 preview 갱신', () => {
+  it('성공 케이스: 전체 updateId를 정확히 담으면 pending_review → confirmed 전이 및 preview 갱신', () => {
     seedThread('pending_review', baseInterpretation);
-    const result = useThreadStore.getState().confirmInterpretation('t1', []);
+    const result = useThreadStore.getState().confirmInterpretation('t1', ['u1']);
     expect(result).toEqual(baseInterpretation);
 
     const updated = useThreadStore.getState().threads['t1'];
     expect(updated.interpretationStatus).toBe('confirmed');
     expect(updated.preview).toBe(baseInterpretation.confirmedSummary);
+  });
+
+  // 유효성·원자성 — updateIds를 무시하던 이전 구현은 어떤 입력을 넣어도 무조건 커밋됐다.
+  // 아래 두 테스트는 검증을 통과하지 못하면 어떤 스토어도 갱신되지 않음을 확인한다.
+  it('빈 updateIds는 GuardrailError — 스레드 상태가 바뀌지 않는다', () => {
+    seedThread('pending_review', baseInterpretation);
+    expect(() =>
+      useThreadStore.getState().confirmInterpretation('t1', []),
+    ).toThrow(GuardrailError);
+    expect(useThreadStore.getState().threads['t1'].interpretationStatus).toBe(
+      'pending_review',
+    );
+  });
+
+  it('존재하지 않는 updateId가 섞이면 GuardrailError — 부분 일치도 거부한다', () => {
+    seedThread('pending_review', baseInterpretation);
+    expect(() =>
+      useThreadStore.getState().confirmInterpretation('t1', ['u1', 'bogus-id']),
+    ).toThrow(GuardrailError);
+    expect(useThreadStore.getState().threads['t1'].interpretationStatus).toBe(
+      'pending_review',
+    );
   });
 });
 

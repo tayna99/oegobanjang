@@ -51,7 +51,9 @@ describe('BriefingHomePage', () => {
       </MemoryRouter>,
     );
     act(() => {
-      useThreadStore.getState().confirmInterpretation('tran', []);
+      const tran = useThreadStore.getState().threads['tran'];
+      const updateIds = tran.interpretation?.updates.map((u) => u.updateId) ?? [];
+      useThreadStore.getState().confirmInterpretation('tran', updateIds);
     });
     const stat = screen.getByRole('button', { name: /응답 도착/ });
     expect(within(stat).getByText('0')).toBeInTheDocument();

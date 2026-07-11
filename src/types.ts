@@ -116,7 +116,8 @@ export interface Message {
 
 // Interpretation.updates 원소 — 서류 상태 등 필드 단위 갱신 제안 1건
 export interface InterpretationUpdate {
-  field: string; // 갱신 대상 필드명("표준근로계약서" 등)
+  updateId: string; // threadStore.confirmInterpretation이 이 값으로 updateIds를 전수 검증한다 — field를 id 대용으로 재사용하지 않는다
+  field: string; // 갱신 대상 필드명("표준근로계약서" 등) — 표시 라벨일 뿐 식별자가 아니다
   from: string; // 갱신 전 상태 라벨
   to: string; // 갱신 후 상태 라벨
   badgeTone: string; // src/lib/badgeTone.ts BadgeTone 값 — Interpretation은 badgeTone 구현을 몰라야 하므로 string으로 느슨하게 연결

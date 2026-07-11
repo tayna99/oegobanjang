@@ -36,7 +36,7 @@ export function InterpretationCard({ interpretation, onConfirm, confirmDisabled 
       <div className="border-t border-hairline">
         {interpretation.updates.map((update) => (
           <div
-            key={update.field}
+            key={update.updateId}
             className="flex items-baseline justify-between gap-3 border-b border-hairline py-2.5 text-sm"
           >
             <span className="text-muted">{update.field}</span>
@@ -69,7 +69,7 @@ export function InterpretationCard({ interpretation, onConfirm, confirmDisabled 
       <Button
         variant="primary"
         disabled={confirmDisabled}
-        onClick={() => onConfirm(interpretation.updates.map((update) => update.field))}
+        onClick={() => onConfirm(interpretation.updates.map((update) => update.updateId))}
         className="mt-4 w-full"
       >
         상태 반영 확인

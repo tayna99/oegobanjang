@@ -13,8 +13,8 @@ const INTERPRETATION: Interpretation = {
   summaryKo: '표준근로계약서는 회사가 보관 중이라고 답했습니다.',
   confidence: 'high',
   updates: [
-    { field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'warning' },
-    { field: '여권 사본', from: '누락', to: '제출 예정 · 내일', badgeTone: 'warning' },
+    { updateId: 'tran-doc-contract', field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'warning' },
+    { updateId: 'tran-doc-passport', field: '여권 사본', from: '누락', to: '제출 예정 · 내일', badgeTone: 'warning' },
   ],
   recommendedActions: [
     {
@@ -63,12 +63,12 @@ describe('InterpretationCard', () => {
     expect(screen.getByText('해석이 불확실합니다. 원문을 확인해주세요')).toBeInTheDocument();
   });
 
-  it('[상태 반영 확인] 클릭 시 모든 updates의 field를 updateIds로 onConfirm을 호출한다', () => {
+  it('[상태 반영 확인] 클릭 시 모든 updates의 updateId를 onConfirm에 넘긴다(field 재사용 금지)', () => {
     const onConfirm = vi.fn();
     renderCard({ interpretation: INTERPRETATION, onConfirm });
 
     fireEvent.click(screen.getByRole('button', { name: '상태 반영 확인' }));
-    expect(onConfirm).toHaveBeenCalledWith(['표준근로계약서', '여권 사본']);
+    expect(onConfirm).toHaveBeenCalledWith(['tran-doc-contract', 'tran-doc-passport']);
   });
 
   it('confirmDisabled면 확인 버튼이 비활성화된다(오프라인)', () => {

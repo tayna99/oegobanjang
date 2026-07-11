@@ -7,6 +7,12 @@ interface ThreadStoreState {
   upsert: (thread: MessageThread) => void;
   /**
    * 응답 해석 확인 — pending_review에서만 진행 가능한 담당자 승인 경계.
+   * updateIds는 interpretation.updates의 updateId 전체와 정확히 일치해야 한다(순서 무관,
+   * 부분 확인은 이 데이터 모델에 없다 — interpretationStatus가 해석 전체에 걸리는 단일
+   * 스칼라이기 때문). 이 검증을 통과하기 전에는 어떤 스토어도 갱신되지 않는다 —
+   * ThreadPage.handleConfirm이 이어서 호출하는 caseStore.applyInterpretationUpdates·
+   * evidenceStore.append는 예외를 던질 조건이 없는 순수 병합/추가이므로, 이 함수의
+   * 검증-후-커밋 순서가 사실상 3개 스토어 갱신 전체의 원자성 경계가 된다.
    * 발송 함수는 여기 두지 않는다. sendMessage/dispatchMessage 등은 이 스토어에
    * 정의되지 않는다 — 승인은 상태(interpretationStatus)를 confirmed로 옮길 뿐,
    * 실제 채널 발송(mock dispatch 경계 포함)은 approvalStore.dispatch의 몫이다.
@@ -25,10 +31,7 @@ export const useThreadStore = create<ThreadStoreState>((set, get) => ({
   upsert: (thread) =>
     set((s) => ({ threads: { ...s.threads, [thread.threadId]: thread } })),
 
-  // updateIds는 이 단계에서는 시그니처만 확정한다 — caseStore.applyInterpretationUpdates
-  // 연동은 페이지 오케스트레이션(RunPage.approve()와 같은 형태) 몫으로 남겨둔다.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 위 사유로 이 단계는 시그니처만 확정
-  confirmInterpretation: (threadId, _updateIds) => {
+  confirmInterpretation: (threadId, updateIds) => {
     const thread = get().threads[threadId];
     if (!thread) {
       throw new GuardrailError(`존재하지 않는 스레드: ${threadId}`);
@@ -36,7 +39,9 @@ export const useThreadStore = create<ThreadStoreState>((set, get) => ({
 
     // 이미 확인된 해석에 재호출 — 에러 없이 기존 interpretation을 그대로 반환하는 no-op
     // (approvalStore.decide의 idempotency 처리와 같은 정신이되, 여기서는 상태 자체가
-    // 멱등성 판단 기준이므로 별도의 idempotencyKey 파라미터가 필요 없다).
+    // 멱등성 판단 기준이므로 별도의 idempotencyKey 파라미터가 필요 없다). 이미 커밋된
+    // 결과를 그대로 돌려줄 뿐이라 updateIds를 다시 검증하지 않는다 — 이중 클릭 재호출까지
+    // 이 조건으로 막힌다.
     if (thread.interpretationStatus === 'confirmed') {
       if (!thread.interpretation) {
         throw new GuardrailError(`확인할 해석이 없는 스레드: ${threadId}`);
@@ -52,6 +57,21 @@ export const useThreadStore = create<ThreadStoreState>((set, get) => ({
     }
 
     const interpretation = thread.interpretation;
+
+    // updateIds 전수 검증 — 이 시점까지 어떤 스토어도 갱신되지 않았다. 빈 배열이나
+    // 존재하지 않는 id, 일부만 담긴 목록은 전부 거부한다(부분 확인은 이 데이터 모델에
+    // 없다). field 문자열을 id로 재사용하던 이전 구현은 이 검증이 없어 어떤 입력을
+    // 넣어도 무조건 커밋됐다 — 여기서 막는다.
+    const validIds = interpretation.updates.map((u) => u.updateId);
+    const providedSet = new Set(updateIds);
+    const missing = validIds.filter((id) => !providedSet.has(id));
+    const unknown = updateIds.filter((id) => !validIds.includes(id));
+    if (updateIds.length === 0 || missing.length > 0 || unknown.length > 0) {
+      throw new GuardrailError(
+        `해석의 모든 업데이트를 정확히 확인해야 합니다: 기대 [${validIds.join(', ')}], 받음 [${updateIds.join(', ')}]`,
+      );
+    }
+
     set((s) => ({
       threads: {
         ...s.threads,
