@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { routeConfig } from '@/router';
+import { DEMO_PIN } from '@/lib/pin';
 import { useApprovalStore } from '@/stores/approvalStore';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useRoleStore } from '@/stores/roleStore';
 
 // M2.6 승인 깔때기 E2E — "카드에서는 검토만, 승인은 체크리스트 화면에서"(블루프린트 §1).
 // 2b 사례 검토 → 검토 계속 → 2c 체크리스트(필수 4/4 게이트) → 승인 → 2d 승인 이력 → 홈 상태 반영.
@@ -13,7 +15,16 @@ describe('M2.6 approval funnel', () => {
     useCaseStore.getState().reset();
     useApprovalStore.getState().reset();
     useEvidenceStore.getState().reset();
+    useRoleStore.getState().reset();
   });
+
+  // PIN 시트를 확정 PIN으로 통과시키는 헬퍼(4.3) — 이 파일의 다른 테스트는 승인 자체를
+  // 검증 대상으로 삼지 않으므로 이 두 곳에서만 인라인으로 쓴다.
+  const passPinGate = async () => {
+    await screen.findByText('본인확인 PIN');
+    fireEvent.change(screen.getByRole('textbox', { name: '본인확인 PIN' }), { target: { value: DEMO_PIN } });
+    fireEvent.click(screen.getByRole('button', { name: '확인' }));
+  };
 
   it('검토 → 체크리스트 승인 → 이력까지 흐르고 홈 승인 큐에서 빠진다', async () => {
     const router = createMemoryRouter(routeConfig, {
@@ -36,13 +47,16 @@ describe('M2.6 approval funnel', () => {
     const approveButton = screen.getByRole('button', { name: '승인하기' });
     expect(approveButton).toBeDisabled();
 
-    for (const box of screen.getAllByRole('checkbox')) {
+    // 체크리스트 목록으로 스코프 — 4.3에서 추가된 대리 승인 체크박스까지 잡아 의도치 않게
+    // 대리 처리로 전환되지 않게 한다(이 테스트는 본인 승인 경로를 검증한다).
+    for (const box of within(screen.getByRole('list')).getAllByRole('checkbox')) {
       fireEvent.click(box);
     }
     expect(screen.getByText('필수 4/4')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '승인하기' })).toBeEnabled();
 
     fireEvent.click(screen.getByRole('button', { name: '승인하기' }));
+    await passPinGate();
 
     // 2d 승인 이력 — 사람 결정 노드(최종 승인)와 판단 기록.
     await screen.findByRole('heading', { name: '승인 이력' });
@@ -119,8 +133,9 @@ describe('M2.6 approval funnel', () => {
     await screen.findByRole('heading', { name: '최종 승인' });
     expect(useCaseStore.getState().cases.nguyen.state).toBe('approval_pending'); // 재개됨
 
-    for (const box of screen.getAllByRole('checkbox')) fireEvent.click(box);
-    fireEvent.click(screen.getByRole('button', { name: '승인하기' })); // 크래시 없이 성공
+    for (const box of within(screen.getByRole('list')).getAllByRole('checkbox')) fireEvent.click(box);
+    fireEvent.click(screen.getByRole('button', { name: '승인하기' }));
+    await passPinGate(); // 크래시 없이 성공
     await screen.findByRole('heading', { name: '승인 이력' });
     expect(useCaseStore.getState().cases.nguyen.state).toBe('human_approved');
   });

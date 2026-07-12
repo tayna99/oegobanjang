@@ -27,6 +27,7 @@ export interface RunConfig {
   steps: RunStep[];
   readOnly?: boolean; // replay 전용 — 정적 재생, 승인/대안 버튼을 렌더하지 않는다
   resultCaseIds?: string[]; // command 전용(M9/3.2) — 런이 정리한 대상 케이스, 결과 카드에서 케이스로 연결
+  writesData?: boolean; // 케이스/초안 등 쓰기 도구를 쓰는 command 런 — owner는 차단(4.2, 7단계 §2 각주3)
 }
 
 // approvalRun()의 고정 결과 문구 — 모든 승인 런 공통.
@@ -135,6 +136,8 @@ export const RUN_CONFIGS: RunConfig[] = [
     ],
     // 3.2: 정리 결과 카드에서 곧바로 대상 케이스로 진입 — Batbayar는 기한 경과라 행정사 검토 게이트.
     resultCaseIds: ['nguyen', 'siti', 'batbayar'],
+    // 4.2: 케이스별 액션 초안을 생성하는 쓰기 도구 — owner의 M9는 읽기성 요청만 허용(7단계 §2 각주3).
+    writesData: true,
   },
   {
     runKey: '4788',

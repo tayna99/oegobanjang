@@ -1,18 +1,24 @@
 import { useCaseStore, canTransition } from '@/stores/caseStore';
 import { useApprovalStore } from '@/stores/approvalStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useRoleStore } from '@/stores/roleStore';
 import { usableCitations } from '@/stores/citationStore';
 import { RUN_CONFIGS } from '@/mocks/runs';
-import type { CaseCard } from '@/types';
+import type { CaseCard, Role } from '@/types';
 import type { CaseSheet } from '@/mocks/fixtures';
 
 // 승인/반려 생애주기의 단일 출처(코드리뷰 A/B/F 근본 원인 교정).
 // ApprovePage·(향후 PC 워크벤치)가 모두 이 유닛을 호출해 동일하게 결정한다 —
 // request→decide→transition→evidence 코레오그래피를 화면마다 인라인 복제하지 않는다.
 
-// 데모 담당자 — 현재 사용자 소스가 없어 고정(4.2 권한 모델 몫). evidence actor의 단일 출처.
+// 데모 담당자 페르소나 — evidence actor의 단일 출처(코드리뷰 A/F actor 일관성).
 export const CURRENT_USER = '김담당';
-export const CURRENT_USER_SELF = `${CURRENT_USER} (본인)`;
+// 데모 대표 페르소나(4.2 역할 모델) — owner로 전환 시 승인자 표시명.
+export const OWNER_NAME = '김대표';
+// 역할별 승인자 표시명 — types.ts EvidenceEvent.actor 규약("김담당 (본인 확인 완료)")의
+// 본인/대리 라벨은 approve()/reject()가 조합한다. PIN 게이트(4.3, ApprovePage)를
+// 통과해야 approve()가 호출되므로 "본인 확인 완료" 라벨이 그 사실을 담는다.
+const ACTOR_NAME: Record<Role, string> = { manager: CURRENT_USER, owner: OWNER_NAME };
 
 // 케이스의 승인 판단 기록 번호 — RUN_CONFIGS(approval)에서 파생. 하드코딩 금지(코드리뷰 F1).
 export function approvalRefFor(caseId: string): string | undefined {
@@ -35,6 +41,8 @@ interface DecisionInput {
   sheet: CaseSheet;
   reason?: string;
   checklistCount?: number;
+  /** 대리 승인 시 위임자명(예: OWNER_NAME) — 없으면 본인 처리(4.3, 7단계 §3.1 배지 규약). */
+  onBehalf?: string;
 }
 
 export interface ApprovalActions {
@@ -50,6 +58,8 @@ export function useApprovalActions(): ApprovalActions {
   const requestApproval = useApprovalStore((s) => s.requestApproval);
   const decide = useApprovalStore((s) => s.decide);
   const appendEvidence = useEvidenceStore((s) => s.append);
+  const role = useRoleStore((s) => s.role);
+  const actorName = ACTOR_NAME[role];
 
   // 결정 전에 approval을 항상 pending으로 리셋 — 이전 시도가 terminal(rejected/approved)이면
   // decide가 throw하므로(코드리뷰 A1/B2), 새 시도마다 fresh requestApproval.
@@ -59,7 +69,7 @@ export function useApprovalActions(): ApprovalActions {
   };
 
   return {
-    approve: ({ card, sheet, checklistCount }) => {
+    approve: ({ card, sheet, checklistCount, onBehalf }) => {
       if (!canApproveCase(card, sheet)) return false; // 방어: 게이트 우회 차단
       const actionId = card.primaryAction.actionId;
       const ref = approvalRefFor(card.caseId);
@@ -72,7 +82,7 @@ export function useApprovalActions(): ApprovalActions {
         caseId: card.caseId,
         actionId,
         summary: `필수 ${checklistCount ?? 0}항목 확인 · 근거 ${usableCitations(sheet.citations).length}건 연결 확인`,
-        actor: CURRENT_USER,
+        actor: actorName,
       });
       appendEvidence({
         id: `${actionId}-approved`,
@@ -82,7 +92,8 @@ export function useApprovalActions(): ApprovalActions {
         actionId,
         evidenceRef: ref,
         summary: '승인 확정 · 발송 실행 가능 상태로 전환',
-        actor: CURRENT_USER_SELF,
+        // 결정자·본인/대리 기록(4.3, 7단계 §3.1·§5 approval_granted 규약).
+        actor: onBehalf ? `${actorName} (대리 승인 · 위임: ${onBehalf})` : `${actorName} (본인 확인 완료)`,
       });
       transition(card.caseId, 'human_approved');
       // 파이프라인 단계도 실행으로 전진 — 안 하면 "승인 대기 N"이 큐와 모순(코드리뷰 A4).
@@ -105,7 +116,7 @@ export function useApprovalActions(): ApprovalActions {
         caseId: card.caseId,
         actionId,
         summary: reason ? '반려 · 사유 기록됨' : '반려',
-        actor: CURRENT_USER_SELF,
+        actor: `${actorName} (본인 확인 완료)`,
       });
       transition(card.caseId, 'returned');
       return true;

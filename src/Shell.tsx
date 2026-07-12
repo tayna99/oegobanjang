@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import { IconBriefing, IconClock, IconFolder, IconMoon, IconMsg, IconSun } from '@/components/icons';
 import { ROUTES } from '@/lib/routes';
 import { useThemeStore } from '@/stores/themeStore';
+import { useRoleStore } from '@/stores/roleStore';
 
 const TABS = [
   // 아이콘·색 — Montage 공용 컴포넌트.dc.html §1(2.5.4b): 브리핑=문서형, 케이스=폴더, 기록=시계.
@@ -58,6 +59,27 @@ function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
+// 역할 전환 — 로그인/SSO 이전 MVP 데모 스위치(4.2). owner/manager 두 페르소나만 존재.
+function RoleToggle({ className }: { className?: string }) {
+  const role = useRoleStore((s) => s.role);
+  const toggleRole = useRoleStore((s) => s.toggleRole);
+  const isOwner = role === 'owner';
+
+  return (
+    <button
+      type="button"
+      onClick={toggleRole}
+      aria-label={isOwner ? '담당자로 보기 전환' : '대표로 보기 전환'}
+      className={cn(
+        'flex h-9 shrink-0 items-center rounded-badge px-3 text-caption1 font-semibold text-muted shadow-outline transition-colors duration-btn ease-v2 active:bg-surface',
+        className,
+      )}
+    >
+      {isOwner ? '대표' : '담당자'}
+    </button>
+  );
+}
+
 export function Shell() {
   useDeepLinkBackstack();
 
@@ -79,10 +101,12 @@ export function Shell() {
             </NavLink>
           ))}
         </nav>
+        <RoleToggle />
         <ThemeToggle />
       </header>
 
-      <div className="fixed right-3 top-3 z-20 lg:hidden">
+      <div className="fixed right-3 top-3 z-20 flex gap-2 lg:hidden">
+        <RoleToggle className="bg-canvas shadow-outline" />
         <ThemeToggle className="bg-canvas shadow-outline" />
       </div>
 

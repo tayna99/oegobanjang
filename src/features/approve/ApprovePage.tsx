@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BackHeader } from '@/components/BackHeader';
+import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { SAFETY_NOTICE_TEXT } from '@/components/SafetyNotice';
-import { useApprovalActions, canApproveCase, isCitationLocked } from '@/lib/approval';
+import { useApprovalActions, canApproveCase, isCitationLocked, OWNER_NAME } from '@/lib/approval';
 import { dDayLabel } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
+import { DEMO_PIN, isValidPinFormat } from '@/lib/pin';
 import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
 import { canTransition, useCaseStore } from '@/stores/caseStore';
 import { usableCitations } from '@/stores/citationStore';
+import { useRoleStore } from '@/stores/roleStore';
 import { cn } from '@/lib/cn';
 
 // 2c 최종 승인 — reference/design-system/외고반장 Mobile.dc.html §2c(145~186행) 이식(M2.6.3).
@@ -23,6 +26,7 @@ export function ApprovePage() {
   const cases = useCaseStore((s) => s.cases);
   const upsert = useCaseStore((s) => s.upsert);
   const { approve, reject } = useApprovalActions();
+  const role = useRoleStore((s) => s.role);
 
   useEffect(() => {
     if (Object.keys(useCaseStore.getState().cases).length === 0) {
@@ -49,6 +53,10 @@ export function ApprovePage() {
   // 체크 상태는 라벨 Set — 인덱스 boolean[]의 위치 결합(리셋 effect 취약성, 코드리뷰 A5/D)을 없앤다.
   const [checkedLabels, setCheckedLabels] = useState<Set<string>>(() => new Set());
   const [reason, setReason] = useState('');
+  const [onBehalfChecked, setOnBehalfChecked] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
 
   if (!card || !sheet) {
     return (
@@ -76,8 +84,32 @@ export function ApprovePage() {
       return next;
     });
 
+  // 4.3 승인 PIN 목업 — 승인은 본인확인 이력이 남는 행위(7단계 §4). 세션만으로는 승인 불가.
   const onApprove = () => {
-    if (approve({ card, sheet, checklistCount: checklist.length })) nav.toCaseHistory(card.caseId);
+    setPin('');
+    setPinError(null);
+    setPinOpen(true);
+  };
+  const onPinClose = () => {
+    setPinOpen(false);
+    setPin('');
+    setPinError(null);
+  };
+  const onPinConfirm = () => {
+    if (!isValidPinFormat(pin)) {
+      setPinError('숫자 4자리를 입력하세요.');
+      return;
+    }
+    if (pin !== DEMO_PIN) {
+      setPinError('PIN이 일치하지 않습니다. 다시 입력해주세요.');
+      setPin('');
+      return;
+    }
+    const onBehalf = role === 'manager' && onBehalfChecked ? OWNER_NAME : undefined;
+    if (approve({ card, sheet, checklistCount: checklist.length, onBehalf })) {
+      setPinOpen(false);
+      nav.toCaseHistory(card.caseId);
+    }
   };
   const onReject = () => {
     if (reject({ card, sheet, reason })) nav.toHome();
@@ -140,6 +172,24 @@ export function ApprovePage() {
           </ul>
         </section>
 
+        {role === 'manager' && (
+          <section className="flex flex-col gap-1.5">
+            <h3 className="text-caption1 font-bold text-subtle">대리 승인</h3>
+            <label className="flex min-h-12 cursor-pointer items-center gap-2.5 rounded-in border border-hairline px-3 py-2.5">
+              <input
+                type="checkbox"
+                checked={onBehalfChecked}
+                onChange={(event) => setOnBehalfChecked(event.target.checked)}
+                className="size-4 accent-primary"
+              />
+              <span className="text-label1 text-ink">
+                대리 승인으로 처리 <span className="text-dim">(위임: {OWNER_NAME})</span>
+              </span>
+            </label>
+            <p className="text-caption1 text-dim">대표님이 부재중일 때 위임받아 승인하는 경우에만 체크하세요.</p>
+          </section>
+        )}
+
         <section className="flex flex-col gap-2">
           <h3 className="text-caption1 font-bold text-subtle">
             의견 / 반려 사유 <span className="font-medium text-dim">(선택)</span>
@@ -168,6 +218,36 @@ export function ApprovePage() {
         </Button>
         <p className="text-center text-caption1 text-dim">반려 시 사유가 판단 기록에 남고 요청이 되돌아갑니다.</p>
       </footer>
+
+      <BottomSheet
+        open={pinOpen}
+        onClose={onPinClose}
+        footer={
+          <Button variant="primary" className="w-full" onClick={onPinConfirm}>
+            확인
+          </Button>
+        }
+      >
+        <h3 className="mb-2 text-body1 font-semibold text-ink">본인확인 PIN</h3>
+        <p className="mb-4 text-body2 leading-relaxed text-muted">
+          승인은 본인확인 이력이 남는 행위입니다. PIN 4자리를 입력해주세요. (데모 PIN: {DEMO_PIN})
+        </p>
+        <input
+          type="text"
+          inputMode="numeric"
+          maxLength={4}
+          value={pin}
+          onChange={(event) => {
+            setPin(event.target.value);
+            setPinError(null);
+          }}
+          placeholder="••••"
+          aria-label="본인확인 PIN"
+          autoFocus
+          className="h-12 w-full rounded-in bg-canvas px-3 text-center text-heading2 tracking-[0.5em] text-ink shadow-outline outline-none focus:shadow-rail-focus"
+        />
+        {pinError && <p className="mt-2 text-caption1 text-critical-text">{pinError}</p>}
+      </BottomSheet>
     </div>
   );
 }

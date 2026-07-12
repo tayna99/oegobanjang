@@ -1,9 +1,10 @@
 import { StrictMode } from 'react';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Shell } from './Shell';
 import { useThemeStore } from '@/stores/themeStore';
+import { useRoleStore } from '@/stores/roleStore';
 
 function renderShell(initialPath: string, options: { strict?: boolean } = {}) {
   const router = createMemoryRouter(
@@ -112,6 +113,28 @@ describe('Shell', () => {
         screen.getAllByRole('button', { name: '라이트 모드로 전환' })[0].click();
       });
       expect(document.documentElement.dataset.theme).toBe('light');
+    });
+  });
+
+  // 4.2 역할 전환 — owner/manager 데모 스위치.
+  describe('역할 토글', () => {
+    afterEach(() => useRoleStore.getState().reset());
+
+    it('버튼을 누르면 담당자 ↔ 대표로 전환된다', () => {
+      renderShell('/');
+
+      expect(screen.getAllByRole('button', { name: '대표로 보기 전환' }).length).toBeGreaterThan(0);
+
+      act(() => {
+        screen.getAllByRole('button', { name: '대표로 보기 전환' })[0].click();
+      });
+      expect(useRoleStore.getState().role).toBe('owner');
+      expect(screen.getAllByRole('button', { name: '담당자로 보기 전환' }).length).toBeGreaterThan(0);
+
+      act(() => {
+        screen.getAllByRole('button', { name: '담당자로 보기 전환' })[0].click();
+      });
+      expect(useRoleStore.getState().role).toBe('manager');
     });
   });
 });

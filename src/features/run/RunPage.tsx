@@ -4,6 +4,7 @@ import { useNav } from '@/lib/nav';
 import { canTransition, useCaseStore } from '@/stores/caseStore';
 import { useApprovalStore } from '@/stores/approvalStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useRoleStore } from '@/stores/roleStore';
 import { useRunEngine } from '@/lib/useRunEngine';
 import { CASE_CARDS } from '@/mocks/fixtures';
 import { RUN_CONFIGS } from '@/mocks/runs';
@@ -35,6 +36,7 @@ function RunPageContent({ config }: { config: RunConfig }) {
   const requestApproval = useApprovalStore((s) => s.requestApproval);
   const decide = useApprovalStore((s) => s.decide);
   const appendEvidence = useEvidenceStore((s) => s.append);
+  const role = useRoleStore((s) => s.role);
 
   useEffect(() => {
     if (Object.keys(useCaseStore.getState().cases).length === 0) {
@@ -80,17 +82,27 @@ function RunPageContent({ config }: { config: RunConfig }) {
     nav.toDone({ state: { caseTitle: card.title, evidenceRef: config.evidenceRef } });
   };
 
-  const state: RunViewState = {
-    status: 'default',
-    mode: config.mode,
-    title: config.title,
-    question: config.question,
-    altLabel: config.altLabel,
-    steps: engine.steps,
-    engineStatus: engine.status,
-    readOnly: config.readOnly,
-    resultCases,
-  };
+  // 4.2 라우트 가드 — owner의 M9는 읽기성 요청만(7단계 §2 각주3). 케이스/초안 등
+  // 쓰기 도구를 쓰는 command 런은 owner 앞에서 실행하지 않고 차단 사유를 보여준다.
+  const roleBlocked = role === 'owner' && config.mode === 'command' && config.writesData === true;
+
+  const state: RunViewState = roleBlocked
+    ? {
+        status: 'error',
+        reason: 'blocked',
+        message: '이 요청은 담당자 권한이 필요합니다 — 대표 계정에서는 조회·요약 요청만 실행할 수 있습니다.',
+      }
+    : {
+        status: 'default',
+        mode: config.mode,
+        title: config.title,
+        question: config.question,
+        altLabel: config.altLabel,
+        steps: engine.steps,
+        engineStatus: engine.status,
+        readOnly: config.readOnly,
+        resultCases,
+      };
 
   return (
     <RunScreen

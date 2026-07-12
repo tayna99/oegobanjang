@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-13] M4 4.2+4.3 — 완료 (역할 분기 + 승인 PIN/대리 배지)
+- 한 일: **4.2** `src/stores/roleStore.ts` 신설(`role: 'manager'|'owner'`, 세션 한정) — `Shell.tsx`에 `RoleToggle`(담당자/대표 전환 pill, 데스크톱 헤더+모바일 고정 코너). `BriefingHomePage.tsx`의 하드코딩 `CURRENT_ROLE`을 이 스토어로 교체해 기존 `visibleCardsForRole`(lib/briefing.ts, 이미 테스트돼 있었음)을 처음 활성화(owner는 승인 필요 카드만). `RunConfig.writesData` 추가(커맨드 런 #4797에 설정) + `RunPage.tsx` 라우트 가드 — owner가 쓰기 도구 커맨드 런에 진입하면 스트리밍 대신 `RunScreen` `{status:'error', reason:'blocked'}`로 차단 안내(approval-mode 런은 게이트 안 함, owner의 M4 진입은 허용). **4.3** `src/lib/pin.ts`(`DEMO_PIN='1234'`, 형식 검증) — `ApprovePage.tsx`에 승인하기 클릭 시 `BottomSheet`(§2b/M2 승인 모달 공용 컴포넌트, "PIN 목업" 용도로 첫 실사용) PIN 게이트 삽입: 형식 오류/불일치 각각 다른 에러, 재시도 가능. **대리 승인 체크박스**(role==='manager'일 때만 노출) 체크 시 `onBehalf: OWNER_NAME`을 `approve()`에 전달. `lib/approval.ts`가 `useRoleStore`를 읽어 역할별 승인자명(`김담당`/`김대표`) 계산, evidence actor를 `"{name} (본인 확인 완료)"` / `"{name} (대리 승인 · 위임: 김대표)"`로 기록 — 이 문자열 규약은 `types.ts`의 `EvidenceEvent.actor` 필드 주석에 이미 예시로 있던 것을 처음 실현.
+- 남은 일 / 중단 지점: 없음(4.2·4.3 전부 완료, 브라우저 실측까지). 남은 로드맵: **4.1 온보딩 O1~O5·4.4 CSV 업로드**(B-tier §9-B, Claude Design 목업 선행 필요 — 브리프는 `reference/design-system/design-briefs/`에 이미 작성·커밋됨).
+- 결정 사항 (다음 세션이 알아야 할 것): PIN은 **형식만 검사하지 않고 고정 데모값 일치**를 검사한다(발표자 실패 방지로 시트 안내 문구에 값을 노출) — 형식만 검사하면 본인확인 게이트로 체감되지 않는다는 판단(Plan 에이전트 검토 반영). 대리 체크박스는 별도 "위임 활성" 상태 없이 `role==='manager'`만으로 게이트 — 설정/구성원 관리 화면이 아직 없어 그 이상은 만들지 않음(DoD는 "기록"이지 "위임 절차 검증"이 아님). `BottomSheet`는 핸들 버튼이 `dismissible`과 무관하게 항상 `onClose`를 호출하므로 `onClose`에서 pin/에러를 명시 리셋해야 재오픈 시 이전 상태가 안 남는다(ApprovePage가 열림 사이 언마운트되지 않음). `approve()`/`reject()` 호출부는 `ApprovePage.tsx`가 유일(grep 확인) — PIN 게이트가 이 한 곳만 지키면 전체를 지킨다.
+- verify 상태: PASS (typecheck 0, **49 files/279 tests, 전체 스위트 2회 연속 그린**(1회차 `CaseWorkbench.test.tsx` 1건 병렬부하 플레이크 → 격리 재실행·전체 재실행 모두 통과로 회귀 아님 확인), build OK). 브라우저 실측(모바일 375px): 대표 토글 → 승인 큐만 노출(에이전트 진행 중 섹션 사라짐) · 커맨드 런(#4797)에 owner로 진입 시 차단 문구만(스텝·결과카드·승인버튼 없음) · ApprovePage에서 PIN 불일치→에러→재시도→정답 성공, 대리 체크박스 미체크 시 "김담당 (본인 확인 완료)", 체크 시 "김담당 (대리 승인 · 위임: 김대표)" 이력 노출, 콘솔 에러 0.
+- 지도/규칙 갱신: ROADMAP 4.2·4.3 ✅.
+
+---
+
 ### [2026-07-12] M3 3.1~3.4 — 완료 (에이전틱 차별화, 기존 런 인프라 재사용)
 - 한 일: 기존 런 인프라(RunScreen/StepTimeline/RunEngine/RUN_CONFIGS)를 재사용해 M3 4갭을 메움. **3.1** 프로액티브 재생(#4788)에 발송 직전 **가드레일 정지 스텝**("발송 전 정지·승인 요청 생성") 추가 — StepTimeline이 이미 guardrail kind를 경고 톤으로 렌더. **3.2** 커맨드 런(#4797)에 `RunConfig.resultCaseIds` + RunScreen **결과 카드**("처리 대상 케이스", D-day 칩) — 스트리밍 완료 후 대상 케이스 노출, 탭하면 `nav.toCase`로 케이스 진입. **3.3** 케이스 타임라인(§3b AgentActivityBlock)의 판단 기록 #을 **클릭 가능**하게(`onOpenRun`→`nav.toRun`) — 타임라인 runRef 칩(#4788→#4712 체인)·헤더 판단 기록 모두 재생 런 진입, 타임라인을 aria-label region으로 승격. **3.4** `demoScript.test`(8단계 4막 스모크) + 커맨드 런(#4797)에 가드레일 스텝("외부 발송 차단·승인 요청 전환", 대본 4막 line 83·88). 루프가 닫힘: 커맨드 결과 카드 → 케이스 → 타임라인 런 → 재생(가드레일 정지) → 케이스.
 - 남은 일 / 중단 지점: 없음(M3 전부 완료). 남은 로드맵: **4.2 역할 분기(owner/manager 홈·권한 가드)·4.3 승인 본인확인 PIN/대리 배지**(둘 다 즉시 구현 가능, 인증/권한 모델 신설 — 앱 전역 영향). **4.1 온보딩 O1~O5·4.4 CSV 업로드**는 B-tier(§9-B) — Claude Design 목업 선행 필요(브리프는 `reference/design-system/design-briefs/`에 작성됨, 커밋 0ca1485).
