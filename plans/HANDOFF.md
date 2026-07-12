@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-11] 2.5.6 — 완료 (PC 컨트롤 타워 §3a)
+- 한 일: `reference/design-system/외고반장 PC.dc.html` §3a 이식 — 데스크톱 전용. **좌**: 페이지 헤더 + 파이프라인 5타일(`pipelineStats` 2.5.4b 파생, 델타 문구는 mock) + KPI 4종(`controlTowerKpis`: 활성 6·고위험 C+H 3·D-day 임박 ≤7일 2·근거 부족 0 — 전부 파생, 디자인 값과 일치) + 활성 추이 스파크라인(mock 7점) + 우선 처리 큐(`sortCaseList` 위험도×D-day, 위험·근로자·케이스·D-day·에이전트 단계·근거 완성도 바·담당·액션). **우 레일**: 실시간 에이전트 활동(mergedAuditLog 5) + 감사 로그 mini(3, "전체 보기"→/evidence). 파생 로직은 `src/lib/controlTower.ts`로 분리(테스트). **C10 교정**: 고위험 blocked 행 액션은 "승인"이 아니라 "검토"(GOTCHAS 고위험 처리 버튼 금지) — `rowAction` + 테스트. 라우팅: `/` → `HomePage`가 `useIsDesktop` 분기(데스크톱=컨트롤 타워, 모바일=오늘 브리핑 §2a). 홈 컨테이너가 BriefingHomePage를 감싸므로 index element를 HomePage로 교체.
+- 남은 일 / 중단 지점: 없음(M2.5 전체 2.5.1~2.5.6 완료). 파이프라인 오늘 델타(+2 등)·주간 실행 12·활성 추이 7점은 파생 불가한 mock — M3(프로액티브 런·런 체이닝) 백엔드 접속 시 실집계로 교체. 데스크톱 nav 라벨(Shell: 브리핑/케이스/메시지/기록)과 디자인 PC nav(컨트롤 타워/케이스/거버넌스/설정)의 정렬은 미결(별도 IA 결정) — 화면 콘텐츠는 전부 구현됨.
+- 결정 사항 (다음 세션이 알아야 할 것): ① 데스크톱 3화면(/, /cases, /evidence)이 전부 `useIsDesktop` 렌더 분기 + Shell lg 헤더 아래 `h-[calc(100dvh-4rem)]` 패턴으로 통일. ② KPI "근거 부족"은 **승인 필요 + 실사용 근거 0건**만 센다(초기 단계 케이스 제외) — 디자인 "0"과 일치. ③ 컨트롤 타워 행 액션은 워크벤치/케이스로 이동만(직접 승인 아님) — 실제 승인 게이트는 그 화면들이 강제.
+- verify 상태: PASS (typecheck 0, lint 0, **44 files/246 tests**, build OK — 2회 연속 전건 통과, HomePage 분기로 생긴 approvalFlow 홈 복귀 플레이크는 findByText로 근본 수정). 브라우저 실측(1440px): 파이프라인 6·5·4·3·12·KPI 6·3·2·0(디자인 일치)·큐 6행·batbayar 액션 "검토"·추이 차트·우측 레일, 콘솔 에러 0. 모바일(375px): 컨트롤 타워 미마운트, 오늘 브리핑 유지.
+- 지도/규칙 갱신: ROADMAP 2.5.6 ✅ 표기(M2.5 전 항목 완료).
+
+---
+
 ### [2026-07-11] 2.5.5 — 완료 (PC 거버넌스 §3c)
 - 한 일: `reference/design-system/외고반장 PC.dc.html` §3c 이식 — 데스크톱 전용 2열. **좌 근거 라이브러리**: `citationStore`(2.5.4b) 구동, KPI 5종(전체/공식 A·B/최신성/검토 필요/부족 stale)을 `citationKpis` 셀렉터로 파생(하드코딩 아님), 테이블(등급 칩·제목·출처·최신성·상태 칩·연계 케이스 수=`linkedCaseCount(CASE_SHEETS)`), F등급=critical 톤(사용 불가). **우 감사 로그**: `mergedAuditLog`(시드+런타임 병합, id 중복 런타임 우선, 최신순) + 필터 칩(전체/위험 탐지/승인/내보내기, `AUDIT_FILTERS` 술어), ref·타입 칩·행위자·해시(monospace), 하단 "INSERT-only · 원문 PII 미저장". 감사 셰이핑은 `src/lib/audit.ts`로 분리(M8 2.3 재사용 예정). 라우팅: `/evidence` → `EvidencePage`가 `useIsDesktop`으로 분기(데스크톱=GovernancePage, 모바일=M8 placeholder 유지).
 - 남은 일 / 중단 지점: 없음. 근거 등록 CTA·정책 룰 엔진은 post-MVP(§3c 헤더 문구대로 라이브러리는 읽기 전용). 다음은 2.5.6 PC 컨트롤 타워(§3a) — `pipelineStats`(2.5.4b)·`AUDIT_TYPE_*`(2.5.5) 재사용, C10 교정(고위험 행 액션 "검토") 반영. 데스크톱 nav 라벨은 아직 Shell의 브리핑/케이스/메시지/기록 — 디자인 PC nav(컨트롤 타워/케이스/거버넌스/설정)와 다르며 2.5.6에서 정렬 검토.

@@ -1,7 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
-import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
+import { HomePage } from '@/features/HomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { CaseHistoryPage } from '@/features/case/CaseHistoryPage';
@@ -20,7 +20,7 @@ export const routeConfig: RouteObject[] = [
   {
     element: <Shell />,
     children: [
-      { index: true, element: <BriefingHomePage /> },
+      { index: true, element: <HomePage /> },
       { path: ROUTE_PATHS.cases, element: <CaseListPage /> },
       {
         path: ROUTE_PATHS.case,

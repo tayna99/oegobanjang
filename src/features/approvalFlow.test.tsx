@@ -52,9 +52,10 @@ describe('M2.6 approval funnel', () => {
     expect(screen.getByText('모든 판단·승인은 Evidence Log에 기록됩니다.')).toBeInTheDocument();
 
     // 홈으로 — 승인된 케이스는 승인 큐에서 빠진다(2건 남음).
+    // 홈 컨테이너(HomePage)가 useIsDesktop 분기 후 BriefingScreen을 커밋하므로 DOM 기준으로 대기.
     fireEvent.click(screen.getByRole('button', { name: '뒤로' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
-    expect(screen.getByText('내가 처리할 승인 2건')).toBeInTheDocument();
+    await screen.findByText('내가 처리할 승인 2건', undefined, { timeout: 5000 });
 
     expect(useCaseStore.getState().cases.nguyen.state).toBe('human_approved');
     expect(useApprovalStore.getState().approvals['nguyen-approve'].status).toBe('approved');
