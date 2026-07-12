@@ -18,7 +18,9 @@ export type AgentStage = 'detected' | 'collecting' | 'drafted' | 'awaiting_appro
 
 export type Role = 'manager' /* 담당자 */ | 'owner' /* 대표 */;
 
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'locked';
+// 'cancelled' = 요청 자체 철회(케이스 blocked 등, docs/DB_SCHEMA.md §4.3·§13-2).
+// 'locked'는 저장값이 아니라 근거 게이트 파생 표시(usableCitations 0건) — 서버 값이 아님.
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'locked';
 
 export type NextActionState = 'ready' | 'locked' | 'scheduled' | 'waiting';
 

@@ -37,6 +37,7 @@ const APPROVAL_STATUS_TONE: Record<ApprovalStatus, ChipTone> = {
   pending: 'approval',
   approved: 'positive',
   rejected: 'neutral',
+  cancelled: 'neutral', // 요청 철회 — rejected와 동일하게 중립 톤(docs/DB_SCHEMA.md §13-2)
   locked: 'approval',
 };
 

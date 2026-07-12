@@ -31,6 +31,7 @@
 - 스키마 정의는 **SQLAlchemy 모델이 기준**이고 이 문서의 타입은 논리 타입이다: `uuid`(TEXT 저장), `text`, `int`, `bool`, `date`, `timestamptz`, `json`(SQLite=TEXT+앱 검증, PG=JSONB).
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
 - **실행 산출물(DBeaver 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.cjs`(가드레일 30항목 검증) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 검증을 다시 통과시킨다.
+- **백엔드 구현(진행 중)**: `backend/`에 FastAPI+SQLAlchemy+Alembic으로 **P1 코어 18테이블**이 구현됐다(§10 참조) — 모델은 `backend/app/models/`, 유일한 리비전은 `backend/migrations/versions/0001_p1_core_schema.py`, 가드레일·DDL 정합 테스트는 `backend/tests/`. P2·P3는 해당 마일스톤 착수 시 이관(`backend/README.md`).
 
 ## 2. 공통 규약
 
@@ -807,13 +808,15 @@ P1 안에서도 프론트가 아직 안 읽는 컬럼(checklist 등)은 nullable
 | 19 | 마이그레이션 번호 충돌·no-op 병합 | 선형 리비전 유지, 브랜치 시 즉시 병합 리비전 |
 | 20 | 감사·운영 상태 혼재(snapshot PK=request_id) | evidence(감사)와 runs(운영 상태) 분리, 각자 이력 보존 |
 
-## 13. 미결 사항 (구현 전 결정 필요)
+## 13. 결정 기록 (2026-07-12 — 백엔드 스캐폴드 착수 시 확정)
 
-1. **보존 정책** — §7 제안 기본값(스레드 원문 1년 등)의 법무 확인. 레거시부터 이어진 공백.
-2. **`ApprovalStatus` 프론트 타입** — 서버 `cancelled`를 `src/types.ts`에 추가할지, 프론트에서 rejected로 뭉갤지(권고: 추가 — 1단계 스펙 §0.2는 이미 4값).
-3. **viewer의 M8 마스킹 차등**(7단계 §7 미결) — evidence_events는 이미 마스킹 저장이라 스키마 영향 없음, 응답 필터만.
-4. **케이스 유형별 승인 정책 세분화**(체류=owner, 리마인드=manager — 7단계 §7) — approval_policy를 companies 단일 컬럼에서 (company, case_type) 테이블로 승격할지. MVP는 단일 컬럼으로 시작.
-5. **행정사 패키지 산출물 포맷**(P2-10) — package_exports.format 3값으로 수용해 두었고, 화면 결정만 남음.
-6. **M1 승인 완료 카드 익일 처리**(1단계 부록 미해결) — briefing_items rank 스냅샷 + 케이스 상태 파생으로 어느 정책이든 수용 가능.
-7. **근로자 0명 계정 알림 mute**(2단계 §8) — notifications 발송 규칙 결정만.
-8. **표시 번호 시작값** — evidence_seq 초기값(데모 세계관 #4783대 유지 여부 — 신규 테넌트는 #0001부터가 자연스러움. 권고: #0001부터, 데모 시드만 4783대 주입).
+> 이 절은 원래 "미결 사항" 8건을 나열했다. 아래는 그것들을 다시 검토한 결과다 — **기계적·저위험 판단은 이 자리에서 확정**했고(엔지니어링 재량 범위), **법무·오너 승인이 필요한 것은 임의로 확정하지 않고** 권장 기본값과 함께 "제안"으로 명시해 남겼다. 제안 항목을 결정으로 승격하려면 이 문서를 실제로 고쳐야 한다(암묵적 승인 금지).
+
+1. **보존 정책 — 제안, 미확정 (법무·오너 확인 필요).** §7의 제안 기본값(스레드 원문·초안 전문은 근로자 비활성 후 1년 파기, `evidence_events`는 영구 보존, `worker_intake_files`는 OCR 확정 후 90일)을 그대로 유지한다 — 이 시점에 확정 짓지 않는다. 스키마 자체에는 영향 없음(보존은 배치 정책이지 컬럼 제약이 아니다).
+2. **`ApprovalStatus`에 `cancelled` 추가 — 결정: 추가함(이 PR에서 반영).** `src/types.ts`(+`src/lib/chipTone.ts`의 톤 매핑)에 `cancelled`을 추가했다. 근거: 1단계 스펙 §0.2가 이미 4값을 요구했고, 서버 `approvals.status` CHECK도 4값이라 프론트만 3값으로 남으면 계약이 어긋난다. 톤은 `rejected`와 동일하게 `neutral`(현재 어떤 화면도 아직 이 값을 렌더하지 않음 — 케이스가 `blocked`로 전이될 때 연결된 pending 승인을 철회하는 용도로 향후 사용).
+3. **viewer의 M8 마스킹 차등 — 결정: 스키마 변경 불필요.** `evidence_events`는 이미 원문 없이 마스킹된 `summary`/해시만 저장하므로, viewer에게 더 강한 마스킹을 적용해도 저장 데이터 자체는 동일하다. 실제 접근 제어(viewer에게 특정 필드를 숨길지)는 API 응답 필터링 계층의 몫으로 남는다 — 7단계 §7의 제품 정책 자체는 여전히 미결이지만, 스키마는 그 결정이 어느 쪽으로 나든 수용 가능하다.
+4. **케이스 유형별 승인 정책 세분화 — 결정: MVP는 단일 컬럼 유지, 세분화 테이블은 만들지 않는다(YAGNI).** `companies.approval_policy` 단일 컬럼으로 시작(§4.1). 실제로 유형별 분기(체류=owner 전용, 리마인드=manager 허용 등)가 필요해지는 시점(파일럿 피드백)에 `(company_id, case_type)` 승인 정책 테이블로 승격한다 — 지금 만들면 어떤 화면도 쓰지 않는 뼈대만 남는다.
+5. **행정사 패키지 산출물 포맷 — 결정: 스키마는 이미 3종 전부 수용, 화면 결정만 남음.** `package_exports.format` CHECK(`pdf`/`link`/`email_draft`)에 이미 반영(§4.8). 실제 어느 포맷을 먼저 구현할지는 2.4 행정사 패키지 화면 마일스톤의 몫 — 스키마 쪽 블로커는 없다.
+6. **M1 승인 완료 카드 익일 처리 — 결정: 추가 컬럼·테이블 불필요, 일별 재발행이 자연히 해소한다.** `briefings`/`briefing_items`는 `(company_id, briefing_date)` 유니크라 매일 새 스냅샷을 만든다(§4.9). 완료된 케이스(`cases.state='completed'`)는 다음 날 브리핑 생성 쿼리가 열린 상태만 대상으로 하는 한 자연히 제외되므로, 익일 처리 정책은 브리핑 생성 SQL의 WHERE 절 하나로 해결된다 — 별도 "당일까지만 유지" 플래그가 필요 없다.
+7. **근로자 0명 계정 알림 mute — 결정: P3(알림) 마일스톤으로 이연.** `notifications` 테이블 자체가 아직 P1에 없다(§10) — 지금 결정할 스키마 대상이 없다. P3 착수 시 재검토.
+8. **표시 번호 시작값 — 결정: 신규 테넌트는 #0001부터.** `companies.case_seq`/`evidence_seq`의 SQLAlchemy 모델 기본값을 `0`으로 구현했다(`backend/app/models/company.py`) — 새 테넌트는 `case_001`/`#0001`부터 발급된다. 데모 세계관(#4783~#4797)은 `db/seed_demo.sql`에서 시드로만 주입하고, 실제 회사 레코드의 카운터도 그 최고값 이상으로 맞춰 다음 발급과 충돌하지 않게 한다.
