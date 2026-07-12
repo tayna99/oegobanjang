@@ -26,6 +26,7 @@ export interface RunConfig {
   altLabel: string; // 대안 버튼 라벨(수정 요청/돌아가기 등)
   steps: RunStep[];
   readOnly?: boolean; // replay 전용 — 정적 재생, 승인/대안 버튼을 렌더하지 않는다
+  resultCaseIds?: string[]; // command 전용(M9/3.2) — 런이 정리한 대상 케이스, 결과 카드에서 케이스로 연결
 }
 
 // approvalRun()의 고정 결과 문구 — 모든 승인 런 공통.
@@ -126,6 +127,8 @@ export const RUN_CONFIGS: RunConfig[] = [
       { kind: 'tool_call', label: '대상 케이스 3건 확인', detail: 'Nguyen(D-30) · Siti(신고 기한 D-3) · Batbayar(행정사 검토)' },
       { kind: 'tool_call', label: '케이스별 액션 초안 생성', detail: '메시지·신고서·검토 자료 3건' },
     ],
+    // 3.2: 정리 결과 카드에서 곧바로 대상 케이스로 진입 — Batbayar는 기한 경과라 행정사 검토 게이트.
+    resultCaseIds: ['nguyen', 'siti', 'batbayar'],
   },
   {
     runKey: '4788',
@@ -142,6 +145,13 @@ export const RUN_CONFIGS: RunConfig[] = [
       { kind: 'tool_call', label: '근로자 프로필 확인 완료', detail: 'Nguyen Van A · 베트남 · E-9 · Zalo' },
       { kind: 'tool_call', label: '이전 대화 기록 확인 완료', detail: '3일 전 표준근로계약서 요청 이력 있음' },
       { kind: 'tool_call', label: '메시지 초안 생성 완료', detail: '베트남어 원문 + 한국어 번역' },
+      // 3.1: 프로액티브 런은 발송 직전 가드레일에서 멈춘다 — 자율 발송 없이 담당자 승인 요청을 생성.
+      // GOTCHAS "가드레일은 숨기지 않고 스텝으로 노출 — 신뢰 자산".
+      {
+        kind: 'guardrail',
+        label: '발송 전 정지 · 승인 요청 생성',
+        detail: '자율성 Medium — 근로자 컨택은 자동 발송하지 않고 담당자 승인 후 발송합니다',
+      },
     ],
   },
 ];

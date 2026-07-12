@@ -9,7 +9,7 @@ import { CASE_CARDS } from '@/mocks/fixtures';
 import { RUN_CONFIGS } from '@/mocks/runs';
 import type { RunConfig } from '@/mocks/runs';
 import { RunScreen } from './RunScreen';
-import type { RunViewState } from './RunScreen';
+import type { RunResultCase, RunViewState } from './RunScreen';
 
 // M9(/run/:runId) 컨테이너 — 재생(replay)·명령(command) 런을 runKey로 조회한다.
 // (승인 화면 /case/:caseId/approve는 M2.6.3에서 ApprovePage 체크리스트로 분리됐다 —
@@ -43,6 +43,12 @@ function RunPageContent({ config }: { config: RunConfig }) {
   }, [upsert]);
 
   const card = config.caseId ? cases[config.caseId] : undefined;
+
+  // 3.2: 커맨드 런 결과 카드 대상 — 스토어 우선, 미시드 시 픽스처 폴백(제목·D-day 표시용).
+  const resultCases: RunResultCase[] = (config.resultCaseIds ?? []).flatMap((id) => {
+    const c = cases[id] ?? CASE_CARDS.find((x) => x.caseId === id);
+    return c ? [{ caseId: id, title: c.title, dDay: c.dDay }] : [];
+  });
 
   const approve = () => {
     if (!card || !config.caseId) {
@@ -83,7 +89,15 @@ function RunPageContent({ config }: { config: RunConfig }) {
     steps: engine.steps,
     engineStatus: engine.status,
     readOnly: config.readOnly,
+    resultCases,
   };
 
-  return <RunScreen state={state} onApprove={approve} onAlt={() => nav.toHome()} />;
+  return (
+    <RunScreen
+      state={state}
+      onApprove={approve}
+      onAlt={() => nav.toHome()}
+      onOpenCase={(caseId) => nav.toCase(caseId)}
+    />
+  );
 }
