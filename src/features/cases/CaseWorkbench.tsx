@@ -24,6 +24,7 @@ export interface CaseWorkbenchProps {
   selectedCaseId?: string;
   onSelectCase: (caseId: string) => void;
   onSelectFilter: (filter?: string) => void;
+  onOpenRun?: (runRef: string) => void; // 3.3 런 체이닝 — 타임라인의 판단 기록 #을 눌러 재생 런으로 진입
 }
 
 const SEVERITY_AVATAR: Record<Severity, string> = {
@@ -226,17 +227,30 @@ function DraftPanel({ caseId }: { caseId: string }) {
   );
 }
 
-function CaseTimeline({ sheet }: { sheet: CaseSheet }) {
+function CaseTimeline({ sheet, onOpenRun }: { sheet: CaseSheet; onOpenRun?: (runRef: string) => void }) {
   if (sheet.activity.length === 0 && !sheet.nextWake) return null;
   return (
-    <div className="flex flex-col gap-2">
+    <section aria-label="케이스 타임라인" className="flex flex-col gap-2">
       <span className={RAIL_SECTION_TITLE}>케이스 타임라인</span>
       {sheet.activity.length > 0 && (
         <ul className="overflow-hidden rounded-in border border-hairline">
           {sheet.activity.map((entry) => (
             <li key={entry.label} className="flex items-center gap-2.5 border-b border-hairline px-3 py-2 last:border-none">
               <span className="w-20 shrink-0 text-pc-2xs text-faint tabular-nums">{entry.at}</span>
-              {entry.runRef && <Chip tone="neutral">{entry.runRef}</Chip>}
+              {/* 3.3 런 체이닝 — runRef가 있으면 재생 런으로 진입하는 버튼, 없으면 정적 텍스트 */}
+              {entry.runRef &&
+                (onOpenRun ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenRun(entry.runRef!.replace('#', ''))}
+                    className="shrink-0 rounded-badge focus-visible:shadow-rail-focus"
+                    aria-label={`판단 기록 ${entry.runRef} 재생 열기`}
+                  >
+                    <Chip tone="neutral">{entry.runRef}</Chip>
+                  </button>
+                ) : (
+                  <Chip tone="neutral">{entry.runRef}</Chip>
+                ))}
               <span className="min-w-0 flex-1 truncate text-caption1 text-ink">
                 {entry.label} · {entry.detail}
               </span>
@@ -247,7 +261,7 @@ function CaseTimeline({ sheet }: { sheet: CaseSheet }) {
       {sheet.nextWake && (
         <p className="rounded-in bg-surface px-3 py-2.5 text-caption1 text-muted">{sheet.nextWake}</p>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -365,7 +379,7 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
   );
 }
 
-export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter }: CaseWorkbenchProps) {
+export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter, onOpenRun }: CaseWorkbenchProps) {
   const [query, setQuery] = useState('');
   const handleAction = useNextAction();
 
@@ -481,8 +495,19 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
                       .join(' · ')}
                     {selected.preparedRunRef ? (
                       <>
-                        {' · 판단 기록 '}
-                        <span className="font-semibold text-primary">{selected.preparedRunRef}</span>
+                        {' · '}
+                        {/* 3.3 런 체이닝 — 헤더 판단 기록도 재생 런으로 진입(모바일 2b와 동일 패턴) */}
+                        {onOpenRun ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenRun(selected.preparedRunRef!.replace('#', ''))}
+                            className="font-semibold text-primary underline"
+                          >
+                            판단 기록 {selected.preparedRunRef}
+                          </button>
+                        ) : (
+                          <span className="font-semibold text-primary">판단 기록 {selected.preparedRunRef}</span>
+                        )}
                       </>
                     ) : null}
                   </p>
@@ -518,7 +543,7 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
                 <DocChecklist sheet={sheet} />
                 <DraftPanel caseId={selected.caseId} />
               </div>
-              <CaseTimeline sheet={sheet} />
+              <CaseTimeline sheet={sheet} onOpenRun={onOpenRun} />
             </div>
 
             <footer className="flex justify-center border-t border-hairline px-6 py-2">

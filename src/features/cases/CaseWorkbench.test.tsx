@@ -100,6 +100,29 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     ).toBeInTheDocument();
   });
 
+  // 3.3 케이스 에이전트 활동 타임라인(런 체이닝)+nextWake.
+  it('케이스 타임라인이 런 체인(#4788→#4712)과 nextWake를 렌더한다', async () => {
+    renderAt('/case/nguyen');
+    await screen.findByRole('region', { name: '케이스 상세' });
+    const timeline = screen.getByRole('region', { name: '케이스 타임라인' });
+
+    // 체인 렌더: 자동 실행 → 이전 승인 발송, 두 런이 시간 역순으로 모두 보인다.
+    expect(within(timeline).getByText('#4788')).toBeInTheDocument();
+    expect(within(timeline).getByText('#4712')).toBeInTheDocument();
+    expect(within(timeline).getByText('서류요청 준비 · D-30 감지로 자동 실행 — 초안 생성 후 승인 대기')).toBeInTheDocument();
+    // nextWake 조건 문구.
+    expect(within(timeline).getByText('다음: 발송 후 2일간 응답 없으면 리마인드 여부를 판단합니다')).toBeInTheDocument();
+  });
+
+  it('타임라인의 판단 기록 #을 누르면 재생 런(/run/:id)으로 진입한다', async () => {
+    const router = renderAt('/case/nguyen');
+    await screen.findByRole('region', { name: '케이스 상세' });
+    const timeline = screen.getByRole('region', { name: '케이스 타임라인' });
+
+    fireEvent.click(within(timeline).getByRole('button', { name: '판단 기록 #4788 재생 열기' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/run/4788'));
+  });
+
   it('검색어가 목록 레일을 제목·근로자명 기준으로 거른다', () => {
     renderAt('/cases');
     fireEvent.change(screen.getByRole('searchbox', { name: '케이스 검색' }), {
