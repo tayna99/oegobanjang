@@ -10,6 +10,7 @@ import { RunPage } from '@/features/run/RunPage';
 import { DraftPage } from '@/features/draft/DraftPage';
 import { DonePage } from '@/features/done/DonePage';
 import { EvidencePage } from '@/features/governance/EvidencePage';
+import { PackagePage } from '@/features/packagePkg/PackagePage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -58,7 +59,7 @@ export const routeConfig: RouteObject[] = [
       {
         path: ROUTE_PATHS.package,
         loader: validateIdParam('packageId'),
-        element: <PlaceholderScreen name="행정사 패키지" />,
+        element: <PackagePage />,
       },
       { path: ROUTE_PATHS.done, element: <DonePage /> },
       {

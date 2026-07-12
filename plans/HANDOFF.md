@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-11] 2.4 — 완료 (행정사 검토 패키지 §2d)
+- 한 일: 관제형 §2d 이식 — `PackagePage`(/package/:id) + 데이터 모델 `src/mocks/packages.ts`(`HANDOFF_PACKAGES` keyed by caseId, Batbayar 구동). 3열 반응형(포함 항목 체크리스트 | 검토 요청서 미리보기 | 근거·내보내기 이력). **포함 항목 토글** → 문서 섹션 실시간 반영(누락 서류 해제 시 §2 제외, 근로자 정보 해제 시 등록번호 라인 제외, 이전 승인 이력 on 시 §4 추가). **PII 마스킹**: 외국인등록번호 `900412-6●●●●●●`만 저장(원문 없음, packages.ts). **내보내기 승인 게이트**: 승인 전 "내보내기 (승인 필요)" disabled, `approvals[pkg-handoff-export]`가 approved면 활성. "승인 요청" → approval_requested evidence + "승인 요청됨" 잠금. 근거 각주 cit_003/007/021(라이브러리 참조). 고정 문구 3종(워터마크·요청 사항·전달 차단)은 packages.ts 상수로 단일 출처.
+- 남은 일 / 중단 지점: 없음. 진입점은 현재 딥링크(/package/batbayar) — 워크벤치 "행정사 전달" 버튼(현재 "전달 패키지 준비 (승인 후)" disabled)에서의 링크 연결은 후속(승인 상태 연동 시). 다음은 2.2 메시지·M6.
+- 결정 사항 (다음 세션이 알아야 할 것): 패키지는 caseId를 packageId로 그대로 쓴다(1:1). 새 패키지는 `HANDOFF_PACKAGES`에 케이스 근거를 `libCitation('cit_*')`로 참조해 추가. 내보내기는 실제 파일 생성 없음(mock 경계) — approved 상태에서도 라벨만 "내보내기"로 바뀐다.
+- verify 상태: PASS (typecheck 0, lint 0, **46 files/256 tests**, build OK). 브라우저 실측(1280px): 워터마크·마스킹 등록번호(원문 없음)·내보내기 잠금(disabled)·5 포함 항목·요청 사항 고정 문구·이력 export_0031, 항목 해제 시 문서 섹션 제거, 승인 요청→"승인 요청됨" 잠금, 콘솔 에러 0.
+- 지도/규칙 갱신: ROADMAP 2.4 ✅.
+
+---
+
 ### [2026-07-11] 2.3 — 완료 (M8 전역 판단 기록, 모바일)
 - 한 일: 블루프린트 §9-A대로 `audit.ts`(2.5.5) 재사용해 M8 구현 — `GlobalEvidencePage`(모바일 /evidence): 감사 로그 최신순 타임라인 + 필터 칩(전체/위험/승인/내보내기) + 항목 탭 시 상세 BottomSheet(시각·행위자·케이스·**해시만**, 원문 없음) + 딥링크 `?ref=` 하이라이트(border-primary) + 사람 결정(approval_decided) ref는 primary 색. `EvidencePage`가 데스크톱=거버넌스(§3c)/모바일=M8로 분기 — 이제 /evidence가 양 표면 모두 완성(placeholder 제거). 고정 문구 "판단 기록은 INSERT-only … 해시로만".
 - 남은 일 / 중단 지점: 없음. 다음은 2.4 행정사 패키지(관제형 §2d, Batbayar) → 2.2 메시지·M6 → M3. 4.1 온보딩·4.4 CSV는 Claude Design 목업 선행 필요(브리프 작성됨).
