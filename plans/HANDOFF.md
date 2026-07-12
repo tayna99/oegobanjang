@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-11] 2.5.5 — 완료 (PC 거버넌스 §3c)
+- 한 일: `reference/design-system/외고반장 PC.dc.html` §3c 이식 — 데스크톱 전용 2열. **좌 근거 라이브러리**: `citationStore`(2.5.4b) 구동, KPI 5종(전체/공식 A·B/최신성/검토 필요/부족 stale)을 `citationKpis` 셀렉터로 파생(하드코딩 아님), 테이블(등급 칩·제목·출처·최신성·상태 칩·연계 케이스 수=`linkedCaseCount(CASE_SHEETS)`), F등급=critical 톤(사용 불가). **우 감사 로그**: `mergedAuditLog`(시드+런타임 병합, id 중복 런타임 우선, 최신순) + 필터 칩(전체/위험 탐지/승인/내보내기, `AUDIT_FILTERS` 술어), ref·타입 칩·행위자·해시(monospace), 하단 "INSERT-only · 원문 PII 미저장". 감사 셰이핑은 `src/lib/audit.ts`로 분리(M8 2.3 재사용 예정). 라우팅: `/evidence` → `EvidencePage`가 `useIsDesktop`으로 분기(데스크톱=GovernancePage, 모바일=M8 placeholder 유지).
+- 남은 일 / 중단 지점: 없음. 근거 등록 CTA·정책 룰 엔진은 post-MVP(§3c 헤더 문구대로 라이브러리는 읽기 전용). 다음은 2.5.6 PC 컨트롤 타워(§3a) — `pipelineStats`(2.5.4b)·`AUDIT_TYPE_*`(2.5.5) 재사용, C10 교정(고위험 행 액션 "검토") 반영. 데스크톱 nav 라벨은 아직 Shell의 브리핑/케이스/메시지/기록 — 디자인 PC nav(컨트롤 타워/케이스/거버넌스/설정)와 다르며 2.5.6에서 정렬 검토.
+- 결정 사항 (다음 세션이 알아야 할 것): ① 감사 로그의 시드 병합은 `mergedAuditLog`(audit.ts) 하나로 통일 — CaseHistoryPage(2d)와 M8(2.3)도 이 함수를 써 화면마다 다른 이력이 안 나오게 한다. ② `AUDIT_TYPE_LABEL`/`AUDIT_TYPE_TONE`은 전 EvidenceType을 커버(테스트로 강제) — 새 타입 추가 시 두 맵에 반드시 함께 추가. ③ 데스크톱 화면은 전부 `useIsDesktop` 렌더 분기 + Shell lg 헤더(h-16) 아래 `h-[calc(100dvh-4rem)]` 채움 패턴.
+- verify 상태: PASS (typecheck 0, lint 0, **42 files/232 tests**, build OK). 브라우저 실측(1280px): 2열·KPI 파생값(전체 9·공식 7·최신성 8·검토 2·부족 1)·라이브러리 9행·감사 7건·해시 6개, 필터(내보내기→1건 export만/위험→risk만) 동작, 콘솔 에러 0. 모바일(375px): 거버넌스 미마운트, M8 placeholder 유지.
+- 지도/규칙 갱신: ROADMAP 2.5.5 ✅ 표기.
+
+---
+
 ### [2026-07-11] M2.6 코드리뷰 수정 — 완료 (승인 생애주기 버그 클러스터)
 - 한 일: 8앵글 PR 리뷰(파인더 7종) 확정 버그를 근본 교정. **근본 원인**: ApprovePage가 승인을 일회성으로 인라인 처리 → 크래시·감사 오기록·가드레일 우회. **공유 유닛 신설** `src/lib/approval.ts`(`useApprovalActions`: approve/reject/reopenForReview + canApproveCase/approvalRefFor/isCitationLocked + CURRENT_USER). 교정: ① **반려 케이스 재승인 크래시**(A1/B2) — ensurePending이 terminal approval을 pending으로 리셋, 반려 카드는 검토 계속 시 returned→approval_pending 재개. ② **고위험 blocked 승인 우회**(A2/B3/F3) — canApproveCase가 상태 전이 합법성으로 CTA 게이트, 2b는 "행정사 전달 준비(승인 후)"로 분기(검토 계속 없음), ApprovePage는 guardNote+승인 비활성. ③ **반려가 '최종 승인'으로 감사 기록**(A3) — EvidenceType `approval_rejected` 신설, 이력에서 '반려'(비-primary)로 표기, 승인 완료 배너·판단 기록 저장 노드는 approval_decided에만. ④ **evidenceRef #4789 하드코딩**(F1) — approvalRefFor로 케이스별 파생. ⑤ **agentStage 미전진**(A4) — 승인 시 executed로 upsert(파이프라인·큐 정합). ⑥ **더블탭 중복 evidence**(A5) — evidenceStore append id 중복 방지. ⑦ **caseStage F등급 미필터**(C1) — usableCitations 경유. ⑧ **프로액티브 런 재생 링크 소실**(B5) — 2b 판단 기록 #을 /run/:id 링크로 복원. ⑨ **RunPage 죽은 caseId 분기**(B/altitude) — runId 전용으로 정리. ⑩ **중복 제거**(D): BackHeader(3화면), draftForCase(4화면), dDayTextClass(2화면), pipelineStats 5단계 통합. ⑪ accent 임의값(G2)→accent-primary. ⑫ 큐 파랑 CTA(G1)는 디자인 §2a 채택 예외로 GOTCHAS 명문화.
 - 남은 일 / 중단 지점: 없음(리뷰 확정건 전부). 저순위 미처리(의도적): 오프라인 승인 가드(B1)·읽기전용 검토 오프라인 비활성(B4) — 오프라인은 런타임 미배선(백엔드 접속점 몫)이라 배선과 함께 복원. actor 문자열 통합은 CURRENT_USER로 신규 경로만 적용(시드는 그대로).

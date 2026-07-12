@@ -9,6 +9,7 @@ import { ApprovePage } from '@/features/approve/ApprovePage';
 import { RunPage } from '@/features/run/RunPage';
 import { DraftPage } from '@/features/draft/DraftPage';
 import { DonePage } from '@/features/done/DonePage';
+import { EvidencePage } from '@/features/governance/EvidencePage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -53,7 +54,7 @@ export const routeConfig: RouteObject[] = [
         loader: validateIdParam('threadId'),
         element: <PlaceholderScreen name="M6 응답 해석" />,
       },
-      { path: ROUTE_PATHS.evidence, element: <PlaceholderScreen name="M8 판단 기록" /> },
+      { path: ROUTE_PATHS.evidence, element: <EvidencePage /> },
       {
         path: ROUTE_PATHS.package,
         loader: validateIdParam('packageId'),
