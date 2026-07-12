@@ -17,7 +17,7 @@
 | 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
 | 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
-| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — 1.5부터 command/replay 포함 8건) · `evidence.ts`(EVIDENCE_SEED). Nguyen/Tran/Bayar/Mohammad/채용. Candidate는 PKG 전용(M2.4) |
+| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — 1.5부터 command/replay 포함 8건) · `evidence.ts`(EVIDENCE_SEED). 2.5.4b부터 디자인 세계관 6인 로스터(Batbayar·Nguyen·Siti·Tran·Rahmat·Oyunaa, GLOSSARY.md 인물 fixture 참조). 행정사 패키지(M2.4)는 Batbayar E. 전용(관제형 §2d) |
 
 ## 3. 화면 ↔ 라우트 ↔ 스펙
 
