@@ -7,107 +7,49 @@
 
 ---
 
-## 프로젝트 초기 세팅
+## 프로젝트 한 줄 정의
 
-### 1. Python 가상환경 생성
-
-```bash
-uv venv
-```
-
-### 2. 가상환경 활성화
-
-Windows 기준:
-
-```bash
-.venv\Scripts\activate
-```
-
-macOS / Linux 기준:
-
-```bash
-source .venv/bin/activate
-```
-
-### 3. 의존성 설치
-
-```bash
-uv sync
-```
+E-9 외국인 근로자를 고용하는 제조업 중소기업이 비자 만료, 서류 누락, 고용변동 신고, 다국어 소통 리스크를 놓치지 않도록 돕는 AI 기반 운영 관리 시스템입니다.
 
 ---
 
-## 로컬 실행 흐름
+## 현재 리포 구성
 
-### 1. 환경변수 파일 준비
+현행 운영 대상은 루트의 **모바일 우선 Vite + React MVP**입니다. 이전 FastAPI 백엔드 단계의 산출물은 전부 `legacy/`로 이관되었습니다(아래 "레거시 백엔드" 절 참조).
 
-`.env.example`을 복사해서 `.env`를 만듭니다.
-
-```bash
-cp .env.example .env
+```txt
+src/            제품 UI — 화면(features), 공용 컴포넌트, 스토어(zustand), mock 데이터, 런 엔진
+docs/           현행 MVP 문서 — ARCHITECTURE(코드 지도), SPEC_INDEX(스펙↔구현 매핑), GOTCHAS(주의사항)
+plans/          ROADMAP(마일스톤·태스크·DoD), HANDOFF(세션 인수인계 기록)
+rules/          design(디자인 시스템 v2 규칙), frontend(프론트 컨벤션), safety(안전 체크리스트)
+reference/      스펙 원본 사본, 디자인 시스템 고정 사본, 프로토타입 v3
+legacy/         이전 FastAPI 백엔드·데이터 파이프라인·Agent Runtime·evals·missions·설계 문서 보관
+외고반장_통합/   기획 원자료 아카이브
+현욱/           팀원 작업 노트 아카이브
+.claude/        Claude Code 서브에이전트(ui-matcher·verifier)와 설정
 ```
 
-Windows PowerShell 기준:
-
-```powershell
-copy .env.example .env
-```
-
-`.env`에는 실제 API Key, DB 접속 정보 등을 작성합니다.  
-`.env`는 Git에 올리지 않습니다.
-
-현재 MVP의 service DB는 SQLite입니다.
-backend 폴더 실행 기준 기본 DB URL은 아래와 같습니다.
-
-```bash
-DATABASE_URL=sqlite:///./data/oegobanjang.sqlite3
-```
+작업 규칙의 정본은 `AGENTS.md`입니다.
 
 ---
 
-### 2. 로컬 인프라 실행
+## 실행 방법
 
-현재 MVP의 service DB는 SQLite를 사용합니다.
-DB 파일은 backend 실행 기준 `backend/data/oegobanjang.sqlite3`에 생성됩니다.
-Chroma는 RAG/vector search용 저장소이며 SQLite service DB와 별도입니다.
-필요한 로컬 인프라가 있을 때 Docker로 실행합니다.
+Node.js 20 이상이 필요합니다. 현행 MVP는 브라우저 mock 데이터로 동작하므로 환경변수, DB, Docker 없이 실행됩니다.
 
 ```bash
-docker compose up -d
-```
-
-실행 확인:
-
-```bash
-docker ps
-```
-
----
-
-### 3. 백엔드 실행
-
-FastAPI 백엔드 서버 하나 안에서 일반 API와 LangGraph/RAG/Agent Runtime을 함께 실행합니다.
-
-```bash
-cd backend
-uv run uvicorn app.main:app --reload --port 8000
-```
-
----
-
-### 4. 프론트엔드 실행
-
-```bash
-cd frontend
 npm install
 npm run dev
 ```
 
----
+### 검증
 
-## 프로젝트 한 줄 정의
+```bash
+npm run verify
+```
 
-E-9 외국인 근로자를 고용하는 제조업 중소기업이 비자 만료, 서류 누락, 고용변동 신고, 다국어 소통 리스크를 놓치지 않도록 돕는 AI 기반 운영 관리 시스템입니다.
+`verify`는 typecheck → lint → 테스트(vitest) → 프로덕션 빌드를 순서대로 실행합니다.  
+개별 실행: `npm run typecheck`, `npm run lint`, `npm run test`(watch) / `npm run test:run`, `npm run build`
 
 ---
 
@@ -132,111 +74,24 @@ Human Approval = 발송·제출·전달 전 최종 승인 지점
 
 ---
 
-## 주요 기능
-
-### MVP 범위
-
-- 직원 CSV 업로드
-- 체류만료 D-day 계산
-- 서류 누락 체크
-- 공식 규정 RAG 검색
-- 다음 안전 행동 추천
-- 다국어 메시지 초안 생성
-- 행정사 전달 패키지 초안 생성
-- 관리자 승인
-- Evidence Log 저장
-
----
-
-## 에이전트 구성
-
-외고반장은 3개 Agent로 구성된다.
-
-- Visa Document Agent
-- Workforce Agent
-- Multilingual Contact Agent
-
-상세 역할은 `docs/AI_OS_DESIGN.md`를 참고한다.
-
----
-
-## 전체 흐름
+## 현재 MVP 범위와 흐름
 
 ```txt
-User Request
-→ Intent Router
-→ Planner
-→ State Loader
-→ Agent Execution
-→ Risk / Human Approval
-→ Evidence Log
-→ Final Response
+알림 → 오늘 브리핑(M1) → 케이스 시트(M2) → 초안(M3) → 승인(M4) → 완료(M5)
 ```
+
+이 루프가 제품의 본체입니다. 에이전트 런(M9)과 프로액티브 런이 준비물(초안·근거·패키지)을 만들고, 사람은 승인만 합니다. 모든 판단은 판단 기록(M8, Evidence)에 남습니다.
+
+- 현재 런은 **각본 기반**(mock fixtures 재생)입니다. 실제 LLM·백엔드 연결은 이후 단계에서 RunConfig 인터페이스를 유지한 채 교체합니다(`plans/ROADMAP.md`의 "백엔드 접속점" 절).
+- 발송 도구는 존재하지 않습니다. 발송·제출·전달 성격의 작업은 초안 생성까지만 가능하고, 실행은 담당자 승인 이후에만 가능합니다.
+
+화면↔라우트↔스펙 매핑과 데이터 흐름은 `docs/ARCHITECTURE.md`, 마일스톤별 태스크와 DoD는 `plans/ROADMAP.md`를 참조합니다.
 
 ---
 
-## 기술 구조
+## 레거시 백엔드 — `legacy/` 이관됨
 
-초기 MVP에서는 서버를 하나만 띄웁니다.
+이전 단계의 FastAPI 백엔드(일반 API + LangGraph/RAG/Agent Runtime + Evidence Log), 데이터 파이프라인, eval 하네스, mission 문서, 설계 문서(PROJECT_BRIEF, AI_OS_DESIGN, RAG_STRATEGY, TOOL_CONTRACT, SECURITY_GUARDRAILS, EVAL_HARNESS 등)는 전부 `legacy/`에 보관되어 있습니다.
 
-```txt
-backend/
-= FastAPI 단일 서버
-= 일반 API + DB + Agent Runtime + RAG + Evidence Log
-
-frontend/
-= Next.js 또는 React 기반 관리자 화면
-
-data-pipeline/
-= 공식 문서 수집, 전처리, chunk 생성, Vector DB 적재
-
-docs/
-= 설계 문서와 하네스 문서
-
-missions/
-= 팀원/AI에게 줄 작업 단위
-
-evals/
-= 에이전트 평가 데이터셋
-```
-
----
-
-## 주요 폴더
-
-```txt
-backend/app/api
-- HTTP API 라우터
-
-backend/app/models
-- SQLAlchemy ORM 모델
-
-backend/app/schemas
-- Pydantic 요청/응답 스키마
-
-backend/app/services
-- 비즈니스 로직
-
-backend/app/agent_runtime
-- LangGraph, Agent, Tool, RAG 실행 모듈
-
-data-pipeline
-- RAG 데이터 수집/전처리
-
-docs
-- 프로젝트 설계 문서
-
-missions
-- 작업 지시서
-
-evals
-- 평가 데이터셋
-
-.claude
-- Claude Code 팀원용 작업 지침
-
-scripts
-- 테스트, 평가, 문서 적재 실행 스크립트
-```
-
----
+- 구조·실행 방법 상세: `legacy/FOLDER_STRUCTURE.md`와 `legacy/docs/`
+- `legacy/`는 새 프론트 MVP의 production import 대상이 아니며, 복구/이관 mission이 명시된 경우에만 수정합니다(`AGENTS.md` §3 참조).
