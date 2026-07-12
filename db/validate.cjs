@@ -66,10 +66,17 @@ expectThrow('handoff.transferred_at CHECK', () => db.exec("UPDATE handoff_packag
 expectThrow('package_exports 외부전송 CHECK', () => db.exec("UPDATE package_exports SET external_delivery_performed=1 WHERE id='px_batbayar_0031'"));
 
 // 8. 승인 가드레일: 액션당 pending 1건 + idempotency 유니크 (§4.3)
+// pending 승인(apv_nguyen)의 idempotency_key는 NULL이다(decide() 전이라 아직 없음) —
+// 아래는 시드 값에 기대지 않는 자기완결형 검증(2026-07-12 정정).
 expectThrow('중복 pending 승인 차단', () => db.exec(
   "INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_dup','cmp_greenfood','cs_nguyen','act_nguyen_approve','pending','idem-x','user','2026-07-10T00:00:00Z')"));
-expectThrow('idempotency_key 중복 차단', () => db.exec(
-  "INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_dup2','cmp_greenfood','cs_tran','act_tran_confirm','pending','idem-nguyen-0001','user','2026-07-10T00:00:00Z')"));
+db.exec(
+  "INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at, decided_at) VALUES ('apv_idem_a','cmp_greenfood','cs_tran','act_tran_confirm','approved','idem-selfcontained-1','user','2026-07-10T00:00:00Z','2026-07-10T00:05:00Z')");
+expectThrow('idempotency_key 중복 차단(자기완결형)', () => db.exec(
+  "INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_idem_b','cmp_greenfood','cs_rahmat','act_rahmat_confirm','pending','idem-selfcontained-1','user','2026-07-10T00:00:00Z')"));
+db.exec(
+  "INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_null_a','cmp_greenfood','cs_oyunaa','act_oyunaa_confirm','pending', NULL, 'user','2026-07-10T00:00:00Z')");
+ok('idempotency_key NULL은 서로 충돌하지 않음(3번째 NULL도 삽입 허용)', true);
 
 // 9. 케이스 재사용 규칙 — 열린 케이스 중복 방지 (§4.3)
 expectThrow('열린 케이스 중복 생성 차단', () => db.exec(

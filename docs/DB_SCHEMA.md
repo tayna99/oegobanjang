@@ -31,7 +31,7 @@
 - 스키마 정의는 **SQLAlchemy 모델이 기준**이고 이 문서의 타입은 논리 타입이다: `uuid`(TEXT 저장), `text`, `int`, `bool`, `date`, `timestamptz`, `json`(SQLite=TEXT+앱 검증, PG=JSONB).
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
 - **실행 산출물(DBeaver 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.cjs`(가드레일 30항목 검증) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 검증을 다시 통과시킨다.
-- **백엔드 구현(진행 중)**: `backend/`에 FastAPI+SQLAlchemy+Alembic으로 **P1 코어 18테이블**이 구현됐다(§10 참조) — 모델은 `backend/app/models/`, 유일한 리비전은 `backend/migrations/versions/0001_p1_core_schema.py`, 가드레일·DDL 정합 테스트는 `backend/tests/`. P2·P3는 해당 마일스톤 착수 시 이관(`backend/README.md`).
+- **백엔드 구현(진행 중)**: `backend/`에 FastAPI+SQLAlchemy+Alembic으로 **P1 코어 18테이블**이 구현됐다(§10 참조) — 모델은 `backend/app/models/`, 유일한 리비전은 `backend/migrations/versions/0001_p1_core_schema.py`, 가드레일·DDL 정합 테스트는 `backend/tests/`. **API는 승인 결정 엔드포인트부터 시작**(`POST /api/v1/approvals/{id}/approve|reject` — §5.3 게이트 8개를 서비스 계층에서 강제, `backend/app/services/approvals.py`). P2·P3는 해당 마일스톤 착수 시 이관(`backend/README.md`).
 
 ## 2. 공통 규약
 
@@ -270,7 +270,7 @@ erDiagram
 | **case_id** | uuid | →cases.id, idx | |
 | **action_id** | uuid | →next_actions.id | 1 NextAction : 1 Approval(MVP). 레거시의 (target_type,target_id) 다형 참조 제거 — 승인 대상은 전부 케이스 액션으로 수렴(케이스 단위 승인 원칙, GOTCHAS §3) |
 | **status** | text | CHECK(`pending,approved,rejected,cancelled`) | 프론트 `ApprovalStatus.locked`는 저장값이 아니라 파생(§5.3·§8). `cancelled`=요청 자체 철회(케이스 blocked 등) |
-| **idempotency_key** | text | UNIQUE | 중복 승인 차단(GOTCHAS §2). first-decision-wins — 후착은 409 "이미 처리됨"(7단계 §3.3) |
+| idempotency_key | text | UNIQUE, nullable | 중복 승인 차단(GOTCHAS §2). **nullable로 정정(2026-07-12, API 구현 중 발견)** — `requestApproval()` 시점엔 아직 결정 키가 없다(프론트는 `''` placeholder, 서버는 NULL). 값은 `decide()` 호출 시에만 채워진다. NULL은 UNIQUE 제약에서 서로 충돌하지 않으므로 pending 승인이 여러 건이어도 안전하다. first-decision-wins — 후착은 409 "이미 처리됨"(7단계 §3.3) |
 | **requested_by_actor** | text | CHECK(`agent,rule,user`) | |
 | requested_by_user_id | uuid | →users.id | actor=user일 때 |
 | decided_by_user_id | uuid | →users.id | 결정자 |

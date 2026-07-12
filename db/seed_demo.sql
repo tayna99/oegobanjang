@@ -188,14 +188,16 @@ INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, sta
 -- 승인 (pending 2건 = 모바일 §2a "내가 처리할 승인" · approved 1건 = 7.2 패키지 export)
 -- checklist 4항목 라벨은 [데모 보강] — M2.6 §2c 확정 시 교체
 
+-- pending 승인은 idempotency_key가 아직 없다(NULL) — decide() 호출 시에만 채워진다
+-- (§4.3 정정, 2026-07-12). NULL은 UNIQUE 제약과 충돌하지 않으므로 pending 2건 동시 존재 가능.
 INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key,
                        requested_by_actor, decided_by_user_id, identity_method,
                        checklist, requested_at, decided_at) VALUES
-  ('apv_nguyen', 'cmp_greenfood', 'cs_nguyen', 'act_nguyen_approve', 'pending', 'idem-nguyen-0001',
+  ('apv_nguyen', 'cmp_greenfood', 'cs_nguyen', 'act_nguyen_approve', 'pending', NULL,
    'agent', NULL, NULL,
    '[{"key":"target","label":"대상자 확인","checked":false},{"key":"docs","label":"서류·기한 확인","checked":false},{"key":"evidence","label":"근거 확인","checked":false},{"key":"content","label":"발송 내용 확인","checked":false}]',
    '2026-07-09T08:00:00Z', NULL),
-  ('apv_siti', 'cmp_greenfood', 'cs_siti', 'act_siti_approve', 'pending', 'idem-siti-0001',
+  ('apv_siti', 'cmp_greenfood', 'cs_siti', 'act_siti_approve', 'pending', NULL,
    'rule', NULL, NULL,
    '[{"key":"target","label":"대상자 확인","checked":false},{"key":"docs","label":"서류·기한 확인","checked":false},{"key":"evidence","label":"근거 확인","checked":false},{"key":"content","label":"발송 내용 확인","checked":false}]',
    '2026-07-09T08:00:00Z', NULL),

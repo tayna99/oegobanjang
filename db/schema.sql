@@ -283,7 +283,10 @@ CREATE TABLE approvals (
   action_id             TEXT NOT NULL REFERENCES next_actions(id),
   status                TEXT NOT NULL DEFAULT 'pending'
                         CHECK (status IN ('pending','approved','rejected','cancelled')),
-  idempotency_key       TEXT NOT NULL UNIQUE,      -- 중복 승인 차단(GOTCHAS §2)
+  -- 중복 승인 차단(GOTCHAS §2). nullable: requestApproval() 시점엔 아직 결정 키가 없다
+  -- (decide() 호출 시에만 채워짐) — NULL끼리는 UNIQUE 충돌하지 않아 pending 승인이
+  -- 여러 건이어도 안전하다(2026-07-12, API 구현 중 발견·정정, docs/DB_SCHEMA.md §4.3).
+  idempotency_key       TEXT UNIQUE,
   requested_by_actor    TEXT NOT NULL CHECK (requested_by_actor IN ('agent','rule','user')),
   requested_by_user_id  TEXT REFERENCES users(id),
   decided_by_user_id    TEXT REFERENCES users(id),

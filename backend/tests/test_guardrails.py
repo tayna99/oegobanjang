@@ -196,6 +196,41 @@ def test_idempotency_key_is_unique(seeded):
         )
 
 
+def test_idempotency_key_null_does_not_conflict(seeded):
+    """requestApproval() 시점엔 idempotency_key가 NULL이다(decide()에서만 채워짐) —
+    NULL은 UNIQUE 제약과 충돌하지 않으므로 pending 승인이 여러 건이어도 안전해야 한다
+    (docs/DB_SCHEMA.md §4.3, 2026-07-12 API 구현 중 발견·정정)."""
+    with seeded.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, created_at, updated_at) "
+                "VALUES ('act_2', 'cmp_1', 'cs_1', 'confirm', 'confirm_status', '확인', :now, :now)"
+            ),
+            {"now": NOW},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO approvals (id, company_id, case_id, action_id, idempotency_key, "
+                "requested_by_actor, requested_at, created_at) "
+                "VALUES ('apv_null_1', 'cmp_1', 'cs_1', 'act_1', NULL, 'agent', :now, :now)"
+            ),
+            {"now": NOW},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO approvals (id, company_id, case_id, action_id, idempotency_key, "
+                "requested_by_actor, requested_at, created_at) "
+                "VALUES ('apv_null_2', 'cmp_1', 'cs_1', 'act_2', NULL, 'agent', :now, :now)"
+            ),
+            {"now": NOW},
+        )
+    with seeded.connect() as conn:
+        count = conn.execute(
+            text("SELECT count(*) FROM approvals WHERE idempotency_key IS NULL")
+        ).scalar_one()
+    assert count == 2
+
+
 # --- 케이스 재사용 규칙 (§4.3) ----------------------------------------------
 
 

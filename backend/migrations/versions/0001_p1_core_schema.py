@@ -265,7 +265,7 @@ def upgrade() -> None:
     sa.Column('case_id', sa.Text(), nullable=False),
     sa.Column('action_id', sa.Text(), nullable=False),
     sa.Column('status', sa.Text(), server_default='pending', nullable=False),
-    sa.Column('idempotency_key', sa.Text(), nullable=False),
+    sa.Column('idempotency_key', sa.Text(), nullable=True),
     sa.Column('requested_by_actor', sa.Text(), nullable=False),
     sa.Column('requested_by_user_id', sa.Text(), nullable=True),
     sa.Column('decided_by_user_id', sa.Text(), nullable=True),

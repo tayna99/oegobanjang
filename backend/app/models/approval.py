@@ -38,7 +38,10 @@ class Approval(Base):
     case_id: Mapped[str] = mapped_column(Text, ForeignKey("cases.id"), nullable=False)
     action_id: Mapped[str] = mapped_column(Text, ForeignKey("next_actions.id"), nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
-    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)  # 중복 승인 차단(GOTCHAS §2)
+    # 중복 승인 차단(GOTCHAS §2). nullable — requestApproval() 시점엔 아직 결정 키가 없다
+    # (decide()에서만 채워짐). NULL은 UNIQUE와 충돌하지 않아 pending 승인이 여러 건이어도
+    # 안전하다(docs/DB_SCHEMA.md §4.3, 2026-07-12 API 구현 중 발견·정정).
+    idempotency_key: Mapped[str | None] = mapped_column(Text, unique=True)
     requested_by_actor: Mapped[str] = mapped_column(Text, nullable=False)
     requested_by_user_id: Mapped[str | None] = mapped_column(Text, ForeignKey("users.id"))
     decided_by_user_id: Mapped[str | None] = mapped_column(Text, ForeignKey("users.id"))
