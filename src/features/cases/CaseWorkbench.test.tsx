@@ -67,7 +67,7 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
 
     // /case/:caseId loader가 비동기라 router state보다 DOM 커밋이 늦을 수 있다 — DOM 기준으로 대기.
     // 전체 스위트 병렬 부하에서 기본 1초가 모자랄 수 있어 여유를 준다.
-    await screen.findByRole('heading', { name: '체류기간 만료 경과 · 행정사 검토' }, { timeout: 5000 });
+    await screen.findByRole('heading', { name: '체류기간 만료 경과 · 행정사 검토' });
     expect(router.state.location.pathname).toBe('/case/batbayar');
     const detail = screen.getByRole('region', { name: '케이스 상세' });
     // bayar 가드노트가 상세에 노출된다.
@@ -79,7 +79,7 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
 
     fireEvent.click(within(listRail).getByRole('button', { name: /체류기간 연장 서류 요청/ }));
-    await screen.findByRole('heading', { name: '체류기간 연장 서류 요청' }, { timeout: 5000 });
+    await screen.findByRole('heading', { name: '체류기간 연장 서류 요청' });
     await waitFor(() => expect(router.state.location.pathname).toBe('/case/nguyen'));
 
     const railAfter = screen.getByRole('navigation', { name: '케이스 목록 레일' });
@@ -94,7 +94,7 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
   it('딥링크 /case/:caseId가 해당 케이스를 선택 상태로 연다', async () => {
     renderAt('/case/tranCase');
     // /case/:caseId 라우트는 loader(validateIdParam)가 있어 첫 렌더가 비동기다.
-    const detail = await screen.findByRole('region', { name: '케이스 상세' }, { timeout: 5000 });
+    const detail = await screen.findByRole('region', { name: '케이스 상세' });
     expect(
       within(detail).getByRole('heading', { name: '계약-체류 만료일 불일치 검토' }),
     ).toBeInTheDocument();

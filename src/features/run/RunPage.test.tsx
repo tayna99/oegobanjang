@@ -4,18 +4,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RunPage } from './RunPage';
 
+// M2.6.3부터 /case/:caseId/approve는 ApprovePage(체크리스트)가 담당한다 —
+// RunPage는 /run/:runId(재생·명령)만 서빙하므로 caseId 승인 분기 테스트는 제거하고
+// 승인 깔때기는 approvalFlow.test.tsx가 검증한다.
 describe('RunPage', () => {
-  it('/case/:caseId/approve로 진입하면 해당 케이스의 approval RunConfig를 렌더한다', async () => {
-    render(
-      <MemoryRouter initialEntries={['/case/nguyen/approve']}>
-        <Routes>
-          <Route path="/case/:caseId/approve" element={<RunPage />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-    expect(await screen.findByText('승인 전 확인')).toBeInTheDocument();
-  });
-
   it('/run/:runId(command)로 진입하면 runKey가 일치하는 RunConfig를 렌더한다', async () => {
     render(
       <MemoryRouter initialEntries={['/run/4797']}>
@@ -50,15 +42,15 @@ describe('RunPage', () => {
     expect(screen.getByText('분석 중…')).toBeInTheDocument();
   });
 
-  describe('스트리밍 중 승인 버튼 disabled 통합 테스트', () => {
+  describe('명령 런 스트리밍 게이트', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
-    it('/case/:caseId/approve 진입 시 스트리밍 중에는 승인 버튼이 disabled이고, 스트리밍 완료 후 enabled로 바뀐다', async () => {
+    it('/run/:runId(command) 스트리밍 중에는 승인 버튼이 disabled이고 완료 후 enabled로 바뀐다', async () => {
       render(
-        <MemoryRouter initialEntries={['/case/nguyen/approve']}>
+        <MemoryRouter initialEntries={['/run/4797']}>
           <Routes>
-            <Route path="/case/:caseId/approve" element={<RunPage />} />
+            <Route path="/run/:runId" element={<RunPage />} />
           </Routes>
         </MemoryRouter>,
       );

@@ -11,14 +11,12 @@ import type { RunConfig } from '@/mocks/runs';
 import { RunScreen } from './RunScreen';
 import type { RunViewState } from './RunScreen';
 
-// M4(/case/:caseId/approve)와 M9(/run/:runId)는 같은 컨테이너를 마운트한다.
-// caseId 진입은 승인 런을, runId 진입은 재생/명령 런을 조회한다.
+// M9(/run/:runId) 컨테이너 — 재생(replay)·명령(command) 런을 runKey로 조회한다.
+// (승인 화면 /case/:caseId/approve는 M2.6.3에서 ApprovePage 체크리스트로 분리됐다 —
+// 이 컨테이너는 더 이상 caseId 승인 분기를 갖지 않는다, 코드리뷰 B/altitude 교정.)
 export function RunPage() {
-  const { caseId, runId } = useParams<{ caseId?: string; runId?: string }>();
-
-  const config = caseId
-    ? RUN_CONFIGS.find((c) => c.caseId === caseId && c.mode === 'approval')
-    : RUN_CONFIGS.find((c) => c.runKey === runId);
+  const { runId } = useParams<{ runId: string }>();
+  const config = RUN_CONFIGS.find((c) => c.runKey === runId);
 
   if (!config) {
     return <RunScreen state={{ status: 'loading' }} />;

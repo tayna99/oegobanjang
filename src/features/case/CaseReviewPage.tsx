@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { BackHeader } from '@/components/BackHeader';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { useNextAction } from '@/lib/actionNav';
+import { useApprovalActions } from '@/lib/approval';
 import { dDayLabel } from '@/lib/dday';
 import { severityTone } from '@/lib/chipTone';
 import { useNav } from '@/lib/nav';
 import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
-import { DRAFTS } from '@/mocks/drafts';
+import { draftForCase } from '@/mocks/drafts';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import { usableCitations } from '@/stores/citationStore';
@@ -21,16 +23,13 @@ interface CaseRouteState {
   returnTo?: string;
 }
 
-function findDraft(caseId: string) {
-  return Object.values(DRAFTS).find((draft) => draft.caseId === caseId);
-}
-
 export function CaseReviewPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const nav = useNav();
   const handleAction = useNextAction();
+  const { reopenForReview } = useApprovalActions();
   const cases = useCaseStore((s) => s.cases);
   const upsert = useCaseStore((s) => s.upsert);
   const appendEvidence = useEvidenceStore((s) => s.append);
@@ -44,7 +43,7 @@ export function CaseReviewPage() {
 
   const card = caseId ? cases[caseId] : undefined;
   const sheet = caseId ? CASE_SHEETS[caseId] : undefined;
-  const draft = caseId ? findDraft(caseId) : undefined;
+  const draft = draftForCase(caseId);
   // 기본 언어는 근로자 언어(비한국어) — 디자인 §2b는 VN이 활성 상태로 열린다.
   const [lang, setLang] = useState(() => {
     const workerLangIndex = draft?.langs.findIndex((variant) => variant.lang !== 'ko') ?? -1;
@@ -82,21 +81,18 @@ export function CaseReviewPage() {
 
   const activeVariant = draft?.langs[lang];
 
+  // 고위험(기한 경과 blocked)은 앱 승인 경로가 아니라 행정사 전달 전용(GOTCHAS 고위험 처리 버튼 금지).
+  const highRisk = card.state === 'blocked';
+
+  const onContinue = () => {
+    // 반려됐던 케이스는 재검토 위해 승인 대기로 되돌린 뒤 승인 화면으로(코드리뷰 A1/B2 크래시 방지).
+    if (card.state === 'returned') reopenForReview(card);
+    nav.toApprove(card.caseId);
+  };
+
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">
-      <header className="flex items-center gap-2 border-b border-hairline px-3 py-2.5">
-        <button
-          type="button"
-          aria-label="뒤로"
-          onClick={() => (returnTo ? navigate(returnTo) : navigate(-1))}
-          className="flex size-11 items-center justify-center rounded-in text-ink active:bg-surface"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M15 5l-7 7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <h1 className="text-body1 font-bold text-ink">사례 검토</h1>
-      </header>
+      <BackHeader title="사례 검토" onBack={() => (returnTo ? navigate(returnTo) : navigate(-1))} />
 
       <main className="flex flex-1 flex-col gap-5 px-5 pb-28 pt-4">
         <section className="flex flex-col gap-1.5">
@@ -107,7 +103,19 @@ export function CaseReviewPage() {
             </Chip>
             <span className="text-caption1 text-dim">
               {card.caseCode}
-              {card.preparedRunRef ? ` · 판단 기록 ${card.preparedRunRef}` : ''}
+              {/* 프로액티브 런 재생 링크 — 판단 기록 #을 눌러 /run/:id로(코드리뷰 B5: 링크 복원, 데모 2막) */}
+              {card.preparedRunRef && (
+                <>
+                  {' · '}
+                  <button
+                    type="button"
+                    onClick={() => nav.toRun(card.preparedRunRef!.replace('#', ''))}
+                    className="font-semibold text-primary underline"
+                  >
+                    판단 기록 {card.preparedRunRef}
+                  </button>
+                </>
+              )}
             </span>
           </div>
           <h2 className="text-heading2 font-bold text-ink">{card.title}</h2>
@@ -197,8 +205,17 @@ export function CaseReviewPage() {
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 border-t border-hairline bg-canvas px-5 py-3">
-        {card.approvalRequired ? (
-          <Button variant="primary" className="w-full" onClick={() => nav.toApprove(card.caseId)}>
+        {highRisk ? (
+          // 고위험: 앱 승인 없이 행정사 전달 준비만(승인 후) — PC §3b 우측 레일과 동일 규칙.
+          <span className="flex h-btn items-center justify-center gap-1.5 rounded-in text-label1 font-semibold text-faint shadow-outline">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="2" />
+            </svg>
+            행정사 전달 준비 (승인 후)
+          </span>
+        ) : card.approvalRequired ? (
+          <Button variant="primary" className="w-full" onClick={onContinue}>
             검토 계속
           </Button>
         ) : (

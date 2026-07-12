@@ -1,35 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { BackHeader } from '@/components/BackHeader';
 import { Button } from '@/components/Button';
 import { SAFETY_NOTICE_TEXT } from '@/components/SafetyNotice';
+import { useApprovalActions, canApproveCase, isCitationLocked } from '@/lib/approval';
 import { dDayLabel } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
 import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
-import { DRAFTS } from '@/mocks/drafts';
+import { draftForCase } from '@/mocks/drafts';
 import { canTransition, useCaseStore } from '@/stores/caseStore';
-import { useApprovalStore } from '@/stores/approvalStore';
-import { useEvidenceStore } from '@/stores/evidenceStore';
 import { usableCitations } from '@/stores/citationStore';
 import { cn } from '@/lib/cn';
 
 // 2c 최종 승인 — reference/design-system/외고반장 Mobile.dc.html §2c(145~186행) 이식(M2.6.3).
 // 성급한 승인 방지 게이트가 "스트리밍 완료"에서 "사람 체크리스트 필수 N/N"으로 교체된다
-// (블루프린트 §2 개정). citation-0 잠금(GOTCHAS §2)은 그대로 이중 게이트로 유지.
-// 배너 제목은 고정 문구 정본(SAFETY_NOTICE_TEXT) — 디자인 원문의 변형(C1)은 교정 채택.
-
-function findDraft(caseId: string) {
-  return Object.values(DRAFTS).find((draft) => draft.caseId === caseId);
-}
+// (블루프린트 §2 개정). citation-0 잠금(GOTCHAS §2)·상태 전이 합법성이 이중 게이트.
+// 승인/반려 결정 자체는 useApprovalActions 공유 유닛이 수행한다(코드리뷰 A/B/F 근본 교정).
 
 export function ApprovePage() {
   const { caseId } = useParams<{ caseId: string }>();
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
   const upsert = useCaseStore((s) => s.upsert);
-  const transition = useCaseStore((s) => s.transition);
-  const requestApproval = useApprovalStore((s) => s.requestApproval);
-  const decide = useApprovalStore((s) => s.decide);
-  const appendEvidence = useEvidenceStore((s) => s.append);
+  const { approve, reject } = useApprovalActions();
 
   useEffect(() => {
     if (Object.keys(useCaseStore.getState().cases).length === 0) {
@@ -39,11 +32,11 @@ export function ApprovePage() {
 
   const card = caseId ? cases[caseId] : undefined;
   const sheet = caseId ? CASE_SHEETS[caseId] : undefined;
-  const draft = caseId ? findDraft(caseId) : undefined;
+  const draft = draftForCase(caseId);
 
   // 승인 체크리스트(디자인 §2c 4항목) — 라벨은 케이스 데이터로 채우는 고정 템플릿.
   const checklist = useMemo(() => {
-    if (!card || !sheet) return [];
+    if (!card || !sheet) return [] as string[];
     const usable = usableCitations(sheet.citations).length;
     return [
       `위험도·영향 검토 완료 (${card.severity}${card.dDay !== undefined ? ` · ${dDayLabel(card.dDay)}` : ''})`,
@@ -53,9 +46,9 @@ export function ApprovePage() {
     ];
   }, [card, sheet, draft]);
 
-  const [checked, setChecked] = useState<boolean[]>([]);
+  // 체크 상태는 라벨 Set — 인덱스 boolean[]의 위치 결합(리셋 effect 취약성, 코드리뷰 A5/D)을 없앤다.
+  const [checkedLabels, setCheckedLabels] = useState<Set<string>>(() => new Set());
   const [reason, setReason] = useState('');
-  useEffect(() => setChecked(checklist.map(() => false)), [checklist]);
 
   if (!card || !sheet) {
     return (
@@ -68,68 +61,31 @@ export function ApprovePage() {
     );
   }
 
-  const checkedCount = checked.filter(Boolean).length;
+  const checkedCount = checklist.filter((label) => checkedLabels.has(label)).length;
   const allChecked = checkedCount === checklist.length && checklist.length > 0;
-  const citationLocked = usableCitations(sheet.citations).length === 0;
-  const actionId = card.primaryAction.actionId;
+  // 고위험(기한 경과 blocked 등)은 승인 대상이 아니다 — 상태 전이 합법성으로 게이트(코드리뷰 A2/B3/F3).
+  const approvable = canApproveCase(card, sheet);
+  const citationLocked = isCitationLocked(sheet);
+  const highRiskBlocked = !canTransition(card.state, 'human_approved');
 
-  const decideAndRecord = (decision: 'approved' | 'rejected') => {
-    if (!useApprovalStore.getState().approvals[actionId]) requestApproval(actionId);
-    decide(actionId, decision, `${actionId}:checklist:${decision}`, decision === 'rejected' ? reason || undefined : undefined);
-
-    if (decision === 'approved') {
-      appendEvidence({
-        id: `${card.caseId}-checklist-completed`,
-        type: 'checklist_completed',
-        at: new Date().toISOString(),
-        caseId: card.caseId,
-        actionId,
-        summary: `필수 ${checklist.length}항목 확인 · 근거 ${usableCitations(sheet.citations).length}건 연결 확인`,
-        actor: '김담당',
-      });
-      appendEvidence({
-        id: `${actionId}-approved`,
-        type: 'approval_decided',
-        at: new Date().toISOString(),
-        caseId: card.caseId,
-        actionId,
-        evidenceRef: '#4789',
-        summary: '승인 확정 · 발송 실행 가능 상태로 전환',
-        actor: '김담당 (본인)',
-      });
-      if (canTransition(card.state, 'human_approved')) transition(card.caseId, 'human_approved');
-      nav.toCaseHistory(card.caseId);
-      return;
-    }
-
-    appendEvidence({
-      id: `${actionId}-rejected`,
-      type: 'approval_decided',
-      at: new Date().toISOString(),
-      caseId: card.caseId,
-      actionId,
-      summary: reason ? `반려 · 사유 기록됨` : '반려',
-      actor: '김담당 (본인)',
+  const toggle = (label: string) =>
+    setCheckedLabels((current) => {
+      const next = new Set(current);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
     });
-    if (canTransition(card.state, 'returned')) transition(card.caseId, 'returned');
-    nav.toHome();
+
+  const onApprove = () => {
+    if (approve({ card, sheet, checklistCount: checklist.length })) nav.toCaseHistory(card.caseId);
+  };
+  const onReject = () => {
+    if (reject({ card, sheet, reason })) nav.toHome();
   };
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">
-      <header className="flex items-center gap-2 border-b border-hairline px-3 py-2.5">
-        <button
-          type="button"
-          aria-label="뒤로"
-          onClick={() => nav.toCase(card.caseId)}
-          className="flex size-11 items-center justify-center rounded-in text-ink active:bg-surface"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M15 5l-7 7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <h1 className="text-body1 font-bold text-ink">최종 승인</h1>
-      </header>
+      <BackHeader title="최종 승인" onBack={() => nav.toCase(card.caseId)} />
 
       <main className="flex flex-1 flex-col gap-5 px-5 pb-40 pt-4">
         <section className="flex flex-col gap-1 rounded-in bg-warnbg px-3.5 py-3">
@@ -138,6 +94,14 @@ export function ApprovePage() {
             승인 완료 시 발송 실행이 가능해지며, 승인자는 판단 기록에 남습니다.
           </p>
         </section>
+
+        {/* 고위험 케이스 안내 — 앱 승인 불가, 행정사 전달 전용(GOTCHAS 고위험 처리 버튼 금지). */}
+        {highRiskBlocked && sheet.guardNote && (
+          <section className="flex flex-col gap-1 rounded-in bg-approvalbg px-3.5 py-3">
+            <p className="text-label1 font-semibold text-approval">이 케이스는 앱에서 승인할 수 없습니다</p>
+            <p className="text-caption1 leading-relaxed text-approval">{sheet.guardNote}</p>
+          </section>
+        )}
 
         <section className="flex flex-col gap-1.5">
           <h3 className="text-caption1 font-bold text-subtle">승인 대상</h3>
@@ -160,16 +124,14 @@ export function ApprovePage() {
             </span>
           </div>
           <ul className="overflow-hidden rounded-in border border-hairline">
-            {checklist.map((label, index) => (
+            {checklist.map((label) => (
               <li key={label} className="border-b border-hairline last:border-none">
                 <label className="flex min-h-12 cursor-pointer items-center gap-2.5 px-3 py-2.5">
                   <input
                     type="checkbox"
-                    checked={checked[index] ?? false}
-                    onChange={() =>
-                      setChecked((current) => current.map((value, i) => (i === index ? !value : value)))
-                    }
-                    className="size-4 accent-[--color-primary-normal]"
+                    checked={checkedLabels.has(label)}
+                    onChange={() => toggle(label)}
+                    className="size-4 accent-primary"
                   />
                   <span className="text-label1 text-ink">{label}</span>
                 </label>
@@ -196,12 +158,12 @@ export function ApprovePage() {
         <Button
           variant="primary"
           className="w-full"
-          disabled={!allChecked || citationLocked}
-          onClick={() => decideAndRecord('approved')}
+          disabled={!allChecked || citationLocked || !approvable}
+          onClick={onApprove}
         >
           승인하기
         </Button>
-        <Button variant="outline" size="sm" className="w-full" onClick={() => decideAndRecord('rejected')}>
+        <Button variant="outline" size="sm" className="w-full" onClick={onReject}>
           반려하기
         </Button>
         <p className="text-center text-caption1 text-dim">반려 시 사유가 판단 기록에 남고 요청이 되돌아갑니다.</p>

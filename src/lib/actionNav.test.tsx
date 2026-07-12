@@ -52,8 +52,8 @@ describe('useNextAction', () => {
   it('detail은 케이스 시트로 이동한다', () => {
     const { wrapper, getLocation } = setup();
     const { result } = renderHook(() => useNextAction(), { wrapper });
-    act(() => result.current('bayar', action('detail')));
-    expect(getLocation()?.pathname).toBe('/case/bayar');
+    act(() => result.current('batbayar', action('detail')));
+    expect(getLocation()?.pathname).toBe('/case/batbayar');
   });
 
   it('thread는 메시지 탭으로 이동한다', () => {
@@ -66,8 +66,8 @@ describe('useNextAction', () => {
   it('package는 행정사 패키지 화면으로 이동한다', () => {
     const { wrapper, getLocation } = setup();
     const { result } = renderHook(() => useNextAction(), { wrapper });
-    act(() => result.current('hiring', action('package')));
-    expect(getLocation()?.pathname).toBe('/package/hiring');
+    act(() => result.current('batbayar', action('package')));
+    expect(getLocation()?.pathname).toBe('/package/batbayar');
   });
 
   it('confirm은 이동하지 않고 evidence 이벤트만 남긴다', () => {

@@ -69,7 +69,7 @@ describe('CaseListPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /계약-체류 만료일 불일치 검토/ }));
     // M2.6.2: 모바일 /case/:caseId는 2b 전면 검토 페이지 — 뒤로가기가 returnTo(필터 유지)로 돌아간다.
-    const backButton = await screen.findByRole('button', { name: '뒤로' }, { timeout: 5000 });
+    const backButton = await screen.findByRole('button', { name: '뒤로' });
     expect(screen.getByRole('heading', { name: '사례 검토' })).toBeInTheDocument();
 
     fireEvent.click(backButton);

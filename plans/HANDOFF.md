@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-11] M2.6 코드리뷰 수정 — 완료 (승인 생애주기 버그 클러스터)
+- 한 일: 8앵글 PR 리뷰(파인더 7종) 확정 버그를 근본 교정. **근본 원인**: ApprovePage가 승인을 일회성으로 인라인 처리 → 크래시·감사 오기록·가드레일 우회. **공유 유닛 신설** `src/lib/approval.ts`(`useApprovalActions`: approve/reject/reopenForReview + canApproveCase/approvalRefFor/isCitationLocked + CURRENT_USER). 교정: ① **반려 케이스 재승인 크래시**(A1/B2) — ensurePending이 terminal approval을 pending으로 리셋, 반려 카드는 검토 계속 시 returned→approval_pending 재개. ② **고위험 blocked 승인 우회**(A2/B3/F3) — canApproveCase가 상태 전이 합법성으로 CTA 게이트, 2b는 "행정사 전달 준비(승인 후)"로 분기(검토 계속 없음), ApprovePage는 guardNote+승인 비활성. ③ **반려가 '최종 승인'으로 감사 기록**(A3) — EvidenceType `approval_rejected` 신설, 이력에서 '반려'(비-primary)로 표기, 승인 완료 배너·판단 기록 저장 노드는 approval_decided에만. ④ **evidenceRef #4789 하드코딩**(F1) — approvalRefFor로 케이스별 파생. ⑤ **agentStage 미전진**(A4) — 승인 시 executed로 upsert(파이프라인·큐 정합). ⑥ **더블탭 중복 evidence**(A5) — evidenceStore append id 중복 방지. ⑦ **caseStage F등급 미필터**(C1) — usableCitations 경유. ⑧ **프로액티브 런 재생 링크 소실**(B5) — 2b 판단 기록 #을 /run/:id 링크로 복원. ⑨ **RunPage 죽은 caseId 분기**(B/altitude) — runId 전용으로 정리. ⑩ **중복 제거**(D): BackHeader(3화면), draftForCase(4화면), dDayTextClass(2화면), pipelineStats 5단계 통합. ⑪ accent 임의값(G2)→accent-primary. ⑫ 큐 파랑 CTA(G1)는 디자인 §2a 채택 예외로 GOTCHAS 명문화.
+- 남은 일 / 중단 지점: 없음(리뷰 확정건 전부). 저순위 미처리(의도적): 오프라인 승인 가드(B1)·읽기전용 검토 오프라인 비활성(B4) — 오프라인은 런타임 미배선(백엔드 접속점 몫)이라 배선과 함께 복원. actor 문자열 통합은 CURRENT_USER로 신규 경로만 적용(시드는 그대로).
+- 결정 사항 (다음 세션이 알아야 할 것): ① 승인/반려 결정은 반드시 `useApprovalActions`를 통한다 — 화면에서 requestApproval/decide/transition/append를 인라인 복제 금지(PC 워크벤치 승인 붙일 때도 이 유닛 사용). ② 반려는 `approval_rejected`, 승인은 `approval_decided` — 감사 노드 구분의 기준. ③ 고위험(blocked)은 canApproveCase가 false라 앱 승인 불가 — 행정사 전달(2.4)이 정식 경로. ④ evidenceStore.append는 id 중복 시 no-op(더블탭 안전).
+- verify 상태: PASS(typecheck 0, lint 0, **40 files/220 tests** — 신규 회귀 테스트: approval.test.ts 4종 + approvalFlow 3종(반려 이력·재승인·고위험). 병렬 경합 플레이크는 setup.ts asyncUtilTimeout 15s로 근본 해소, 2회 연속 전건 통과). 브라우저 실측: batbayar 고위험 전달 분기·nguyen 반려→returned 칩·콘솔 에러 0.
+- 지도/규칙 갱신: `docs/GOTCHAS.md`(파랑 CTA 큐 예외), `src/test/setup.ts`(asyncUtilTimeout).
+
+---
+
 ### [2026-07-11] 디자인 원본 저장소 고정 — 완료 (PR 리뷰 반영)
 - 한 일: PR 리뷰 지적("외부 디자인 원본을 저장소 안의 재현 가능한 스펙으로 고정한 뒤 병합하는 편이 안전")을 반영. `rules/design.md`·ROADMAP 2.5.4~2.5.6·`.claude/agents/ui-matcher.md`가 전부 claude.ai/design 라이브 프로젝트(`bd0fd8f8-615f-48e9-875b-eb5c9e9b398d`)만 가리키고 있어, 그 프로젝트가 바뀌거나 접근 불가해지면 스펙 근거가 사라지는 구조였다. `reference/design-system/`에 4개 파일을 그대로 고정: `montage-wanted/colors_and_type.css`(원본 CSS — 기존 `외고반장_통합/09_.../colors_and_type.css` 미러와 sha256 비교로 100% 일치 확인, 드리프트 없었음), `montage-wanted/source-rules-design.md`(디자인 프로젝트 자체 rules/design.md 원문 — 우리 저장소의 `rules/design.md`는 이걸 각색한 것), `외고반장 PC.dc.html`(190KB, ROADMAP 2.5.4~2.5.6의 1차 스펙), `외고반장 Mobile.dc.html`(85KB, 채택 보류된 개편안 — 참고 고정만). `rules/design.md`·`plans/ROADMAP.md`(M2.5 블록쿼트 + 2.5.4/5/6 스펙 컬럼)·`docs/SPEC_INDEX.md`·`docs/DESIGN_SYNC_AUDIT_2026-07-11.md`·`.claude/agents/ui-matcher.md`의 참조를 전부 고정 사본 경로로 갱신.
 - 남은 일 / 중단 지점: 없음. 디자인 프로젝트가 실제로 바뀌면 다시 `get_file`로 받아 `reference/design-system/`을 갱신하고 이 파일 + `reference/design-system/README.md`에 남긴다(README에 절차 명시).

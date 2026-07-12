@@ -96,7 +96,8 @@ export type EvidenceType =
   | 'rag_retrieved'
   | 'risk_flagged'
   | 'approval_requested'
-  | 'approval_decided'
+  | 'approval_decided' // 사람 최종 승인 — 감사 타임라인의 유일한 primary 노드
+  | 'approval_rejected' // 사람 반려(사유 포함) — 승인과 구분해 기록(감사 정확성, 코드리뷰 A3 교정)
   | 'review_started' // 사례 검토 진입 (Mobile §2d 타임라인, 블루프린트 §3)
   | 'checklist_completed' // 승인 체크리스트 완료 (Mobile §2d)
   | 'exported' // 패키지 내보내기 (PC §3c 감사 로그 '내보내기' — export_00NN)

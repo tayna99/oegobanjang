@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+import { BackHeader } from '@/components/BackHeader';
 import { Button } from '@/components/Button';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/cn';
@@ -12,12 +13,14 @@ import type { EvidenceEvent } from '@/types';
 // 2d 승인 이력 — reference/design-system/외고반장 Mobile.dc.html §2d(189~221행) 이식(M2.6.4).
 // 승인 1건의 생애 타임라인. 노드 색은 탭별기획 §4.2 정본을 따른다(C9 교정):
 // 사람 결정(최종 승인)만 primary 채움, 시스템 이벤트는 무채색.
+// 반려는 approval_rejected로 별도 표기 — 승인으로 오기록하지 않는다(코드리뷰 A3 교정).
 
 const NODE_LABEL: Partial<Record<EvidenceEvent['type'], string>> = {
   approval_requested: '승인 요청 생성',
   review_started: '검토 시작',
   checklist_completed: '체크리스트 완료',
   approval_decided: '최종 승인',
+  approval_rejected: '반려',
 };
 
 export function CaseHistoryPage() {
@@ -81,19 +84,7 @@ export function CaseHistoryPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-canvas">
-      <header className="flex items-center gap-2 border-b border-hairline px-3 py-2.5">
-        <button
-          type="button"
-          aria-label="뒤로"
-          onClick={() => nav.toHome()}
-          className="flex size-11 items-center justify-center rounded-in text-ink active:bg-surface"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M15 5l-7 7 7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-        <h1 className="text-body1 font-bold text-ink">승인 이력</h1>
-      </header>
+      <BackHeader title="승인 이력" onBack={() => nav.toHome()} />
 
       <main className="flex flex-1 flex-col gap-5 px-5 pb-10 pt-4">
         {card.state === 'human_approved' || card.state === 'completed' ? (

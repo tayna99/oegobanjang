@@ -4,6 +4,7 @@
 // 새 단계·라벨을 임의로 추가하지 말 것(임의값 금지 — 디자인 원문 라벨 그대로).
 import type { AgentStage, CaseCard } from '@/types';
 import type { CaseSheet } from '@/mocks/fixtures';
+import { usableCitations } from '@/stores/citationStore';
 
 export const CASE_STAGES = ['감지', '근거 수집', '초안 생성', '승인 대기', '실행 (mock)'] as const;
 
@@ -49,8 +50,9 @@ export function caseStageIndex(card: CaseCard, sheet?: CaseSheet): number {
     case 'blocked':
       return 3;
     default:
-      // draft / risk_review: 근거가 연결됐으면 초안 생성 단계, 아니면 근거 수집 단계.
-      return sheet && sheet.citations.length > 0 ? 2 : 1;
+      // draft / risk_review: 실사용 근거(F등급 제외)가 연결됐으면 초안 생성, 아니면 근거 수집
+      // (코드리뷰 C1 교정: 합성 F등급을 근거로 세지 않는다 — usableCitations 경유).
+      return sheet && usableCitations(sheet.citations).length > 0 ? 2 : 1;
   }
 }
 

@@ -1,7 +1,7 @@
 import { Chip } from '@/components/Chip';
 import { AGENT_STAGE_LABELS_SHORT } from '@/lib/caseStage';
 import { agentStageTone } from '@/lib/chipTone';
-import { dDayLabel, dDayTone, type DDayTone } from '@/lib/dday';
+import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { cn } from '@/lib/cn';
 import type { CaseCard } from '@/types';
 
@@ -11,13 +11,6 @@ export interface AgentProgressListProps {
   cards: CaseCard[];
   onOpenCase: (caseId: string) => void;
 }
-
-const DDAY_TEXT: Record<DDayTone, string> = {
-  critical: 'text-critical',
-  high: 'text-warning',
-  medium: 'text-medium',
-  neutral: 'text-muted',
-};
 
 export function AgentProgressList({ cards, onOpenCase }: AgentProgressListProps) {
   if (cards.length === 0) return null;
@@ -38,12 +31,7 @@ export function AgentProgressList({ cards, onOpenCase }: AgentProgressListProps)
               {card.workerRef ? `${card.workerRef.displayName} · ` : ''}
               {card.title}
             </span>
-            <span
-              className={cn(
-                'shrink-0 text-pc-xs font-bold tabular-nums',
-                card.dDay !== undefined ? DDAY_TEXT[dDayTone(card.dDay)] : 'text-faint',
-              )}
-            >
+            <span className={cn('shrink-0 text-pc-xs font-bold tabular-nums', dDayTextClass(card.dDay))}>
               {card.dDay !== undefined ? dDayLabel(card.dDay) : '—'}
             </span>
           </button>

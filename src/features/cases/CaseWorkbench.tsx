@@ -7,9 +7,9 @@ import { CASE_FILTERS, buildCaseGroups, caseGroupFor, filterCases, type CaseFilt
 import { CASE_STAGES, DELIVERY_STAGES, caseStageIndex, deliveryStageIndex } from '@/lib/caseStage';
 import { severityTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
-import { dDayLabel, dDayTone, type DDayTone } from '@/lib/dday';
+import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { CASE_SHEETS, type CaseSheet } from '@/mocks/fixtures';
-import { DRAFTS } from '@/mocks/drafts';
+import { draftForCase } from '@/mocks/drafts';
 import { usableCitations } from '@/stores/citationStore';
 import type { CaseCard, Severity } from '@/types';
 
@@ -31,13 +31,6 @@ const SEVERITY_AVATAR: Record<Severity, string> = {
   HIGH: 'bg-warnbg text-warning',
   MEDIUM: 'bg-medbg text-medium',
   LOW: 'bg-neutbg text-neutral',
-};
-
-const DDAY_TEXT: Record<DDayTone, string> = {
-  critical: 'text-critical',
-  high: 'text-warning',
-  medium: 'text-medium',
-  neutral: 'text-muted',
 };
 
 // 그룹 라벨(승인 대기/즉시 확인 …)을 행 부제·상태 칩에 재사용 — lib/cases의 라벨이 유일한 출처.
@@ -72,10 +65,6 @@ function readinessPercent(card: CaseCard, sheet?: CaseSheet): number {
   return Math.round((caseStageIndex(card, sheet) / (CASE_STAGES.length - 1)) * 100);
 }
 
-function findDraft(caseId: string) {
-  return Object.values(DRAFTS).find((draft) => draft.caseId === caseId);
-}
-
 const RAIL_SECTION_TITLE = 'text-caption1 font-bold tracking-wide text-muted';
 
 function CaseListRow({
@@ -90,7 +79,7 @@ function CaseListRow({
   const sheet = CASE_SHEETS[card.caseId];
   const percent = readinessPercent(card, sheet);
   const due = card.dDay !== undefined ? dDayLabel(card.dDay) : '—';
-  const dueClass = card.dDay !== undefined ? DDAY_TEXT[dDayTone(card.dDay)] : 'text-faint';
+  const dueClass = dDayTextClass(card.dDay);
 
   return (
     <button
@@ -213,7 +202,7 @@ function DocChecklist({ sheet }: { sheet: CaseSheet }) {
 }
 
 function DraftPanel({ caseId }: { caseId: string }) {
-  const draft = findDraft(caseId);
+  const draft = draftForCase(caseId);
   if (!draft) return null;
   return (
     <div className="flex flex-col gap-2">

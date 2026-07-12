@@ -1,17 +1,16 @@
-import { EXECUTED_WEEKLY_MOCK } from '@/mocks/fixtures';
-import { pipelineCounts } from '@/lib/pipeline';
+import { pipelineStats } from '@/lib/pipeline';
 import type { CaseCard } from '@/types';
 
 // 파이프라인 스탯 로우 — reference/design-system/외고반장 Mobile.dc.html §2a(43~49행) 이식(M2.6.1).
-// 숫자는 누적 깔때기(lib/pipeline)에서 파생. 색은 파이프라인 단계 칩 토큰과 동일 계열.
+// 숫자는 누적 깔때기(lib/pipeline)에서 파생 — 5단계 전부 한 선택자에서(코드리뷰 F4).
 export function PipelineStatRow({ cards }: { cards: CaseCard[] }) {
-  const counts = pipelineCounts(cards);
+  const counts = pipelineStats(cards);
   const stats = [
     { label: '감지', value: counts.detected, tone: 'text-detected' },
     { label: '근거 수집', value: counts.collecting, tone: 'text-approval' },
     { label: '초안', value: counts.drafted, tone: 'text-draft' },
     { label: '승인 대기', value: counts.awaitingApproval, tone: 'text-warning' },
-    { label: '실행(주)', value: EXECUTED_WEEKLY_MOCK, tone: 'text-success' },
+    { label: '실행(주)', value: counts.executedWeekly, tone: 'text-success' },
   ];
 
   return (
