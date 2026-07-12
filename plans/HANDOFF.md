@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-11] 2.3 — 완료 (M8 전역 판단 기록, 모바일)
+- 한 일: 블루프린트 §9-A대로 `audit.ts`(2.5.5) 재사용해 M8 구현 — `GlobalEvidencePage`(모바일 /evidence): 감사 로그 최신순 타임라인 + 필터 칩(전체/위험/승인/내보내기) + 항목 탭 시 상세 BottomSheet(시각·행위자·케이스·**해시만**, 원문 없음) + 딥링크 `?ref=` 하이라이트(border-primary) + 사람 결정(approval_decided) ref는 primary 색. `EvidencePage`가 데스크톱=거버넌스(§3c)/모바일=M8로 분기 — 이제 /evidence가 양 표면 모두 완성(placeholder 제거). 고정 문구 "판단 기록은 INSERT-only … 해시로만".
+- 남은 일 / 중단 지점: 없음. 다음은 2.4 행정사 패키지(관제형 §2d, Batbayar) → 2.2 메시지·M6 → M3. 4.1 온보딩·4.4 CSV는 Claude Design 목업 선행 필요(브리프 작성됨).
+- 결정 사항 (다음 세션이 알아야 할 것): 감사/판단 기록은 **audit.ts 하나로 통일** — M8(모바일)·거버넌스(데스크톱)·컨트롤 타워 감사 mini·2d 이력이 모두 `mergedAuditLog`+`AUDIT_TYPE_*`를 쓴다. 새 EvidenceType은 audit.ts 두 맵(LABEL/TONE)에 반드시 추가(테스트 강제).
+- verify 상태: PASS (typecheck 0, lint 0, **45 files/250 tests**, build OK). 브라우저 실측(375px): 7건 최신순·필터·딥링크 ?ref=#4789 하이라이트·상세 시트(해시/요약 이벤트는 "해시 없음")·콘솔 에러 0.
+- 지도/규칙 갱신: ROADMAP 2.3 ✅.
+
+---
+
 ### [2026-07-11] 2.5.6 — 완료 (PC 컨트롤 타워 §3a)
 - 한 일: `reference/design-system/외고반장 PC.dc.html` §3a 이식 — 데스크톱 전용. **좌**: 페이지 헤더 + 파이프라인 5타일(`pipelineStats` 2.5.4b 파생, 델타 문구는 mock) + KPI 4종(`controlTowerKpis`: 활성 6·고위험 C+H 3·D-day 임박 ≤7일 2·근거 부족 0 — 전부 파생, 디자인 값과 일치) + 활성 추이 스파크라인(mock 7점) + 우선 처리 큐(`sortCaseList` 위험도×D-day, 위험·근로자·케이스·D-day·에이전트 단계·근거 완성도 바·담당·액션). **우 레일**: 실시간 에이전트 활동(mergedAuditLog 5) + 감사 로그 mini(3, "전체 보기"→/evidence). 파생 로직은 `src/lib/controlTower.ts`로 분리(테스트). **C10 교정**: 고위험 blocked 행 액션은 "승인"이 아니라 "검토"(GOTCHAS 고위험 처리 버튼 금지) — `rowAction` + 테스트. 라우팅: `/` → `HomePage`가 `useIsDesktop` 분기(데스크톱=컨트롤 타워, 모바일=오늘 브리핑 §2a). 홈 컨테이너가 BriefingHomePage를 감싸므로 index element를 HomePage로 교체.
 - 남은 일 / 중단 지점: 없음(M2.5 전체 2.5.1~2.5.6 완료). 파이프라인 오늘 델타(+2 등)·주간 실행 12·활성 추이 7점은 파생 불가한 mock — M3(프로액티브 런·런 체이닝) 백엔드 접속 시 실집계로 교체. 데스크톱 nav 라벨(Shell: 브리핑/케이스/메시지/기록)과 디자인 PC nav(컨트롤 타워/케이스/거버넌스/설정)의 정렬은 미결(별도 IA 결정) — 화면 콘텐츠는 전부 구현됨.
