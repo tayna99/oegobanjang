@@ -55,7 +55,8 @@ describe('M2.6 approval funnel', () => {
     // 홈 컨테이너(HomePage)가 useIsDesktop 분기 후 BriefingScreen을 커밋하므로 DOM 기준으로 대기.
     fireEvent.click(screen.getByRole('button', { name: '뒤로' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
-    await screen.findByText('내가 처리할 승인 2건', undefined, { timeout: 5000 });
+    // 전역 asyncUtilTimeout(15000, setup.ts) 상속 — 명시 5000 오버라이드는 병렬 부하에서 약한 고리였다.
+    await screen.findByText('내가 처리할 승인 2건');
 
     expect(useCaseStore.getState().cases.nguyen.state).toBe('human_approved');
     expect(useApprovalStore.getState().approvals['nguyen-approve'].status).toBe('approved');

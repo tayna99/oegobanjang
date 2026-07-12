@@ -72,7 +72,7 @@ describe('RunPage', () => {
       expect(screen.getByRole('button', { name: '승인' })).toBeDisabled();
 
       act(() => {
-        vi.advanceTimersByTime(430 * 3);
+        vi.advanceTimersByTime(430 * 4);
       });
 
       expect(screen.getByRole('button', { name: '승인' })).toBeEnabled();
@@ -93,7 +93,7 @@ describe('RunPage', () => {
       expect(screen.queryByRole('region', { name: '처리 대상 케이스' })).not.toBeInTheDocument();
 
       act(() => {
-        vi.advanceTimersByTime(430 * 3);
+        vi.advanceTimersByTime(430 * 4);
       });
 
       const result = screen.getByRole('region', { name: '처리 대상 케이스' });

@@ -126,6 +126,12 @@ export const RUN_CONFIGS: RunConfig[] = [
       { kind: 'thinking', label: '이번 달 마감 케이스 판별', detail: 'D-day 30일 이내 · 승인 대기 상태 기준' },
       { kind: 'tool_call', label: '대상 케이스 3건 확인', detail: 'Nguyen(D-30) · Siti(신고 기한 D-3) · Batbayar(행정사 검토)' },
       { kind: 'tool_call', label: '케이스별 액션 초안 생성', detail: '메시지·신고서·검토 자료 3건' },
+      // 3.4 데모 4막(8단계 §2 line 83) — 발송 도구는 승인 대기만 반환. 가드레일 작동을 숨기지 않고 스텝으로 노출.
+      {
+        kind: 'guardrail',
+        label: '외부 발송 차단 · 승인 요청 전환',
+        detail: '발송은 승인 전 차단되어 승인 요청으로 전환했습니다 — 자율은 루프에, 경계는 도구에',
+      },
     ],
     // 3.2: 정리 결과 카드에서 곧바로 대상 케이스로 진입 — Batbayar는 기한 경과라 행정사 검토 게이트.
     resultCaseIds: ['nguyen', 'siti', 'batbayar'],
