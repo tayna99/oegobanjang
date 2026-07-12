@@ -1,6 +1,8 @@
 # backend/ — 외고반장 서비스 API (백엔드 접속점)
 
-정본은 [`docs/DB_SCHEMA.md`](../docs/DB_SCHEMA.md)다. 여기는 그 설계를 FastAPI+SQLAlchemy+Alembic으로 구현한 것 — **P1 코어 18테이블**(문서 §10)만 우선 구현됐다. P2·P3(소통·패키지·알림·에이전틱)는 해당 마일스톤 착수 시 이관한다.
+이 디렉터리는 안전성 보강 전의 **P1 코어 18테이블 스캐폴드**다. 현재 실행 가능한 설계 정본은 [`db/schema.sql`](../db/schema.sql)과 [`docs/DB_SCHEMA.md`](../docs/DB_SCHEMA.md)의 PR #5 안전성 계약이며, 이 backend migration은 아직 그와 동등하지 않다. 따라서 이 migration을 현재 설계의 배포 경로로 사용하면 안 된다.
+
+복합 tenant FK, 활성 membership trigger, citation scope, 3상태 승인 머신, 외부 delivery 차단, P2/P3 테이블은 별도 승인된 Alembic migration에서 DDL 계약을 그대로 이식해야 한다. 이 문서는 그 이식 전까지의 스캐폴드 사용 범위를 설명한다.
 
 `legacy/backend/`는 이전 FastAPI 서버(Agent Runtime·RAG 포함, 아카이브)다. 이 디렉터리는 그것을 되살린 게 아니라 `docs/DB_SCHEMA.md` 설계를 새로 구현한 것이며, 레거시의 구조적 결함 20건(문서 §12)을 의도적으로 피한다 — 특히: 런타임 `ALTER TABLE`/산재한 `create_all()` 없음(Alembic이 유일한 스키마 생성 경로), 모든 논리적 관계는 실제 FK, 날짜·불리언·JSON은 네이티브 타입.
 
@@ -67,9 +69,10 @@ tests/
   test_api_approvals.py     승인 decide 엔드포인트 — 게이트 8개·멱등성·high risk·PII 차단
 ```
 
-## 알려진 스코프 경계 (의도적)
+## 알려진 스코프 경계 (P1 한정, 배포 금지)
 
 - `drafts.thread_id`는 컬럼만 있고 FK 제약이 없다 — 참조 대상 `threads`가 P2 테이블이라 아직 없다. P2 마이그레이션에서 FK를 추가한다(문서 §4.7 주석).
 - 인증·세션 관리는 아직 없다 — `decided_by_user_id`를 신뢰된 값으로 받는다(다음 마일스톤).
 - 승인 "요청" 생성 엔드포인트(`requestApproval` 대응)는 아직 없다 — 지금은 시드 데이터로 pending 승인을 만든다. 다음으로 붙일 엔드포인트 후보.
 - `checklist`(M2.6 §2c)·delegation(위임) 흐름은 게이트 로직은 있으나 그것을 채우는 화면/엔드포인트가 아직 없다.
+- 이 스캐폴드의 승인 `cancelled`, `drafts.sent_at`, 전역 `v_usable_citations` 등은 현재 PR #5 안전성 계약과 다르다. 후속 migration에서 안전 DDL을 이식하기 전에는 운영 DB에 적용하지 않는다.

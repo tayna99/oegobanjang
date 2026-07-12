@@ -18,6 +18,13 @@
 
 ---
 
+### [2026-07-13] PR #5 DB 안전성 보강 — 완료
+- 한 일: `db/schema.sql`을 전체 테넌트 복합 FK·active membership trigger·citation scope trigger·approval 3상태 단방향 머신으로 보강했다. 누락된 `company_id`를 P2/P3 하위 테이블에 추가하고, 외부 delivery 경로(`package_links`, outbound thread message, notification delivery 상태·timestamp, `notification_sent`)를 제거했다. approval 결정 시 draft/handoff package 상태가 DB trigger로 동기화되며, export는 approved package의 내부 PDF만 허용한다. worker 삭제는 tenant key를 보존한 채 `cases.worker_id`만 NULL로 만든다.
+- 남은 일 / 중단 지점: 현재 `backend/` P1 Alembic/SQLAlchemy 스캐폴드와 승인 API는 이 DDL 안전성 계약 이전 구현이라 동등하지 않다. 사용자 지정 범위(설계 DDL·시드, backend 이식 제외)에 따라 이번 PR에서 코드 이식은 하지 않았고, 실제 backend 접속 전 별도 migration으로 같은 FK·CHECK·trigger를 이식해야 한다. `backend/README.md`에 배포 금지 경계를 명시했다.
+- 결정 사항 (다음 세션이 알아야 할 것): 설계 정본은 `db/schema.sql`과 `docs/DB_SCHEMA.md`다. SQLite 연결은 매번 `PRAGMA foreign_keys=ON`을 적용·검사해야 한다. `ApprovalStatus` 저장값은 `pending|approved|rejected`만이며 프론트 `locked`는 파생 표시다. pending approval의 결정 idempotency key는 NULL을 허용하고 decide 시점에 채운다.
+- verify 상태: PASS — `node --experimental-sqlite db/validate.cjs` **145/0**, `npm run verify` **41 files / 223 tests**, typecheck·lint·production build 통과. 승인 흐름 통합 테스트의 기존 병렬 실행 타임아웃은 테스트 한도를 10초로 국소 보정했다.
+- 지도/규칙 갱신: `docs/DB_SCHEMA.md`(ERD·복합 FK·승인/외부 실행 계약), `db/README.md`, `backend/README.md`.
+
 ### [2026-07-12] AGENTS.md 재조율 + 승인 decide API 엔드포인트 — 완료
 - 한 일: ① **AGENTS.md 재조율** — §3(현재 아키텍처)·§4(작업 전 읽을 문서)·§6(작업 범위 제한)·§10(검증 명령)을 "루트에 backend/ 없음"에서 "backend/는 legacy/backend/의 부활이 아닌 신규 구현"으로 갱신. 시작 전 `git fetch`로 확인한 결과 시작하신 다른 백그라운드 태스크(task_3b8d11b9, CLAUDE.md/README 재작성)는 아직 커밋이 없어(브랜치 `claude/trusting-tereshkova-cbfb31` 0 commits) 충돌 없이 진행. 참고로 GLOSSARY/GOTCHAS 정정 태스크(task_b834a9f7)는 `claude/charming-moser-bcd82d`에 이미 완료돼 있었음(별 브랜치, 이 PR과 무관).
   ② **설계 결함 발견·교정**: 승인 decide API를 실제로 짜다가 `approvals.idempotency_key NOT NULL UNIQUE`가 프론트 `requestApproval()`의 실제 동작(대기 상태엔 아직 결정 키가 없음, 빈 문자열 placeholder)과 충돌한다는 걸 발견 — pending 승인이 2건만 돼도 제약 위반. `idempotency_key`를 **nullable**로 정정(NULL은 UNIQUE와 충돌하지 않음)하고 `docs/DB_SCHEMA.md`·`db/schema.sql`·`db/seed_demo.sql`·`db/validate.cjs`(31/31로 갱신)·`backend/app/models/approval.py`·마이그레이션 0001을 전부 같은 원칙으로 갱신.
@@ -26,7 +33,6 @@
 - 결정 사항 (다음 세션이 알아야 할 것): ① **idempotency_key는 nullable이 정본이다** — pending 상태엔 NULL, decide() 호출 시에만 채워진다. 이 컬럼을 다시 NOT NULL로 되돌리지 말 것(프론트 계약과 충돌). ② **일괄 승인 엔드포인트를 절대 추가하지 않는다** — GOTCHAS §3, 라우터·서비스 어디에도 batch/bulk 흔적이 없는 것 자체가 규칙 집행이다. ③ SQLite MVP 단계는 `SELECT FOR UPDATE` 없이 파일 수준 직렬화에 기댄다(`app/services/approvals.py` 주석) — PostgreSQL 전환 시 `with_for_update()` 추가 필요. ④ manager 승인 조건(`approval_policy='manager_allowed'` AND `severity='LOW'`)은 docs/DB_SCHEMA.md §13-4 코멘트를 그대로 코드로 옮긴 것 — 실제 운영 정책이 다르게 확정되면 `app/services/approvals.py`의 이 한 곳만 고치면 된다.
 - verify 상태: **백엔드 pytest 39/39 PASS**(가드레일 20 + DDL 정합 6 + API 12 + 헬스체크 1). **DB 설계 DDL 검증 31/31 PASS**(`db/validate.cjs`, idempotency_key nullable 정정 반영, 신규 null-비충돌 케이스 1건 추가).
 - 지도/규칙 갱신: `AGENTS.md` §3·§4·§6·§10. `backend/README.md`(API 표·구조·스코프 경계 갱신). `docs/DB_SCHEMA.md` §1(API 엔드포인트 언급)·§4.3(idempotency_key nullable 정정).
-
 ---
 
 ### [2026-07-12] 백엔드 접속점 착수 — P1 코어 18테이블 스캐폴드 + 정책 결정 8건 — 완료

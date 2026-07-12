@@ -156,17 +156,17 @@ INSERT INTO runs (id, company_id, case_id, started_by, trigger_event, started_by
 
 UPDATE cases SET prepared_run_id = 'run_4788' WHERE id = 'cs_nguyen';
 
-INSERT INTO run_steps (id, run_id, seq, kind, label, detail, tool_status) VALUES
-  ('st_4712_1', 'run_4712', 1, 'tool_call', '누락 서류 확인',            '여권 사본 미확보 — 요청 대상 판별', 'done'),
-  ('st_4712_2', 'run_4712', 2, 'tool_call', '요청 메시지 초안 생성',     '베트남어 + 한국어 · 여권 사본 요청', 'done'),
-  ('st_4788_1', 'run_4788', 1, 'tool_call', '근로자 프로필 확인 완료',   'Nguyen Van A · 베트남 · E-9 · Zalo', 'done'),
-  ('st_4788_2', 'run_4788', 2, 'tool_call', '이전 대화 기록 확인 완료',  '3일 전 표준근로계약서 요청 이력 있음', 'done'),
-  ('st_4788_3', 'run_4788', 3, 'tool_call', '메시지 초안 생성 완료',     '베트남어 원문 + 한국어 번역', 'done'),
-  ('st_4790_1', 'run_4790', 1, 'tool_call', '신고 기한 확인',            '고용변동 신고 · 7.13 기한 (D-3)', 'done'),
-  ('st_4790_2', 'run_4790', 2, 'tool_call', '신고서 초안 생성 완료',     '고용변동 신고서 · 근거 A·B 연결', 'done'),
-  ('st_4797_1', 'run_4797', 1, 'thinking',  '이번 달 마감 케이스 판별',  'D-day 30일 이내 · 승인 대기 상태 기준', NULL),
-  ('st_4797_2', 'run_4797', 2, 'tool_call', '대상 케이스 3건 확인',      'Nguyen(D-30) · Siti(신고 기한 D-3) · Batbayar(행정사 검토)', 'done'),
-  ('st_4797_3', 'run_4797', 3, 'tool_call', '케이스별 액션 초안 생성',   '메시지·신고서·검토 자료 3건', 'done');
+INSERT INTO run_steps (id, company_id, run_id, seq, kind, label, detail, tool_status) VALUES
+  ('st_4712_1', 'cmp_greenfood', 'run_4712', 1, 'tool_call', '누락 서류 확인',            '여권 사본 미확보 — 요청 대상 판별', 'done'),
+  ('st_4712_2', 'cmp_greenfood', 'run_4712', 2, 'tool_call', '요청 메시지 초안 생성',     '베트남어 + 한국어 · 여권 사본 요청', 'done'),
+  ('st_4788_1', 'cmp_greenfood', 'run_4788', 1, 'tool_call', '근로자 프로필 확인 완료',   'Nguyen Van A · 베트남 · E-9 · Zalo', 'done'),
+  ('st_4788_2', 'cmp_greenfood', 'run_4788', 2, 'tool_call', '이전 대화 기록 확인 완료',  '3일 전 표준근로계약서 요청 이력 있음', 'done'),
+  ('st_4788_3', 'cmp_greenfood', 'run_4788', 3, 'tool_call', '메시지 초안 생성 완료',     '베트남어 원문 + 한국어 번역', 'done'),
+  ('st_4790_1', 'cmp_greenfood', 'run_4790', 1, 'tool_call', '신고 기한 확인',            '고용변동 신고 · 7.13 기한 (D-3)', 'done'),
+  ('st_4790_2', 'cmp_greenfood', 'run_4790', 2, 'tool_call', '신고서 초안 생성 완료',     '고용변동 신고서 · 근거 A·B 연결', 'done'),
+  ('st_4797_1', 'cmp_greenfood', 'run_4797', 1, 'thinking',  '이번 달 마감 케이스 판별',  'D-day 30일 이내 · 승인 대기 상태 기준', NULL),
+  ('st_4797_2', 'cmp_greenfood', 'run_4797', 2, 'tool_call', '대상 케이스 3건 확인',      'Nguyen(D-30) · Siti(신고 기한 D-3) · Batbayar(행정사 검토)', 'done'),
+  ('st_4797_3', 'cmp_greenfood', 'run_4797', 3, 'tool_call', '케이스별 액션 초안 생성',   '메시지·신고서·검토 자료 3건', 'done');
 
 -- 다음 행동 (CASE_CARDS primary/secondary — slot 유니크) ----------------------
 
@@ -201,21 +201,28 @@ INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_k
    'rule', NULL, NULL,
    '[{"key":"target","label":"대상자 확인","checked":false},{"key":"docs","label":"서류·기한 확인","checked":false},{"key":"evidence","label":"근거 확인","checked":false},{"key":"content","label":"발송 내용 확인","checked":false}]',
    '2026-07-09T08:00:00Z', NULL),
-  ('apv_batbayar_export', 'cmp_greenfood', 'cs_batbayar', 'act_batbayar_handoff', 'approved',
-   'idem-batbayar-0001', 'user', 'usr_kim', 'pin', NULL,
-   '2026-07-02T14:00:00Z', '2026-07-02T14:05:00Z');
+  ('apv_batbayar_export', 'cmp_greenfood', 'cs_batbayar', 'act_batbayar_handoff', 'pending',
+   'idem-batbayar-0001', 'user', NULL, NULL, NULL,
+   '2026-07-02T14:00:00Z', NULL);
+
+UPDATE approvals
+SET status = 'approved',
+    decided_by_user_id = 'usr_owner',
+    identity_method = 'pin',
+    decided_at = '2026-07-02T14:05:00Z'
+WHERE id = 'apv_batbayar_export';
 
 -- 케이스↔근거 (CASE_SHEETS.citations — rahmat·oyunaa는 0건 → 승인 잠금 시연) ----
 
-INSERT INTO case_citations (case_id, citation_id, added_by_actor, added_by_run_id) VALUES
-  ('cs_batbayar', 'cit_003', 'rule',  NULL),
-  ('cs_batbayar', 'cit_007', 'rule',  NULL),
-  ('cs_nguyen',   'cit_001', 'agent', 'run_4788'),
-  ('cs_nguyen',   'cit_009', 'agent', 'run_4788'),
-  ('cs_nguyen',   'cit_014', 'agent', 'run_4788'),
-  ('cs_siti',     'cit_002', 'agent', 'run_4790'),
-  ('cs_siti',     'cit_004', 'agent', 'run_4790'),
-  ('cs_tran',     'cit_004', 'rule',  NULL);
+INSERT INTO case_citations (company_id, case_id, citation_id, added_by_actor, added_by_run_id) VALUES
+  ('cmp_greenfood', 'cs_batbayar', 'cit_003', 'rule',  NULL),
+  ('cmp_greenfood', 'cs_batbayar', 'cit_007', 'rule',  NULL),
+  ('cmp_greenfood', 'cs_nguyen',   'cit_001', 'agent', 'run_4788'),
+  ('cmp_greenfood', 'cs_nguyen',   'cit_009', 'agent', 'run_4788'),
+  ('cmp_greenfood', 'cs_nguyen',   'cit_014', 'agent', 'run_4788'),
+  ('cmp_greenfood', 'cs_siti',     'cit_002', 'agent', 'run_4790'),
+  ('cmp_greenfood', 'cs_siti',     'cit_004', 'agent', 'run_4790'),
+  ('cmp_greenfood', 'cs_tran',     'cit_004', 'rule',  NULL);
 
 -- 4.5 판단 기록 (src/mocks/evidence.ts #4783~#4791 + 런 anchor 보강) -----------
 -- #4712·#4782·#4794·#4797은 mock에 없는 런타임 이벤트를 [데모 보강]한 것
@@ -258,30 +265,34 @@ INSERT INTO evidence_events (id, company_id, event_no, type, at, case_id, action
 
 INSERT INTO drafts (id, company_id, case_id, created_by_run_id, channel, purpose, status,
                     approval_id, compliance_checks, expected_scenarios) VALUES
-  ('drf_nguyen', 'cmp_greenfood', 'cs_nguyen', 'run_4788', 'Zalo', '서류 요청 메시지',
-   'pending_approval', 'apv_nguyen',
+   ('drf_nguyen', 'cmp_greenfood', 'cs_nguyen', 'run_4788', 'Zalo', '서류 요청 메시지',
+    'draft', NULL,
    '[{"label":"개인정보 사용 목적 포함","passed":true},{"label":"제출 기한 포함","passed":true}]',
    '[{"type":"positive","label":"긍정 응답","description":"서류 수신 후 검토 자료에 반영"},{"type":"question","label":"추가 질문","description":"서류 형식 기준 재안내"},{"type":"delayed","label":"응답 지연","description":"2일 뒤 리마인드 제안"}]'),
   ('drf_tran_reminder', 'cmp_greenfood', 'cs_tran', NULL, 'Zalo', '리마인드 초안',
    'draft', NULL, NULL,
    '[{"type":"positive","label":"긍정 응답","description":"여권 수신 후 상태 갱신"},{"type":"question","label":"일정 변경","description":"제출 예정일 갱신"},{"type":"delayed","label":"응답 지연","description":"추가 리마인드 판단"}]');
 
-INSERT INTO draft_variants (id, draft_id, lang, text, is_revised) VALUES
-  ('dv_nguyen_ko', 'drf_nguyen', 'ko',
+INSERT INTO draft_variants (id, company_id, draft_id, lang, text, is_revised) VALUES
+  ('dv_nguyen_ko', 'cmp_greenfood', 'drf_nguyen', 'ko',
    '안녕하세요 Nguyen 씨,' || char(10) || '체류기간 연장 준비를 위해 아래 서류가 필요합니다.' || char(10) || char(10) || '· 표준근로계약서 사본' || char(10) || '· 여권 사본' || char(10) || char(10) || '가능하면 2일 이내에 보내주세요.' || char(10) || '제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.' || char(10) || char(10) || '감사합니다.', 0),
-  ('dv_nguyen_vi', 'drf_nguyen', 'vi',
+  ('dv_nguyen_vi', 'cmp_greenfood', 'drf_nguyen', 'vi',
    'Xin chào Nguyen,' || char(10) || 'để chuẩn bị gia hạn thời gian lưu trú, vui lòng gửi các giấy tờ sau.' || char(10) || char(10) || '· Bản sao hợp đồng lao động tiêu chuẩn' || char(10) || '· Bản sao hộ chiếu' || char(10) || char(10) || 'Vui lòng gửi trong vòng 2 ngày nếu có thể.' || char(10) || 'Giấy tờ chỉ được dùng cho thủ tục hành chính về việc làm và lưu trú.' || char(10) || char(10) || 'Cảm ơn bạn.', 0),
-  ('dv_nguyen_ko_rev', 'drf_nguyen', 'ko',
+  ('dv_nguyen_ko_rev', 'cmp_greenfood', 'drf_nguyen', 'ko',
    '안녕하세요 Nguyen 씨, 잘 지내고 계신가요.' || char(10) || '체류기간 연장을 준비하고 있어 서류 두 가지를 부탁드리려고 합니다.' || char(10) || char(10) || '· 표준근로계약서 사본' || char(10) || '· 여권 사본' || char(10) || char(10) || '바쁘시겠지만 이번 주 안에 보내주시면 큰 도움이 됩니다.' || char(10) || '제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.' || char(10) || char(10) || '항상 감사합니다.', 1),
-  ('dv_tran_ko', 'drf_tran_reminder', 'ko',
+  ('dv_tran_ko', 'cmp_greenfood', 'drf_tran_reminder', 'ko',
    '안녕하세요 Tran 씨,' || char(10) || '어제 말씀하신 여권 사본을 오늘 보내주실 수 있을까요.' || char(10) || '계약 관련 준비에 필요합니다.' || char(10) || char(10) || '감사합니다.', 0),
-  ('dv_tran_vi', 'drf_tran_reminder', 'vi',
+  ('dv_tran_vi', 'cmp_greenfood', 'drf_tran_reminder', 'vi',
    'Chào anh Tran,' || char(10) || 'anh có thể gửi bản sao hộ chiếu hôm nay như đã nói không ạ.' || char(10) || 'Cần cho việc chuẩn bị hợp đồng.' || char(10) || char(10) || 'Cảm ơn anh.', 0),
-  ('dv_tran_ko_rev', 'drf_tran_reminder', 'ko',
+  ('dv_tran_ko_rev', 'cmp_greenfood', 'drf_tran_reminder', 'ko',
    '안녕하세요 Tran 씨, 바쁘신데 죄송합니다.' || char(10) || '어제 말씀해주신 여권 사본을 편하실 때 보내주시면 감사하겠습니다.' || char(10) || '계약 관련 준비에 필요해서요.' || char(10) || char(10) || '고맙습니다.', 1);
 
 -- 스레드·응답 해석 (P2 시연 — tranCase "응답 도착 · 해석 완료, 담당자 확인 대기")
 -- 서류 상태는 시트 표기(정본)를 따르고, 제안은 그 이력을 기록한 [데모 보강]
+
+UPDATE drafts
+SET status = 'pending_approval', approval_id = 'apv_nguyen'
+WHERE id = 'drf_nguyen';
 
 INSERT INTO threads (id, company_id, worker_id, channel, last_message_at) VALUES
   ('th_tran', 'cmp_greenfood', 'wrk_tran', 'zalo', '2026-07-10T10:12:00Z');
@@ -298,10 +309,10 @@ INSERT INTO interpretations (id, company_id, thread_message_id, case_id, summary
   ('int_tran', 'cmp_greenfood', 'tm_tran_reply', 'cs_tran',
    '계약서 회사 보관 · 여권 내일 제출 — 담당자 확인 대기', 'high', 'proposed');
 
-INSERT INTO status_update_proposals (id, interpretation_id, target_type, target_key,
+INSERT INTO status_update_proposals (id, company_id, interpretation_id, target_type, target_key,
                                      from_value, to_value, status) VALUES
-  ('sup_tran_contract', 'int_tran', 'worker_document', '표준근로계약서', 'missing', 'company_check', 'proposed'),
-  ('sup_tran_passport', 'int_tran', 'worker_document', '여권 사본',      'missing', 'requested',     'proposed');
+  ('sup_tran_contract', 'cmp_greenfood', 'int_tran', 'worker_document', '표준근로계약서', 'missing', 'company_check', 'proposed'),
+  ('sup_tran_passport', 'cmp_greenfood', 'int_tran', 'worker_document', '여권 사본',      'missing', 'requested',     'proposed');
 
 -- 4.8 행정사 패키지 (7.2 export_0031 — evidence #4783과 쌍) --------------------
 
@@ -321,10 +332,10 @@ INSERT INTO package_exports (id, package_id, company_id, format, content_hash,
 INSERT INTO briefings (id, company_id, briefing_date, generated_at, source_snapshot_hash) VALUES
   ('brf_20260710', 'cmp_greenfood', '2026-07-10', '2026-07-10T08:00:00Z', 'sha256:demo-snapshot-0710');
 
-INSERT INTO briefing_items (id, briefing_id, case_id, rank) VALUES
-  ('bi_1', 'brf_20260710', 'cs_batbayar', 1),
-  ('bi_2', 'brf_20260710', 'cs_siti',     2),
-  ('bi_3', 'brf_20260710', 'cs_nguyen',   3),
-  ('bi_4', 'brf_20260710', 'cs_tran',     4),
-  ('bi_5', 'brf_20260710', 'cs_rahmat',   5),
-  ('bi_6', 'brf_20260710', 'cs_oyunaa',   6);
+INSERT INTO briefing_items (id, company_id, briefing_id, case_id, rank) VALUES
+  ('bi_1', 'cmp_greenfood', 'brf_20260710', 'cs_batbayar', 1),
+  ('bi_2', 'cmp_greenfood', 'brf_20260710', 'cs_siti',     2),
+  ('bi_3', 'cmp_greenfood', 'brf_20260710', 'cs_nguyen',   3),
+  ('bi_4', 'cmp_greenfood', 'brf_20260710', 'cs_tran',     4),
+  ('bi_5', 'cmp_greenfood', 'brf_20260710', 'cs_rahmat',   5),
+  ('bi_6', 'cmp_greenfood', 'brf_20260710', 'cs_oyunaa',   6);
