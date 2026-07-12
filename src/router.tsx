@@ -10,6 +10,8 @@ import { RunPage } from '@/features/run/RunPage';
 import { DraftPage } from '@/features/draft/DraftPage';
 import { DonePage } from '@/features/done/DonePage';
 import { EvidencePage } from '@/features/governance/EvidencePage';
+import { MessagesPage } from '@/features/messages/MessagesPage';
+import { ThreadPage } from '@/features/messages/ThreadPage';
 import { PackagePage } from '@/features/packagePkg/PackagePage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
@@ -49,11 +51,11 @@ export const routeConfig: RouteObject[] = [
         loader: validateIdParam('runId'),
         element: <RunPage />,
       },
-      { path: ROUTE_PATHS.messages, element: <PlaceholderScreen name="메시지" /> },
+      { path: ROUTE_PATHS.messages, element: <MessagesPage /> },
       {
         path: ROUTE_PATHS.thread,
         loader: validateIdParam('threadId'),
-        element: <PlaceholderScreen name="M6 응답 해석" />,
+        element: <ThreadPage />,
       },
       { path: ROUTE_PATHS.evidence, element: <EvidencePage /> },
       {

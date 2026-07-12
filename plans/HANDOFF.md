@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-11] 2.2 — 완료 (메시지 탭 + M6 응답 해석)
+- 한 일: 디자인 미포함 화면을 블루프린트 §9-A대로 2b 검토 패턴 재사용해 구현 — 데이터 `src/mocks/messages.ts`(`MESSAGE_THREADS` keyed by caseId). `MessagesPage`(/messages 탭): 스레드 목록, 행=근로자·팀·채널·**상태 라벨(listLabel)만** + 응답 칩 — **근로자 원문은 목록에 노출하지 않는다**(GOTCHAS §3·탭별기획 §3.2). `ThreadPage`(/thread/:id): 대화 버블(내 메시지/에이전트=우측 approvalbg, 근로자=좌측 surface, 근로자 원문 언어 배지) + **M6 응답 해석 카드**(AI 해석 칩 + 한국어 요약 + 상태 업데이트 제안 + `isFinal:false`면 "담당자 확인 필요"). "해석 확인 · 상태 반영" → `final_response_generated` evidence 기록 + "확인됨"·"케이스 열기"로 전환(자동 상태 변경 아님 — 사람 확인). tranCase = M6 케이스(Tran 여권 내일 제출 응답), nguyen = 발송 대기(해석 카드 없음).
+- 남은 일 / 중단 지점: 없음. **M2(2.1~2.4)·M2.5·M2.6 전부 완료.** 남은 로드맵: M3 에이전틱(3.1~3.4), 4.1 온보딩·4.4 CSV(Claude Design 목업 선행 — 브리프 작성됨). 커맨드바는 존치(3.2에서 실 파싱).
+- 결정 사항 (다음 세션이 알아야 할 것): 근로자 원문은 **스레드 내부에서만** 노출(목록·미리보기 금지) — 새 메시지 화면도 이 규칙을 지킨다. M6 해석 확인은 evidence만 남기고 케이스 상태를 자동 전이하지 않는다(담당자가 케이스에서 후속 조치). threadId=caseId 1:1.
+- verify 상태: PASS (typecheck 0, lint 0, **47 files/261 tests**, build OK). 브라우저 실측(375px): 목록 원문 미노출·스레드 내부 원문+KR 요약·"담당자 확인 필요"→"해석 확인"→"확인됨"+evidence, 콘솔 에러 0.
+- 지도/규칙 갱신: ROADMAP 2.2 ✅.
+
+---
+
 ### [2026-07-11] 2.4 — 완료 (행정사 검토 패키지 §2d)
 - 한 일: 관제형 §2d 이식 — `PackagePage`(/package/:id) + 데이터 모델 `src/mocks/packages.ts`(`HANDOFF_PACKAGES` keyed by caseId, Batbayar 구동). 3열 반응형(포함 항목 체크리스트 | 검토 요청서 미리보기 | 근거·내보내기 이력). **포함 항목 토글** → 문서 섹션 실시간 반영(누락 서류 해제 시 §2 제외, 근로자 정보 해제 시 등록번호 라인 제외, 이전 승인 이력 on 시 §4 추가). **PII 마스킹**: 외국인등록번호 `900412-6●●●●●●`만 저장(원문 없음, packages.ts). **내보내기 승인 게이트**: 승인 전 "내보내기 (승인 필요)" disabled, `approvals[pkg-handoff-export]`가 approved면 활성. "승인 요청" → approval_requested evidence + "승인 요청됨" 잠금. 근거 각주 cit_003/007/021(라이브러리 참조). 고정 문구 3종(워터마크·요청 사항·전달 차단)은 packages.ts 상수로 단일 출처.
 - 남은 일 / 중단 지점: 없음. 진입점은 현재 딥링크(/package/batbayar) — 워크벤치 "행정사 전달" 버튼(현재 "전달 패키지 준비 (승인 후)" disabled)에서의 링크 연결은 후속(승인 상태 연동 시). 다음은 2.2 메시지·M6.
