@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-12] DB 설계 (백엔드 접속점 선행) + DBeaver 킷 — 완료
+- 한 일: 전 문서·코드 전수 검수 후 **`docs/DB_SCHEMA.md` 신규 작성** — 백엔드 접속점(ROADMAP 말미)의 서비스 DB 스키마 정본. 이어서 사용자 지시로 **DBeaver 설계 킷(`db/`)** 추가: `schema.sql`(DDL — 테이블 32·뷰 4·append-only 트리거), `seed_demo.sql`(6인 로스터·#4712~#4797 세계관 시드), `validate.cjs`(가드레일 30항목 검증), `README.md`(DBeaver 접속·재생성·편집 규칙). 산출물 `db/*.sqlite3`는 .gitignore 등재. 조사 범위: 루트 문서 전부(ARCHITECTURE/GOTCHAS/GLOSSARY/SPEC_INDEX/블루프린트/AUDIT/rules 3종/ROADMAP/HANDOFF), `src/` 데이터 계약 전체(types/stores/mocks/lib), reference/specs 9종, legacy 설계 문서 14종(DB_SCHEMA/EVIDENCE_LOG_SCHEMA/PRD/DECISIONS/GRAPH_STATE/TOOL_CONTRACT/SECURITY_GUARDRAILS 등), legacy 모델 14파일+마이그레이션 9개(42테이블 전수 인벤토리). 설계 골자: 테넌트 우선(company_id NOT NULL) 3단계 도입(P1 코어 18 / P2 소통·패키지 7 / P3 계정·알림·에이전틱 7 테이블), evidence append-only DB 트리거, MVP 발송 차단을 스키마 CHECK로(`sent_at IS NULL` 등), 파생값(dDay·완성도·KPI) 무저장 원칙, 회사별 판단 기록 번호(#4789) 체계, `src/types.ts` 리터럴과 글자 단위 일치.
+- 남은 일 / 중단 지점: 없음(설계 문서 자체는). 구현은 백엔드 접속점 마일스톤 몫 — P1 테이블부터. DB_SCHEMA §13에 미결 8건(보존 정책 법무 확인, ApprovalStatus에 `cancelled` 프론트 추가 등) 명시.
+- 결정 사항 (다음 세션이 알아야 할 것): ① 레거시 Decision 006을 뒤집어 **approvals에 company_id 직접 보유**(다형 참조를 action_id FK로 대체했으므로 드리프트 위험 해소 — DB_SCHEMA §4.3). ② `RunConfig.mode`(approval/command/replay)와 `ApprovalStatus.locked`, 케이스 'scheduled' 그룹은 **저장값이 아니라 파생**으로 확정. ③ 검수에서 발견한 낡은 문서: 루트 `CLAUDE.md`(legacy 경로 참조)·`README.md`(구 백엔드 구조 설명)·GLOSSARY 인물 표(구 5인 로스터, F등급 누락)·GOTCHAS §2 전이도(`returned` 누락) — 이번 범위 밖이라 미수정, 별도 태스크 권장.
+- verify 상태: `src/` 무변경이라 `npm run verify` 대상 아님. 대신 **DDL 실검증 PASS 30 / FAIL 0** — 포터블 Node(`%LOCALAPPDATA%/nodejs-portable/node-v22.14.0-win-x64`, 2.5.1 기록)의 `node --experimental-sqlite db/validate.cjs`로 FK/트리거/CHECK/부분 유니크/파생 뷰 전부 확인.
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` §2 진입점 표에 DB 계약 행 추가(+`db/` 킷 경로), `docs/DB_SCHEMA.md` §1에 실행 산출물 항, `.gitignore`에 `db/*.sqlite3` 제외.
+
+---
+
 ### [2026-07-11] 디자인 원본 저장소 고정 — 완료 (PR 리뷰 반영)
 - 한 일: PR 리뷰 지적("외부 디자인 원본을 저장소 안의 재현 가능한 스펙으로 고정한 뒤 병합하는 편이 안전")을 반영. `rules/design.md`·ROADMAP 2.5.4~2.5.6·`.claude/agents/ui-matcher.md`가 전부 claude.ai/design 라이브 프로젝트(`bd0fd8f8-615f-48e9-875b-eb5c9e9b398d`)만 가리키고 있어, 그 프로젝트가 바뀌거나 접근 불가해지면 스펙 근거가 사라지는 구조였다. `reference/design-system/`에 4개 파일을 그대로 고정: `montage-wanted/colors_and_type.css`(원본 CSS — 기존 `외고반장_통합/09_.../colors_and_type.css` 미러와 sha256 비교로 100% 일치 확인, 드리프트 없었음), `montage-wanted/source-rules-design.md`(디자인 프로젝트 자체 rules/design.md 원문 — 우리 저장소의 `rules/design.md`는 이걸 각색한 것), `외고반장 PC.dc.html`(190KB, ROADMAP 2.5.4~2.5.6의 1차 스펙), `외고반장 Mobile.dc.html`(85KB, 채택 보류된 개편안 — 참고 고정만). `rules/design.md`·`plans/ROADMAP.md`(M2.5 블록쿼트 + 2.5.4/5/6 스펙 컬럼)·`docs/SPEC_INDEX.md`·`docs/DESIGN_SYNC_AUDIT_2026-07-11.md`·`.claude/agents/ui-matcher.md`의 참조를 전부 고정 사본 경로로 갱신.
 - 남은 일 / 중단 지점: 없음. 디자인 프로젝트가 실제로 바뀌면 다시 `get_file`로 받아 `reference/design-system/`을 갱신하고 이 파일 + `reference/design-system/README.md`에 남긴다(README에 절차 명시).
