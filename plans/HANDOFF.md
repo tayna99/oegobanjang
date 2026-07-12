@@ -18,6 +18,15 @@
 
 ---
 
+### [2026-07-12] M3 3.1~3.4 — 완료 (에이전틱 차별화, 기존 런 인프라 재사용)
+- 한 일: 기존 런 인프라(RunScreen/StepTimeline/RunEngine/RUN_CONFIGS)를 재사용해 M3 4갭을 메움. **3.1** 프로액티브 재생(#4788)에 발송 직전 **가드레일 정지 스텝**("발송 전 정지·승인 요청 생성") 추가 — StepTimeline이 이미 guardrail kind를 경고 톤으로 렌더. **3.2** 커맨드 런(#4797)에 `RunConfig.resultCaseIds` + RunScreen **결과 카드**("처리 대상 케이스", D-day 칩) — 스트리밍 완료 후 대상 케이스 노출, 탭하면 `nav.toCase`로 케이스 진입. **3.3** 케이스 타임라인(§3b AgentActivityBlock)의 판단 기록 #을 **클릭 가능**하게(`onOpenRun`→`nav.toRun`) — 타임라인 runRef 칩(#4788→#4712 체인)·헤더 판단 기록 모두 재생 런 진입, 타임라인을 aria-label region으로 승격. **3.4** `demoScript.test`(8단계 4막 스모크) + 커맨드 런(#4797)에 가드레일 스텝("외부 발송 차단·승인 요청 전환", 대본 4막 line 83·88). 루프가 닫힘: 커맨드 결과 카드 → 케이스 → 타임라인 런 → 재생(가드레일 정지) → 케이스.
+- 남은 일 / 중단 지점: 없음(M3 전부 완료). 남은 로드맵: **4.2 역할 분기(owner/manager 홈·권한 가드)·4.3 승인 본인확인 PIN/대리 배지**(둘 다 즉시 구현 가능, 인증/권한 모델 신설 — 앱 전역 영향). **4.1 온보딩 O1~O5·4.4 CSV 업로드**는 B-tier(§9-B) — Claude Design 목업 선행 필요(브리프는 `reference/design-system/design-briefs/`에 작성됨, 커밋 0ca1485).
+- 결정 사항 (다음 세션이 알아야 할 것): MVP 런은 각본(runEngine 430ms 스트리밍) — 실 LLM은 RunConfig 인터페이스 유지한 채 교체(ARCHITECTURE §5). **두 데모 런(#4788 재생·#4797 커맨드) 모두 guardrail 스텝을 구조적으로 가진다**(demoScript "데모 정책" 테스트가 강제) — "가드레일은 숨기지 않고 스텝으로 노출"(GOTCHAS). 커맨드 런 스텝을 3→4로 늘렸으니 타이머 게이트 테스트는 `430*4` 기준.
+- verify 상태: PASS (typecheck 0, **48 files/270 tests, 전체 스위트 2회 연속 그린**, build OK). 브라우저 실측: /run/4788 가드레일 정지 스텝, /run/4797 커맨드 가드레일+결과 카드 3건→/case/nguyen, 데스크톱 워크벤치 타임라인 #4788→/run/4788, 콘솔 에러 0.
+- 지도/규칙 갱신: ROADMAP 3.1~3.4 ✅. **플레이크 근본 교정**: 기본 testTimeout(5000)이 전역 asyncUtilTimeout(15000, setup.ts)보다 낮아 병렬 부하 시 /case/:id loader 대기 중 테스트가 먼저 종료되던 문제 → `vite.config` testTimeout/hookTimeout=15000(approvalFlow 하향 5000 오버라이드도 전역 상속으로 정리).
+
+---
+
 ### [2026-07-11] 2.2 — 완료 (메시지 탭 + M6 응답 해석)
 - 한 일: 디자인 미포함 화면을 블루프린트 §9-A대로 2b 검토 패턴 재사용해 구현 — 데이터 `src/mocks/messages.ts`(`MESSAGE_THREADS` keyed by caseId). `MessagesPage`(/messages 탭): 스레드 목록, 행=근로자·팀·채널·**상태 라벨(listLabel)만** + 응답 칩 — **근로자 원문은 목록에 노출하지 않는다**(GOTCHAS §3·탭별기획 §3.2). `ThreadPage`(/thread/:id): 대화 버블(내 메시지/에이전트=우측 approvalbg, 근로자=좌측 surface, 근로자 원문 언어 배지) + **M6 응답 해석 카드**(AI 해석 칩 + 한국어 요약 + 상태 업데이트 제안 + `isFinal:false`면 "담당자 확인 필요"). "해석 확인 · 상태 반영" → `final_response_generated` evidence 기록 + "확인됨"·"케이스 열기"로 전환(자동 상태 변경 아님 — 사람 확인). tranCase = M6 케이스(Tran 여권 내일 제출 응답), nguyen = 발송 대기(해석 카드 없음).
 - 남은 일 / 중단 지점: 없음. **M2(2.1~2.4)·M2.5·M2.6 전부 완료.** 남은 로드맵: M3 에이전틱(3.1~3.4), 4.1 온보딩·4.4 CSV(Claude Design 목업 선행 — 브리프 작성됨). 커맨드바는 존치(3.2에서 실 파싱).
