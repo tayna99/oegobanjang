@@ -28,6 +28,7 @@ export interface CaseWorkbenchProps {
   onSelectFilter: (filter?: string) => void;
   onOpenRun?: (runRef: string) => void; // 3.3 런 체이닝 — 타임라인의 판단 기록 #을 눌러 재생 런으로 진입
   onImport?: () => void; // CSV 일괄 등록(4.4, PC 4b) 진입 — manager 전용
+  onOpenWorkerData?: () => void; // 근로자 데이터 관리(PC 4b) 진입 — manager 전용
 }
 
 const SEVERITY_AVATAR: Record<Severity, string> = {
@@ -391,7 +392,7 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
   );
 }
 
-export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter, onOpenRun, onImport }: CaseWorkbenchProps) {
+export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter, onOpenRun, onImport, onOpenWorkerData }: CaseWorkbenchProps) {
   const [query, setQuery] = useState('');
   const handleAction = useNextAction();
   const role = useRoleStore((s) => s.role);
@@ -453,14 +454,27 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
             })}
           </div>
           {/* 근로자 데이터 대량관리(PC 4b) 진입 — 담당자만(4b "케이스는 여기서 파생"). */}
-          {role === 'manager' && onImport && (
-            <button
-              type="button"
-              onClick={onImport}
-              className="self-start rounded-badge px-2 py-1 text-caption1 font-medium text-primary shadow-outline hover:bg-surface"
-            >
-              CSV로 일괄 등록
-            </button>
+          {role === 'manager' && (onImport || onOpenWorkerData) && (
+            <div className="flex gap-1.5">
+              {onOpenWorkerData && (
+                <button
+                  type="button"
+                  onClick={onOpenWorkerData}
+                  className="rounded-badge px-2 py-1 text-caption1 font-medium text-muted shadow-outline hover:bg-surface"
+                >
+                  근로자 데이터
+                </button>
+              )}
+              {onImport && (
+                <button
+                  type="button"
+                  onClick={onImport}
+                  className="rounded-badge px-2 py-1 text-caption1 font-medium text-primary shadow-outline hover:bg-surface"
+                >
+                  CSV로 일괄 등록
+                </button>
+              )}
+            </div>
           )}
         </div>
         <div className="flex-1 overflow-y-auto">

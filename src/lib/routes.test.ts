@@ -17,6 +17,10 @@ describe('ROUTES', () => {
     expect(ROUTES.casesImport).toBe('/cases/import');
   });
 
+  it('근로자 데이터 관리 경로는 상수 문자열이다', () => {
+    expect(ROUTES.casesWorkers).toBe('/cases/workers');
+  });
+
   it('evidence는 ref 유무에 따라 쿼리를 붙인다', () => {
     expect(ROUTES.evidence()).toBe('/evidence');
     expect(ROUTES.evidence('4789')).toBe('/evidence?ref=4789');

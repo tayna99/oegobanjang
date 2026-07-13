@@ -18,6 +18,25 @@
 
 ---
 
+### [2026-07-13] PC 근로자 데이터 관리(4b) 구현 — Phase 3b 완료
+- 한 일: `/cases/workers`(담당자 전용) 신설 — `WorkerDataPage`(useIsDesktop 분기, PC 전용 —
+  `PcOnlyNotice` 공용 컴포넌트로 CsvUploadPage와 함께 리팩터) + `WorkerDataWorkbench`
+  (근로자 목록 = workerRef 있는 CaseCard 전체, 이름·국적·팀·체류만료·D-day·서류스캔(N/M)·
+  최근 업데이트 컬럼 + CSV 가져오기 카드(→ `/cases/import`) + 서류 스캔 업로드는 OCR
+  파이프라인이 없어 정적 "준비 중" 카드로만). `CaseWorkbench.tsx` 좌측 레일에 "근로자 데이터"
+  진입 버튼도 함께 추가(CSV 버튼 옆, 담당자 전용).
+- 결정 사항: 서류 스캔 자동분류는 순신규 기능이라 이번엔 구현하지 않고 안내 카드로만
+  남김(2026-07-13 델타 감사 §3에 이미 "자리표시"로 분류돼 있던 범위).
+- **버그 발견·수정(브라우저 실검증에서 발견)**: `/cases/workers`로 케이스 워크벤치를
+  거치지 않고 직접 진입(딥링크)하면 caseStore가 비어 있어 "E-9 · 0명"으로 렌더되던
+  버그 — 다른 케이스 컨테이너(`CaseListPage`/`CaseWorkbenchPage`/`BriefingHomePage`)와
+  동일한 "스토어 비어있으면 CASE_CARDS 시드" `useEffect`를 빠뜨렸었다. 회귀 테스트 추가.
+- verify 상태: PASS — `tsc`/`vitest run`(335/335, 신규 5건)/`vite build` 클린. 브라우저
+  1440×900 실검증으로 버그 발견 및 수정 확인(직접 진입 시 6인 로스터 정상 표시).
+- 지도/규칙 갱신: `plans/ROADMAP.md` 4.5b 완료 표시, 새 공용 컴포넌트 `components/PcOnlyNotice.tsx`.
+
+---
+
 ### [2026-07-13] PC 케이스 테이블 보강(4a) — Phase 3a 완료
 - 한 일: `CaseWorkbench.tsx` 목록 행에 "담당 OO"(`card.assignee ?? '—'`)와 서류 준비율
   분수("N/M", `CASE_SHEETS[id].docs`가 있는 케이스만)를 추가.
