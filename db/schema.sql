@@ -1068,10 +1068,11 @@ BEFORE UPDATE ON approvals
 WHEN OLD.status <> 'pending'
 BEGIN SELECT RAISE(ABORT, 'terminal approval is immutable'); END;
 
-CREATE TRIGGER approvals_terminal_no_delete
+-- 취소/삭제로 승인 이력을 없애지 않는다. pending 취소도 별도 감사 정책이
+-- 확정되기 전까지는 지원하지 않는다.
+CREATE TRIGGER approvals_no_delete
 BEFORE DELETE ON approvals
-WHEN OLD.status IN ('approved', 'rejected')
-BEGIN SELECT RAISE(ABORT, 'terminal approval is immutable'); END;
+BEGIN SELECT RAISE(ABORT, 'approval deletion is not allowed'); END;
 
 CREATE TRIGGER approvals_pending_transition_only
 BEFORE UPDATE OF status ON approvals
@@ -1157,20 +1158,8 @@ WHEN NOT (
     WHERE a.company_id = NEW.company_id AND a.case_id = NEW.case_id AND a.id = NEW.approval_id
       AND a.status = 'pending' AND n.action_type = 'send_message'
   ))
-  OR
-  (NEW.status = 'approved' AND EXISTS (
-    SELECT 1 FROM approvals a JOIN next_actions n ON n.id = a.action_id
-    WHERE a.company_id = NEW.company_id AND a.case_id = NEW.case_id AND a.id = NEW.approval_id
-      AND a.status = 'approved' AND n.action_type = 'send_message'
-  ))
-  OR
-  (NEW.status = 'rejected' AND EXISTS (
-    SELECT 1 FROM approvals a JOIN next_actions n ON n.id = a.action_id
-    WHERE a.company_id = NEW.company_id AND a.case_id = NEW.case_id AND a.id = NEW.approval_id
-      AND a.status = 'rejected' AND n.action_type = 'send_message'
-  ))
 )
-BEGIN SELECT RAISE(ABORT, 'draft status requires a matching message approval'); END;
+BEGIN SELECT RAISE(ABORT, 'draft must start editable or pending approval'); END;
 
 CREATE TRIGGER drafts_approval_state_update
 BEFORE UPDATE OF company_id, case_id, status, approval_id ON drafts
@@ -1197,6 +1186,28 @@ WHEN NOT (
 )
 BEGIN SELECT RAISE(ABORT, 'draft status requires a matching message approval'); END;
 
+-- 승인에 한 번 연결된 초안은 요청 대상을 바꾸거나 승인 전 편집 상태로 되돌릴 수
+-- 없다. 결정 상태 변경은 부모 approval의 상태와 일치해야 하며, parent trigger가
+-- pending_approval → approved|rejected를 동기화한다.
+CREATE TRIGGER drafts_approval_link_immutable
+BEFORE UPDATE OF approval_id ON drafts
+WHEN OLD.approval_id IS NOT NULL
+ AND NEW.approval_id IS NOT OLD.approval_id
+BEGIN SELECT RAISE(ABORT, 'draft approval link is immutable'); END;
+
+CREATE TRIGGER drafts_approval_transition_guard
+BEFORE UPDATE OF status ON drafts
+WHEN
+  (OLD.status = 'pending_approval'
+   AND NEW.status NOT IN ('pending_approval','approved','rejected'))
+  OR
+  (OLD.status IN ('approved','rejected') AND NEW.status <> OLD.status)
+  OR
+  (NEW.status IN ('approved','rejected')
+   AND NEW.status <> OLD.status
+   AND OLD.status <> 'pending_approval')
+BEGIN SELECT RAISE(ABORT, 'draft approval state cannot be reopened or skipped'); END;
+
 CREATE TRIGGER handoff_approval_state_insert
 BEFORE INSERT ON handoff_packages
 WHEN NOT (
@@ -1207,20 +1218,8 @@ WHEN NOT (
     WHERE a.company_id = NEW.company_id AND a.case_id = NEW.case_id AND a.id = NEW.approval_id
       AND a.status = 'pending' AND n.action_type = 'create_handoff'
   ))
-  OR
-  (NEW.status IN ('approved','exported') AND EXISTS (
-    SELECT 1 FROM approvals a JOIN next_actions n ON n.id = a.action_id
-    WHERE a.company_id = NEW.company_id AND a.case_id = NEW.case_id AND a.id = NEW.approval_id
-      AND a.status = 'approved' AND n.action_type = 'create_handoff'
-  ))
-  OR
-  (NEW.status = 'rejected' AND EXISTS (
-    SELECT 1 FROM approvals a JOIN next_actions n ON n.id = a.action_id
-    WHERE a.company_id = NEW.company_id AND a.case_id = NEW.case_id AND a.id = NEW.approval_id
-      AND a.status = 'rejected' AND n.action_type = 'create_handoff'
-  ))
 )
-BEGIN SELECT RAISE(ABORT, 'handoff status requires a matching handoff approval'); END;
+BEGIN SELECT RAISE(ABORT, 'handoff package must start draft or pending approval'); END;
 
 CREATE TRIGGER handoff_approval_state_update
 BEFORE UPDATE OF company_id, case_id, status, approval_id ON handoff_packages
@@ -1247,6 +1246,40 @@ WHEN NOT (
 )
 BEGIN SELECT RAISE(ABORT, 'handoff status requires a matching handoff approval'); END;
 
+-- package도 초안과 같은 방식으로 한 approval에 고정한다. approved 상태에서의
+-- exported 전이만 내부 PDF 산출물 기록에 맞춰 허용하고, 그 밖의 재개·재결정은
+-- 막는다.
+CREATE TRIGGER handoff_packages_approval_link_immutable
+BEFORE UPDATE OF approval_id ON handoff_packages
+WHEN OLD.approval_id IS NOT NULL
+ AND NEW.approval_id IS NOT OLD.approval_id
+BEGIN SELECT RAISE(ABORT, 'handoff approval link is immutable'); END;
+
+CREATE TRIGGER handoff_packages_approval_transition_guard
+BEFORE UPDATE OF status ON handoff_packages
+WHEN
+  (OLD.status = 'pending_approval'
+   AND NEW.status NOT IN ('pending_approval','approved','rejected'))
+  OR
+  (OLD.status = 'approved' AND NEW.status NOT IN ('approved','exported'))
+  OR
+  (OLD.status IN ('rejected','exported') AND NEW.status <> OLD.status)
+  OR
+  (NEW.status IN ('approved','rejected')
+   AND NEW.status <> OLD.status
+   AND OLD.status <> 'pending_approval')
+  OR
+  (NEW.status = 'exported'
+   AND NEW.status <> OLD.status
+   AND (
+     OLD.status <> 'approved'
+     OR NOT EXISTS (
+       SELECT 1 FROM package_exports
+       WHERE company_id = NEW.company_id AND package_id = NEW.id
+     )
+   ))
+BEGIN SELECT RAISE(ABORT, 'handoff approval state cannot be reopened, skipped, or exported without a PDF'); END;
+
 CREATE TRIGGER handoff_package_payload_locked_update
 BEFORE UPDATE OF case_id, package_type, masked_payload, included_items ON handoff_packages
 WHEN OLD.status <> 'draft'
@@ -1269,6 +1302,18 @@ WHEN NOT EXISTS (
     AND hp.status IN ('approved','exported') AND a.status = 'approved'
 )
 BEGIN SELECT RAISE(ABORT, 'package export requires an approved handoff package'); END;
+
+-- 내부 PDF가 실제로 만들어질 때만 package 상태를 exported로 남긴다. 이 트리거
+-- 밖에서 exported 상태만 먼저 기록하는 경로는 handoff state guard가 막는다.
+CREATE TRIGGER package_exports_mark_package_exported
+AFTER INSERT ON package_exports
+BEGIN
+  UPDATE handoff_packages
+  SET status = 'exported'
+  WHERE company_id = NEW.company_id
+    AND id = NEW.package_id
+    AND status = 'approved';
+END;
 
 CREATE TRIGGER agent_notes_subject_scope_insert
 BEFORE INSERT ON agent_notes

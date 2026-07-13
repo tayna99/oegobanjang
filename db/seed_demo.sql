@@ -185,7 +185,8 @@ INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, sta
   ('act_oyunaa_detail',    'cmp_greenfood', 'cs_oyunaa',   'detail',  'other',          '상세 보기',             'ready', 0, 'primary'),
   ('act_oyunaa_confirm',   'cmp_greenfood', 'cs_oyunaa',   'confirm', 'confirm_status', '케이스 확인 완료',       'ready', 0, 'secondary');
 
--- 승인 (pending 2건 = 모바일 §2a "내가 처리할 승인" · approved 1건 = 7.2 패키지 export)
+-- 승인 (pending 2건 = 모바일 §2a "내가 처리할 승인" · package export는 아래에서
+-- pending → approved 동기화 뒤에 생성)
 -- checklist 4항목 라벨은 [데모 보강] — M2.6 §2c 확정 시 교체
 
 -- pending 승인은 idempotency_key가 아직 없다(NULL) — decide() 호출 시에만 채워진다
@@ -202,15 +203,8 @@ INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_k
    '[{"key":"target","label":"대상자 확인","checked":false},{"key":"docs","label":"서류·기한 확인","checked":false},{"key":"evidence","label":"근거 확인","checked":false},{"key":"content","label":"발송 내용 확인","checked":false}]',
    '2026-07-09T08:00:00Z', NULL),
   ('apv_batbayar_export', 'cmp_greenfood', 'cs_batbayar', 'act_batbayar_handoff', 'pending',
-   'idem-batbayar-0001', 'user', NULL, NULL, NULL,
+   NULL, 'user', NULL, NULL, NULL,
    '2026-07-02T14:00:00Z', NULL);
-
-UPDATE approvals
-SET status = 'approved',
-    decided_by_user_id = 'usr_owner',
-    identity_method = 'pin',
-    decided_at = '2026-07-02T14:05:00Z'
-WHERE id = 'apv_batbayar_export';
 
 -- 케이스↔근거 (CASE_SHEETS.citations — rahmat·oyunaa는 0건 → 승인 잠금 시연) ----
 
@@ -321,7 +315,15 @@ INSERT INTO handoff_packages (id, company_id, case_id, package_type, masked_payl
   ('hp_batbayar', 'cmp_greenfood', 'cs_batbayar', 'expert_review',
    '{"case_summary":{"title":"체류기간 만료 경과 · 행정사 검토","risk_level":"CRITICAL"},"worker_summary":{"masked_worker_id":"wrk-****","visa_type":"E-9-1","stay_expires_at":"2026-07-08"},"document_summary":{"submitted_documents":["여권 사본","외국인등록증","표준근로계약서"],"missing_documents":[]},"evidence":{"citation_ids":["cit_003","cit_007"],"not_for_legal_judgment":true}}',
    '[{"item":"서류 3종","included":true},{"item":"쟁점 요약","included":true},{"item":"판단 기록 발췌","included":true}]',
-   'exported', 'apv_batbayar_export');
+    'pending_approval', 'apv_batbayar_export');
+
+UPDATE approvals
+SET status = 'approved',
+    idempotency_key = 'idem-batbayar-0001',
+    decided_by_user_id = 'usr_owner',
+    identity_method = 'pin',
+    decided_at = '2026-07-02T14:05:00Z'
+WHERE id = 'apv_batbayar_export';
 
 INSERT INTO package_exports (id, package_id, company_id, format, content_hash,
                              exported_by_user_id) VALUES

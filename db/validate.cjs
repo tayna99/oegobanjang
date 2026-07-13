@@ -77,6 +77,8 @@ ok('seed has 6 cases', counts.cases === 6);
 ok('seed has 6 workers', counts.workers === 6);
 ok('seed has 9 citations', counts.citations === 9);
 ok('seed has 10 evidence events', counts.evidence_events === 10);
+ok('seed PDF export marks its package exported',
+  scalar("SELECT status FROM handoff_packages WHERE id='hp_batbayar'").status === 'exported');
 
 // Immutable evidence remains enforced.
 expectThrow('evidence UPDATE is blocked', () => db.exec("UPDATE evidence_events SET summary='x' WHERE id='ev_4783'"), 'append-only');
@@ -134,7 +136,10 @@ db.exec(`
 `);
 expectThrow('idempotency key is unique when present', () => db.exec(
   "INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_idem_b','cmp_other','cs_other','act_other_idem_b','pending','idem-selfcontained-1','user','2026-07-10T00:00:00Z')"));
-ok('pending approvals may share a NULL idempotency key', true);
+ok('pending approvals may share a NULL idempotency key',
+  scalar("SELECT count(*) AS n FROM approvals WHERE id IN ('apv_null_a','apv_null_b') AND idempotency_key IS NULL").n === 2);
+expectThrow('pending approval cannot be deleted', () => db.exec(
+  "DELETE FROM approvals WHERE id='apv_idem_a'"), 'approval deletion');
 
 // Valid same-company child rows give every direct relation an UPDATE target.
 db.exec(`
@@ -378,9 +383,12 @@ ok('pending approval can become approved with identity', scalar("SELECT status F
 expectThrow('terminal approval cannot be re-decided', () => db.exec(
   "UPDATE approvals SET status='rejected', reason='later' WHERE id='apv_other_message'"), 'terminal approval');
 expectThrow('terminal approval cannot be deleted', () => db.exec(
-  "DELETE FROM approvals WHERE id='apv_other_message'"), 'terminal approval');
+  "DELETE FROM approvals WHERE id='apv_other_message'"), 'approval deletion');
 db.exec("UPDATE cases SET state='human_approved' WHERE id='cs_other'");
 ok('case becomes human-approved only after its approved action', scalar("SELECT state FROM cases WHERE id='cs_other'").state === 'human_approved');
+db.exec("UPDATE approvals SET status='approved', idempotency_key='idem-decision-once', decided_by_user_id='usr_other', identity_method='pin', decided_at='2026-07-10T00:01:00Z' WHERE id='apv_null_a'");
+expectThrow('decision idempotency key cannot be reused', () => db.exec(
+  "UPDATE approvals SET status='approved', idempotency_key='idem-decision-once', decided_by_user_id='usr_other', identity_method='pin', decided_at='2026-07-10T00:01:00Z' WHERE id='apv_null_b'"));
 expectThrow('draft rejects an approval from another company', () => db.exec(
   "INSERT INTO drafts (id, company_id, case_id, channel, purpose, status, approval_id) VALUES ('drf_foreign_approval','cmp_other','cs_other','zalo','x','pending_approval','apv_nguyen')"));
 expectThrow('draft rejects an approval from another case', () => db.exec(
@@ -394,15 +402,31 @@ expectThrow('handoff rejects an approval from another case', () => db.exec(
 expectThrow('handoff update rejects an approval from another company', () => db.exec(
   "UPDATE handoff_packages SET status='pending_approval', approval_id='apv_nguyen' WHERE id='hp_other_update'"));
 expectThrow('draft needs a matching message approval state', () => db.exec(
-  "INSERT INTO drafts (id, company_id, case_id, channel, purpose, status, approval_id) VALUES ('drf_bad','cmp_other','cs_other','zalo','x','pending_approval','apv_other_handoff')"), 'matching message approval');
-db.exec("INSERT INTO drafts (id, company_id, case_id, channel, purpose, status, approval_id) VALUES ('drf_other','cmp_other','cs_other','zalo','x','approved','apv_other_message')");
-ok('draft accepts its approved message approval', true);
+  "INSERT INTO drafts (id, company_id, case_id, channel, purpose, status, approval_id) VALUES ('drf_bad','cmp_other','cs_other','zalo','x','pending_approval','apv_other_handoff')"), 'draft must start editable');
+expectThrow('draft cannot be inserted as an already approved artifact', () => db.exec(
+  "INSERT INTO drafts (id, company_id, case_id, channel, purpose, status, approval_id) VALUES ('drf_direct_terminal','cmp_other','cs_other','zalo','x','approved','apv_other_message')"), 'draft must start editable');
+db.exec("INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval) VALUES ('act_other_draft_lifecycle','cmp_other','cs_other','approve','send_message','Approve lifecycle draft','ready',1)");
+db.exec("INSERT INTO approvals (id, company_id, case_id, action_id, status, requested_by_actor, requested_at) VALUES ('apv_other_draft_lifecycle','cmp_other','cs_other','act_other_draft_lifecycle','pending','rule','2026-07-10T00:00:00Z')");
+db.exec("INSERT INTO drafts (id, company_id, case_id, channel, purpose, status, approval_id) VALUES ('drf_other','cmp_other','cs_other','zalo','x','pending_approval','apv_other_draft_lifecycle')");
+db.exec("UPDATE approvals SET status='approved', idempotency_key='idem-other-draft-lifecycle', decided_by_user_id='usr_other', identity_method='pin', decided_at='2026-07-10T00:04:00Z' WHERE id='apv_other_draft_lifecycle'");
+ok('draft reaches approved only through approval synchronization',
+  scalar("SELECT status FROM drafts WHERE id='drf_other'").status === 'approved');
+expectThrow('pending draft cannot clear approval and return to draft', () => db.exec(
+  "UPDATE drafts SET status='draft', approval_id=NULL WHERE id='drf_nguyen'"), 'draft approval');
+expectThrow('pending draft cannot replace its approval', () => db.exec(
+  "UPDATE drafts SET approval_id='apv_other_message' WHERE id='drf_nguyen'"), 'draft approval link');
 expectThrow('pending draft content cannot change before a new revision', () => db.exec(
   "UPDATE drafts SET purpose='changed' WHERE id='drf_nguyen'"), 'draft content is locked');
 expectThrow('pending draft variants cannot change before a new revision', () => db.exec(
   "UPDATE draft_variants SET text='changed' WHERE id='dv_nguyen_ko'"), 'editable draft');
 db.exec("UPDATE approvals SET status='approved', decided_by_user_id='usr_owner', identity_method='pin', decided_at='2026-07-10T00:08:00Z' WHERE id='apv_nguyen'");
 ok('approved approval automatically updates its linked draft', scalar("SELECT status FROM drafts WHERE id='drf_nguyen'").status === 'approved');
+expectThrow('approved draft cannot clear its approval', () => db.exec(
+  "UPDATE drafts SET approval_id=NULL WHERE id='drf_nguyen'"), 'draft approval link');
+expectThrow('approved draft cannot return to draft', () => db.exec(
+  "UPDATE drafts SET status='draft' WHERE id='drf_nguyen'"), 'draft approval state');
+expectThrow('approved draft content stays locked after rollback attempts', () => db.exec(
+  "UPDATE drafts SET purpose='changed after approval' WHERE id='drf_nguyen'"), 'draft content is locked');
 expectThrow('approved draft cannot receive a new variant', () => db.exec(
   "INSERT INTO draft_variants (id, company_id, draft_id, lang, text) VALUES ('dv_other_late','cmp_other','drf_other','ko','changed')"), 'editable draft');
 db.exec("INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval) VALUES ('act_other_reject_message','cmp_other','cs_other','approve','send_message','Reject message','ready',1)");
@@ -413,17 +437,30 @@ ok('rejected approval automatically updates its linked draft', scalar("SELECT st
 db.exec("INSERT INTO handoff_packages (id, company_id, case_id, package_type, masked_payload, status, approval_id) VALUES ('hp_other','cmp_other','cs_other','expert_review','{}','pending_approval','apv_other_handoff')");
 expectThrow('package export needs an approved handoff', () => db.exec(
   "INSERT INTO package_exports (id, package_id, company_id, format, content_hash, exported_by_user_id) VALUES ('px_pending','hp_other','cmp_other','pdf','sha256:x','usr_other')"), 'approved handoff');
+expectThrow('pending handoff cannot clear approval and return to draft', () => db.exec(
+  "UPDATE handoff_packages SET status='draft', approval_id=NULL WHERE id='hp_other'"), 'handoff approval');
+expectThrow('pending handoff cannot replace its approval', () => db.exec(
+  "UPDATE handoff_packages SET approval_id='apv_other_message' WHERE id='hp_other'"), 'handoff approval link');
 expectThrow('pending handoff package content cannot change', () => db.exec(
   "UPDATE handoff_packages SET included_items='[]' WHERE id='hp_other'"), 'handoff package content is locked');
 db.exec("UPDATE approvals SET status='approved', decided_by_user_id='usr_other', identity_method='pin', decided_at='2026-07-10T00:06:00Z' WHERE id='apv_other_handoff'");
 ok('approved approval automatically updates its linked handoff package', scalar("SELECT status FROM handoff_packages WHERE id='hp_other'").status === 'approved');
+expectThrow('handoff cannot be inserted as an already approved artifact', () => db.exec(
+  "INSERT INTO handoff_packages (id, company_id, case_id, package_type, masked_payload, status, approval_id) VALUES ('hp_direct_terminal','cmp_other','cs_other','expert_review','{}','approved','apv_other_handoff')"), 'handoff package must start');
+expectThrow('approved handoff cannot clear its approval', () => db.exec(
+  "UPDATE handoff_packages SET approval_id=NULL WHERE id='hp_other'"), 'handoff approval link');
+expectThrow('approved handoff cannot return to draft', () => db.exec(
+  "UPDATE handoff_packages SET status='draft' WHERE id='hp_other'"), 'handoff approval state');
 expectThrow('approved handoff package content cannot change', () => db.exec(
   "UPDATE handoff_packages SET package_type='pre_entry' WHERE id='hp_other'"), 'handoff package content is locked');
+expectThrow('approved handoff cannot claim a PDF export without an export record', () => db.exec(
+  "UPDATE handoff_packages SET status='exported' WHERE id='hp_other'"), 'exported without a PDF');
 db.exec("INSERT INTO handoff_packages (id, company_id, case_id, package_type, masked_payload, status) VALUES ('hp_other_draft','cmp_other','cs_other','expert_review','{}','draft')");
 expectThrow('package export rejects an inactive exporter', () => db.exec(
   "INSERT INTO package_exports (id, package_id, company_id, format, content_hash, exported_by_user_id) VALUES ('px_inactive','hp_other','cmp_other','pdf','sha256:x','usr_invited')"), 'active member');
 db.exec("INSERT INTO package_exports (id, package_id, company_id, format, content_hash, exported_by_user_id) VALUES ('px_other','hp_other','cmp_other','pdf','sha256:other','usr_other')");
-ok('approved handoff package accepts an internal PDF export', true);
+ok('approved handoff package accepts an internal PDF export and becomes exported',
+  scalar("SELECT status FROM handoff_packages WHERE id='hp_other'").status === 'exported');
 expectThrow('package export rejects non-PDF formats', () => db.exec(
   "INSERT INTO package_exports (id, package_id, company_id, format, content_hash, exported_by_user_id) VALUES ('px_link','hp_other','cmp_other','link','sha256:link','usr_other')"));
 expectThrow('package export cannot be repointed to an unapproved package', () => db.exec(

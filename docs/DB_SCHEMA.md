@@ -1,6 +1,6 @@
-# DB_SCHEMA — 외고반장 서비스 DB 설계 (2026-07-12)
+# DB_SCHEMA — 외고반장 서비스 DB 설계 (2026-07-13)
 
-> 지위: ROADMAP "백엔드 접속점"(mockApi → FastAPI 교체)의 **데이터 계약 정본**. 프론트가 이미 확정한 계약(`src/types.ts`)과 스펙(reference/specs 1·2·3·7단계, 통합설계, 블루프린트 §3)을 서버 스키마로 내린 것이다.
+> 지위: 현행 설계 DDL의 **데이터 계약 정본**. `db/schema.sql`이 실행 가능한 정본이고, 프론트가 이미 확정한 계약(`src/types.ts`)과 스펙(reference/specs 1·2·3·7단계, 통합설계, 블루프린트 §3)을 관계형 스키마로 내린 것이다.
 > 전신: `legacy/docs/DB_SCHEMA.md` + `legacy/backend/app/models/*`(42테이블). 레거시는 §11 처분표·§12 결함 교정표로 승계·폐기를 명시했고, 이 문서가 신규 정본이다.
 > 원칙 충돌 시 우선순위: GOTCHAS·rules/safety(가드레일) > `src/types.ts`(프론트 계약) > 이 문서 > 레거시 문서.
 
@@ -19,19 +19,19 @@
 4. **MVP 외부 실행은 저장 경로부터 만들지 않는다.** `notifications`는 `queued|held|suppressed` 의도 큐일 뿐이고, `thread_messages`는 `inbound|system`만 허용한다. 발송 시각·전달 상태·외부 링크 테이블은 없으며, 실제 delivery-outbox/adapter는 별도 승인 마일스톤의 migration으로만 도입한다.
 5. **파생값은 저장하지 않는다.** dDay·근거 완성도·누락 서류 수·KPI·파이프라인 집계·linkedCaseCount는 전부 조회 시 계산(§6). 저장하는 것은 계산의 **입력**(만료일·서류 상태·근거 연결)뿐이다.
 6. **PII는 세 겹으로 다룬다(§7).** ① 등록번호·여권번호 원문은 어떤 테이블에도 넣지 않는다(마스킹 값만). ② 근로자 원문 메시지·초안 전문은 그것을 표시하는 테이블(thread_messages, drafts)에만 있고, evidence·로그·패키지 JSON으로 절대 복사되지 않는다. ③ 운영 식별에는 `worker_id`만 쓴다.
-7. **이관 뒤에는 migration이 단일 진실원이다.** 런타임 `ALTER TABLE`·산재한 `create_all()`은 금지한다(레거시 최대 결함, §12-1). 이 설계 PR에서는 `db/schema.sql`이 실행 정본이며, backend를 도입할 때는 이 계약을 Alembic revision + 모델 + 테스트로 같은 PR에서 이식한다.
+7. **현행 정본은 DDL이고, 이식 뒤에는 migration이 단일 진실원이다.** 런타임 `ALTER TABLE`·산재한 `create_all()`은 금지한다(레거시 최대 결함, §12-1). 이 PR에서는 `db/schema.sql`이 실행 정본이며, 후속 backend 이식은 이 계약을 Alembic revision + 모델 + 테스트로 동등하게 옮기는 별도 PR에서만 한다.
 
 ## 1. 엔진·전환 전략
 
 | 단계 | 엔진 | 규약 |
 |---|---|---|
-| MVP(백엔드 접속점) | SQLite (`backend/data/oegobanjang.sqlite3`) | WAL 모드, FK 강제(`PRAGMA foreign_keys=ON`), 부분 유니크 인덱스 사용(SQLite 지원) |
-| 파일럿 이후 | PostgreSQL 15+ | 같은 SQLAlchemy 모델. JSON→JSONB, TIMESTAMPTZ 네이티브, RLS(행 수준 보안)로 테넌트 격리 이중화 |
+| 현행 설계 검증 | SQLite (`db/oegobanjang_design.sqlite3`, validator가 생성) | FK 강제(`PRAGMA foreign_keys=ON`), 부분 유니크 인덱스·CHECK·trigger 검증 |
+| 후속 backend 이식 | SQLite 또는 PostgreSQL 15+ | 이 DDL의 복합 FK·CHECK·trigger를 동등하게 이식. PostgreSQL에서는 JSONB·TIMESTAMPTZ·RLS로 테넌트 격리 이중화 |
 
 - 이 PR의 실행 가능한 설계 정본은 `db/schema.sql`이고, 이 문서의 타입은 논리 타입이다: `uuid`(TEXT 저장), `text`, `int`, `bool`, `date`, `timestamptz`, `json`(SQLite=TEXT+DB CHECK, PG=JSONB). 실제 SQLAlchemy/Alembic 이식은 이 DDL의 FK·CHECK·trigger 계약을 그대로 옮기는 별도 migration에서 한다.
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
-- **실행 산출물(DBeaver 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.cjs`(테넌트 교차 INSERT/UPDATE·승인·외부 실행 차단을 포함한 145항목 회귀 검증) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 검증을 다시 통과시킨다.
-- **백엔드 이식 상태:** `backend/`에는 P1 18테이블과 승인 decide API가 구현돼 있지만, 이 안전성 보강 DDL과는 아직 동등하지 않다. 이번 PR은 설계 DDL·시드·검증 범위이므로 해당 Alembic/SQLAlchemy 모델·API를 수정하지 않는다. 따라서 현재 backend migration/API를 이 문서·`db/schema.sql`의 동등 구현으로 간주하거나 배포하면 안 되며, 후속 migration에서 같은 제약을 이식해야 한다(`backend/README.md`).
+- **실행 산출물(DBeaver 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.cjs`(테넌트 교차 INSERT/UPDATE·승인·외부 실행 차단을 포함한 160항목 회귀 검증) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 검증을 다시 통과시킨다.
+- **backend 범위:** 이 PR에는 backend API·ORM·Alembic migration이 없다. 후속 backend PR은 이 DDL과 동등한 제약, 인증된 principal, 서버 측 PIN/biometric 검증, 유효한 delegation 검증을 먼저 갖추기 전까지 approve/reject endpoint를 노출하지 않는다.
 
 ## 2. 공통 규약
 
@@ -43,8 +43,8 @@
 2. **사용자 참조:** `users.id` 단독 참조 대신 같은 회사 `memberships(company_id, user_id)`를 사용한다. active 상태와 owner/manager/expert 역할은 trigger로 확인한다. membership을 나중에 removed 처리해도 과거 승인·Evidence의 역사 기록은 바꾸지 않는다.
 3. **근거 범위:** case에는 전역 citation 또는 같은 회사 citation만 연결할 수 있다. 전역 document requirement에는 전역 citation만 허용한다. `v_global_usable_citations`만 전역 조회용이며, 사내 근거는 `company_id` 바인딩 query를 통해서만 조회한다.
 4. **MVP 외부 실행 차단:** notification은 `queued|held|suppressed` 의도 큐이고 sent/delivered/failed 상태와 timestamp가 없다. thread message는 `inbound|system`만 허용한다. `package_links`, 외부 delivery, `notification_sent` evidence는 없다.
-5. **승인 상태:** approval은 `pending`으로만 생성되고 `approved|rejected`로 한 번만 전이한다. terminal decision은 수정·삭제할 수 없다. 결정자·PIN/biometric·결정 시각을 강제하며 rejected에는 non-empty reason이 필요하다.
-6. **승인 결과 동기화:** pending approval이 approved/rejected가 되면 연결된 draft/handoff package도 같은 terminal 상태로 DB trigger가 동기화한다. approval의 company/case/action target은 생성 뒤 변경할 수 없다.
+5. **승인 상태:** approval은 `pending`으로만 생성되고 `approved|rejected`로 한 번만 전이한다. pending 취소와 모든 approval 삭제를 지원하지 않는다. 결정자·PIN/biometric·결정 시각을 강제하며 rejected에는 non-empty reason이 필요하다.
+6. **승인 결과 동기화:** pending approval이 approved/rejected가 되면 연결된 draft/handoff package도 같은 terminal 상태로 DB trigger가 동기화한다. 한 번 연결된 artifact의 `approval_id`는 제거·교체할 수 없고, pending/terminal artifact는 editable 상태로 되돌릴 수 없다. approval의 company/case/action target은 생성 뒤 변경할 수 없다.
 7. **내부 PDF만:** package export는 승인된 handoff package의 `pdf`만 허용하며 `external_delivery_performed=0`만 저장할 수 있다.
 8. **SQLite 연결:** FK 강제는 연결별이다. 모든 연결은 `PRAGMA foreign_keys=ON`을 적용하고 활성 상태를 확인해야 한다.
 
@@ -80,20 +80,22 @@ erDiagram
   cases ||--o{ runs : "(company,case) FK"
   runs ||--o{ run_steps : "(company,run) FK"
   cases ||--o{ drafts : "(company,case) FK"
-  approvals ||--o{ drafts : "same company + case"
+  approvals ||--o{ drafts : "same company + case, immutable link"
   drafts ||--o{ draft_variants : "(company,draft) FK"
   workers ||--o{ threads : "(company,worker) FK"
   threads ||--o{ thread_messages : "inbound/system only"
   thread_messages ||--o| interpretations : "M6"
   interpretations ||--o{ status_update_proposals : "(company,interpretation) FK"
   cases ||--o{ handoff_packages : "(company,case) FK"
-  approvals ||--o{ handoff_packages : "same company + case"
+  approvals ||--o{ handoff_packages : "same company + case, immutable link"
   handoff_packages ||--o{ package_exports : "approved internal PDF"
   companies ||--o{ briefings : "(company,date) 유니크"
   briefings ||--o{ briefing_items : "(company,briefing) FK"
   briefing_items }o--|| cases : "(company,case) FK"
   companies ||--o{ notifications : "intent queue only"
 ```
+
+승인에 연결된 초안·패키지는 관계선만 보여 주는 일반 참조가 아니다. `approval_id`를 한 번 붙이면 제거·교체할 수 없고, `pending_approval` 또는 terminal 상태에서 editable `draft`로 돌아갈 수 없다.
 
 ## 4. 테이블 정의
 
@@ -300,8 +302,8 @@ erDiagram
 -- 액션당 살아있는 승인 요청은 1건
 CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE status = 'pending';
 ```
-- **일괄 승인 금지는 스키마+API 계약**: 승인은 반드시 approval id 1건 단위 엔드포인트만 존재. batch 컬럼·batch 테이블을 만들지 않는다(GOTCHAS §3, PC §3a 각주 비준).
-- **상태 머신은 DB가 강제한다:** pending은 결정자·본인확인·사유·결정시각이 모두 NULL이고, approved/rejected에는 결정자·PIN/biometric·결정시각이 필수다. rejected에는 사유가 필요하며 terminal decision은 변경·삭제할 수 없다. 회사·케이스·액션 target도 생성 뒤 불변이다.
+- **일괄 승인 금지는 스키마+서비스 계약**: 승인은 반드시 approval id 1건 단위로만 결정한다. batch 컬럼·batch 테이블을 만들지 않는다(GOTCHAS §3, PC §3a 각주 비준).
+- **상태 머신은 DB가 강제한다:** pending은 결정자·본인확인·사유·결정시각이 모두 NULL이고, approved/rejected에는 결정자·PIN/biometric·결정시각이 필수다. rejected에는 사유가 필요하며 pending 취소를 포함한 모든 approval 삭제와 terminal 재결정은 금지한다. 회사·케이스·액션 target도 생성 뒤 불변이다.
 - 승인 = 검토 결정이며 **외부 실행이 아니다**. approved/rejected가 되면 연결된 draft/handoff package의 terminal 상태만 trigger로 동기화하며, 실제 발송·전달을 기록하는 경로는 없다.
 
 ### 4.4 근거 (RAG ↔ service DB 접점)
@@ -434,7 +436,7 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | expected_scenarios | json | | `[{type: positive|question|delayed, label, description}]` |
 | **created_at / updated_at** | timestamptz | | |
 
-- `pending_approval`·`approved`·`rejected`는 같은 회사·케이스의 `send_message` approval과 정확히 맞아야 한다. approval이 결정되면 trigger가 초안 상태를 동기화한다. `sent_at`은 MVP 스키마에 존재하지 않는다.
+- 초안은 editable 상태 또는 같은 회사·케이스의 pending `send_message` approval에 연결된 `pending_approval`으로만 생성한다. approved/rejected는 approval 결정 trigger가 동기화한다. 연결 뒤에는 `approval_id`를 제거·교체할 수 없고, pending/terminal 초안을 `draft`·`revision_requested`·`superseded`로 되돌릴 수 없다. `sent_at`은 MVP 스키마에 존재하지 않는다.
 
 #### draft_variants — 초안 언어 변형
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -513,7 +515,7 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | approval_id | uuid | `(company_id,case_id,approval_id)` →approvals | create_handoff action 승인과 같은 회사·케이스여야 함 |
 | **created_at / updated_at** | timestamptz | | |
 
-- `pending_approval`·`approved`·`rejected`·`exported`는 같은 회사·케이스의 `create_handoff` approval에만 연결된다. 승인 결정은 trigger가 상태를 동기화하며, package 자체에는 외부 전달 시각·링크가 없다.
+- package는 `draft` 또는 같은 회사·케이스의 pending `create_handoff` approval에 연결된 `pending_approval`으로만 생성한다. approved/rejected는 approval 결정 trigger가 동기화하고, `exported`는 승인된 package의 내부 PDF 산출물이 실제로 생성될 때만 기록된다. 연결 뒤에는 `approval_id`를 제거·교체하거나 pending/terminal package를 `draft`로 되돌릴 수 없다. package 자체에는 외부 전달 시각·링크가 없다.
 
 #### package_exports — 내보내기 산출물 (evidence `exported`와 쌍)
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -527,7 +529,7 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | **external_delivery_performed** | bool | default false, **CHECK (= false)** | MVP 외부 전송 없음 — 어댑터 도입 시 해제 |
 | **created_at** | timestamptz | | |
 
-- `package_exports` INSERT는 approved handoff package에만 허용된다. PDF 생성은 내부 산출물이며 외부 전달·메일·링크 발급을 기록하는 테이블과 evidence type은 MVP에 없다.
+- `package_exports` INSERT는 approved handoff package에만 허용되고, 성공한 INSERT가 package 상태를 `exported`로 동기화한다. PDF 생성은 내부 산출물이며 외부 전달·메일·링크 발급을 기록하는 테이블과 evidence type은 MVP에 없다.
 
 ### 4.9 브리핑
 
@@ -645,7 +647,7 @@ Case.state:
 NextAction.state:  locked ↔ ready → scheduled | waiting  (locked는 게이트 평가 결과)
 Approval.status:   pending → approved | rejected  (재결정 금지)
 ```
-- `cases`와 `approvals`의 허용 전이는 DB trigger가 먼저 차단한다. 전이 API는 이를 사용자 오류로 변환하고, 전이 성공 시 같은 트랜잭션에서 evidence를 append한다.
+- `cases`와 `approvals`의 허용 전이는 DB trigger가 먼저 차단한다. 후속 서비스 이식은 이를 사용자 오류로 변환하고, 전이 성공 시 같은 트랜잭션에서 evidence를 append한다.
 - `risk_review → completed` 직행은 없다 — confirm 계열 액션은 전이 없이 evidence만 남긴다(프론트 1.3 결정 승계).
 
 ### 5.2 append-only 트리거 (evidence_events)
@@ -663,10 +665,10 @@ BEGIN SELECT RAISE(ABORT, 'evidence_events is append-only'); END;
 승인 결정에서 DB가 먼저 강제하는 불변식:
 1. approval은 `requires_approval=1`인 같은 회사·케이스 action에만 생성되고, `pending`으로만 시작한다.
 2. pending은 결정자·본인확인·결정시각·사유가 모두 NULL이다. approved/rejected에는 결정자·PIN/biometric·결정시각이 필수이고 rejected에는 non-empty reason이 필수다.
-3. terminal decision은 수정·삭제할 수 없고, approval target(company/case/action)도 생성 뒤 바꿀 수 없다.
+3. pending 취소를 포함한 모든 approval 삭제와 terminal 재결정은 금지되고, approval target(company/case/action)도 생성 뒤 바꿀 수 없다.
 4. 결정자는 같은 회사의 active owner이거나 `approval_policy='manager_allowed'`인 LOW 케이스의 active manager여야 한다.
 5. `send_message`, `create_handoff`, `export_package`, `complete_case` action은 CHECK로 `requires_approval=1`이 강제된다.
-6. 연결된 draft/handoff package는 matching approval의 상태와 action type을 trigger로 확인하고 terminal 상태를 동기화한다.
+6. draft/handoff package는 editable/draft 또는 pending approval 상태로만 생성한다. 연결된 artifact는 matching approval의 상태와 action type을 trigger로 확인하고 terminal 상태를 동기화한다. approval_id를 한 번 붙인 artifact는 승인 연결을 제거·교체하거나 editable draft로 되돌릴 수 없다. package의 exported 표시는 내부 PDF export trigger만 기록한다.
 
 다음은 별도의 서비스 정책 게이트이며 DB 제약으로 가장하지 않는다: usable citation ≥ 1, draft compliance 체크, 체크리스트 완료, high-risk 업무 분기, 멱등 API 응답 및 evidence append. 이 정책들은 같은 트랜잭션에서 평가·기록한다.
 
@@ -745,7 +747,7 @@ BEGIN SELECT RAISE(ABORT, 'evidence_events is append-only'); END;
 | `.primaryAction / .secondaryAction` | next_actions (slot) | M2.6에서 카드 CTA 1개가 돼도 계약 유지 |
 | `.preparedBy / .preparedRunRef` | cases.prepared_by / runs.anchor_event_no(`'#'+`) | |
 | `NextActionRef.*` | next_actions | actionId=id |
-| `Approval{actionId,status,idempotencyKey,reason}` | approvals | 저장 상태는 `pending|approved|rejected`; `locked`는 게이트 파생 표시(§5.3) |
+| `Approval{actionId,status,idempotencyKey: string \| null,reason}` | approvals | pending 요청은 `idempotencyKey=null`, decide()가 non-empty key를 채운다. 저장 상태는 `pending|approved|rejected`; `locked`는 게이트 파생 표시(§5.3) |
 | `EvidenceEvent{id,type,at,caseId,actionId,hash,summary,actor,evidenceRef}` | evidence_events | hash=input_hash, evidenceRef=`'#'+event_no`, actor=actor_display |
 | `Citation / CitationRecord` | citations (+case_citations) | id=PK("cit_001"), updatedAt=updated_at |
 | `RunConfig{runKey,caseId,mode,title,agent,evidenceRef,autonomyLabel,question,steps,readOnly}` | runs + run_steps | mode·readOnly·autonomyLabel은 파생(§4.6 매핑표) |
@@ -767,11 +769,11 @@ BEGIN SELECT RAISE(ABORT, 'evidence_events is append-only'); END;
 | `export_0031` | package_exports 회사별 표시 번호(evidence summary에 기록) | |
 | idempotency_key | 클라이언트 생성(UUID) — 승인 결정 요청 시 발급 | pending에는 NULL, 결정 재시도 안전 |
 
-## 10. 마일스톤 도입 계획
+## 10. 설계·후속 이식 단계
 
 | 단계 | 테이블 | 대응 로드맵 |
 |---|---|---|
-| **P1 코어** (백엔드 접속점 최초 스키마) | companies, users, memberships, workers, worker_documents, document_requirements, cases, next_actions, approvals, citations, case_citations, evidence_events, runs, run_steps, drafts, draft_variants, briefings, briefing_items | 현행 화면 전체 + M2.6(체크리스트·returned·2d 이력) + 2.5.5(근거 라이브러리·감사 로그) + 2.5.6(집계는 파생 뷰) |
+| **P1 코어** (현행 설계 DDL) | companies, users, memberships, workers, worker_documents, document_requirements, cases, next_actions, approvals, citations, case_citations, evidence_events, runs, run_steps, drafts, draft_variants, briefings, briefing_items | 현행 화면 전체 + M2.6(체크리스트·returned·2d 이력) + 2.5.5(근거 라이브러리·감사 로그) + 2.5.6(집계는 파생 뷰) |
 | **P2 소통·패키지** | threads, thread_messages, interpretations, status_update_proposals, handoff_packages, package_exports | ROADMAP 2.2(M6), 2.4(행정사 패키지), M8 심화 |
 | **P3 계정 심화·알림·에이전틱** | delegations, notifications, csv_imports, worker_intake_files, autonomy_grants, agent_notes, stat_snapshots | M4(온보딩·권한·PIN·CSV), M3(프로액티브·자율성), 알림톡 어댑터 |
 
@@ -799,7 +801,7 @@ P1 안에서도 프론트가 아직 안 읽는 컬럼(checklist 등)은 nullable
 
 | # | 레거시 결함 | 이 설계의 교정 |
 |---|---|---|
-| 1 | 런타임 ALTER TABLE·산재 create_all | Alembic 단일 진실원(§0-7) |
+| 1 | 런타임 ALTER TABLE·산재 create_all | 현행은 `db/schema.sql` 단일 정본, 후속 이식 뒤에는 Alembic 단일 진실원(§0-7) |
 | 2 | 마이그레이션·env.py 누락 모델 4종 | 모델=마이그레이션=문서 동시 갱신 규칙 |
 | 3 | 부분 보정 결함(workers.email 등) | 〃 |
 | 4 | ORM relationship 전무 | 모든 논리 관계 FK 선언 + relationship 정의 |
@@ -820,7 +822,7 @@ P1 안에서도 프론트가 아직 안 읽는 컬럼(checklist 등)은 nullable
 | 19 | 마이그레이션 번호 충돌·no-op 병합 | 선형 리비전 유지, 브랜치 시 즉시 병합 리비전 |
 | 20 | 감사·운영 상태 혼재(snapshot PK=request_id) | evidence(감사)와 runs(운영 상태) 분리, 각자 이력 보존 |
 
-## 13. 결정 기록 (2026-07-12 — 백엔드 스캐폴드 착수 시 확정)
+## 13. 결정 기록 (2026-07-13)
 
 > 이 절은 원래 "미결 사항" 8건을 나열했다. 아래는 그것들을 다시 검토한 결과다 — **기계적·저위험 판단은 이 자리에서 확정**했고(엔지니어링 재량 범위), **법무·오너 승인이 필요한 것은 임의로 확정하지 않고** 권장 기본값과 함께 "제안"으로 명시해 남겼다. 제안 항목을 결정으로 승격하려면 이 문서를 실제로 고쳐야 한다(암묵적 승인 금지).
 
@@ -831,4 +833,4 @@ P1 안에서도 프론트가 아직 안 읽는 컬럼(checklist 등)은 nullable
 5. **행정사 패키지 산출물 포맷 — 결정: MVP는 내부 PDF만.** `package_exports.format`은 `pdf`만 허용하며 approved package에만 만들 수 있다. link/email/외부 전달은 delivery-outbox/adapter 마일스톤의 별도 migration으로 미룬다.
 6. **M1 승인 완료 카드 익일 처리 — 결정: 추가 컬럼·테이블 불필요, 일별 재발행이 자연히 해소한다.** `briefings`/`briefing_items`는 `(company_id, briefing_date)` 유니크라 매일 새 스냅샷을 만든다(§4.9). 완료된 케이스(`cases.state='completed'`)는 다음 날 브리핑 생성 쿼리가 열린 상태만 대상으로 하는 한 자연히 제외되므로, 익일 처리 정책은 브리핑 생성 SQL의 WHERE 절 하나로 해결된다 — 별도 "당일까지만 유지" 플래그가 필요 없다.
 7. **근로자 0명 계정 알림 mute — 결정: 실제 delivery 마일스톤으로 이연.** 현재 `notifications`는 전송 의도 큐일 뿐 외부 발송 상태·adapter가 없다. mute 정책은 delivery-outbox를 도입할 때 재검토한다.
-8. **표시 번호 시작값 — 결정: 신규 테넌트는 #0001부터.** `companies.case_seq`/`evidence_seq`의 SQLAlchemy 모델 기본값을 `0`으로 구현했다(`backend/app/models/company.py`) — 새 테넌트는 `case_001`/`#0001`부터 발급된다. 데모 세계관(#4783~#4797)은 `db/seed_demo.sql`에서 시드로만 주입하고, 실제 회사 레코드의 카운터도 그 최고값 이상으로 맞춰 다음 발급과 충돌하지 않게 한다.
+8. **표시 번호 시작값 — 결정: 신규 테넌트는 #0001부터.** `companies.case_seq`/`evidence_seq`의 DDL 기본값은 `0`이며, 새 테넌트는 `case_001`/`#0001`부터 발급된다. 데모 세계관(#4783~#4797)은 `db/seed_demo.sql`에서 시드로만 주입하고, 실제 회사 레코드의 카운터도 그 최고값 이상으로 맞춰 다음 발급과 충돌하지 않게 한다.

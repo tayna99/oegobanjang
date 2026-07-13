@@ -6,7 +6,7 @@
 |---|---|
 | `schema.sql` | 테이블 31개, 파생 뷰 4개, 테넌트·승인·감사 가드레일 |
 | `seed_demo.sql` | 6인 로스터와 판단 기록 데모 시드 |
-| `validate.cjs` | 테넌트 격리, 승인 상태, 외부 실행 차단을 포함한 145개 회귀 검증 |
+| `validate.cjs` | 테넌트 격리, 승인 상태, 외부 실행 차단을 포함한 160개 회귀 검증 |
 | `oegobanjang_design.sqlite3` | 재생성 가능한 Git 미추적 산출물 |
 
 ## DBeaver에서 열기
@@ -24,11 +24,11 @@
 node --experimental-sqlite db/validate.cjs
 ```
 
-검증은 설계 DB를 재생성한 뒤 스키마와 시드를 실행한다. 마지막 줄은 `Result: PASS 145 / FAIL 0`이어야 한다. Node 23.4+에서는 `--experimental-sqlite` 없이도 실행할 수 있다.
+검증은 설계 DB를 재생성한 뒤 스키마와 시드를 실행한다. 마지막 줄은 `Result: PASS 160 / FAIL 0`이어야 한다. Node 23.4+에서는 `--experimental-sqlite` 없이도 실행할 수 있다.
 
 ## 편집 규칙
 
 - 정본은 `docs/DB_SCHEMA.md`다. 스키마를 바꾸면 문서·DDL·시드·검증을 같은 PR에서 갱신한다.
-- 모든 서비스 DB 연결은 생성 직후 `PRAGMA foreign_keys=ON`을 적용하고, 활성 상태를 검사한다. 실제 SQLAlchemy/Alembic 이관에서도 연결 훅으로 같은 계약을 유지한다.
+- 모든 서비스 DB 연결은 생성 직후 `PRAGMA foreign_keys=ON`을 적용하고, 활성 상태를 검사한다. 후속 ORM/migration 이식에서도 연결 훅으로 같은 계약을 유지한다. 이 PR에는 실행 backend가 없으므로 `db/schema.sql`이 현재 정본이다.
 - 시드 PK는 가독성을 위한 별칭이다. 실제 서비스 PK는 UUIDv7을 사용한다.
 - `*.sqlite3` 산출물은 커밋하지 않는다.

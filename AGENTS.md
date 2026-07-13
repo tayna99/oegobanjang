@@ -32,23 +32,22 @@ AI는 다음을 하지 않는다.
 
 ## 3. 현재 아키텍처
 
-현재 PR/브랜치의 운영 대상은 두 갈래다 — 프론트 MVP(`src/`)와 신규 백엔드 접속점(`backend/`, 2026-07-12부터).
+현재 PR/브랜치의 운영 대상은 루트의 모바일 우선 Vite + React MVP다.
 
 ```txt
 src/
 = 현재 제품 UI, 라우팅, 화면 상태, 데모 런 엔진
 
-backend/
-= 신규 서비스 API — FastAPI + SQLAlchemy + Alembic. docs/DB_SCHEMA.md가 스키마 설계 정본
-
 docs/, plans/, rules/
-= 프론트 MVP + 백엔드의 사양, 로드맵, 작업 규칙
+= 현재 프론트 MVP의 사양, 로드맵, 작업 규칙
 
 legacy/
 = 이전 FastAPI 백엔드, 데이터 파이프라인, Agent Runtime, eval, 기존 문서 보관 영역
 ```
 
-**`backend/`는 `legacy/backend/`의 부활이 아니라 신규 구현이다.** `docs/DB_SCHEMA.md`(§10 P1/P2/P3 단계 도입)를 정본으로 처음부터 다시 설계했고, 레거시 결함 20건(`docs/DB_SCHEMA.md` §12 — 런타임 `ALTER TABLE`, ORM relationship 부재, `create_all()` 산재 등)을 의도적으로 피한다. 현재는 **P1 코어 18테이블**(모델·유일한 Alembic 리비전·가드레일 테스트)까지 있고, API 라우터는 화면이 백엔드에 붙는 순서대로 점진 추가한다(진행 상황은 `backend/README.md` + `plans/HANDOFF.md`). **Agent Runtime은 아직 신규 `backend/`로 이관되지 않았다** — 계속 `legacy/backend/app/agent_runtime/`에만 있으며, 이관은 별도 mission의 몫이다.
+루트에는 더 이상 운영 대상 `backend/` 디렉터리가 없다. `legacy/backend/`는 이전 백엔드와 Agent Runtime을 보존한 경로이며, 새 프론트 MVP 작업의 production import 대상이 아니다.
+
+Agent Runtime 관련 코드는 legacy 영역에 남아 있다.
 
 ```txt
 legacy/backend/app/agent_runtime/
@@ -60,7 +59,7 @@ legacy/backend/app/agent_runtime/
 └─ schemas/
 ```
 
-Agent Runtime 또는 기존 legacy 백엔드 복구/이관 mission이 명시된 경우에만 `legacy/backend/`를 수정한다. 신규 `backend/`(서비스 API) 작업은 이 조건과 무관하게 항상 유효한 대상이다 — `legacy/backend/`와 완전히 별개 트리로 취급한다. 그 외 일반 MVP 화면 작업은 `src/`, `docs/`, `plans/`, `rules/`를 중심으로 진행한다.
+Agent Runtime 또는 기존 백엔드 복구/이관 mission이 명시된 경우에만 `legacy/backend/`를 수정한다. 그 외 일반 MVP 화면 작업은 `src/`, `docs/`, `plans/`, `rules/`를 중심으로 진행한다.
 
 ---
 
@@ -78,14 +77,6 @@ plans/HANDOFF.md
 rules/design.md
 rules/frontend.md
 rules/safety.md
-```
-
-신규 `backend/` 작업자는 추가로 아래 문서를 확인한다.
-
-```txt
-docs/DB_SCHEMA.md        # 스키마 설계 정본 — §4 테이블 정의, §5 가드레일, §8 프론트 계약 매핑
-backend/README.md        # 세팅·마이그레이션·테스트 방법, 알려진 스코프 경계
-db/README.md             # DBeaver로 스키마를 직접 열어볼 때
 ```
 
 legacy 백엔드 또는 Agent Runtime 작업자는 추가로 아래 문서를 확인한다.
@@ -122,15 +113,6 @@ src/
 docs/
 plans/
 rules/
-```
-
-신규 `backend/` 작업 중에는 아래 영역을 중심으로 수정한다.
-
-```txt
-backend/app/
-backend/migrations/
-backend/tests/
-docs/DB_SCHEMA.md   # 스키마를 바꾸면 모델·마이그레이션과 같은 PR에서 함께 갱신
 ```
 
 legacy 백엔드/Agent 작업이 명시된 경우에는 아래 영역을 중심으로 수정한다.
@@ -199,12 +181,6 @@ Agent 또는 UI 플로우는 이런 작업을 만나면 `approval_required=true`
 
 ```bash
 npm run verify
-```
-
-신규 `backend/`를 수정한 경우 아래 명령을 사용한다.
-
-```bash
-cd backend && uv run pytest
 ```
 
 legacy 백엔드/Agent Runtime을 수정한 경우에는 해당 legacy 검증도 함께 수행한다.

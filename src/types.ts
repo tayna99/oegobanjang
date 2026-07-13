@@ -85,7 +85,8 @@ export interface CitationRecord extends Citation {
 export interface Approval {
   actionId: string;
   status: ApprovalStatus;
-  idempotencyKey: string; // 중복 승인 차단 키 (GOTCHAS §2)
+  // pending 요청에는 결정 키가 아직 없고, decide()에서만 non-empty 키를 기록한다.
+  idempotencyKey: string | null; // 중복 승인 차단 키 (GOTCHAS §2)
   reason?: string; // 반려 사유 — "반려 시 사유가 판단 기록에 남고 요청이 되돌아갑니다" (Mobile §2c)
 }
 
