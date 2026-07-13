@@ -18,6 +18,19 @@
 
 ---
 
+### [2026-07-13] PC 케이스 테이블 보강(4a) — Phase 3a 완료
+- 한 일: `CaseWorkbench.tsx` 목록 행에 "담당 OO"(`card.assignee ?? '—'`)와 서류 준비율
+  분수("N/M", `CASE_SHEETS[id].docs`가 있는 케이스만)를 추가.
+- 결정 사항: 목업 4a가 제안한 프리셋 필터 5종(이번달 D-30 진입/서류준비율 80%↓/행정사
+  전달예정 등)은 **채택하지 않음** — 기존 `lib/cases.ts` `CASE_FILTERS`는 모바일
+  `CaseListScreen.tsx`와 공유되는 필터 세트라, 여길 바꾸면 모바일까지 영향받고 별도 IA
+  결정(2.5.6 HANDOFF의 "PC 나비 라벨 미결"과 같은 성격)이 필요해 이번 스코프 밖으로
+  분리(2026-07-13 델타 감사 §3에서 "부분 확장"으로 이미 분류해 둔 범위 그대로).
+- verify 상태: PASS — `tsc`/`vitest run`(329/329, 신규 1건)/`vite build` 클린.
+- 지도/규칙 갱신: `plans/ROADMAP.md` 4.5a 완료 표시.
+
+---
+
 ### [2026-07-13] CSV 일괄 등록(4.4) 구현 — Phase 2 완료
 - 한 일: `외고반장 CSV 업로드.dc.html` §1a를 PC 워크벤치 화면으로 이식. `lib/csvUpload.ts` —
   `validateRows()`(필수값 누락=헤더 누락과 동치·이름 중복=사번 중복 대체·ISO 날짜 형식,

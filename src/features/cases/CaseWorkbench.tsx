@@ -84,6 +84,9 @@ function CaseListRow({
   const percent = readinessPercent(card, sheet);
   const due = card.dDay !== undefined ? dDayLabel(card.dDay) : '—';
   const dueClass = dDayTextClass(card.dDay);
+  // 서류 준비율 분수(PC 4a 델타) — sheet.docs가 있는 케이스만(전부 이 정밀도로 채워져
+  // 있지 않다, 없으면 진행바 퍼센트만으로 충분).
+  const docsFraction = sheet?.docs ? `${sheet.docs.filter((d) => d.status === 'received').length}/${sheet.docs.length}` : undefined;
 
   return (
     <button
@@ -109,12 +112,17 @@ function CaseListRow({
         <span className="truncate text-pc-sm font-semibold text-ink">{card.title}</span>
         <span className="truncate text-pc-2xs text-subtle">
           {card.workerRef ? `${card.workerRef.team} · ${groupLabelFor(card)}` : groupLabelFor(card)}
+          {' · 담당 '}
+          {card.assignee ?? '—'}
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
         <span className={cn('text-pc-xs font-bold tabular-nums', dueClass)}>{due}</span>
-        <span className="h-[3px] w-11 overflow-hidden rounded-full bg-neutbg">
-          <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+        <span className="flex items-center gap-1">
+          {docsFraction && <span className="text-pc-2xs tabular-nums text-faint">{docsFraction}</span>}
+          <span className="h-[3px] w-11 overflow-hidden rounded-full bg-neutbg">
+            <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+          </span>
         </span>
       </span>
     </button>

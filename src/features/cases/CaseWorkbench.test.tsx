@@ -61,6 +61,14 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     expect(within(evidenceRail).getByText('가능/불가능 판단은 제공하지 않습니다.')).toBeInTheDocument();
   });
 
+  // PC 4a 델타(2026-07-13) — 목록 레일에 담당·서류 준비율을 노출한다.
+  it('목록 행에 담당자와 서류 준비율 분수를 보여준다', () => {
+    renderAt('/cases');
+    const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
+    expect(within(listRail).getByRole('button', { name: '체류기간 연장 서류 요청' })).toHaveTextContent('담당 김담당');
+    expect(within(listRail).getByRole('button', { name: '계약 만료 사전 모니터링' })).toHaveTextContent('담당 —');
+  });
+
   it('목록 행 클릭이 URL(/case/:caseId)과 상세 패널을 동기화한다', async () => {
     const router = renderAt('/cases');
     const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
