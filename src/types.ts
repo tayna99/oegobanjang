@@ -16,7 +16,9 @@ export type CaseState =
 // 별개 축: 에이전트가 케이스를 어디까지 준비했는지를 나타낸다.
 export type AgentStage = 'detected' | 'collecting' | 'drafted' | 'awaiting_approval' | 'executed';
 
-export type Role = 'manager' /* 담당자 */ | 'owner' /* 대표 */;
+// 7단계 권한모델 §1 — 앱에 로그인해 쓰는 3역할만(운영급 RBAC). 행정사(expert)는 계정이 아니라
+// 패키지 링크 토큰으로 접근하므로 이 유니온(roleStore의 "지금 보고 있는 페르소나")에 넣지 않는다.
+export type Role = 'manager' /* 담당자 */ | 'owner' /* 대표 */ | 'viewer' /* 열람자 */;
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'locked';
 
@@ -89,6 +91,9 @@ export interface Approval {
 }
 
 // Evidence Log 이벤트 타입 (AGENTS.md §9). 원문·PII 필드는 두지 않는다 — 해시만.
+// 7단계 §5 권한 이벤트 9종 추가(운영급 RBAC). 스펙의 approval_granted{decided_by,on_behalf_of}는
+// 별도 타입을 만들지 않는다 — 기존 approval_decided + actor 문자열 관용구("김담당 (본인 확인
+// 완료)"/"김담당 (대리 승인 · 위임: 김대표)")가 이미 그 정보를 담는다(코드리뷰 F1급 중복 방지).
 export type EvidenceType =
   | 'intent_classified'
   | 'plan_created'
@@ -101,7 +106,16 @@ export type EvidenceType =
   | 'review_started' // 사례 검토 진입 (Mobile §2d 타임라인, 블루프린트 §3)
   | 'checklist_completed' // 승인 체크리스트 완료 (Mobile §2d)
   | 'exported' // 패키지 내보내기 (PC §3c 감사 로그 '내보내기' — export_00NN)
-  | 'final_response_generated';
+  | 'final_response_generated'
+  | 'role_granted' // 구성원 초대·역할 부여(7단계 §5)
+  | 'role_changed' // 구성원 역할 변경
+  | 'member_invited'
+  | 'member_removed'
+  | 'delegation_granted' // 위임 설정(7단계 §3.1)
+  | 'delegation_revoked' // 위임 해제
+  | 'approval_escalated' // 미응답 에스컬레이션(7단계 §3.2, reason 예: 'timeout_72h')
+  | 'package_link_issued' // 행정사 패키지 링크 발급/재발급
+  | 'package_link_viewed'; // 행정사가 링크로 패키지를 열람
 
 export interface EvidenceEvent {
   id: string;
@@ -115,3 +129,24 @@ export interface EvidenceEvent {
   actor?: string; // "시스템" | "김담당 (본인 확인 완료)" — 원문 개인정보 아님
   evidenceRef?: string; // "#4789" 표시용 판단 기록 번호 (id와 별개 — id는 내부 식별자)
 }
+
+// --- 7단계 권한모델 — 회사(tenant) 설정 계약 ---
+
+// 앱에 로그인하는 구성원 — 행정사(expert)는 계정이 아니라 패키지 링크라 여기 없다(7단계 §1).
+export interface CompanyMember {
+  id: string;
+  name: string;
+  role: Role;
+}
+
+// 승인 위임(7단계 §3.1) — ownerId가 delegateId(manager)에게 위임한 기간.
+export interface DelegationConfig {
+  active: boolean;
+  ownerId: string;
+  delegateId: string;
+  from: string; // 'YYYY-MM-DD'
+  until?: string; // 'YYYY-MM-DD' — 없으면 무기한
+}
+
+// 회사 승인 정책(7단계 §2 각주1) — owner_only(기본, 20인 미만) | manager_allowed(20인 이상).
+export type ApprovalPolicy = 'owner_only' | 'manager_allowed';

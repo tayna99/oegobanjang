@@ -72,14 +72,15 @@ describe('4.3 승인 PIN + 대리 승인', () => {
     fireEvent.click(screen.getByRole('button', { name: '확인' }));
 
     await screen.findByRole('heading', { name: '승인 이력' });
-    expect(screen.getByText('김담당 (대리 승인 · 위임: 김대표)')).toBeInTheDocument();
+    // 운영급 RBAC 확장(7단계 §5 "누가(역할)") — actor에 역할 라벨이 접두된다.
+    expect(screen.getByText('담당자 김담당 (대리 승인 · 위임: 김대표)')).toBeInTheDocument();
 
     await waitFor(() =>
       expect(
         useEvidenceStore
           .getState()
           .events.find((e) => e.type === 'approval_decided' && e.caseId === 'nguyen')?.actor,
-      ).toBe('김담당 (대리 승인 · 위임: 김대표)'),
+      ).toBe('담당자 김담당 (대리 승인 · 위임: 김대표)'),
     );
   });
 
@@ -98,7 +99,7 @@ describe('4.3 승인 PIN + 대리 승인', () => {
     fireEvent.click(screen.getByRole('button', { name: '확인' }));
 
     await screen.findByRole('heading', { name: '승인 이력' });
-    expect(screen.getByText('김대표 (본인 확인 완료)')).toBeInTheDocument();
+    expect(screen.getByText('대표 김대표 (본인 확인 완료)')).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/case/nguyen/history');
   });
 

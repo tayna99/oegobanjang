@@ -7,6 +7,10 @@ const ALL_TYPES: EvidenceType[] = [
   'intent_classified', 'plan_created', 'tool_executed', 'rag_retrieved', 'risk_flagged',
   'approval_requested', 'approval_decided', 'approval_rejected', 'review_started',
   'checklist_completed', 'exported', 'final_response_generated',
+  // 7단계 §5 권한 이벤트(운영급 RBAC 확장).
+  'role_granted', 'role_changed', 'member_invited', 'member_removed',
+  'delegation_granted', 'delegation_revoked', 'approval_escalated',
+  'package_link_issued', 'package_link_viewed',
 ];
 
 describe('audit type maps — 전 EvidenceType 커버(런타임 undefined 방지)', () => {
@@ -47,9 +51,10 @@ describe('filterAudit — §3c 필터 칩(전체/위험/승인/내보내기)', (
     expect(filterAudit(merged, 'risk').length).toBeGreaterThan(0);
   });
 
-  it('승인은 요청·완료·반려를 포함', () => {
+  it('승인은 요청·완료·반려·에스컬레이션을 포함', () => {
     const approvalTypes = new Set(filterAudit(merged, 'approval').map((e) => e.type));
-    expect([...approvalTypes].every((t) => ['approval_requested', 'approval_decided', 'approval_rejected'].includes(t))).toBe(true);
+    const allowed = ['approval_requested', 'approval_decided', 'approval_rejected', 'approval_escalated'];
+    expect([...approvalTypes].every((t) => allowed.includes(t))).toBe(true);
   });
 
   it('내보내기는 exported만 — 시드의 export_0031이 잡힌다', () => {

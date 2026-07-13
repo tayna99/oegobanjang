@@ -4,6 +4,7 @@ import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { usableCitations } from '@/stores/citationStore';
 import { RUN_CONFIGS } from '@/mocks/runs';
+import { ROLE_LABEL } from '@/lib/role';
 import type { CaseCard, Role } from '@/types';
 import type { CaseSheet } from '@/mocks/fixtures';
 
@@ -15,10 +16,13 @@ import type { CaseSheet } from '@/mocks/fixtures';
 export const CURRENT_USER = '김담당';
 // 데모 대표 페르소나(4.2 역할 모델) — owner로 전환 시 승인자 표시명.
 export const OWNER_NAME = '김대표';
-// 역할별 승인자 표시명 — types.ts EvidenceEvent.actor 규약("김담당 (본인 확인 완료)")의
-// 본인/대리 라벨은 approve()/reject()가 조합한다. PIN 게이트(4.3, ApprovePage)를
-// 통과해야 approve()가 호출되므로 "본인 확인 완료" 라벨이 그 사실을 담는다.
-const ACTOR_NAME: Record<Role, string> = { manager: CURRENT_USER, owner: OWNER_NAME };
+// 역할별 승인자 표시명 — viewer는 승인 자체가 불가(매트릭스 §2 "승인/반려: viewer –")라
+// 실제 경로를 타지 않지만 Record 완전성을 위해 채운다.
+const ACTOR_NAME: Record<Role, string> = { manager: CURRENT_USER, owner: OWNER_NAME, viewer: '최감사' };
+// M8 "누가(역할)·언제·본인/대리"(7단계 §5) — actor 문자열에 역할 라벨을 접두한다.
+function actorLabel(role: Role, suffix: string): string {
+  return `${ROLE_LABEL[role]} ${ACTOR_NAME[role]} (${suffix})`;
+}
 
 // 케이스의 승인 판단 기록 번호 — RUN_CONFIGS(approval)에서 파생. 하드코딩 금지(코드리뷰 F1).
 export function approvalRefFor(caseId: string): string | undefined {
@@ -82,7 +86,7 @@ export function useApprovalActions(): ApprovalActions {
         caseId: card.caseId,
         actionId,
         summary: `필수 ${checklistCount ?? 0}항목 확인 · 근거 ${usableCitations(sheet.citations).length}건 연결 확인`,
-        actor: actorName,
+        actor: `${ROLE_LABEL[role]} ${actorName}`,
       });
       appendEvidence({
         id: `${actionId}-approved`,
@@ -92,8 +96,8 @@ export function useApprovalActions(): ApprovalActions {
         actionId,
         evidenceRef: ref,
         summary: '승인 확정 · 발송 실행 가능 상태로 전환',
-        // 결정자·본인/대리 기록(4.3, 7단계 §3.1·§5 approval_granted 규약).
-        actor: onBehalf ? `${actorName} (대리 승인 · 위임: ${onBehalf})` : `${actorName} (본인 확인 완료)`,
+        // 결정자(역할 포함)·본인/대리 기록(4.3, 7단계 §3.1·§5 approval_granted 규약).
+        actor: onBehalf ? actorLabel(role, `대리 승인 · 위임: ${onBehalf}`) : actorLabel(role, '본인 확인 완료'),
       });
       transition(card.caseId, 'human_approved');
       // 파이프라인 단계도 실행으로 전진 — 안 하면 "승인 대기 N"이 큐와 모순(코드리뷰 A4).
@@ -116,7 +120,7 @@ export function useApprovalActions(): ApprovalActions {
         caseId: card.caseId,
         actionId,
         summary: reason ? '반려 · 사유 기록됨' : '반려',
-        actor: `${actorName} (본인 확인 완료)`,
+        actor: actorLabel(role, '본인 확인 완료'),
       });
       transition(card.caseId, 'returned');
       return true;

@@ -5,6 +5,8 @@ import { IconBriefing, IconClock, IconFolder, IconMoon, IconMsg, IconSun } from 
 import { ROUTES } from '@/lib/routes';
 import { useThemeStore } from '@/stores/themeStore';
 import { useRoleStore } from '@/stores/roleStore';
+import { ROLE_LABEL } from '@/lib/role';
+import type { Role } from '@/types';
 
 const TABS = [
   // 아이콘·색 — Montage 공용 컴포넌트.dc.html §1(2.5.4b): 브리핑=문서형, 케이스=폴더, 기록=시계.
@@ -59,23 +61,24 @@ function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
-// 역할 전환 — 로그인/SSO 이전 MVP 데모 스위치(4.2). owner/manager 두 페르소나만 존재.
+// 역할 전환 — 로그인/SSO 이전 데모 스위치(4.2, 운영급 확장). 담당자→대표→열람자 순환.
+const ROLE_NEXT: Record<Role, Role> = { manager: 'owner', owner: 'viewer', viewer: 'manager' };
+
 function RoleToggle({ className }: { className?: string }) {
   const role = useRoleStore((s) => s.role);
   const toggleRole = useRoleStore((s) => s.toggleRole);
-  const isOwner = role === 'owner';
 
   return (
     <button
       type="button"
       onClick={toggleRole}
-      aria-label={isOwner ? '담당자로 보기 전환' : '대표로 보기 전환'}
+      aria-label={`${ROLE_LABEL[ROLE_NEXT[role]]}로 보기 전환`}
       className={cn(
         'flex h-9 shrink-0 items-center rounded-badge px-3 text-caption1 font-semibold text-muted shadow-outline transition-colors duration-btn ease-v2 active:bg-surface',
         className,
       )}
     >
-      {isOwner ? '대표' : '담당자'}
+      {ROLE_LABEL[role]}
     </button>
   );
 }

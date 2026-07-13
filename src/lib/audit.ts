@@ -19,6 +19,16 @@ export const AUDIT_TYPE_LABEL: Record<EvidenceType, string> = {
   checklist_completed: '체크리스트 완료',
   exported: '내보내기',
   final_response_generated: '응답 생성',
+  // 7단계 §5 권한 이벤트(운영급 RBAC 확장).
+  role_granted: '역할 부여',
+  role_changed: '역할 변경',
+  member_invited: '구성원 초대',
+  member_removed: '구성원 제거',
+  delegation_granted: '위임 설정',
+  delegation_revoked: '위임 해제',
+  approval_escalated: '승인 지연',
+  package_link_issued: '패키지 링크 발급',
+  package_link_viewed: '패키지 링크 열람',
 };
 
 export const AUDIT_TYPE_TONE: Record<EvidenceType, ChipTone> = {
@@ -34,6 +44,17 @@ export const AUDIT_TYPE_TONE: Record<EvidenceType, ChipTone> = {
   checklist_completed: 'draft',
   exported: 'neutral',
   final_response_generated: 'neutral',
+  // 역할 배지와 달리 이건 상태 톤이 필요한 감사 로그 칩 — 관리 이벤트는 neutral,
+  // 에스컬레이션만 위험 계열(high, risk_flagged/approval_rejected와 동일 취급).
+  role_granted: 'neutral',
+  role_changed: 'neutral',
+  member_invited: 'neutral',
+  member_removed: 'neutral',
+  delegation_granted: 'neutral',
+  delegation_revoked: 'neutral',
+  approval_escalated: 'high',
+  package_link_issued: 'neutral',
+  package_link_viewed: 'neutral',
 };
 
 export type AuditFilterKey = 'all' | 'risk' | 'approval' | 'export';
@@ -51,7 +72,11 @@ export const AUDIT_FILTERS: AuditFilter[] = [
   {
     key: 'approval',
     label: '승인',
-    match: (t) => t === 'approval_requested' || t === 'approval_decided' || t === 'approval_rejected',
+    match: (t) =>
+      t === 'approval_requested' ||
+      t === 'approval_decided' ||
+      t === 'approval_rejected' ||
+      t === 'approval_escalated', // 7단계 §3.2 에스컬레이션도 승인 흐름의 일부로 취급
   },
   { key: 'export', label: '내보내기', match: (t) => t === 'exported' },
 ];

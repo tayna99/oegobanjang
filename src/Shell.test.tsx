@@ -116,11 +116,11 @@ describe('Shell', () => {
     });
   });
 
-  // 4.2 역할 전환 — owner/manager 데모 스위치.
+  // 4.2/운영급 RBAC 확장 — 담당자→대표→열람자 3단 순환 데모 스위치.
   describe('역할 토글', () => {
     afterEach(() => useRoleStore.getState().reset());
 
-    it('버튼을 누르면 담당자 ↔ 대표로 전환된다', () => {
+    it('버튼을 누르면 담당자→대표→열람자→담당자로 순환한다', () => {
       renderShell('/');
 
       expect(screen.getAllByRole('button', { name: '대표로 보기 전환' }).length).toBeGreaterThan(0);
@@ -129,6 +129,12 @@ describe('Shell', () => {
         screen.getAllByRole('button', { name: '대표로 보기 전환' })[0].click();
       });
       expect(useRoleStore.getState().role).toBe('owner');
+      expect(screen.getAllByRole('button', { name: '열람자로 보기 전환' }).length).toBeGreaterThan(0);
+
+      act(() => {
+        screen.getAllByRole('button', { name: '열람자로 보기 전환' })[0].click();
+      });
+      expect(useRoleStore.getState().role).toBe('viewer');
       expect(screen.getAllByRole('button', { name: '담당자로 보기 전환' }).length).toBeGreaterThan(0);
 
       act(() => {
