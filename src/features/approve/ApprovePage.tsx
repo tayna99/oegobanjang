@@ -5,6 +5,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { SAFETY_NOTICE_TEXT } from '@/components/SafetyNotice';
 import { useApprovalActions, canApproveCase, isCitationLocked, OWNER_NAME } from '@/lib/approval';
+import { mergedAuditLog } from '@/lib/audit';
 import { dDayLabel } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
 import { DEMO_PIN, isValidPinFormat } from '@/lib/pin';
@@ -12,6 +13,8 @@ import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
 import { canTransition, useCaseStore } from '@/stores/caseStore';
 import { usableCitations } from '@/stores/citationStore';
+import { useCompanyStore } from '@/stores/companyStore';
+import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { cn } from '@/lib/cn';
 
@@ -25,8 +28,10 @@ export function ApprovePage() {
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
   const upsert = useCaseStore((s) => s.upsert);
-  const { approve, reject } = useApprovalActions();
+  const { approve, reject, requestOwnerApproval } = useApprovalActions();
   const role = useRoleStore((s) => s.role);
+  const approvalPolicy = useCompanyStore((s) => s.approvalPolicy);
+  const events = useEvidenceStore((s) => s.events);
 
   useEffect(() => {
     if (Object.keys(useCaseStore.getState().cases).length === 0) {
@@ -69,12 +74,52 @@ export function ApprovePage() {
     );
   }
 
+  // M4 라우트 가드(7단계 §6 "M4: viewer 진입 불가") — 열람자는 최종 승인 화면 자체에 못 들어온다.
+  if (role === 'viewer') {
+    return (
+      <div className="p-5">
+        <p className="text-body2 text-muted">열람자 권한으로는 최종 승인 화면에 진입할 수 없습니다.</p>
+        <Button variant="outline" className="mt-4" onClick={() => nav.toCase(card.caseId)}>
+          케이스로 돌아가기
+        </Button>
+      </div>
+    );
+  }
+
   const checkedCount = checklist.filter((label) => checkedLabels.has(label)).length;
   const allChecked = checkedCount === checklist.length && checklist.length > 0;
   // 고위험(기한 경과 blocked 등)은 승인 대상이 아니다 — 상태 전이 합법성으로 게이트(코드리뷰 A2/B3/F3).
   const approvable = canApproveCase(card, sheet);
   const citationLocked = isCitationLocked(sheet);
   const highRiskBlocked = !canTransition(card.state, 'human_approved');
+  // 공동대표(7단계 §3.3) — 다른 owner가 이미 결정한 케이스는 PIN 시트 대신 읽기전용 배너.
+  const alreadyDecided = card.state === 'human_approved';
+  const decidedByActor = alreadyDecided
+    ? mergedAuditLog(events).find((e) => e.caseId === card.caseId && e.type === 'approval_decided')?.actor
+    : undefined;
+  // owner_only 정책 하 manager는 대리 승인(체크박스)이 아니면 직접 승인할 수 없다(§2 각주1).
+  const needsOwnerApproval = role === 'manager' && approvalPolicy === 'owner_only' && !onBehalfChecked;
+
+  if (alreadyDecided) {
+    return (
+      <div className="flex min-h-dvh flex-col bg-canvas">
+        <BackHeader title="최종 승인" onBack={() => nav.toCase(card.caseId)} />
+        <main className="flex flex-1 flex-col gap-5 px-5 pt-4">
+          <section className="flex flex-col gap-1.5 rounded-in bg-approvalbg px-3.5 py-3">
+            <p className="text-label1 font-semibold text-approval">
+              {decidedByActor ? `${decidedByActor}이(가) 이미 결정했습니다` : '이미 결정된 케이스입니다'}
+            </p>
+            <p className="text-caption1 leading-relaxed text-approval">
+              공동대표 정책상 먼저 결정한 1인으로 확정됩니다 — 중복 결정은 필요하지 않습니다.
+            </p>
+          </section>
+          <Button variant="outline" onClick={() => nav.toCaseHistory(card.caseId)}>
+            판단 기록 보기
+          </Button>
+        </main>
+      </div>
+    );
+  }
 
   const toggle = (label: string) =>
     setCheckedLabels((current) => {
@@ -110,6 +155,11 @@ export function ApprovePage() {
       setPinOpen(false);
       nav.toCaseHistory(card.caseId);
     }
+  };
+  // owner_only 정책 하 manager의 "대표 승인 요청" — 결정이 아니라 요청 기록만 남긴다.
+  const onRequestOwnerApproval = () => {
+    requestOwnerApproval(card);
+    nav.toHome();
   };
   const onReject = () => {
     if (reject({ card, sheet, reason })) nav.toHome();
@@ -205,13 +255,14 @@ export function ApprovePage() {
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 flex flex-col gap-2 border-t border-hairline bg-canvas px-5 py-3">
+        {/* owner_only 정책(7단계 §2 각주1) — manager는 대리 승인 체크 없이는 직접 승인 대신 요청만. */}
         <Button
           variant="primary"
           className="w-full"
           disabled={!allChecked || citationLocked || !approvable}
-          onClick={onApprove}
+          onClick={needsOwnerApproval ? onRequestOwnerApproval : onApprove}
         >
-          승인하기
+          {needsOwnerApproval ? '대표 승인 요청' : '승인하기'}
         </Button>
         <Button variant="outline" size="sm" className="w-full" onClick={onReject}>
           반려하기

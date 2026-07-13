@@ -15,6 +15,8 @@ export interface ApprovalCardProps {
   data: CaseCard;
   onReview: () => void;
   offlineDisabled?: boolean;
+  /** 열람자(viewer)는 M1 CTA가 비활성(7단계 §6 "읽기 전용(버튼 비활성)"). */
+  readOnly?: boolean;
 }
 
 const SEVERITY_LABEL: Record<CaseCard['severity'], string> = {
@@ -24,7 +26,7 @@ const SEVERITY_LABEL: Record<CaseCard['severity'], string> = {
   LOW: '낮음',
 };
 
-export function ApprovalCard({ data, onReview, offlineDisabled }: ApprovalCardProps) {
+export function ApprovalCard({ data, onReview, offlineDisabled, readOnly }: ApprovalCardProps) {
   return (
     <Card data-case-id={data.caseId} className="mb-3 flex items-center gap-3 p-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -45,7 +47,7 @@ export function ApprovalCard({ data, onReview, offlineDisabled }: ApprovalCardPr
           </p>
         )}
       </div>
-      <Button variant="primary" size="sm" disabled={offlineDisabled} onClick={onReview} className="shrink-0">
+      <Button variant="primary" size="sm" disabled={offlineDisabled || readOnly} onClick={onReview} className="shrink-0">
         검토
       </Button>
     </Card>

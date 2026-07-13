@@ -13,6 +13,7 @@ import { draftForCase } from '@/mocks/drafts';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import { usableCitations } from '@/stores/citationStore';
+import { useRoleStore } from '@/stores/roleStore';
 
 // 2b 사례 검토 — reference/design-system/외고반장 Mobile.dc.html §2b(97~142행) 이식(M2.6.2).
 // M2 바텀시트를 대체하는 전면 페이지: 케이스 헤드 → 왜 확인이 필요한가요 → 누락 서류 →
@@ -30,6 +31,7 @@ export function CaseReviewPage() {
   const nav = useNav();
   const handleAction = useNextAction();
   const { reopenForReview } = useApprovalActions();
+  const role = useRoleStore((s) => s.role);
   const cases = useCaseStore((s) => s.cases);
   const upsert = useCaseStore((s) => s.upsert);
   const appendEvidence = useEvidenceStore((s) => s.append);
@@ -154,7 +156,8 @@ export function CaseReviewPage() {
 
         <section className="flex flex-col gap-2">
           <h3 className="text-caption1 font-bold text-subtle">연결 근거 ({usableCitations(citations).length})</h3>
-          {citations.length === 0 ? (
+          {/* 코드리뷰 지적: 0건 게이트가 raw citations.length를 써 헤더 카운트와 어긋났다. */}
+          {usableCitations(citations).length === 0 ? (
             <p className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
               공식 근거가 연결되지 않았습니다. 승인 전 확인이 필요합니다.
             </p>
@@ -205,7 +208,12 @@ export function CaseReviewPage() {
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 border-t border-hairline bg-canvas px-5 py-3">
-        {highRisk ? (
+        {/* M2 ActionBar 역할 분기(7단계 §6) — viewer는 버튼 없음(읽기 전용). */}
+        {role === 'viewer' ? (
+          <p className="flex h-btn items-center justify-center text-label1 text-faint">
+            열람자 권한으로는 검토만 가능합니다
+          </p>
+        ) : highRisk ? (
           // 고위험: 앱 승인 없이 행정사 전달 준비만(승인 후) — PC §3b 우측 레일과 동일 규칙.
           <span className="flex h-btn items-center justify-center gap-1.5 rounded-in text-label1 font-semibold text-faint shadow-outline">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">

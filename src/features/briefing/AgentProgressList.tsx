@@ -10,9 +10,11 @@ import type { CaseCard } from '@/types';
 export interface AgentProgressListProps {
   cards: CaseCard[];
   onOpenCase: (caseId: string) => void;
+  /** 열람자(viewer)는 M1 CTA가 비활성(7단계 §6 "읽기 전용(버튼 비활성)"). */
+  readOnly?: boolean;
 }
 
-export function AgentProgressList({ cards, onOpenCase }: AgentProgressListProps) {
+export function AgentProgressList({ cards, onOpenCase, readOnly }: AgentProgressListProps) {
   if (cards.length === 0) return null;
   return (
     <div className="overflow-hidden rounded-in border border-hairline bg-canvas">
@@ -23,8 +25,9 @@ export function AgentProgressList({ cards, onOpenCase }: AgentProgressListProps)
             key={card.caseId}
             type="button"
             aria-label={card.title}
+            disabled={readOnly}
             onClick={() => onOpenCase(card.caseId)}
-            className="flex min-h-12 w-full items-center gap-2.5 border-b border-hairline px-3.5 py-2.5 text-left last:border-none active:bg-surface"
+            className="flex min-h-12 w-full items-center gap-2.5 border-b border-hairline px-3.5 py-2.5 text-left last:border-none active:bg-surface disabled:opacity-50"
           >
             <Chip tone={agentStageTone(stage)}>{AGENT_STAGE_LABELS_SHORT[stage]}</Chip>
             <span className="min-w-0 flex-1 truncate text-label1 text-ink">

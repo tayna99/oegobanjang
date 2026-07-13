@@ -11,6 +11,7 @@ import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { CASE_SHEETS, type CaseSheet } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
 import { usableCitations } from '@/stores/citationStore';
+import { useRoleStore } from '@/stores/roleStore';
 import type { CaseCard, Severity } from '@/types';
 
 // PC 케이스 워크벤치(M2.5.4) — reference/design-system/외고반장 PC.dc.html §3b(234~455행)
@@ -288,8 +289,9 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
       )}
 
       <section className="flex flex-col gap-2">
-        <span className={RAIL_SECTION_TITLE}>연결 근거 ({sheet.citations.length})</span>
-        {sheet.citations.length === 0 ? (
+        {/* 코드리뷰 지적: 헤더 카운트·0건 게이트가 F등급을 세고 있었다 — citationLocked와 동일 규칙으로 교정. */}
+        <span className={RAIL_SECTION_TITLE}>연결 근거 ({usableCitations(sheet.citations).length})</span>
+        {usableCitations(sheet.citations).length === 0 ? (
           <p className="rounded-in bg-approvalbg px-3 py-2.5 text-caption1 leading-relaxed text-approval">
             공식 근거가 연결되지 않았습니다. 승인 전 확인이 필요합니다.
           </p>
@@ -382,6 +384,7 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
 export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter, onOpenRun }: CaseWorkbenchProps) {
   const [query, setQuery] = useState('');
   const handleAction = useNextAction();
+  const role = useRoleStore((s) => s.role);
 
   const groups = useMemo(() => buildCaseGroups(cards, preset), [cards, preset]);
   const visibleCards = useMemo(() => {
@@ -513,23 +516,29 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
                   </p>
                 </div>
               </div>
-              <div className="flex shrink-0 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleAction(selected.caseId, selected.secondaryAction)}
-                >
-                  {selected.secondaryAction.label}
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={citationLocked && selected.primaryAction.requiresApproval}
-                  onClick={() => handleAction(selected.caseId, selected.primaryAction)}
-                >
-                  {selected.primaryAction.label}
-                </Button>
-              </div>
+              {/* M2 ActionBar 역할 분기(7단계 §6) — owner는 승인하기 중심(초안 보기 숨김),
+                  manager는 둘 다, viewer는 버튼 없음. */}
+              {role !== 'viewer' && (
+                <div className="flex shrink-0 gap-2">
+                  {role === 'manager' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAction(selected.caseId, selected.secondaryAction)}
+                    >
+                      {selected.secondaryAction.label}
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={citationLocked && selected.primaryAction.requiresApproval}
+                    onClick={() => handleAction(selected.caseId, selected.primaryAction)}
+                  >
+                    {selected.primaryAction.label}
+                  </Button>
+                </div>
+              )}
             </header>
 
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-4">

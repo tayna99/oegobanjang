@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { BriefingScreen } from './BriefingScreen';
-import type { CaseCard } from '@/types';
+import type { CaseCard, Role } from '@/types';
 
 const HEADER = { companyName: '그린푸드 제조', date: '7월 10일 (금)', unreadNotifications: 0 };
 
@@ -38,10 +38,10 @@ const PROGRESS_CARD: CaseCard = {
   preparedRunRef: undefined,
 };
 
-function renderScreen(state: Parameters<typeof BriefingScreen>[0]['state']) {
+function renderScreen(state: Parameters<typeof BriefingScreen>[0]['state'], role: Role = 'manager') {
   return render(
     <MemoryRouter>
-      <BriefingScreen state={state} header={HEADER} onOpenCase={vi.fn()} onSeeAllCases={vi.fn()} />
+      <BriefingScreen state={state} header={HEADER} onOpenCase={vi.fn()} onSeeAllCases={vi.fn()} role={role} />
     </MemoryRouter>,
   );
 }
@@ -98,5 +98,21 @@ describe('BriefingScreen — 상태 5종', () => {
     renderScreen({ status: 'offline', cachedCards: [CARD], lastSyncedAt: '08:12' });
     expect(screen.getByText('오프라인 상태입니다 · 재연결 시 자동 동기화')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '검토' })).toBeDisabled();
+  });
+});
+
+// 7단계 §6 M1 홈 역할 분기(운영급 RBAC 확장).
+describe('BriefingScreen — 역할 분기', () => {
+  it('owner: 파이프라인 통계는 숨기고 승인 관련 커맨드바 suggestion을 보여준다', () => {
+    renderScreen({ status: 'default', cards: [CARD, PROGRESS_CARD] }, 'owner');
+    expect(screen.queryByLabelText('에이전트 파이프라인')).not.toBeInTheDocument();
+    expect(screen.getByText('오늘 승인 대기 요약해줘')).toBeInTheDocument();
+  });
+
+  it('viewer: CTA가 비활성화되고 커맨드바 자체가 없다', () => {
+    renderScreen({ status: 'default', cards: [CARD, PROGRESS_CARD] }, 'viewer');
+    expect(screen.getByRole('button', { name: '검토' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: PROGRESS_CARD.title })).toBeDisabled();
+    expect(screen.queryByPlaceholderText('AI에게 요청하기')).not.toBeInTheDocument();
   });
 });

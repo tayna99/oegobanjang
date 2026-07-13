@@ -35,6 +35,7 @@ export function BriefingHomePage() {
       }
       onOpenCase={(caseId) => nav.toCase(caseId)}
       onSeeAllCases={() => (CURRENT_WORKER_COUNT > 0 ? nav.toCases() : nav.toOnboardingWorkers())}
+      role={role}
     />
   );
 }

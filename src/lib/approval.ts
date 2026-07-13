@@ -54,6 +54,9 @@ export interface ApprovalActions {
   reject: (input: DecisionInput) => boolean;
   /** 반려된(returned) 케이스를 재검토 위해 승인 대기로 되돌린다 — 재승인 크래시 방지(코드리뷰 A1/B2). */
   reopenForReview: (card: CaseCard) => void;
+  /** owner_only 정책 하 manager의 "대표 승인 요청"(7단계 §2 각주1) — 상태 전이는 없다,
+   * 요청 기록만 남기고 owner의 결정을 기다린다. */
+  requestOwnerApproval: (card: CaseCard) => void;
 }
 
 export function useApprovalActions(): ApprovalActions {
@@ -130,6 +133,18 @@ export function useApprovalActions(): ApprovalActions {
       if (card.state !== 'returned') return;
       transition(card.caseId, 'approval_pending');
       requestApproval(card.primaryAction.actionId); // fresh pending 승인 요청
+    },
+
+    requestOwnerApproval: (card) => {
+      appendEvidence({
+        id: `${card.caseId}-owner-approval-requested-${Date.now()}`,
+        type: 'approval_requested',
+        at: new Date().toISOString(),
+        caseId: card.caseId,
+        actionId: card.primaryAction.actionId,
+        summary: '담당자가 대표 승인을 요청함(회사 정책: owner_only)',
+        actor: actorLabel(role, '요청'),
+      });
     },
   };
 }

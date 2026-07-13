@@ -3,6 +3,7 @@ import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routeConfig } from '@/router';
 import { useCaseStore } from '@/stores/caseStore';
+import { useRoleStore } from '@/stores/roleStore';
 
 // jsdom에는 matchMedia가 없다 — useIsDesktop 분기 덕에 기존 모바일 테스트는
 // 워크벤치를 전혀 만나지 않는다. 여기서는 데스크톱을 명시적으로 흉내낸다.
@@ -29,6 +30,7 @@ function renderAt(path: string) {
 afterEach(() => {
   // 다른 테스트 파일 환경을 오염시키지 않도록 원복.
   delete (window as { matchMedia?: unknown }).matchMedia;
+  useRoleStore.getState().reset();
 });
 
 describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
@@ -136,6 +138,23 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
       target: { value: 'Nguyen' },
     });
     expect(within(listRail).getByRole('button', { name: /체류기간 연장 서류 요청/ })).toBeInTheDocument();
+  });
+
+  // M2 ActionBar 역할 분기(7단계 §6, 운영급 RBAC 확장).
+  it('owner는 승인하기(primary)만 보고 상세 보기(secondary)는 숨는다', () => {
+    useRoleStore.getState().setRole('owner');
+    renderAt('/cases');
+    const detail = screen.getByRole('region', { name: '케이스 상세' });
+    expect(within(detail).getByRole('button', { name: '승인하기' })).toBeInTheDocument();
+    expect(within(detail).queryByRole('button', { name: '상세 보기' })).not.toBeInTheDocument();
+  });
+
+  it('viewer는 승인하기·상세 보기 버튼이 전부 없다', () => {
+    useRoleStore.getState().setRole('viewer');
+    renderAt('/cases');
+    const detail = screen.getByRole('region', { name: '케이스 상세' });
+    expect(within(detail).queryByRole('button', { name: '승인하기' })).not.toBeInTheDocument();
+    expect(within(detail).queryByRole('button', { name: '상세 보기' })).not.toBeInTheDocument();
   });
 });
 

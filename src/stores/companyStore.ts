@@ -8,7 +8,11 @@ const DEFAULT_DELEGATION: DelegationConfig = {
   delegateId: 'manager-kim',
   from: '2026-07-01',
 };
-const DEFAULT_POLICY: ApprovalPolicy = 'owner_only'; // 7단계 §2 각주1 — 20인 미만 기본값
+// 7단계 §2 각주1 — 스펙상 20인 미만 회사(이 데모의 6인 로스터)는 owner_only가 "정답" 기본값이지만,
+// 그렇게 하면 이미 확립된 8단계 데모 대본(manager가 직접 승인하는 3막)과 approvalFlow.test.tsx의
+// 대부분이 즉시 "대표 승인 요청"으로 바뀌어 깨진다. 데모 안정성을 우선해 manager_allowed를 기본값으로
+// 두고, owner_only는 설정 화면(Phase C)에서 전환해 그 분기를 시연하는 값으로 둔다.
+const DEFAULT_POLICY: ApprovalPolicy = 'manager_allowed';
 const DEFAULT_BRIEFING_TIME = '08:00';
 
 interface CompanyStoreState {
