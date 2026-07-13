@@ -69,6 +69,21 @@ exports[`routeConfig > 딥링크 맵과 1:1 대응하는 경로 구조를 유지
         "hasLoader": false,
         "path": "onboarding/workers",
       },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "settings",
+      },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "settings/members",
+      },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "settings/delegation",
+      },
     ],
     "hasLoader": false,
     "path": "(layout)",

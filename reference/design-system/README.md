@@ -12,6 +12,22 @@
 | `외고반장 Mobile.dc.html` | 프로젝트 루트 `외고반장 Mobile.dc.html` | 모바일 개편안(승인 큐 중심) 원본. 최초 검수에서는 보류였으나 **2026-07-11 사용자 지시로 디자인 소스 채택 대상에 포함** — 채택 설계는 design-first 블루프린트 문서를 따른다.
 | `Montage 공용 컴포넌트.dc.html` | 프로젝트 루트 `Montage 공용 컴포넌트.dc.html` | 자체 제작 컴포넌트 6종(모바일 탭바·BottomSheet·SafetyNotice 2종·OfflineBanner·Skeleton·StepTimeline)의 시각·모션 스펙 원본(2026-07-11 고정). `src/components/*`가 이 스펙과 정합해야 한다.
 
+## System-derived 화면 (디자인 소스 없음)
+
+`docs/DESIGN_FIRST_BLUEPRINT_2026-07-11.md` §9의 A등급("시스템 조립") 판정을 받아 목업 없이
+지은 화면. 대조 기준은 목업이 아니라 `rules/design.md` v2 + 컴포넌트 킷 + 가장 가까운
+채택 패턴(§9.1-A)이다 — §9.2가 요구하는 태깅을 여기 처음 실행한다.
+
+| 화면 | 파일 | 재사용한 패턴 |
+|---|---|---|
+| M6 응답 해석 | `src/features/messages/ThreadPage.tsx` | 2b `CaseReviewPage` 구조 |
+| M8 전역 판단 기록 | `src/features/governance/GlobalEvidencePage.tsx` | 2d `CaseHistoryPage` 타임라인 + PC §3c 감사 로그 행 |
+| M9 런/재생 | `src/features/run/RunScreen.tsx`, `RunPage.tsx` | `StepTimeline` + 2.5.4b 재설계 |
+| 커맨드바 | `src/features/briefing/CommandBar.tsx` | 홈 입력창 토큰 상속 |
+| 설정 허브 | `src/features/settings/SettingsHubPage.tsx` | 행 관용구(CaseWorkbench) + 세그먼트 버튼(CASE_FILTERS) — 운영급 RBAC 확장(7단계 §6), PC 목업의 "설정" 네비 라벨은 순텍스트라 아이콘 발명 없음 |
+| 구성원 관리 | `src/features/settings/MembersPage.tsx` | 행 관용구 + Chip(역할 배지는 상태 톤과 구분되게 neutral만) — 7단계 §5 |
+| 위임 관리 | `src/features/settings/DelegationPage.tsx` | 행 관용구(대상 선택) + 원시 `<input type="date">`(새 시각 결정 아님) — 7단계 §3.1 |
+
 ## 고정 방식 · 한계
 
 - claude.ai/design MCP(`DesignSync` 도구)의 `get_file`로 2026-07-11에 가져온 내용을 그대로 저장했다 — 사람이 손으로 편집하지 않았다.

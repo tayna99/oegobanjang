@@ -15,8 +15,12 @@ export const ROUTES = {
   evidence: (ref?: string) =>
     ref ? `/evidence?ref=${encodeURIComponent(ref)}` : '/evidence',
   package: (packageId: string) => `/package/${packageId}`,
+  packageLink: (packageId: string) => `/link/${packageId}`, // 행정사 무인증 링크(운영급 RBAC 확장)
   done: '/done',
   onboardingWorkers: '/onboarding/workers',
+  settings: '/settings', // 운영급 RBAC 확장(7단계 §6 "설정")
+  settingsMembers: '/settings/members',
+  settingsDelegation: '/settings/delegation',
 } as const;
 
 // react-router 자식 라우트의 path 세그먼트(선행 슬래시 없음).
@@ -33,4 +37,7 @@ export const ROUTE_PATHS = {
   package: 'package/:packageId',
   done: 'done',
   onboardingWorkers: 'onboarding/workers',
+  settings: 'settings',
+  settingsMembers: 'settings/members',
+  settingsDelegation: 'settings/delegation',
 } as const;

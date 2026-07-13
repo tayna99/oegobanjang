@@ -19,5 +19,8 @@ export function useNav() {
     toPackage: (packageId: string) => navigate(ROUTES.package(packageId)),
     toDone: (options?: NavigateOptions) => navigate(ROUTES.done, options),
     toOnboardingWorkers: () => navigate(ROUTES.onboardingWorkers),
+    toSettings: () => navigate(ROUTES.settings),
+    toSettingsMembers: () => navigate(ROUTES.settingsMembers),
+    toSettingsDelegation: () => navigate(ROUTES.settingsDelegation),
   };
 }

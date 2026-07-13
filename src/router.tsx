@@ -13,6 +13,9 @@ import { EvidencePage } from '@/features/governance/EvidencePage';
 import { MessagesPage } from '@/features/messages/MessagesPage';
 import { ThreadPage } from '@/features/messages/ThreadPage';
 import { PackagePage } from '@/features/packagePkg/PackagePage';
+import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
+import { MembersPage } from '@/features/settings/MembersPage';
+import { DelegationPage } from '@/features/settings/DelegationPage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -68,6 +71,9 @@ export const routeConfig: RouteObject[] = [
         path: ROUTE_PATHS.onboardingWorkers,
         element: <PlaceholderScreen name="근로자 등록" />,
       },
+      { path: ROUTE_PATHS.settings, element: <SettingsHubPage /> },
+      { path: ROUTE_PATHS.settingsMembers, element: <MembersPage /> },
+      { path: ROUTE_PATHS.settingsDelegation, element: <DelegationPage /> },
     ],
   },
 ];

@@ -17,8 +17,9 @@ export const CURRENT_USER = '김담당';
 // 데모 대표 페르소나(4.2 역할 모델) — owner로 전환 시 승인자 표시명.
 export const OWNER_NAME = '김대표';
 // 역할별 승인자 표시명 — viewer는 승인 자체가 불가(매트릭스 §2 "승인/반려: viewer –")라
-// 실제 경로를 타지 않지만 Record 완전성을 위해 채운다.
-const ACTOR_NAME: Record<Role, string> = { manager: CURRENT_USER, owner: OWNER_NAME, viewer: '최감사' };
+// 실제 경로를 타지 않지만 Record 완전성을 위해 채운다. lib/company.ts도 구성원/위임 evidence
+// actor에 재사용(데모 페르소나 이름의 단일 출처를 여기 하나로 유지).
+export const ACTOR_NAME: Record<Role, string> = { manager: CURRENT_USER, owner: OWNER_NAME, viewer: '최감사' };
 // M8 "누가(역할)·언제·본인/대리"(7단계 §5) — actor 문자열에 역할 라벨을 접두한다.
 function actorLabel(role: Role, suffix: string): string {
   return `${ROLE_LABEL[role]} ${ACTOR_NAME[role]} (${suffix})`;
