@@ -38,6 +38,7 @@ export function CaseWorkbenchPage({ selectedCaseId, filterOverride }: CaseWorkbe
       onSelectCase={(caseId) => nav.toCase(caseId, { state: { returnTo } })}
       onSelectFilter={nav.toCases}
       onOpenRun={(runRef) => nav.toRun(runRef)}
+      onImport={() => nav.toCasesImport()}
     />
   );
 }

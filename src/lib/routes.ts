@@ -5,6 +5,7 @@ export const ROUTES = {
   home: '/',
   cases: (filter?: string) =>
     filter ? `/cases?filter=${encodeURIComponent(filter)}` : '/cases',
+  casesImport: '/cases/import', // CSV 일괄 등록(4.4, PC 전용) — 케이스 하위 화면(4b)
   case: (caseId: string) => `/case/${caseId}`,
   caseDraft: (caseId: string) => `/case/${caseId}/draft`,
   caseApprove: (caseId: string) => `/case/${caseId}/approve`,
@@ -26,6 +27,7 @@ export const ROUTES = {
 // react-router 자식 라우트의 path 세그먼트(선행 슬래시 없음).
 export const ROUTE_PATHS = {
   cases: 'cases',
+  casesImport: 'cases/import',
   case: 'case/:caseId',
   caseDraft: 'case/:caseId/draft',
   caseApprove: 'case/:caseId/approve',

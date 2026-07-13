@@ -18,6 +18,34 @@
 
 ---
 
+### [2026-07-13] CSV 일괄 등록(4.4) 구현 — Phase 2 완료
+- 한 일: `외고반장 CSV 업로드.dc.html` §1a를 PC 워크벤치 화면으로 이식. `lib/csvUpload.ts` —
+  `validateRows()`(필수값 누락=헤더 누락과 동치·이름 중복=사번 중복 대체·ISO 날짜 형식,
+  오류>경고 우선순위) + `rowsToCards()`(정상 판정 행만 CaseCard 변환, `imp-` 접두 caseId로
+  기존 시드 로스터와 절대 충돌하지 않음). `CsvUploadPage`(useIsDesktop 분기, 모바일은
+  "PC에서 이용해 주세요" 안내 — 그린필드, 온보딩 O4 "PC 권장" 카드와 동일 톤) +
+  `CsvUploadWorkbench`(대기→검증 중→결과→완료 4단계, 실제 Shell 크롬 64px 그대로 재사용
+  — 목업의 52px 나비/컨트롤타워·거버넌스 라벨은 재현하지 않음). 등록 완료 시 evidence
+  1건(`plan_created` 재사용). `CaseWorkbench.tsx` 좌측 레일에 "CSV로 일괄 등록" 진입 버튼
+  추가(담당자 전용, `onImport` 콜백 prop — 기존 `onSelectCase`/`onSelectFilter`/`onOpenRun`과
+  동일한 프레젠테이션/컨테이너 분리 관례).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. 외국인등록번호는 온보딩과 동일하게 전체 마스킹만(`******-*******`) — CSV fixture
+     자체가 마스킹된 문자열로만 존재, 화면 어디에도 원문이 스쳐가지 않는다.
+  2. CSV 등록 화면은 **담당자 전용**(owner/viewer는 차단 안내만) — PC 재수입 목업의
+     "담당자 작업대 · 사장님 최소화" 프레이밍과 일치.
+  3. 등록되는 근로자 카드는 저단계(state:'draft', agentStage:'detected',
+     approvalRequired:false) — 아직 특정 이슈 없는 "신규 등록 확인" 케이스로 시작(oyunaa
+     템플릿과 동일 모양). 실행/승인 파이프라인은 건드리지 않는다(등록≠발송, 브리프 가드레일).
+  4. PC 4b(근로자 데이터 관리 상위 화면 — 근로자 목록 테이블 + 서류스캔)는 아직 미착수
+     (Phase 3b) — 이번엔 4b의 "CSV 가져오기" 하위 기능만 구현했다.
+- 검증: 브라우저 1440×900 실클릭으로 샘플 불러오기→검증→결과 필터→정상 6명 등록→완료
+  전 구간 확인, 케이스 워크벤치의 진입 버튼 클릭→라우팅까지 확인.
+- verify 상태: PASS — `tsc --noEmit` 클린, `vitest run`(328/328, 신규 10건 포함), `vite build` 성공.
+- 지도/규칙 갱신: `plans/ROADMAP.md` 4.4 ✅ 완료 표시(M4 표 + M4.5 표), 라우트 스냅샷 갱신.
+
+---
+
 ### [2026-07-13] 온보딩 O1~O5(4.1) 구현 — Phase 1 완료
 - 한 일: `외고반장 온보딩.dc.html`의 1a 인터랙티브 플로우를 그대로 이식. 단일 상태머신
   컴포넌트 `src/features/onboarding/OnboardingFlow.tsx` + 스텝 컴포넌트 5개

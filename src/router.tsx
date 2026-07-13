@@ -3,6 +3,7 @@ import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
 import { HomePage } from '@/features/HomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
+import { CsvUploadPage } from '@/features/cases/CsvUploadPage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { CaseHistoryPage } from '@/features/case/CaseHistoryPage';
 import { ApprovePage } from '@/features/approve/ApprovePage';
@@ -29,6 +30,8 @@ export const routeConfig: RouteObject[] = [
     children: [
       { index: true, element: <HomePage /> },
       { path: ROUTE_PATHS.cases, element: <CaseListPage /> },
+      // CSV 일괄 등록(4.4) — PC 전용(4b), case/:caseId보다 앞에 둘 필요는 없다(다른 최상위 세그먼트).
+      { path: ROUTE_PATHS.casesImport, element: <CsvUploadPage /> },
       {
         path: ROUTE_PATHS.case,
         loader: validateIdParam('caseId'),
