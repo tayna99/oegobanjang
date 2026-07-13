@@ -1,11 +1,20 @@
 import { Chip } from '@/components/Chip';
 import { useNav } from '@/lib/nav';
+import { useIsDesktop } from '@/lib/useIsDesktop';
 import { THREAD_LIST } from '@/mocks/messages';
+import { MessagesWorkbench } from './MessagesWorkbench';
 
 // 메시지 탭 — 스레드 목록(2.2). 목록엔 근로자 원문을 노출하지 않는다(GOTCHAS §3, 탭별기획 §3.2):
 // 상태 라벨(listLabel)만 표기하고 원문은 스레드 내부(ThreadPage)에서만 보여준다.
+// lg+에서는 PC 메시지 워크벤치(4c)로 분기 — 다른 케이스 컨테이너와 동일 관례.
 export function MessagesPage() {
   const nav = useNav();
+  const isDesktop = useIsDesktop();
+
+  if (isDesktop) {
+    return <MessagesWorkbench />;
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-screen-sm flex-col gap-4 px-4 pb-24 pt-5">
       <header className="flex flex-col gap-0.5">

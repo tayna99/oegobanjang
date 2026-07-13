@@ -18,6 +18,21 @@
 
 ---
 
+### [2026-07-13] PC 메시지 데스크톱 분기(4c) — Phase 3c 완료
+- 한 일: `MessagesPage.tsx`에 `useIsDesktop` 분기 추가(다른 케이스 컨테이너와 동일 관례) →
+  `MessagesWorkbench.tsx`(스레드 목록/대화(Bubble+M6 해석확인)/연결 케이스 3열). M6
+  해석확인 로직(evidence 기록 + 합법 전이만 상태 반영)은 `ThreadPage.tsx`(모바일)를 건드리지
+  않고 **독립적으로 재구현** — `CaseWorkbench`(PC)/`CaseReviewPage`(모바일) 관계와 동일
+  원칙("공유 데이터층, 플랫폼별 별도 프레젠테이션", JSX를 억지로 공유하지 않음).
+- **처음부터 시드 이펙트 포함**(Phase 3b에서 발견한 버그를 학습해 이번엔 처음부터 추가) —
+  `/messages` 직접 진입 시에도 caseStore가 비어 있으면 로스터를 시드해 "연결 케이스"가
+  항상 정확히 보인다.
+- verify 상태: PASS — `tsc`/`vitest run`(339/339, 신규 4건)/`vite build` 클린. 브라우저
+  1440×900 실검증으로 3열 렌더·해석확인→상태반영·스레드 전환 확인.
+- 지도/규칙 갱신: `plans/ROADMAP.md` 4.5c 완료 표시.
+
+---
+
 ### [2026-07-13] PC 근로자 데이터 관리(4b) 구현 — Phase 3b 완료
 - 한 일: `/cases/workers`(담당자 전용) 신설 — `WorkerDataPage`(useIsDesktop 분기, PC 전용 —
   `PcOnlyNotice` 공용 컴포넌트로 CsvUploadPage와 함께 리팩터) + `WorkerDataWorkbench`
