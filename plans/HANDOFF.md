@@ -18,6 +18,73 @@
 
 ---
 
+### [2026-07-13] 운영급 RBAC(7단계 전체) — 완료 (Phase A~D)
+- 한 일: 사용자 지시("운영급 RBAC로 해")로 4.2/4.3 MVP 축소판을
+  `reference/specs/7단계_권한모델_승인위임_v1.md` 전체로 확장. 4단계 커밋(각 phase마다
+  검증→커밋→푸시): **A**(f4258eb) Role 3종(manager/owner/viewer) + EvidenceType 9종(§5
+  role_granted/role_changed/member_invited/member_removed/delegation_granted/
+  delegation_revoked/approval_escalated/package_link_issued/package_link_viewed) +
+  CompanyMember/DelegationConfig/ApprovalPolicy 타입 + `companyStore`(순수 상태) +
+  `lib/company.ts`(evidence 오케스트레이션, lib/approval.ts와 동일 분리 원칙) +
+  M8 "누가(역할)" 요건(actor 문자열에 역할 라벨 접두: "담당자 김담당 (본인 확인 완료)").
+  **B**(166360f) 기존 화면(M1~M4) 역할 매트릭스 반영 — owner 통계 숨김+승인 관련
+  커맨드바 suggestions, M2 ActionBar 역할 분기(CaseReviewPage 모바일+CaseWorkbench PC),
+  M3(DraftPage) viewer 읽기전용, M4(ApprovePage) viewer 라우트 가드+정책 기반 "대표 승인
+  요청" 버튼 스왑(대리 체크박스 켜면 되돌아옴)+공동대표 읽기전용 배너(이미 human_approved면
+  evidence의 decided actor를 그대로 보여줌). **C**(174a0ec) 설정 화면 3종 신설(허브·구성원
+  관리·위임 관리) — PC 목업의 "설정" 네비 라벨이 순텍스트(아이콘 없음)라 RoleToggle과 동일한
+  텍스트 필 버튼 재사용, 새 아이콘 발명 안 함. `reference/design-system/README.md`에
+  "system-derived" 태깅을 실제로 처음 실행(기존 M6/M8/M9/커맨드바도 backfill). **D**(7de28f7)
+  행정사 패키지 링크 만료(7일)·재발급(manager 전용)·열람 로그(`package_link_viewed`) +
+  무인증 최상위 라우트 `/link/:packageId`(Shell 챙 없음, DocumentPreview 재사용) +
+  자동 에스컬레이션 프리시드(Siti 케이스에 `approval_escalated` evidence 1건 →
+  모바일 M1 큐에 "승인 지연" Chip).
+- 남은 일 / 중단 지점: 없음(Phase A~D 전부 완료, 브라우저 실측까지). 남은 로드맵은
+  스펙 §7 "미해결 → 후속" 그대로(viewer M8 PII 마스킹 차등, expert 화이트라벨, 정책
+  케이스유형별 세분화) + **4.1 온보딩·4.4 CSV**(B-tier, Claude Design 목업 선행 필요 —
+  브리프는 이미 작성·커밋됨).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  - **목업 불필요 판단**: 3개 Explore + 1개 Plan 에이전트가 실제 파일 대조 검증 —
+    PC 목업의 "설정" 네비는 순텍스트(톱니바퀴 SVG 없음, 초기 조사에서 있다고 잘못
+    보고됐던 걸 재확인해 정정), 구성원/위임/정책은 전부 기존 채택 패턴(행 목록·
+    세그먼트 버튼)으로 조립되고, 행정사 링크는 이미 얼어붙은 PC §2d 콘텐츠의 상태
+    확장(만료·열람로그)이지 새 화면이 아니다. 진짜 새 시각 결정(온보딩의 "연출",
+    CSV의 "드롭존+행 검증")과 달리 여기는 전부 "이미 있는 결정을 새 데이터에 적용".
+  - **companyStore.approvalPolicy 기본값 = manager_allowed**(스펙상 20인 미만 회사는
+    owner_only가 "정답"이지만, 그러면 8단계 데모 대본·approvalFlow.test.tsx 대부분이
+    즉시 "대표 승인 요청"으로 깨진다 — 설정 화면에서 owner_only로 전환해 그 분기를
+    시연). 승인 정책 전환 시 manager의 "승인하기" 버튼이 "대표 승인 요청"으로 즉시
+    바뀌는 건 대리 체크박스 상태에 반응형(`needsOwnerApproval = role==='manager' &&
+    policy==='owner_only' && !onBehalfChecked`).
+  - **공동대표는 메커니즘만 구현**(ApprovePage의 이미-결정됨 배너, Phase B에서 유닛
+    테스트 완료) — 6인 활성 로스터에 영구 프리셋 케이스를 추가하지 않았다(기존 승인
+    대기 카운트 테스트·데모 대본 보존 우선). 시연하려면 어떤 케이스든 `human_approved`
+    +다른 이름의 decided actor를 evidenceStore에 넣으면 즉시 배너가 뜬다.
+  - **role_granted vs member_invited**: 스펙이 별개 evidence 타입으로 나눠 정의해
+    `inviteMember()`가 두 이벤트를 모두 남긴다(멤버십 사실 vs 권한 부여 사실, 서로
+    다른 감사 관심사).
+  - 이 세션 동안 **다른 프로세스(코드리뷰/린터로 추정)가 동시에 여러 파일을 수정**
+    했다(`CaseWorkbench.tsx`/`CaseReviewPage.tsx`/`mocks/runs.ts`(#4712 재생 런
+    수정)/`PackagePage.tsx`/`mocks/packages.ts`/`citationStore.ts`/`ControlTowerPage.tsx`
+    /`GovernancePage.tsx`/`ThreadPage.tsx` 등 + `KpiTile.tsx`/`sectionTitle.ts` 신규).
+    각 phase 커밋마다 `git add`를 파일별로 명시해 그 변경들과 섞이지 않게 스코프를
+    지켰다 — 아직 커밋되지 않은 그 변경들이 남아있을 수 있으니 다음 세션은 `git
+    status`로 먼저 확인할 것(이 세션이 건드리지 않은 별도 작업이라 함부로 되돌리지
+    않는다).
+- verify 상태: PASS 각 phase마다(A: 49f/279t, B: 51f/290t, C: 54f/302t, D: 56f/314t,
+  전부 typecheck 0·build OK). 전체 스위트에서 `CaseWorkbench.test.tsx`의 tranCase
+  딥링크 테스트가 병렬부하로 2~3회 플레이크(격리·전체 재실행 모두 그린 확인, 회귀
+  아님 — 기존에도 문서화된 패턴). 브라우저 실측: 3단 역할 순환(담당자→대표→열람자),
+  owner_only 정책 시 manager의 "대표 승인 요청" 버튼(유닛테스트로 확인, 브라우저는
+  store 직접 접근이 어려워 생략), 설정 3화면 role별 가시성, 위임 설정 플로우,
+  `/link/:packageId` 무인증 렌더(Shell 없음), siti 카드 "승인 지연" Chip, 콘솔 에러 0
+  (stale 과거 HMR 에러 제외, 타 프로세스 파일 대상).
+- 지도/규칙 갱신: ROADMAP에 "✅ 4.2/4.3 확장 — 운영급 RBAC" 섹션 신설(Phase A~D
+  커밋 매핑 + 의도적으로 다루지 않은 것 명시). `reference/design-system/README.md`에
+  "System-derived 화면" 섹션 신설(기존 M6/M8/M9/커맨드바 + 신규 설정 3종 backfill).
+
+---
+
 ### [2026-07-13] M4 4.2+4.3 — 완료 (역할 분기 + 승인 PIN/대리 배지)
 - 한 일: **4.2** `src/stores/roleStore.ts` 신설(`role: 'manager'|'owner'`, 세션 한정) — `Shell.tsx`에 `RoleToggle`(담당자/대표 전환 pill, 데스크톱 헤더+모바일 고정 코너). `BriefingHomePage.tsx`의 하드코딩 `CURRENT_ROLE`을 이 스토어로 교체해 기존 `visibleCardsForRole`(lib/briefing.ts, 이미 테스트돼 있었음)을 처음 활성화(owner는 승인 필요 카드만). `RunConfig.writesData` 추가(커맨드 런 #4797에 설정) + `RunPage.tsx` 라우트 가드 — owner가 쓰기 도구 커맨드 런에 진입하면 스트리밍 대신 `RunScreen` `{status:'error', reason:'blocked'}`로 차단 안내(approval-mode 런은 게이트 안 함, owner의 M4 진입은 허용). **4.3** `src/lib/pin.ts`(`DEMO_PIN='1234'`, 형식 검증) — `ApprovePage.tsx`에 승인하기 클릭 시 `BottomSheet`(§2b/M2 승인 모달 공용 컴포넌트, "PIN 목업" 용도로 첫 실사용) PIN 게이트 삽입: 형식 오류/불일치 각각 다른 에러, 재시도 가능. **대리 승인 체크박스**(role==='manager'일 때만 노출) 체크 시 `onBehalf: OWNER_NAME`을 `approve()`에 전달. `lib/approval.ts`가 `useRoleStore`를 읽어 역할별 승인자명(`김담당`/`김대표`) 계산, evidence actor를 `"{name} (본인 확인 완료)"` / `"{name} (대리 승인 · 위임: 김대표)"`로 기록 — 이 문자열 규약은 `types.ts`의 `EvidenceEvent.actor` 필드 주석에 이미 예시로 있던 것을 처음 실현.
 - 남은 일 / 중단 지점: 없음(4.2·4.3 전부 완료, 브라우저 실측까지). 남은 로드맵: **4.1 온보딩 O1~O5·4.4 CSV 업로드**(B-tier §9-B, Claude Design 목업 선행 필요 — 브리프는 `reference/design-system/design-briefs/`에 이미 작성·커밋됨).

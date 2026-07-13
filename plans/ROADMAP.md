@@ -80,6 +80,32 @@
 | ✅ 4.3 | 승인 본인확인 목업(PIN) + 대리 승인 배지 | L2 | 7단계 §3·4 | 승인 이벤트에 결정자·본인/대리 기록 — ApprovePage PIN 시트(고정 데모값+불일치 재시도) + 대리 체크박스, evidence actor "OO (본인 확인 완료)"/"OO (대리 승인 · 위임: 김대표)" |
 | 4.4 | CSV 일괄 업로드(PC) — 근로자 대량 등록, 4.1 온보딩과 동일 데이터 계약 공유 | L2 | 통합설계 D4·D6, 8단계 E4 | 잘못된 행(헤더 누락·중복 사번) 검증 실패 테스트, 성공 시 근로자 N명 스토어 반영 테스트 |
 
+## ✅ 4.2/4.3 확장 — 운영급 RBAC(7단계 권한모델·승인위임 전체)
+
+4.2/4.3의 MVP 축소판(owner/manager 2역할, 체크박스식 대리) 이후 사용자 지시로
+`reference/specs/7단계_권한모델_승인위임_v1.md` 전체를 구현했다. **목업 없이 진행** —
+근거는 3개 Explore + 1개 Plan 에이전트가 실제 파일(PC/Mobile .dc.html, 기존 컴포넌트)을
+대조 검증: 설정/구성원/위임/정책 화면은 전부 기존 채택 패턴(행 목록·세그먼트 버튼·체크박스)
+으로 조립 가능했고, 행정사 링크는 이미 얼어붙은 PC §2d 콘텐츠의 상태 확장이었다
+(블루프린트 §9.1-A와 동일 논리 — 자세한 판단 근거는 Phase A~D 커밋 메시지 참조).
+
+| Phase | 내용 | 커밋 |
+|---|---|---|
+| A | Role 3종(manager/owner/viewer) + EvidenceType 9종(§5) + CompanyMember/DelegationConfig/ApprovalPolicy + companyStore + M8 역할 라벨 접두 | f4258eb |
+| B | 기존 화면(M1~M4) 역할 매트릭스 반영 — owner 통계 숨김·M2 액션바 분기·정책 기반 "대표 승인 요청"·공동대표 배너·viewer 라우트 가드 | 166360f |
+| C | 설정 화면 3종 신설(구성원 관리·위임 관리·승인 정책), system-derived 태깅 첫 실행(기존 M6/M8/M9/커맨드바도 backfill) | 174a0ec |
+| D | 행정사 패키지 링크 만료(7일)·재발급·열람 로그 + 무인증 라우트(`/link/:packageId`) + 자동 에스컬레이션 프리시드("승인 지연" Chip) | 7de28f7 |
+
+**의도적으로 다루지 않은 것**(스펙 §7 "미해결 → 후속"과 동일 — 후속 파일럿 피드백 이후):
+- viewer의 M8 PII 마스킹 수준 차등, expert 화이트라벨 모드, 승인 정책 케이스유형별 세분화.
+- 공동대표 배너는 메커니즘 구현+테스트 완료(Phase B)이나, 6인 활성 로스터를 건드리는
+  영구 프리셋 케이스는 추가하지 않음(기존 승인 대기 카운트 테스트·8단계 데모 대본 보존).
+- 48h/72h 실시간 에스컬레이션 타이머 — 백엔드·다중 세션이 없어 물리적으로 불가능,
+  RunEngine 각본 철학과 동일하게 프리시드 evidence로 대체.
+- companyStore.approvalPolicy 기본값은 스펙상 "정답"인 owner_only 대신 manager_allowed —
+  owner_only를 기본값으로 두면 이미 확립된 8단계 데모 대본·approvalFlow.test.tsx 대부분이
+  즉시 "대표 승인 요청"으로 바뀌어 깨진다(설정 화면에서 owner_only로 전환해 그 분기 시연 가능).
+
 ## 백엔드 접속점 (이후 — 별도 계획)
 
 - mockApi → FastAPI(기존 Daily Briefing PRD 백엔드)로 교체. 계약: `src/types.ts` = PRD §11 Data Contracts
