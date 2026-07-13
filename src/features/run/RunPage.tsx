@@ -1,9 +1,7 @@
 import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useNav } from '@/lib/nav';
-import { canTransition, useCaseStore } from '@/stores/caseStore';
-import { useApprovalStore } from '@/stores/approvalStore';
-import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useCaseStore } from '@/stores/caseStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { useRunEngine } from '@/lib/useRunEngine';
 import { CASE_CARDS } from '@/mocks/fixtures';
@@ -12,9 +10,11 @@ import type { RunConfig } from '@/mocks/runs';
 import { RunScreen } from './RunScreen';
 import type { RunResultCase, RunViewState } from './RunScreen';
 
-// M9(/run/:runId) 컨테이너 — 재생(replay)·명령(command) 런을 runKey로 조회한다.
-// (승인 화면 /case/:caseId/approve는 M2.6.3에서 ApprovePage 체크리스트로 분리됐다 —
-// 이 컨테이너는 더 이상 caseId 승인 분기를 갖지 않는다, 코드리뷰 B/altitude 교정.)
+// M9(/run/:runId) 컨테이너 — 재생(replay)·명령(command)·승인(approval) 런을 runKey로 조회한다.
+// 케이스 승인 "결정" 자체는 여기서 절대 내리지 않는다 — PIN·citation-lock·체크리스트 게이트를
+// 모두 갖춘 ApprovePage(lib/approval.ts의 useApprovalActions 단일 출처)로만 넘긴다
+// (코드리뷰 CRITICAL 교정: 이 파일이 이전에 decide/transition/evidence를 직접 호출해
+// 게이트를 전부 우회하는 두 번째 승인 실행 경로였다).
 export function RunPage() {
   const { runId } = useParams<{ runId: string }>();
   const config = RUN_CONFIGS.find((c) => c.runKey === runId);
@@ -31,11 +31,6 @@ function RunPageContent({ config }: { config: RunConfig }) {
   const engine = useRunEngine(config);
   const cases = useCaseStore((s) => s.cases);
   const upsert = useCaseStore((s) => s.upsert);
-  const transition = useCaseStore((s) => s.transition);
-  const approvals = useApprovalStore((s) => s.approvals);
-  const requestApproval = useApprovalStore((s) => s.requestApproval);
-  const decide = useApprovalStore((s) => s.decide);
-  const appendEvidence = useEvidenceStore((s) => s.append);
   const role = useRoleStore((s) => s.role);
 
   useEffect(() => {
@@ -44,8 +39,6 @@ function RunPageContent({ config }: { config: RunConfig }) {
     }
   }, [upsert]);
 
-  const card = config.caseId ? cases[config.caseId] : undefined;
-
   // 3.2: 커맨드 런 결과 카드 대상 — 스토어 우선, 미시드 시 픽스처 폴백(제목·D-day 표시용).
   const resultCases: RunResultCase[] = (config.resultCaseIds ?? []).flatMap((id) => {
     const c = cases[id] ?? CASE_CARDS.find((x) => x.caseId === id);
@@ -53,33 +46,13 @@ function RunPageContent({ config }: { config: RunConfig }) {
   });
 
   const approve = () => {
-    if (!card || !config.caseId) {
-      nav.toDone({ state: { evidenceRef: config.evidenceRef } });
+    // 케이스에 연결된 승인 모드 런은 결정을 내리지 않고 게이트가 있는 화면으로 넘긴다.
+    if (config.caseId) {
+      nav.toApprove(config.caseId);
       return;
     }
-
-    const actionId = card.primaryAction.actionId;
-    if (!approvals[actionId]) requestApproval(actionId);
-
-    const key = `${actionId}:${config.evidenceRef}:approved`;
-    decide(actionId, 'approved', key);
-
-    if (canTransition(card.state, 'human_approved')) {
-      transition(config.caseId, 'human_approved');
-    }
-
-    appendEvidence({
-      id: `${actionId}-approved`,
-      type: 'approval_decided',
-      at: new Date().toISOString(),
-      caseId: config.caseId,
-      actionId,
-      evidenceRef: config.evidenceRef,
-      summary: '사람 승인 결정 저장',
-      actor: '담당자',
-    });
-
-    nav.toDone({ state: { caseTitle: card.title, evidenceRef: config.evidenceRef } });
+    // 케이스에 연결되지 않은 런(예: candidate 패키지 준비)은 결정할 케이스 상태가 없다.
+    nav.toDone({ state: { evidenceRef: config.evidenceRef } });
   };
 
   // 4.2 라우트 가드 — owner의 M9는 읽기성 요청만(7단계 §2 각주3). 케이스/초안 등

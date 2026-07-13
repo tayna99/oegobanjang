@@ -124,7 +124,9 @@ export function useApprovalActions(): ApprovalActions {
         caseId: card.caseId,
         actionId,
         summary: reason ? '반려 · 사유 기록됨' : '반려',
-        actor: actorLabel(role, '본인 확인 완료'),
+        // 반려는 PIN 게이트를 거치지 않는다(승인만 본인확인 대상, 4.3) — "본인 확인 완료"라고
+        // 기록하면 실제로 하지 않은 검증을 한 것처럼 남는다(코드리뷰 지적). 역할·이름만 기록.
+        actor: `${ROLE_LABEL[role]} ${ACTOR_NAME[role]}`,
       });
       transition(card.caseId, 'returned');
       return true;
