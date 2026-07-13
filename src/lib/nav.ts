@@ -10,6 +10,7 @@ export function useNav() {
     toCases: (filter?: string) => navigate(ROUTES.cases(filter)),
     toCasesImport: () => navigate(ROUTES.casesImport),
     toCasesWorkers: () => navigate(ROUTES.casesWorkers),
+    toCasesDispatch: () => navigate(ROUTES.casesDispatch),
     toCase: (caseId: string, options?: NavigateOptions) => navigate(ROUTES.case(caseId), options),
     toDraft: (caseId: string) => navigate(ROUTES.caseDraft(caseId)),
     toApprove: (caseId: string) => navigate(ROUTES.caseApprove(caseId)),

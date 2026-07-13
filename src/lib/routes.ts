@@ -7,6 +7,7 @@ export const ROUTES = {
     filter ? `/cases?filter=${encodeURIComponent(filter)}` : '/cases',
   casesImport: '/cases/import', // CSV 일괄 등록(4.4, PC 전용) — 케이스 하위 화면(4b)
   casesWorkers: '/cases/workers', // 근로자 데이터 관리(PC 4b, 신규 최상위 탭 아님)
+  casesDispatch: '/cases/dispatch', // 발송 실행 큐(PC 4d, 신규 최상위 탭 아님)
   case: (caseId: string) => `/case/${caseId}`,
   caseDraft: (caseId: string) => `/case/${caseId}/draft`,
   caseApprove: (caseId: string) => `/case/${caseId}/approve`,
@@ -30,6 +31,7 @@ export const ROUTE_PATHS = {
   cases: 'cases',
   casesImport: 'cases/import',
   casesWorkers: 'cases/workers',
+  casesDispatch: 'cases/dispatch',
   case: 'case/:caseId',
   caseDraft: 'case/:caseId/draft',
   caseApprove: 'case/:caseId/approve',

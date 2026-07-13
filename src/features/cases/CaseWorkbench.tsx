@@ -29,6 +29,7 @@ export interface CaseWorkbenchProps {
   onOpenRun?: (runRef: string) => void; // 3.3 런 체이닝 — 타임라인의 판단 기록 #을 눌러 재생 런으로 진입
   onImport?: () => void; // CSV 일괄 등록(4.4, PC 4b) 진입 — manager 전용
   onOpenWorkerData?: () => void; // 근로자 데이터 관리(PC 4b) 진입 — manager 전용
+  onOpenDispatch?: () => void; // 발송 실행 큐(PC 4d) 진입 — manager 전용
 }
 
 const SEVERITY_AVATAR: Record<Severity, string> = {
@@ -392,7 +393,7 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
   );
 }
 
-export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter, onOpenRun, onImport, onOpenWorkerData }: CaseWorkbenchProps) {
+export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter, onOpenRun, onImport, onOpenWorkerData, onOpenDispatch }: CaseWorkbenchProps) {
   const [query, setQuery] = useState('');
   const handleAction = useNextAction();
   const role = useRoleStore((s) => s.role);
@@ -453,9 +454,9 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
               );
             })}
           </div>
-          {/* 근로자 데이터 대량관리(PC 4b) 진입 — 담당자만(4b "케이스는 여기서 파생"). */}
-          {role === 'manager' && (onImport || onOpenWorkerData) && (
-            <div className="flex gap-1.5">
+          {/* 근로자 데이터 대량관리(4b)·발송 실행 큐(4d) 진입 — 담당자만. */}
+          {role === 'manager' && (onImport || onOpenWorkerData || onOpenDispatch) && (
+            <div className="flex flex-wrap gap-1.5">
               {onOpenWorkerData && (
                 <button
                   type="button"
@@ -463,6 +464,15 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
                   className="rounded-badge px-2 py-1 text-caption1 font-medium text-muted shadow-outline hover:bg-surface"
                 >
                   근로자 데이터
+                </button>
+              )}
+              {onOpenDispatch && (
+                <button
+                  type="button"
+                  onClick={onOpenDispatch}
+                  className="rounded-badge px-2 py-1 text-caption1 font-medium text-muted shadow-outline hover:bg-surface"
+                >
+                  발송 실행
                 </button>
               )}
               {onImport && (

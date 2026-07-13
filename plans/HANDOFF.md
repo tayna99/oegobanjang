@@ -18,6 +18,30 @@
 
 ---
 
+### [2026-07-13] PC 발송 실행 큐(4d) 구현 — Phase 3d 완료
+- 한 일: `/cases/dispatch`(담당자 전용) 신설. `mocks/dispatch.ts` — 각본 기반 고정
+  큐(`DISPATCH_QUEUE` 3건: Nguyen/Siti 메시지 발송·Batbayar 행정사 패키지 전달) + 이력
+  (`DISPATCH_HISTORY` 2건). `DispatchQueuePage`/`DispatchQueueWorkbench` — 실행 버튼
+  클릭 시 evidence(`dispatch_executed`) 기록 + 로컬 상태로 큐에서 제거, 우측 레일에
+  "최근 실행 이벤트"(이번 세션의 dispatch_executed만 실시간 표시) + 실행 규칙 안내.
+  `types.ts`에 신규 `EvidenceType` 2종(`dispatch_executed`/`delivery_confirmed`) 추가 —
+  `lib/audit.ts`의 `AUDIT_TYPE_LABEL`/`AUDIT_TYPE_TONE` 두 Record + `audit.test.ts`의
+  수기 `ALL_TYPES` 배열도 함께 갱신(exhaustiveness 테스트가 있어 안 하면 실패).
+  `CaseWorkbench.tsx` 좌측 레일에 "발송 실행" 진입 버튼 추가(담당자 전용).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. **큐는 실제 승인 파이프라인에 자동 연동되지 않는다** — `ApprovalStore`/`caseStore`가
+     `human_approved`로 바뀐다고 이 큐에 자동으로 항목이 추가되지 않는다(고정 목데이터).
+     승인 완료→큐 자동 반영은 스펙에 없던 후속 확장 항목으로 남겨둔다.
+  2. Batbayar 행정사 패키지 전달 항목("링크 발급" 버튼)은 실제 `lib/packageLink.ts`
+     재발급 로직과 **연결돼 있지 않다** — 단순화를 위해 다른 두 항목과 동일하게
+     `dispatch_executed` evidence만 남긴다(실제 패키지 링크 재발급은 `PackagePage`의
+     기존 "링크 재발급" 버튼이 전담).
+- verify 상태: PASS — `tsc`/`vitest run`(345/345, 신규 5건)/`vite build` 클린. 브라우저
+  1440×900 실검증으로 큐→실행→이력 갱신 확인.
+- 지도/규칙 갱신: `plans/ROADMAP.md` 4.5d 완료 표시.
+
+---
+
 ### [2026-07-13] PC 메시지 데스크톱 분기(4c) — Phase 3c 완료
 - 한 일: `MessagesPage.tsx`에 `useIsDesktop` 분기 추가(다른 케이스 컨테이너와 동일 관례) →
   `MessagesWorkbench.tsx`(스레드 목록/대화(Bubble+M6 해석확인)/연결 케이스 3열). M6

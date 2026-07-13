@@ -115,7 +115,9 @@ export type EvidenceType =
   | 'delegation_revoked' // 위임 해제
   | 'approval_escalated' // 미응답 에스컬레이션(7단계 §3.2, reason 예: 'timeout_72h')
   | 'package_link_issued' // 행정사 패키지 링크 발급/재발급
-  | 'package_link_viewed'; // 행정사가 링크로 패키지를 열람
+  | 'package_link_viewed' // 행정사가 링크로 패키지를 열람
+  | 'dispatch_executed' // 발송 실행 큐(PC 4d) — 승인 완료된 액션의 mock 발송 실행
+  | 'delivery_confirmed'; // 발송 실행 완료 후 전달/응답 확인(4d "실행 완료 · 전달됨" 등)
 
 export interface EvidenceEvent {
   id: string;
