@@ -21,17 +21,22 @@
 6. **PII는 세 겹으로 다룬다(§7).** ① 등록번호·여권번호 원문은 어떤 테이블에도 넣지 않는다(마스킹 값만). ② 근로자 원문 메시지·초안 전문은 그것을 표시하는 테이블(thread_messages, drafts)에만 있고, evidence·로그·패키지 JSON으로 절대 복사되지 않는다. ③ 운영 식별에는 `worker_id`만 쓴다.
 7. **현행 정본은 DDL이고, 이식 뒤에는 migration이 단일 진실원이다.** 런타임 `ALTER TABLE`·산재한 `create_all()`은 금지한다(레거시 최대 결함, §12-1). 이 PR에서는 `db/schema.sql`이 실행 정본이며, 후속 backend 이식은 이 계약을 Alembic revision + 모델 + 테스트로 동등하게 옮기는 별도 PR에서만 한다.
 
-## 1. 엔진·전환 전략
+## 1. 엔진 (PostgreSQL 단일화, 2026-07-13 확정)
 
-| 단계 | 엔진 | 규약 |
-|---|---|---|
-| 현행 설계 검증 | SQLite (`db/oegobanjang_design.sqlite3`, validator가 생성) | FK 강제(`PRAGMA foreign_keys=ON`), 부분 유니크 인덱스·CHECK·trigger 검증 |
-| 후속 backend 이식 | SQLite 또는 PostgreSQL 15+ | 이 DDL의 복합 FK·CHECK·trigger를 동등하게 이식. PostgreSQL에서는 JSONB·TIMESTAMPTZ·RLS로 테넌트 격리 이중화 |
+서비스 DB는 **PostgreSQL 16+**로 확정됐다. SQLite는 은퇴했다(설계 킷도 PG). 이 PR은 **감사된 DDL 계약**(설계 킷 + 문서)에 한정되며 실행 backend는 없다 — backend(SQLAlchemy/Alembic·API)는 별도 PR 범위다.
 
-- 이 PR의 실행 가능한 설계 정본은 `db/schema.sql`이고, 이 문서의 타입은 논리 타입이다: `uuid`(TEXT 저장), `text`, `int`, `bool`, `date`, `timestamptz`, `json`(SQLite=TEXT+DB CHECK, PG=JSONB). 실제 SQLAlchemy/Alembic 이식은 이 DDL의 FK·CHECK·trigger 계약을 그대로 옮기는 별도 migration에서 한다.
+| 항목 | 규약 |
+|---|---|
+| 엔진 | PostgreSQL 16+. FK는 항상 강제(연결 스위치 불필요) |
+| 타입 | `text` · `integer` · `boolean`(네이티브) · `date` · `timestamptz`(네이티브) · `jsonb`(입력 시 자동 검증). id는 앱이 UUIDv7(text) 발급 |
+| 부분 유니크 인덱스 | PG 네이티브(`CREATE UNIQUE INDEX ... WHERE`) |
+| 안전성 가드레일 | 단순 FK/CHECK로 표현 못 하는 규칙은 PL/pgSQL 트리거 함수로 강제(§5). PG는 BEFORE 트리거를 이름 알파벳순 발화하므로 가드 트리거는 catch-all보다 앞서도록 명명 |
+| 테넌트 격리 | 복합 테넌트 FK + 트리거로 강제. RLS(행 수준 보안)는 **선택적 후속 강화**(§13) — 대체가 아닌 방어 심화 |
+
+- 실행 가능한 설계 정본은 `db/schema.sql`(PostgreSQL DDL)이고, 이 문서의 타입은 논리 타입이다. DDL이 물리 정본이다.
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
-- **실행 산출물(DBeaver 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.cjs`(테넌트 교차 INSERT/UPDATE·승인·외부 실행 차단을 포함한 160항목 회귀 검증) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 검증을 다시 통과시킨다.
-- **backend 범위:** 이 PR에는 backend API·ORM·Alembic migration이 없다. 후속 backend PR은 이 DDL과 동등한 제약, 인증된 principal, 서버 측 PIN/biometric 검증, 유효한 delegation 검증을 먼저 갖추기 전까지 approve/reject endpoint를 노출하지 않는다.
+- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 160항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(160)를 다시 통과시킨다.
+- **backend 범위:** 이 PR에는 backend API·ORM·Alembic migration이 없다. 후속 backend PR은 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지하고, 인증된 principal·서버 측 PIN/biometric 검증·유효한 delegation 검증을 먼저 갖추기 전까지 approve/reject endpoint를 노출하지 않는다.
 
 ## 2. 공통 규약
 
@@ -45,8 +50,8 @@
 4. **MVP 외부 실행 차단:** notification은 `queued|held|suppressed` 의도 큐이고 sent/delivered/failed 상태와 timestamp가 없다. thread message는 `inbound|system`만 허용한다. `package_links`, 외부 delivery, `notification_sent` evidence는 없다.
 5. **승인 상태:** approval은 `pending`으로만 생성되고 `approved|rejected`로 한 번만 전이한다. pending 취소와 모든 approval 삭제를 지원하지 않는다. 결정자·PIN/biometric·결정 시각을 강제하며 rejected에는 non-empty reason이 필요하다.
 6. **승인 결과 동기화:** pending approval이 approved/rejected가 되면 연결된 draft/handoff package도 같은 terminal 상태로 DB trigger가 동기화한다. 한 번 연결된 artifact의 `approval_id`는 제거·교체할 수 없고, pending/terminal artifact는 editable 상태로 되돌릴 수 없다. approval의 company/case/action target은 생성 뒤 변경할 수 없다.
-7. **내부 PDF만:** package export는 승인된 handoff package의 `pdf`만 허용하며 `external_delivery_performed=0`만 저장할 수 있다.
-8. **SQLite 연결:** FK 강제는 연결별이다. 모든 연결은 `PRAGMA foreign_keys=ON`을 적용하고 활성 상태를 확인해야 한다.
+7. **내부 PDF만:** package export는 승인된 handoff package의 `pdf`만 허용하며 `external_delivery_performed=false`만 저장할 수 있다.
+8. **FK 강제:** PostgreSQL은 FK를 항상 강제한다(연결별 스위치 없음). 순환 참조 `cases↔runs`만 `DEFERRABLE INITIALLY DEFERRED`로 선언해 같은 트랜잭션 안에서 짝지어 INSERT한다.
 
 | 항목 | 규약 |
 |---|---|
@@ -653,21 +658,23 @@ Approval.status:   pending → approved | rejected  (재결정 금지)
 ### 5.2 append-only 트리거 (evidence_events)
 
 ```sql
+CREATE FUNCTION trg_evidence_events_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'evidence_events is append-only'; END; $$;
 CREATE TRIGGER evidence_events_no_update BEFORE UPDATE ON evidence_events
-BEGIN SELECT RAISE(ABORT, 'evidence_events is append-only'); END;
+  FOR EACH ROW EXECUTE FUNCTION trg_evidence_events_immutable();
 CREATE TRIGGER evidence_events_no_delete BEFORE DELETE ON evidence_events
-BEGIN SELECT RAISE(ABORT, 'evidence_events is append-only'); END;
+  FOR EACH ROW EXECUTE FUNCTION trg_evidence_events_immutable();
 ```
-(PostgreSQL 전환 시 동일 의미의 트리거 + 테이블 권한에서 UPDATE/DELETE 회수. ORM repository에도 update/delete 메서드를 만들지 않는다 — 프론트 evidenceStore와 같은 규율.)
+(운영 강화로 테이블 권한에서 UPDATE/DELETE를 회수할 수도 있다. ORM repository에도 update/delete 메서드를 만들지 않는다 — 프론트 evidenceStore와 같은 규율.)
 
 ### 5.3 승인 게이트 (DB 핵심 불변식 + 서비스 정책)
 
 승인 결정에서 DB가 먼저 강제하는 불변식:
-1. approval은 `requires_approval=1`인 같은 회사·케이스 action에만 생성되고, `pending`으로만 시작한다.
+1. approval은 `requires_approval=true`인 같은 회사·케이스 action에만 생성되고, `pending`으로만 시작한다.
 2. pending은 결정자·본인확인·결정시각·사유가 모두 NULL이다. approved/rejected에는 결정자·PIN/biometric·결정시각이 필수이고 rejected에는 non-empty reason이 필수다.
 3. pending 취소를 포함한 모든 approval 삭제와 terminal 재결정은 금지되고, approval target(company/case/action)도 생성 뒤 바꿀 수 없다.
 4. 결정자는 같은 회사의 active owner이거나 `approval_policy='manager_allowed'`인 LOW 케이스의 active manager여야 한다.
-5. `send_message`, `create_handoff`, `export_package`, `complete_case` action은 CHECK로 `requires_approval=1`이 강제된다.
+5. `send_message`, `create_handoff`, `export_package`, `complete_case` action은 CHECK로 `requires_approval=true`가 강제된다.
 6. draft/handoff package는 editable/draft 또는 pending approval 상태로만 생성한다. 연결된 artifact는 matching approval의 상태와 action type을 trigger로 확인하고 terminal 상태를 동기화한다. approval_id를 한 번 붙인 artifact는 승인 연결을 제거·교체하거나 editable draft로 되돌릴 수 없다. package의 exported 표시는 내부 PDF export trigger만 기록한다.
 
 다음은 별도의 서비스 정책 게이트이며 DB 제약으로 가장하지 않는다: usable citation ≥ 1, draft compliance 체크, 체크리스트 완료, high-risk 업무 분기, 멱등 API 응답 및 evidence append. 이 정책들은 같은 트랜잭션에서 평가·기록한다.

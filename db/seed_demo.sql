@@ -9,8 +9,6 @@
 --  * PII 원문 없음: 전화번호는 가짜 대역, 등록번호는 마스킹 값만
 -- ============================================================================
 
-PRAGMA foreign_keys = ON;
-
 -- 4.1 테넌트·계정 ------------------------------------------------------------
 
 INSERT INTO companies (id, name, industry, region, worker_count_band, approval_policy,
@@ -64,10 +62,10 @@ INSERT INTO citations (id, company_id, grade, status, title, source, ingest_at, 
 
 -- 필수 서류 정의 [데모 보강 — document_requirements 예시]
 INSERT INTO document_requirements (id, case_type, visa_type, required_doc, required, citation_id) VALUES
-  ('req_001', 'visa_expiry',        'E-9', '여권 사본',                 1, 'cit_001'),
-  ('req_002', 'visa_expiry',        'E-9', '표준근로계약서 사본',        1, 'cit_001'),
-  ('req_003', 'reporting_deadline', 'E-9', '고용변동 신고서',            1, 'cit_002'),
-  ('req_004', 'missing_document',   'E-9', '건강보험 자격득실 확인서',   1, NULL);
+  ('req_001', 'visa_expiry',        'E-9', '여권 사본',                 true, 'cit_001'),
+  ('req_002', 'visa_expiry',        'E-9', '표준근로계약서 사본',        true, 'cit_001'),
+  ('req_003', 'reporting_deadline', 'E-9', '고용변동 신고서',            true, 'cit_002'),
+  ('req_004', 'missing_document',   'E-9', '건강보험 자격득실 확인서',   true, NULL);
 
 -- 서류 상태 (CASE_SHEETS.docs 그대로) -----------------------------------------
 
@@ -96,42 +94,42 @@ INSERT INTO cases (id, company_id, case_code, worker_id, case_type, title, summa
   ('cs_batbayar', 'cmp_greenfood', 'case_001', 'wrk_batbayar', 'visa_expiry',
    '체류기간 만료 경과 · 행정사 검토',
    '체류기간이 2일 경과된 상태입니다. 행정사 검토가 필요합니다.',
-   'CRITICAL', 'blocked', 'awaiting_approval', '2026-07-08', 'usr_kim', 1, 'rule',
+   'CRITICAL', 'blocked', 'awaiting_approval', '2026-07-08', 'usr_kim', true, 'rule',
    '기한 경과 케이스는 앱에서 처리할 수 없습니다 — 행정사 검토로만 진행됩니다 (high risk 강제 전달)',
    '[{"label":"체류만료일","value":"2026.07.08 · D+2"},{"label":"계약종료일","value":"2026.07.08"},{"label":"비자","value":"E-9-1 · 몽골"}]',
    '다음: 검토 자료 승인 시 행정사 전달 준비 완료로 전환됩니다'),
   ('cs_nguyen', 'cmp_greenfood', 'case_002', 'wrk_nguyen', 'visa_expiry',
    '체류기간 연장 서류 요청',
    '체류만료가 30일 남았고 서류 2건이 누락되어 요청이 필요합니다.',
-   'HIGH', 'approval_pending', 'awaiting_approval', '2026-08-09', 'usr_kim', 1, 'agent',
+   'HIGH', 'approval_pending', 'awaiting_approval', '2026-08-09', 'usr_kim', true, 'agent',
    NULL,
    '[{"label":"체류만료일","value":"2026.08.09 · D-30"},{"label":"이전 요청","value":"3일 전 이력 있음"},{"label":"컨택 채널","value":"Zalo · 베트남어"}]',
    '다음: 발송 후 2일간 응답 없으면 리마인드 여부를 판단합니다'),
   ('cs_siti', 'cmp_greenfood', 'case_003', 'wrk_siti', 'reporting_deadline',
    '고용변동 신고 기한 임박',
    '고용변동 신고 기한이 3일 남았습니다. 신고서 초안 확인이 필요합니다.',
-   'HIGH', 'approval_pending', 'awaiting_approval', '2026-07-13', 'usr_kim', 1, 'rule',
+   'HIGH', 'approval_pending', 'awaiting_approval', '2026-07-13', 'usr_kim', true, 'rule',
    NULL,
    '[{"label":"신고 기한","value":"2026.07.13 · D-3"},{"label":"변동 사유","value":"근무처 내 공정 변경"},{"label":"누락 서류","value":"고용변동 신고서 초안 확인"}]',
    '다음: 승인 시 신고 접수 준비 상태로 전환됩니다'),
   ('cs_tran', 'cmp_greenfood', 'case_004', 'wrk_tran', 'contract_visa_conflict',
    '계약-체류 만료일 불일치 검토',
    '계약종료일이 체류만료일보다 빠릅니다. 재계약 여부 확인이 필요합니다.',
-   'MEDIUM', 'risk_review', 'drafted', '2026-08-18', 'usr_park', 0, 'rule',
+   'MEDIUM', 'risk_review', 'drafted', '2026-08-18', 'usr_park', false, 'rule',
    NULL,
    '[{"label":"계약종료일","value":"2026.08.18 · D-45"},{"label":"체류만료일","value":"2026.09.15"},{"label":"탐지 규칙","value":"contract_visa_conflict"}]',
    '다음: 서류 확보 시 재계약 검토 자료 준비를 제안합니다'),
   ('cs_rahmat', 'cmp_greenfood', 'case_005', 'wrk_rahmat', 'missing_document',
    '필수 서류 누락 · 건강보험 자격득실 확인서',
    '건강보험 자격득실 확인서가 누락되어 서류 요건 근거를 수집하고 있습니다.',
-   'MEDIUM', 'draft', 'collecting', NULL, 'usr_park', 0, 'agent',
+   'MEDIUM', 'draft', 'collecting', NULL, 'usr_park', false, 'agent',
    NULL,
    '[{"label":"누락 서류","value":"건강보험 자격득실 확인서"},{"label":"진행 단계","value":"근거 수집 중"}]',
    '다음: 근거 연결이 끝나면 요청 초안 준비를 제안합니다'),
   ('cs_oyunaa', 'cmp_greenfood', 'case_006', 'wrk_oyunaa', 'other',
    '계약 만료 사전 모니터링',
    '계약 만료가 75일 남아 사전 모니터링 중입니다.',
-   'LOW', 'draft', 'detected', '2026-09-24', NULL, 0, 'agent',
+   'LOW', 'draft', 'detected', '2026-09-24', NULL, false, 'agent',
    NULL,
    '[{"label":"계약종료일","value":"2026.09.24 · D-75"},{"label":"탐지 규칙","value":"contract_expiry_monitor"}]',
    '다음: D-60 진입 시 재계약 확인 요청을 제안합니다');
@@ -172,18 +170,18 @@ INSERT INTO run_steps (id, company_id, run_id, seq, kind, label, detail, tool_st
 
 INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state,
                           requires_approval, slot) VALUES
-  ('act_batbayar_handoff', 'cmp_greenfood', 'cs_batbayar', 'approve', 'create_handoff', '행정사 검토 자료 만들기', 'ready', 1, 'primary'),
-  ('act_batbayar_detail',  'cmp_greenfood', 'cs_batbayar', 'detail',  'other',          '상세 보기',             'ready', 0, 'secondary'),
-  ('act_nguyen_approve',   'cmp_greenfood', 'cs_nguyen',   'approve', 'send_message',   '승인하기',              'ready', 1, 'primary'),
-  ('act_nguyen_draft',     'cmp_greenfood', 'cs_nguyen',   'draft',   'other',          '초안 보기',             'ready', 0, 'secondary'),
-  ('act_siti_approve',     'cmp_greenfood', 'cs_siti',     'approve', 'confirm_status', '승인하기',              'ready', 1, 'primary'),
-  ('act_siti_detail',      'cmp_greenfood', 'cs_siti',     'detail',  'other',          '상세 보기',             'ready', 0, 'secondary'),
-  ('act_tran_confirm',     'cmp_greenfood', 'cs_tran',     'confirm', 'confirm_status', '케이스 확인 완료',       'ready', 0, 'primary'),
-  ('act_tran_thread',      'cmp_greenfood', 'cs_tran',     'thread',  'other',          '응답 보기',             'ready', 0, 'secondary'),
-  ('act_rahmat_detail',    'cmp_greenfood', 'cs_rahmat',   'detail',  'other',          '상세 보기',             'ready', 0, 'primary'),
-  ('act_rahmat_confirm',   'cmp_greenfood', 'cs_rahmat',   'confirm', 'confirm_status', '케이스 확인 완료',       'ready', 0, 'secondary'),
-  ('act_oyunaa_detail',    'cmp_greenfood', 'cs_oyunaa',   'detail',  'other',          '상세 보기',             'ready', 0, 'primary'),
-  ('act_oyunaa_confirm',   'cmp_greenfood', 'cs_oyunaa',   'confirm', 'confirm_status', '케이스 확인 완료',       'ready', 0, 'secondary');
+  ('act_batbayar_handoff', 'cmp_greenfood', 'cs_batbayar', 'approve', 'create_handoff', '행정사 검토 자료 만들기', 'ready', true, 'primary'),
+  ('act_batbayar_detail',  'cmp_greenfood', 'cs_batbayar', 'detail',  'other',          '상세 보기',             'ready', false, 'secondary'),
+  ('act_nguyen_approve',   'cmp_greenfood', 'cs_nguyen',   'approve', 'send_message',   '승인하기',              'ready', true, 'primary'),
+  ('act_nguyen_draft',     'cmp_greenfood', 'cs_nguyen',   'draft',   'other',          '초안 보기',             'ready', false, 'secondary'),
+  ('act_siti_approve',     'cmp_greenfood', 'cs_siti',     'approve', 'confirm_status', '승인하기',              'ready', true, 'primary'),
+  ('act_siti_detail',      'cmp_greenfood', 'cs_siti',     'detail',  'other',          '상세 보기',             'ready', false, 'secondary'),
+  ('act_tran_confirm',     'cmp_greenfood', 'cs_tran',     'confirm', 'confirm_status', '케이스 확인 완료',       'ready', false, 'primary'),
+  ('act_tran_thread',      'cmp_greenfood', 'cs_tran',     'thread',  'other',          '응답 보기',             'ready', false, 'secondary'),
+  ('act_rahmat_detail',    'cmp_greenfood', 'cs_rahmat',   'detail',  'other',          '상세 보기',             'ready', false, 'primary'),
+  ('act_rahmat_confirm',   'cmp_greenfood', 'cs_rahmat',   'confirm', 'confirm_status', '케이스 확인 완료',       'ready', false, 'secondary'),
+  ('act_oyunaa_detail',    'cmp_greenfood', 'cs_oyunaa',   'detail',  'other',          '상세 보기',             'ready', false, 'primary'),
+  ('act_oyunaa_confirm',   'cmp_greenfood', 'cs_oyunaa',   'confirm', 'confirm_status', '케이스 확인 완료',       'ready', false, 'secondary');
 
 -- 승인 (pending 2건 = 모바일 §2a "내가 처리할 승인" · package export는 아래에서
 -- pending → approved 동기화 뒤에 생성)
@@ -269,17 +267,17 @@ INSERT INTO drafts (id, company_id, case_id, created_by_run_id, channel, purpose
 
 INSERT INTO draft_variants (id, company_id, draft_id, lang, text, is_revised) VALUES
   ('dv_nguyen_ko', 'cmp_greenfood', 'drf_nguyen', 'ko',
-   '안녕하세요 Nguyen 씨,' || char(10) || '체류기간 연장 준비를 위해 아래 서류가 필요합니다.' || char(10) || char(10) || '· 표준근로계약서 사본' || char(10) || '· 여권 사본' || char(10) || char(10) || '가능하면 2일 이내에 보내주세요.' || char(10) || '제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.' || char(10) || char(10) || '감사합니다.', 0),
+   '안녕하세요 Nguyen 씨,' || chr(10) || '체류기간 연장 준비를 위해 아래 서류가 필요합니다.' || chr(10) || chr(10) || '· 표준근로계약서 사본' || chr(10) || '· 여권 사본' || chr(10) || chr(10) || '가능하면 2일 이내에 보내주세요.' || chr(10) || '제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.' || chr(10) || chr(10) || '감사합니다.', false),
   ('dv_nguyen_vi', 'cmp_greenfood', 'drf_nguyen', 'vi',
-   'Xin chào Nguyen,' || char(10) || 'để chuẩn bị gia hạn thời gian lưu trú, vui lòng gửi các giấy tờ sau.' || char(10) || char(10) || '· Bản sao hợp đồng lao động tiêu chuẩn' || char(10) || '· Bản sao hộ chiếu' || char(10) || char(10) || 'Vui lòng gửi trong vòng 2 ngày nếu có thể.' || char(10) || 'Giấy tờ chỉ được dùng cho thủ tục hành chính về việc làm và lưu trú.' || char(10) || char(10) || 'Cảm ơn bạn.', 0),
+   'Xin chào Nguyen,' || chr(10) || 'để chuẩn bị gia hạn thời gian lưu trú, vui lòng gửi các giấy tờ sau.' || chr(10) || chr(10) || '· Bản sao hợp đồng lao động tiêu chuẩn' || chr(10) || '· Bản sao hộ chiếu' || chr(10) || chr(10) || 'Vui lòng gửi trong vòng 2 ngày nếu có thể.' || chr(10) || 'Giấy tờ chỉ được dùng cho thủ tục hành chính về việc làm và lưu trú.' || chr(10) || chr(10) || 'Cảm ơn bạn.', false),
   ('dv_nguyen_ko_rev', 'cmp_greenfood', 'drf_nguyen', 'ko',
-   '안녕하세요 Nguyen 씨, 잘 지내고 계신가요.' || char(10) || '체류기간 연장을 준비하고 있어 서류 두 가지를 부탁드리려고 합니다.' || char(10) || char(10) || '· 표준근로계약서 사본' || char(10) || '· 여권 사본' || char(10) || char(10) || '바쁘시겠지만 이번 주 안에 보내주시면 큰 도움이 됩니다.' || char(10) || '제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.' || char(10) || char(10) || '항상 감사합니다.', 1),
+   '안녕하세요 Nguyen 씨, 잘 지내고 계신가요.' || chr(10) || '체류기간 연장을 준비하고 있어 서류 두 가지를 부탁드리려고 합니다.' || chr(10) || chr(10) || '· 표준근로계약서 사본' || chr(10) || '· 여권 사본' || chr(10) || chr(10) || '바쁘시겠지만 이번 주 안에 보내주시면 큰 도움이 됩니다.' || chr(10) || '제출하신 서류는 고용 및 체류 관련 행정 절차에만 사용됩니다.' || chr(10) || chr(10) || '항상 감사합니다.', true),
   ('dv_tran_ko', 'cmp_greenfood', 'drf_tran_reminder', 'ko',
-   '안녕하세요 Tran 씨,' || char(10) || '어제 말씀하신 여권 사본을 오늘 보내주실 수 있을까요.' || char(10) || '계약 관련 준비에 필요합니다.' || char(10) || char(10) || '감사합니다.', 0),
+   '안녕하세요 Tran 씨,' || chr(10) || '어제 말씀하신 여권 사본을 오늘 보내주실 수 있을까요.' || chr(10) || '계약 관련 준비에 필요합니다.' || chr(10) || chr(10) || '감사합니다.', false),
   ('dv_tran_vi', 'cmp_greenfood', 'drf_tran_reminder', 'vi',
-   'Chào anh Tran,' || char(10) || 'anh có thể gửi bản sao hộ chiếu hôm nay như đã nói không ạ.' || char(10) || 'Cần cho việc chuẩn bị hợp đồng.' || char(10) || char(10) || 'Cảm ơn anh.', 0),
+   'Chào anh Tran,' || chr(10) || 'anh có thể gửi bản sao hộ chiếu hôm nay như đã nói không ạ.' || chr(10) || 'Cần cho việc chuẩn bị hợp đồng.' || chr(10) || chr(10) || 'Cảm ơn anh.', false),
   ('dv_tran_ko_rev', 'cmp_greenfood', 'drf_tran_reminder', 'ko',
-   '안녕하세요 Tran 씨, 바쁘신데 죄송합니다.' || char(10) || '어제 말씀해주신 여권 사본을 편하실 때 보내주시면 감사하겠습니다.' || char(10) || '계약 관련 준비에 필요해서요.' || char(10) || char(10) || '고맙습니다.', 1);
+   '안녕하세요 Tran 씨, 바쁘신데 죄송합니다.' || chr(10) || '어제 말씀해주신 여권 사본을 편하실 때 보내주시면 감사하겠습니다.' || chr(10) || '계약 관련 준비에 필요해서요.' || chr(10) || chr(10) || '고맙습니다.', true);
 
 -- 스레드·응답 해석 (P2 시연 — tranCase "응답 도착 · 해석 완료, 담당자 확인 대기")
 -- 서류 상태는 시트 표기(정본)를 따르고, 제안은 그 이력을 기록한 [데모 보강]

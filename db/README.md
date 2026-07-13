@@ -1,34 +1,65 @@
 # db/ 설계 킷
 
-`docs/DB_SCHEMA.md`의 서비스 DB 계약을 SQLite에서 실행·검증하는 산출물이다.
+`docs/DB_SCHEMA.md`의 서비스 DB 계약을 **PostgreSQL**에서 실행·검증하는 산출물이다.
+서비스 DB는 PostgreSQL 16+로 확정됐다(단일 방언 — SQLite 설계 킷은 은퇴). 이 PR에는 실행
+backend가 없으므로 `db/schema.sql`이 현재 정본 DDL이다.
 
 | 파일 | 내용 |
 |---|---|
-| `schema.sql` | 테이블 31개, 파생 뷰 4개, 테넌트·승인·감사 가드레일 |
+| `schema.sql` | 테이블 31개, 파생 뷰 4개, PL/pgSQL 트리거 함수(테넌트·승인·감사 가드레일) |
 | `seed_demo.sql` | 6인 로스터와 판단 기록 데모 시드 |
-| `validate.cjs` | 테넌트 격리, 승인 상태, 외부 실행 차단을 포함한 160개 회귀 검증 |
-| `oegobanjang_design.sqlite3` | 재생성 가능한 Git 미추적 산출물 |
+| `validate.py` | 테넌트 격리, 승인 상태머신, 외부 실행 차단을 포함한 **160개 회귀 검증**(psycopg) |
+
+## 로컬 PostgreSQL (Docker)
+
+```bash
+docker run -d --name oegobanjang-pg \
+  -e POSTGRES_USER=oegobanjang -e POSTGRES_PASSWORD=oegobanjang -e POSTGRES_DB=oegobanjang \
+  -p 55432:5432 postgres:16
+```
+
+접속 URL: `postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang`
 
 ## DBeaver에서 열기
 
-1. SQLite 연결을 만들고 `<repo>/db/oegobanjang_design.sqlite3`를 지정한다.
-2. 파일이 없으면 `schema.sql`, `seed_demo.sql` 순서로 실행한다.
-3. 연결별 Driver property에서 `foreign_keys=true`를 설정한다. SQLite FK 강제는 연결 단위이므로 이 설정이 꺼지면 복합 테넌트 FK가 작동하지 않는다.
-4. 테이블을 선택해 **View Diagram**으로 ERD를 확인한다.
+1. PostgreSQL 연결을 만들고 Host `localhost` · Port `55432` · DB/User/PW `oegobanjang`를 입력한다.
+2. 스키마가 비어 있으면 SQL 편집기에서 `schema.sql`, `seed_demo.sql`을 순서대로 실행한다
+   (또는 아래 `psql`). PostgreSQL은 FK를 **항상** 강제하므로 SQLite 시절의 `foreign_keys`
+   드라이버 속성 설정은 필요 없다.
+3. `public` 스키마를 선택해 **View Diagram**으로 ERD를 확인한다.
 
-`evidence_events`의 수정·삭제, 타사 데이터 연결, 승인 없는 상태 전이, `sent`/`delivered` 알림, outbound 메시지, 외부 패키지 링크는 모두 실패해야 정상이다.
+`evidence_events`의 수정·삭제, 승인 삭제, 타사 데이터 연결, 승인 없는 상태 전이, `sent`/`delivered`
+알림, outbound 메시지, PDF 기록 없는 export는 모두 실패해야 정상이다(트리거가 차단).
 
-## 재생성·검증
+## psql로 로드
 
 ```bash
-node --experimental-sqlite db/validate.cjs
+export DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/schema.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seed_demo.sql
 ```
 
-검증은 설계 DB를 재생성한 뒤 스키마와 시드를 실행한다. 마지막 줄은 `Result: PASS 160 / FAIL 0`이어야 한다. Node 23.4+에서는 `--experimental-sqlite` 없이도 실행할 수 있다.
+## 검증
+
+이 PR에는 backend가 없으므로 validate는 uv 인라인 의존성(psycopg)으로 독립 실행한다:
+
+```bash
+DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang" \
+  uv run --no-project --with "psycopg[binary]" python db/validate.py
+```
+
+validate는 대상 스키마를 drop/recreate한 뒤 `schema.sql`·`seed_demo.sql`을 실행하고 160개 회귀를
+검사한다. 마지막 줄은 `Result: PASS 160 / FAIL 0`이어야 한다. (Windows 콘솔에서 한글 출력이
+깨지면 `PYTHONIOENCODING=utf-8`을 앞에 붙인다.)
 
 ## 편집 규칙
 
 - 정본은 `docs/DB_SCHEMA.md`다. 스키마를 바꾸면 문서·DDL·시드·검증을 같은 PR에서 갱신한다.
-- 모든 서비스 DB 연결은 생성 직후 `PRAGMA foreign_keys=ON`을 적용하고, 활성 상태를 검사한다. 후속 ORM/migration 이식에서도 연결 훅으로 같은 계약을 유지한다. 이 PR에는 실행 backend가 없으므로 `db/schema.sql`이 현재 정본이다.
+- 안전성 규칙 중 FK/CHECK로 표현 못 하는 것은 트리거 함수로 강제한다(파일 하단). 트리거 함수의
+  `RAISE EXCEPTION` 메시지는 검증 스크립트가 substring으로 매칭하므로 문구를 임의로 바꾸지 않는다.
+  PostgreSQL은 BEGINNING 트리거를 이름 알파벳순으로 발화하므로(SQLite는 생성순), 가드 트리거는
+  catch-all보다 먼저 발화하도록 이름을 지었다(link < reopen < state).
 - 시드 PK는 가독성을 위한 별칭이다. 실제 서비스 PK는 UUIDv7을 사용한다.
-- `*.sqlite3` 산출물은 커밋하지 않는다.
+- 후속 backend(SQLAlchemy/Alembic) 이식은 별도 PR 범위다 — 그 PR은 이 `db/schema.sql`을 그대로
+  적용해 스키마 동등성을 유지한다.
