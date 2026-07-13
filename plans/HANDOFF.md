@@ -18,6 +18,40 @@
 
 ---
 
+### [2026-07-13] 온보딩 O1~O5(4.1) 구현 — Phase 1 완료
+- 한 일: `외고반장 온보딩.dc.html`의 1a 인터랙티브 플로우를 그대로 이식. 단일 상태머신
+  컴포넌트 `src/features/onboarding/OnboardingFlow.tsx` + 스텝 컴포넌트 5개
+  (StepPhoneAuth/StepRole/StepCompany/StepFirstWorker/StepBriefingReady) — 딥링크
+  카탈로그에 O1~O5 개별 경로를 두지 않는 순차 게이트라 화면 1개당 라우트 1개가 아니라
+  단일 Shell-바깥 형제 라우트(`/onboarding`, `packageLinkAbsolute`와 동일 관례)로 구현.
+  `lib/onboarding.ts`(`useOnboardingActions`)가 O4 완료 시 로스터 전체(CASE_CARDS)를
+  멱등 upsert + evidence 1건(`plan_created` 재사용, 신규 타입 안 만듦) 기록. 기존
+  `onboardingWorkers`(PlaceholderScreen)를 제거하고 `BriefingHomePage`의 근로자 0명
+  empty-state가 `/onboarding`으로 연결되도록 재배선. 신규 `IconLock`(`components/icons.tsx`)
+  — 마스킹 안내에서 재사용 가능하게 공용 아이콘으로 추가.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. 외국인등록번호는 목업의 부분 마스킹(`900412-6●●●●●●`) 대신 편집 가능한 입력 자체를
+     아예 없애고 항상 `******-*******`(전체 마스킹) 표시만 — 원문을 타이핑할 경로를
+     화면에 만들지 않는 것으로 마스킹 가드레일을 지켰다(2026-07-13 사용자 확인).
+  2. O3 사업장 정보는 시각적 목업(companyStore에 회사 프로필 슬롯 없음, `그린푸드 제조` 등은
+     `BriefingHomePage`/`CaseListPage`의 하드코딩 헤더 문자열과 별개 — 온보딩 입력값이 그
+     표시에 반영되지 않는다). 후속에서 실제 회사 프로필 슬롯이 필요해지면 이 갭을 메운다.
+  3. `CURRENT_WORKER_COUNT = 6`(BriefingHomePage.tsx) 하드코드는 그대로 뒀다 — 런타임에서
+     근로자 0명 empty-state는 여전히 도달 불가(항상 6명 데모 세계관), `/onboarding`은
+     직접 URL로 데모한다. 이 상수를 걷어내는 건 범위 밖(다른 화면들이 "6인 로스터"를
+     전제하는 정도가 커서 별도 작업 필요).
+  4. `PlaceholderScreen.tsx`/`.test.tsx` 삭제 — router.tsx의 유일한 소비처였고, 제거 후
+     쓰는 곳이 하나도 남지 않아 완전히 지웠다(사용하지 않는 코드 유지 금지).
+- 검증: 브라우저 실제 클릭으로 O1→O2→O3→O4→O5load→O5done→홈 전 구간 확인(코드
+  브라우저 프리뷰 `computer` 스크린샷 도구가 이 세션에서 타임아웃이 나서 `javascript_tool`
+  DOM 조작+`read_page`로 각 스텝 전이·필드 값·evidence/caseStore 반영을 확인 — 실제 앱
+  버그 아님, 세션 한정 도구 이슈로 판단).
+- verify 상태: PASS — `tsc --noEmit` 클린, `vitest run`(317/317, 신규 4건 포함), `vite build` 성공.
+- 지도/규칙 갱신: `plans/ROADMAP.md` 4.1 ✅ 완료 표시(M4 표 + M4.5 표 둘 다), 라우트 스냅샷
+  (`src/__snapshots__/router.test.tsx.snap`) 갱신.
+
+---
+
 ### [2026-07-13] 온보딩·CSV 목업 프리즈 + PC 재수입(부분) — Phase 0 완료
 - 한 일: 사용자가 claude.ai/design에서 생성한 목업 3종을 `DesignSync`로 가져와 고정.
   **신규**: `외고반장 온보딩.dc.html`(O1~O5, 브리프 기반 생성), `외고반장 CSV 업로드.dc.html`

@@ -17,7 +17,7 @@ import { ExpertLinkPage } from '@/features/packagePkg/ExpertLinkPage';
 import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
 import { MembersPage } from '@/features/settings/MembersPage';
 import { DelegationPage } from '@/features/settings/DelegationPage';
-import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
+import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
 
@@ -68,10 +68,6 @@ export const routeConfig: RouteObject[] = [
         element: <PackagePage />,
       },
       { path: ROUTE_PATHS.done, element: <DonePage /> },
-      {
-        path: ROUTE_PATHS.onboardingWorkers,
-        element: <PlaceholderScreen name="근로자 등록" />,
-      },
       { path: ROUTE_PATHS.settings, element: <SettingsHubPage /> },
       { path: ROUTE_PATHS.settingsMembers, element: <MembersPage /> },
       { path: ROUTE_PATHS.settingsDelegation, element: <DelegationPage /> },
@@ -82,6 +78,13 @@ export const routeConfig: RouteObject[] = [
   {
     path: ROUTE_PATHS.packageLinkAbsolute,
     element: <ExpertLinkPage />,
+  },
+  // 온보딩(4.1)도 로그인 전 전체 화면 플로우라 Shell 바깥 형제 라우트 — 상태 머신은
+  // OnboardingFlow 내부에서 관리하고 딥링크 카탈로그(2단계)엔 O1~O5 개별 경로가 없다
+  // (순차 게이트라 중간 단계 딥링크를 허용하지 않는다).
+  {
+    path: ROUTE_PATHS.onboardingAbsolute,
+    element: <OnboardingFlow />,
   },
 ];
 

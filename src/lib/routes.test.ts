@@ -22,6 +22,6 @@ describe('ROUTES', () => {
     expect(ROUTES.home).toBe('/');
     expect(ROUTES.messages).toBe('/messages');
     expect(ROUTES.done).toBe('/done');
-    expect(ROUTES.onboardingWorkers).toBe('/onboarding/workers');
+    expect(ROUTES.onboarding).toBe('/onboarding');
   });
 });

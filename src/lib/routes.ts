@@ -17,7 +17,7 @@ export const ROUTES = {
   package: (packageId: string) => `/package/${packageId}`,
   packageLink: (packageId: string) => `/link/${packageId}`, // 행정사 무인증 링크(운영급 RBAC 확장)
   done: '/done',
-  onboardingWorkers: '/onboarding/workers',
+  onboarding: '/onboarding', // Shell 바깥 최상위 형제 라우트(4.1) — packageLinkAbsolute와 동일 관례
   settings: '/settings', // 운영급 RBAC 확장(7단계 §6 "설정")
   settingsMembers: '/settings/members',
   settingsDelegation: '/settings/delegation',
@@ -36,10 +36,11 @@ export const ROUTE_PATHS = {
   evidence: 'evidence',
   package: 'package/:packageId',
   done: 'done',
-  onboardingWorkers: 'onboarding/workers',
   settings: 'settings',
   settingsMembers: 'settings/members',
   settingsDelegation: 'settings/delegation',
   // Shell 트리 바깥의 최상위 형제 라우트라 절대 경로(무인증 행정사 링크, 7단계 §4).
   packageLinkAbsolute: '/link/:packageId',
+  // 온보딩도 Shell(로그인 앱 챙) 없이 진행하는 전체 화면 플로우라 형제 라우트로 둔다(4.1).
+  onboardingAbsolute: '/onboarding',
 } as const;

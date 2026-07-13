@@ -34,7 +34,7 @@ export function BriefingHomePage() {
             : { status: 'empty', hasWorkers: false }
       }
       onOpenCase={(caseId) => nav.toCase(caseId)}
-      onSeeAllCases={() => (CURRENT_WORKER_COUNT > 0 ? nav.toCases() : nav.toOnboardingWorkers())}
+      onSeeAllCases={() => (CURRENT_WORKER_COUNT > 0 ? nav.toCases() : nav.toOnboarding())}
       role={role}
     />
   );
