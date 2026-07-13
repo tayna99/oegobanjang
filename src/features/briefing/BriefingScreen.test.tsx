@@ -115,4 +115,11 @@ describe('BriefingScreen — 역할 분기', () => {
     expect(screen.getByRole('button', { name: PROGRESS_CARD.title })).toBeDisabled();
     expect(screen.queryByPlaceholderText('AI에게 요청하기')).not.toBeInTheDocument();
   });
+
+  // 자동 에스컬레이션(7단계 §3.2) — mocks/evidence.ts의 siti-approval-escalated 시드를 탄다.
+  it('에스컬레이션 evidence가 있는 케이스는 승인 큐에 "승인 지연" Chip이 붙는다', () => {
+    const escalatedCard: CaseCard = { ...CARD, caseId: 'siti', title: '고용변동 신고 기한 임박' };
+    renderScreen({ status: 'default', cards: [escalatedCard] });
+    expect(screen.getByText('승인 지연')).toBeInTheDocument();
+  });
 });

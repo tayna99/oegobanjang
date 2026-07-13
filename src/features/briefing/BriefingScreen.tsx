@@ -2,6 +2,8 @@ import { Button } from '@/components/Button';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { SafetyNotice } from '@/components/SafetyNotice';
 import { Skeleton } from '@/components/Skeleton';
+import { isCaseEscalated } from '@/lib/audit';
+import { useEvidenceStore } from '@/stores/evidenceStore';
 import type { CaseCard, Role } from '@/types';
 import { ApprovalCard } from './ApprovalCard';
 import { AgentProgressList } from './AgentProgressList';
@@ -66,6 +68,7 @@ function QueueSection({
   const queue = approvalQueue(cards);
   const progress = agentProgress(cards);
   const readOnly = role === 'viewer';
+  const events = useEvidenceStore((s) => s.events);
   return (
     <>
       {/* owner: 통계 숨김(7단계 §6 "승인 카드만, 통계 숨김") */}
@@ -79,6 +82,7 @@ function QueueSection({
             onReview={() => onOpenCase(card.caseId)}
             offlineDisabled={offline}
             readOnly={readOnly}
+            escalated={isCaseEscalated(card.caseId, events)}
           />
         ))}
       </section>

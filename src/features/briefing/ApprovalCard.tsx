@@ -17,6 +17,8 @@ export interface ApprovalCardProps {
   offlineDisabled?: boolean;
   /** 열람자(viewer)는 M1 CTA가 비활성(7단계 §6 "읽기 전용(버튼 비활성)"). */
   readOnly?: boolean;
+  /** 자동 에스컬레이션(7단계 §3.2) — 48h/72h 미응답으로 재알림·이관이 발생한 케이스. */
+  escalated?: boolean;
 }
 
 const SEVERITY_LABEL: Record<CaseCard['severity'], string> = {
@@ -26,7 +28,7 @@ const SEVERITY_LABEL: Record<CaseCard['severity'], string> = {
   LOW: '낮음',
 };
 
-export function ApprovalCard({ data, onReview, offlineDisabled, readOnly }: ApprovalCardProps) {
+export function ApprovalCard({ data, onReview, offlineDisabled, readOnly, escalated }: ApprovalCardProps) {
   return (
     <Card data-case-id={data.caseId} className="mb-3 flex items-center gap-3 p-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -39,6 +41,7 @@ export function ApprovalCard({ data, onReview, offlineDisabled, readOnly }: Appr
             <Chip tone="critical">누락 {data.missingDocCount}건</Chip>
           )}
           {data.state === 'returned' && <Chip tone="high">반려됨 · 보완 필요</Chip>}
+          {escalated && <Chip tone="high">승인 지연</Chip>}
         </div>
         <h3 className="truncate text-label1 font-semibold text-ink">{data.title}</h3>
         {data.workerRef && (

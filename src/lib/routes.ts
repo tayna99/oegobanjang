@@ -40,4 +40,6 @@ export const ROUTE_PATHS = {
   settings: 'settings',
   settingsMembers: 'settings/members',
   settingsDelegation: 'settings/delegation',
+  // Shell 트리 바깥의 최상위 형제 라우트라 절대 경로(무인증 행정사 링크, 7단계 §4).
+  packageLinkAbsolute: '/link/:packageId',
 } as const;

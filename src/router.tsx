@@ -13,6 +13,7 @@ import { EvidencePage } from '@/features/governance/EvidencePage';
 import { MessagesPage } from '@/features/messages/MessagesPage';
 import { ThreadPage } from '@/features/messages/ThreadPage';
 import { PackagePage } from '@/features/packagePkg/PackagePage';
+import { ExpertLinkPage } from '@/features/packagePkg/ExpertLinkPage';
 import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
 import { MembersPage } from '@/features/settings/MembersPage';
 import { DelegationPage } from '@/features/settings/DelegationPage';
@@ -75,6 +76,12 @@ export const routeConfig: RouteObject[] = [
       { path: ROUTE_PATHS.settingsMembers, element: <MembersPage /> },
       { path: ROUTE_PATHS.settingsDelegation, element: <DelegationPage /> },
     ],
+  },
+  // Shell(로그인 앱 챙) 바깥의 최상위 형제 라우트 — 행정사는 계정이 없어 nav/tabbar가 없다
+  // (7단계 §1·§4). loader 없음 — 만료 여부는 화면 안에서 판정(리다이렉트가 아니라 안내문 표시).
+  {
+    path: ROUTE_PATHS.packageLinkAbsolute,
+    element: <ExpertLinkPage />,
   },
 ];
 

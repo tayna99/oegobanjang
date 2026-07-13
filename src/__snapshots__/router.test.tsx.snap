@@ -88,5 +88,10 @@ exports[`routeConfig > 딥링크 맵과 1:1 대응하는 경로 구조를 유지
     "hasLoader": false,
     "path": "(layout)",
   },
+  {
+    "children": undefined,
+    "hasLoader": false,
+    "path": "/link/:packageId",
+  },
 ]
 `;

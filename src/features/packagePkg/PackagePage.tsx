@@ -4,6 +4,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { cn } from '@/lib/cn';
 import { useNav } from '@/lib/nav';
+import { isLinkExpired, LINK_VALIDITY_DAYS } from '@/lib/packageLink';
 import {
   PACKAGE_EXPORT_FOOTER,
   PACKAGE_WATERMARK,
@@ -12,6 +13,8 @@ import {
 } from '@/mocks/packages';
 import { useApprovalStore } from '@/stores/approvalStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useRoleStore } from '@/stores/roleStore';
+import type { EvidenceEvent } from '@/types';
 
 // 행정사 검토 패키지(관제형 §2d) — 포함 항목 토글 · 검토 요청서 미리보기 · 근거 각주 · 내보내기 이력(2.4).
 // 내보내기는 승인 전 잠금(고정 가드레일). PII는 마스킹 값만(원문 없음). 데스크톱 3열/모바일 스택 반응형.
@@ -57,7 +60,8 @@ function IncludeChecklist({
   );
 }
 
-function DocumentPreview({ pkg, on }: { pkg: HandoffPackage; on: Set<string> }) {
+// ExpertLinkPage(행정사 무인증 뷰)가 그대로 재사용 — 새 시각 요소 없이 콘텐츠만 공유.
+export function DocumentPreview({ pkg, on }: { pkg: HandoffPackage; on: Set<string> }) {
   const workerOn = on.has('worker');
   return (
     <section aria-label="검토 요청서" className="flex min-w-0 flex-1 flex-col gap-3">
@@ -114,7 +118,15 @@ function DocumentPreview({ pkg, on }: { pkg: HandoffPackage; on: Set<string> }) 
   );
 }
 
-function EvidenceRail({ pkg, approved }: { pkg: HandoffPackage; approved: boolean }) {
+function EvidenceRail({
+  pkg,
+  approved,
+  viewLog,
+}: {
+  pkg: HandoffPackage;
+  approved: boolean;
+  viewLog: EvidenceEvent[];
+}) {
   return (
     <aside aria-label="근거·내보내기 레일" className="flex w-full shrink-0 flex-col gap-4 lg:w-[300px]">
       <section className="flex flex-col gap-2">
@@ -147,6 +159,22 @@ function EvidenceRail({ pkg, approved }: { pkg: HandoffPackage; approved: boolea
         </ul>
       </section>
 
+      {/* 행정사 링크 열람 로그(7단계 §4) — package_link_viewed evidence. */}
+      <section aria-label="링크 열람 이력" className="flex flex-col gap-2">
+        <h2 className="text-caption1 font-bold tracking-wide text-muted">링크 열람 이력 ({viewLog.length})</h2>
+        {viewLog.length === 0 ? (
+          <p className="text-caption1 text-dim">아직 행정사가 링크를 열람하지 않았습니다.</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5">
+            {viewLog.map((e) => (
+              <li key={e.id} className="rounded-in border border-hairline px-2.5 py-2 text-caption1 text-ink">
+                {e.summary}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <p className={cn('mt-auto rounded-in px-3 py-2.5 text-caption1', approved ? 'bg-succbg text-success' : 'bg-surface text-subtle')}>
         {approved ? '승인 완료 — 전달 준비 상태입니다.' : PACKAGE_EXPORT_FOOTER}
       </p>
@@ -158,16 +186,25 @@ export function PackagePage() {
   const { packageId } = useParams<{ packageId: string }>();
   const nav = useNav();
   const pkg = packageFor(packageId);
+  const role = useRoleStore((s) => s.role);
   const approvals = useApprovalStore((s) => s.approvals);
   const requestApproval = useApprovalStore((s) => s.requestApproval);
+  const events = useEvidenceStore((s) => s.events);
   const appendEvidence = useEvidenceStore((s) => s.append);
 
   const [on, setOn] = useState<Set<string>>(() => new Set(pkg?.items.filter((i) => i.defaultOn).map((i) => i.key)));
   const [requested, setRequested] = useState(false);
+  const [exported, setExported] = useState(false);
 
   useEffect(() => {
     if (pkg) setOn(new Set(pkg.items.filter((i) => i.defaultOn).map((i) => i.key)));
   }, [pkg]);
+
+  const expired = useMemo(() => (pkg ? isLinkExpired(pkg, events) : false), [pkg, events]);
+  const viewLog = useMemo(
+    () => (pkg ? events.filter((e) => e.type === 'package_link_viewed' && e.caseId === pkg.packageId) : []),
+    [pkg, events],
+  );
 
   const approved = useMemo(
     () => (pkg ? approvals[exportActionId(pkg)]?.status === 'approved' : false),
@@ -208,6 +245,32 @@ export function PackagePage() {
     setRequested(true);
   };
 
+  // 승인 후 "내보내기" — 실제 전달/제출은 하지 않는다(GOTCHAS: 전달 준비까지만).
+  // 감사 로그에 exported 이벤트만 남긴다(evidence.ts의 batbayar-export-0031과 동일 패턴).
+  const onExport = () => {
+    appendEvidence({
+      id: `${pkg.packageId}-handoff-exported`,
+      type: 'exported',
+      at: new Date().toISOString(),
+      caseId: pkg.packageId,
+      summary: `${pkg.workerName} · 행정사 패키지 PDF 내보내기`,
+      actor: '김담당',
+    });
+    setExported(true);
+  };
+
+  // 링크 재발급(7단계 §4 "재발급은 manager") — 만료 여부 계산을 다시 유효로 되돌린다.
+  const onReissue = () => {
+    appendEvidence({
+      id: `${pkg.packageId}-link-reissued-${Date.now()}`,
+      type: 'package_link_issued',
+      at: new Date().toISOString(),
+      caseId: pkg.packageId,
+      summary: `${pkg.workerName} · 행정사 패키지 링크 재발급`,
+      actor: '김담당',
+    });
+  };
+
   return (
     <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-4 px-5 pb-16 pt-5">
       <header className="flex flex-col gap-2">
@@ -219,20 +282,32 @@ export function PackagePage() {
             <Chip tone="approval">{pkg.statusLabel}</Chip>
           </div>
           <div className="flex shrink-0 gap-2">
-            <Button variant="outline" size="sm" disabled={!approved}>
-              {approved ? '내보내기' : '내보내기 (승인 필요)'}
+            {/* 링크 재발급 — manager 전용(7단계 §4). */}
+            {role === 'manager' && (
+              <Button variant="outline" size="sm" onClick={onReissue}>
+                링크 재발급
+              </Button>
+            )}
+            <Button variant="outline" size="sm" disabled={!approved || exported} onClick={onExport}>
+              {exported ? '내보내기 완료' : approved ? '내보내기' : '내보내기 (승인 필요)'}
             </Button>
             <Button variant="primary" size="sm" disabled={requested} onClick={onRequestApproval}>
               {requested ? '승인 요청됨' : '승인 요청'}
             </Button>
           </div>
         </div>
+        {/* 링크 만료 안내(7단계 §4 "만료형(기본 7일)") — 내부 관리 화면에서도 상태를 보여준다. */}
+        {expired && (
+          <p className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
+            행정사 링크가 만료되었습니다({LINK_VALIDITY_DAYS}일 경과) — 재발급이 필요합니다.
+          </p>
+        )}
       </header>
 
       <div className="flex flex-col gap-5 lg:flex-row">
         <IncludeChecklist pkg={pkg} on={on} toggle={toggle} />
         <DocumentPreview pkg={pkg} on={on} />
-        <EvidenceRail pkg={pkg} approved={approved} />
+        <EvidenceRail pkg={pkg} approved={approved} viewLog={viewLog} />
       </div>
     </div>
   );

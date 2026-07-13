@@ -93,3 +93,12 @@ export function filterAudit(entries: EvidenceEvent[], key: AuditFilterKey): Evid
   const filter = AUDIT_FILTERS.find((f) => f.key === key) ?? AUDIT_FILTERS[0];
   return entries.filter((entry) => filter.match(entry.type));
 }
+
+// 자동 에스컬레이션(7단계 §3.2) 표면화 — 큐 행의 "승인 지연" Chip이 참조하는 단일 출처.
+// 시드+런타임을 모두 보는 mergedAuditLog와 달리 여기선 원시 이벤트 배열만 받으면 되므로
+// 호출부가 이미 병합된 목록이든 evidenceStore 원본이든 그대로 넘길 수 있게 유연하게 둔다.
+export function isCaseEscalated(caseId: string, events: readonly EvidenceEvent[]): boolean {
+  const runtimeIds = new Set(events.map((e) => e.id));
+  const combined = [...EVIDENCE_SEED.filter((e) => !runtimeIds.has(e.id)), ...events];
+  return combined.some((e) => e.type === 'approval_escalated' && e.caseId === caseId);
+}
