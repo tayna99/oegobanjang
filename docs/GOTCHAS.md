@@ -15,11 +15,14 @@
 | high risk 케이스(기한 경과, 계약 종료 등)의 앱 내 처리 액션 | 전문가 영역 | `handoff` 액션으로만 — UI에 처리 버튼을 만들지 않는다 |
 | 승인 버튼의 즉시 활성화 (런 스트리밍 중) | 성급한 승인 방지 | 스텝 렌더 완료 후 enable |
 | 오프라인 상태에서 승인 API 호출 | 승인은 서버 확정 필수 | 버튼 disabled + 토스트 |
+| PIN(`lib/pin.ts` DEMO_PIN)을 실제 인증으로 취급 | 데모용 고정값 목업, 실제 인증 백엔드 없음 | 승인 결정(approve/reject)은 `useApprovalActions` 공유 유닛(`lib/approval.ts`) 한 곳만 거친다 — 새 화면에 별도 승인 실행 경로를 만들지 않는다 |
+| owner 역할의 쓰기-도구 커맨드 런 진입 | owner는 승인만, 실행 대리 아님(7단계 §2 각주3) | `RunConfig.writesData`가 true인 커맨드 런은 owner 차단. approval-mode 런은 게이트 대상 아님 |
 
 ## 2. 상태 전이 (이 순서 밖의 전이는 버그)
 
 ```
 Case.state:      draft → risk_review → approval_pending → human_approved → completed
+                                       ⇅ returned (반려 — 사유는 판단 기록에 남고, 보완 후 approval_pending 재진입만 허용)
                                      ↘ blocked (근거 없음·high risk·오류 — 조용히 넘어가지 말고 표면화)
 NextAction.state: locked → ready → scheduled|waiting
 Approval.status:  pending → approved | rejected  (idempotency key 필수 — 중복 승인 차단)

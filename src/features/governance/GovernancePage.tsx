@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Chip } from '@/components/Chip';
+import { KpiTile } from '@/components/KpiTile';
 import type { ChipTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
 import { AUDIT_FILTERS, AUDIT_TYPE_LABEL, AUDIT_TYPE_TONE, filterAudit, mergedAuditLog, type AuditFilterKey } from '@/lib/audit';
+import { SECTION_TITLE_CLASS } from '@/lib/sectionTitle';
 import { CASE_SHEETS } from '@/mocks/fixtures';
 import { citationKpis, linkedCaseCount, useCitationStore } from '@/stores/citationStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
@@ -35,16 +37,7 @@ const STATUS_LABEL: Record<CitationStatus, string> = {
   internal: '내부 기준',
 };
 
-const SECTION_TITLE = 'text-caption1 font-bold tracking-wide text-muted';
-
-function KpiTile({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className="flex flex-col gap-1 rounded-in border border-hairline bg-canvas px-3.5 py-3">
-      <span className="text-pc-2xs text-subtle">{label}</span>
-      <span className={cn('text-heading2 font-bold tabular-nums', tone)}>{value}</span>
-    </div>
-  );
-}
+const SECTION_TITLE = SECTION_TITLE_CLASS;
 
 function CitationLibrary() {
   const records = useCitationStore((s) => s.records);

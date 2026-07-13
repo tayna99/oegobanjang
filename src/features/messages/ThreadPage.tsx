@@ -5,12 +5,16 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { cn } from '@/lib/cn';
 import { useNav } from '@/lib/nav';
+import { CASE_CARDS } from '@/mocks/fixtures';
 import { threadFor, type ThreadMessage } from '@/mocks/messages';
+import { canTransition, useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 
 // 스레드 대화 뷰 + M6 응답 해석(2.2) — 원문은 여기(스레드 내부)에서만 노출.
 // M6: 근로자 회신 → 원문 + KR 요약 + 상태 업데이트 제안. isFinal:false면 "해석 확인" 후 반영
-// (담당자 확인 필요). 확인 시 evidence(final_response_generated) 기록 — 자동 상태 변경은 하지 않는다.
+// (담당자 확인 필요). 확인 시 evidence(final_response_generated) 기록 +, 합법적 전이라면
+// caseStore 상태도 함께 갱신한다(코드리뷰 지적: 버튼 라벨 "상태 반영"이 실제로는 evidence만
+// 남기고 케이스 상태는 그대로라 화면 간 모순이 있었다).
 
 const LANG_LABEL: Record<string, string> = { vi: '베트남어', id: '인도네시아어', en: '영어', ko: '한국어' };
 
@@ -39,7 +43,14 @@ export function ThreadPage() {
   const nav = useNav();
   const thread = threadFor(threadId);
   const appendEvidence = useEvidenceStore((s) => s.append);
+  const upsert = useCaseStore((s) => s.upsert);
   const [confirmed, setConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (Object.keys(useCaseStore.getState().cases).length === 0) {
+      CASE_CARDS.forEach(upsert);
+    }
+  }, [upsert]);
 
   // 이미 확인된 해석이면(evidence 존재) 확인 상태로 시작.
   useEffect(() => {
@@ -71,6 +82,12 @@ export function ThreadPage() {
       summary: `${thread.workerName} 응답 해석 확인 — 상태 업데이트 반영`,
       actor: '김담당',
     });
+    // 합법적 전이(risk_review→approval_pending)일 때만 실제로 케이스 상태를 반영한다 —
+    // 상태 전이표(GOTCHAS §2) 밖 전이는 시도하지 않는다.
+    const current = useCaseStore.getState().cases[thread.caseId];
+    if (current && canTransition(current.state, 'approval_pending')) {
+      useCaseStore.getState().transition(thread.caseId, 'approval_pending');
+    }
     setConfirmed(true);
   };
 

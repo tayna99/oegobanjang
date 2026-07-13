@@ -8,6 +8,7 @@ import { CASE_STAGES, DELIVERY_STAGES, caseStageIndex, deliveryStageIndex } from
 import { severityTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
 import { dDayLabel, dDayTextClass } from '@/lib/dday';
+import { SECTION_TITLE_CLASS } from '@/lib/sectionTitle';
 import { CASE_SHEETS, type CaseSheet } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
 import { usableCitations } from '@/stores/citationStore';
@@ -67,7 +68,7 @@ function readinessPercent(card: CaseCard, sheet?: CaseSheet): number {
   return Math.round((caseStageIndex(card, sheet) / (CASE_STAGES.length - 1)) * 100);
 }
 
-const RAIL_SECTION_TITLE = 'text-caption1 font-bold tracking-wide text-muted';
+const RAIL_SECTION_TITLE = SECTION_TITLE_CLASS;
 
 function CaseListRow({
   card,

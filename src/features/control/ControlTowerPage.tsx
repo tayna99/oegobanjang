@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { Chip } from '@/components/Chip';
+import { KpiTile } from '@/components/KpiTile';
 import { cn } from '@/lib/cn';
+import { SECTION_TITLE_CLASS } from '@/lib/sectionTitle';
 import { AUDIT_TYPE_LABEL, AUDIT_TYPE_TONE, mergedAuditLog } from '@/lib/audit';
 import { sortCaseList } from '@/lib/cases';
 import { AGENT_STAGE_LABELS } from '@/lib/caseStage';
@@ -25,7 +27,7 @@ import type { CaseCard, Severity } from '@/types';
 // KPI·큐는 스토어에서 파생(mock은 지난주 추이·오늘 델타뿐). C10: 고위험 행 액션은 "검토".
 
 const SEVERITY_LABEL: Record<Severity, string> = { CRITICAL: '긴급', HIGH: '높음', MEDIUM: '중간', LOW: '낮음' };
-const SECTION_TITLE = 'text-caption1 font-bold tracking-wide text-muted';
+const SECTION_TITLE = SECTION_TITLE_CLASS;
 
 function PipelineTile({
   label,
@@ -50,15 +52,6 @@ function PipelineTile({
       <span className="text-pc-2xs text-subtle">{label}</span>
       <span className={cn('text-heading1 font-bold tabular-nums', tone)}>{value}</span>
       <span className="text-pc-2xs text-dim">{delta}</span>
-    </div>
-  );
-}
-
-function KpiTile({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className="flex min-w-[130px] flex-col gap-1 rounded-in border border-hairline bg-canvas px-3.5 py-3">
-      <span className="text-pc-2xs text-subtle">{label}</span>
-      <span className={cn('text-heading2 font-bold tabular-nums', tone)}>{value}</span>
     </div>
   );
 }
@@ -135,7 +128,9 @@ function ActivityRail() {
   const nav = useNav();
   const log = useMemo(() => mergedAuditLog(events), [events]);
   const activity = log.slice(0, 5);
-  const audit = log.slice(0, 3);
+  // 감사 로그는 판단 기록 번호(evidenceRef)가 있는 항목만 — 활동 스트림과 항상 동일해지던 버그 교정
+  // (둘 다 log[0..N)을 그대로 잘라 구조적으로 완전히 같은 항목이 됐었다, 코드리뷰 지적).
+  const audit = log.filter((e) => e.evidenceRef).slice(0, 3);
   const time = (iso: string) => iso.slice(11, 16);
 
   return (
@@ -214,10 +209,10 @@ export function ControlTowerPage() {
         </div>
 
         <div className="flex gap-2.5" aria-label="KPI">
-          <KpiTile label="활성 케이스" value={kpis.activeCases} tone="text-ink" />
-          <KpiTile label="고위험 (C+H)" value={kpis.highRisk} tone="text-critical" />
-          <KpiTile label="D-day 임박 (≤7일)" value={kpis.dDayImminent} tone="text-warning" />
-          <KpiTile label="근거 부족" value={kpis.evidenceShort} tone="text-success" />
+          <KpiTile label="활성 케이스" value={kpis.activeCases} tone="text-ink" className="min-w-[130px]" />
+          <KpiTile label="고위험 (C+H)" value={kpis.highRisk} tone="text-critical" className="min-w-[130px]" />
+          <KpiTile label="D-day 임박 (≤7일)" value={kpis.dDayImminent} tone="text-warning" className="min-w-[130px]" />
+          <KpiTile label="근거 부족" value={kpis.evidenceShort} tone="text-success" className="min-w-[130px]" />
           <TrendChart />
         </div>
 

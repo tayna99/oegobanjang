@@ -2,9 +2,13 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import { routeConfig } from '@/router';
+import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 
-afterEach(() => useEvidenceStore.getState().reset());
+afterEach(() => {
+  useEvidenceStore.getState().reset();
+  useCaseStore.getState().reset();
+});
 
 function renderAt(path: string) {
   const router = createMemoryRouter(routeConfig, { initialEntries: [path] });
@@ -52,6 +56,14 @@ describe('ThreadPage — M6 응답 해석', () => {
 
     const events = useEvidenceStore.getState().events.filter((e) => e.type === 'final_response_generated');
     expect(events.some((e) => e.caseId === 'tranCase' && e.summary?.includes('응답 해석 확인'))).toBe(true);
+  });
+
+  it('해석 확인 시 케이스 상태도 승인 대기로 전환된다(버튼 라벨 "상태 반영"과 실제 동작 일치, 코드리뷰 지적 교정)', async () => {
+    renderAt('/thread/tranCase');
+    await screen.findByRole('heading', { name: 'Tran Thi H.' });
+    expect(useCaseStore.getState().cases['tranCase']?.state).toBe('risk_review');
+    fireEvent.click(screen.getByRole('button', { name: '해석 확인 · 상태 반영' }));
+    expect(useCaseStore.getState().cases['tranCase']?.state).toBe('approval_pending');
   });
 
   it('응답이 없는 스레드(nguyen)는 해석 카드가 없다', async () => {

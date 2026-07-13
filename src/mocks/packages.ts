@@ -61,7 +61,7 @@ export const HANDOFF_PACKAGES: Record<string, HandoffPackage> = {
         heading: '1. 케이스 개요',
         lines: [
           '근로자: Batbayar E. (제조2팀 · E-9)',
-          '외국인등록번호: 900412-6●●●●●●', // 마스킹 — 원문 저장 안 함
+          '외국인등록번호: ******-*******', // 마스킹 — 원문 저장 안 함(lib/mask.ts 규칙과 동일 형식)
           '체류만료일: 2026-07-04 (D+2 경과)',
           '리스크: CRITICAL · visa_expiry (체류기간 만료 경과)',
         ],

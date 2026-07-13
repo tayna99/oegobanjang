@@ -140,6 +140,30 @@ export const RUN_CONFIGS: RunConfig[] = [
     writesData: true,
   },
   {
+    // 케이스 타임라인 런 체이닝(3.3)의 1차 요청 기록 — CASE_SHEETS.nguyen.activity의
+    // "#4712 · 1차 서류 요청 — 여권 사본 요청 — 승인·발송 완료"에 대응하는 재생 런
+    // (코드리뷰 지적: 대응 config가 없어 클릭 시 무한 로딩이었다).
+    runKey: '4712',
+    caseId: 'nguyen',
+    mode: 'replay',
+    title: '1차 서류 요청 (재생)',
+    agent: 'Multilingual Contact Agent',
+    evidenceRef: '#4712',
+    autonomyLabel: '자율성 Medium (승인 필요)',
+    question: '여권 사본을 요청할까요?',
+    altLabel: '수정 요청',
+    readOnly: true,
+    steps: [
+      { kind: 'tool_call', label: '근로자 프로필 확인 완료', detail: 'Nguyen Van A · 베트남 · E-9 · Zalo' },
+      { kind: 'tool_call', label: '요청 메시지 초안 생성 완료', detail: '여권 사본 요청 · 베트남어 원문 + 한국어 번역' },
+      {
+        kind: 'guardrail',
+        label: '발송 전 정지 · 승인 요청 생성',
+        detail: '자율성 Medium — 근로자 컨택은 자동 발송하지 않고 담당자 승인 후 발송합니다',
+      },
+    ],
+  },
+  {
     runKey: '4788',
     caseId: 'nguyen',
     mode: 'replay',

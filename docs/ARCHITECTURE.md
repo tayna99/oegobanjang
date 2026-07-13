@@ -13,11 +13,11 @@
 |---|---|
 | 라우팅·딥링크 | `src/router.tsx` — 딥링크 맵은 스펙 `2단계_알림카탈로그` §3과 1:1 |
 | 화면 셸(탭바/헤더) | `src/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
-| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseSheet`(5블록+ActionBar, citation 0건 승인 잠금) + `CaseSheetPage`(BriefingHomePage를 배경으로 재사용하는 오버레이 근사 — 진짜 background-location은 M7(2.1) 이후 재검토). `src/features/run/`(M4/M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'|'command'|'replay') + `RunPage`(컨테이너 — `/case/:caseId/approve`·`/run/:runId` 두 라우트를 이 하나로 공유, caseId면 approval config를, runId면 runKey로 조회). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
+| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseReviewPage`(2b 사례 검토, citation 0건 승인 잠금) + `CaseHistoryPage`(2d 승인 이력). `src/features/approve/ApprovePage.tsx`(2c, M2.6.3) — 체크리스트 4/4 + citation-lock + PIN 게이트, 결정은 `lib/approval.ts`의 `useApprovalActions`(approve/reject) 공유 유닛이 수행. `src/features/run/`(M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'\|'command'\|'replay') + `RunPage`(`/run/:runId` 전용 — RUN_CONFIGS를 runKey로 조회, mode 무관 단일 라우트. 케이스 최종 승인(`/case/:id/approve`)과는 별개 화면·별개 결정 경로다). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
 | 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
-| 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore |
+| 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore, citationStore, roleStore, companyStore |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
-| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — 1.5부터 command/replay 포함 8건) · `evidence.ts`(EVIDENCE_SEED). Nguyen/Tran/Bayar/Mohammad/채용. Candidate는 PKG 전용(M2.4) |
+| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS, 6인 로스터: Batbayar·Nguyen·Siti·Tran·Rahmat·Oyunaa) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — command/replay 포함) · `evidence.ts`(EVIDENCE_SEED) · `messages.ts`(M6 스레드) · `packages.ts`(행정사 패키지, M2.4) |
 
 ## 3. 화면 ↔ 라우트 ↔ 스펙
 
@@ -62,7 +62,7 @@ runEngine.execute(config: RunConfig)
 
 - MVP의 런은 **각본 기반**(fixtures의 step 배열 재생). 실 LLM 연결은 백엔드 단계 — 인터페이스(RunConfig)를 바꾸지 않고 교체 가능해야 한다
 - 프로액티브 런 = `startedBy:'event'` + 도구 화이트리스트(읽기+초안) + 종착점 승인 요청
-- **구현(1.5):** `src/lib/runEngine.ts`의 `executeRun(config, onStep, onDone)`이 React 비의존 순수 함수로 위 계약을 구현 — approval/command는 `430ms * (index+1)` 간격 스텝 emit, replay는 지연 없이 전체 즉시 emit. `src/lib/useRunEngine.ts`가 React 훅으로 감싸 `{steps, status, currentIndex}`를 노출. M4(`/case/:caseId/approve`)와 M9(`/run/:runId`)는 같은 `RunPage`/`RunScreen`을 공유(§2). 1.6부터 approval mode 승인 버튼은 pprovalStore.decide() → caseStore.transition(..., 'human_approved') → evidenceStore.append('approval_decided') → /done으로 이어진다.
+- **구현(1.5):** `src/lib/runEngine.ts`의 `executeRun(config, onStep, onDone)`이 React 비의존 순수 함수로 위 계약을 구현 — approval/command는 `430ms * (index+1)` 간격 스텝 emit, replay는 지연 없이 전체 즉시 emit. `src/lib/useRunEngine.ts`가 React 훅으로 감싸 `{steps, status, currentIndex}`를 노출. M2.6.3부터 M4 케이스 최종 승인(`/case/:id/approve`)은 `ApprovePage`(체크리스트 4/4 + citation-lock + PIN 게이트, `lib/approval.ts`의 `useApprovalActions`로 결정)가 전담하고, `RunPage`/`RunScreen`은 M9(`/run/:runId`) 전용이다(§2). 1.6부터 approval mode 승인 버튼은 approvalStore.decide() → caseStore.transition(..., 'human_approved') → evidenceStore.append('approval_decided') → `/case/:id/history`(2d)로 이어진다.
 
 ## 6. 의존 방향 (위반 금지)
 
@@ -72,14 +72,15 @@ components ↛ features (공용 컴포넌트는 도메인을 모른다)
 stores ↛ features
 ```
 
-## 7. 흐름도 — 승인 해피패스
+## 7. 흐름도 — 승인 해피패스 (M2.6, Mobile.dc.html §2a~2d)
 
 ```
-M1 카드 [보내기 승인]
-→ router: /case/nguyen/approve
-→ runEngine(mode:approval) 스트리밍 → 완료 후 승인 버튼 enable
-→ approvalStore.decide(approved, idempotencyKey)
+M1 카드 [검토]
+→ router: /case/nguyen (2b 사례 검토) → "검토 계속"
+→ router: /case/nguyen/approve (2c 최종 승인)
+→ ApprovePage: 체크리스트 필수 4/4 + citation-lock 해제 → [승인하기] → 본인확인 PIN 확인
+→ useApprovalActions.approve(): approvalStore.decide(approved, idempotencyKey)
 → caseStore 전이(approval_pending→human_approved)
 → evidenceStore.append(approval_decided)
-→ M5 push-in → 복귀 시 M1 카드 상태 반영
+→ router: /case/nguyen/history (2d 승인 이력) → 복귀 시 M1 카드 상태 반영
 ```
