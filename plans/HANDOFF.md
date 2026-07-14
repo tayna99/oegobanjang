@@ -18,6 +18,42 @@
 
 ---
 
+### [2026-07-13] 온보딩·CSV·PC 4a-4f 전체 — Phase 0~3f 완료(세션 마무리)
+- 한 일 요약: 사용자 지시("PC 순신규 화면까지 전부", 전체 마스킹 채택)로 Phase 0(목업
+  프리즈+델타 감사)부터 Phase 3f(사장님 PC 최소화면)까지 9개 커밋으로 순차 완료.
+  **커밋**: 55486a8(Phase 0 프리즈)·0f883ca(4.1 온보딩)·8253eb4(4.4 CSV)·a2eeac2(4.5a)·
+  474e7c1(4.5b)·c70f53d(4.5c)·c105b3d(4.5d)·7b8070e(4.5e)·5bb2f96(4.5f). 각 커밋마다
+  `tsc`+`vitest run`(전체 스위트)+`vite build`+브라우저 실검증(1440×900 데스크톱 또는
+  375×812 모바일) 순서로 검증 후 커밋·푸시.
+- 신규 EvidenceType 3종 추가: `dispatch_executed`/`delivery_confirmed`(4d)·`package_reply`
+  (4e) — `types.ts` + `lib/audit.ts`의 `AUDIT_TYPE_LABEL`/`AUDIT_TYPE_TONE` 두 Record +
+  `audit.test.ts`의 수기 `ALL_TYPES` 배열 모두 매번 함께 갱신(exhaustiveness 테스트 요구).
+- 신규 라우트 4개: `/onboarding`(Shell 바깥 형제), `/cases/import`·`/cases/workers`·
+  `/cases/dispatch`(Shell 안, 담당자 전용, "케이스 하위 화면" IA 원칙).
+- 신규 공용 컴포넌트: `IconLock`(icons.tsx)·`PcOnlyNotice`(PC 전용 화면 모바일 안내,
+  CsvUploadPage/WorkerDataPage/DispatchQueuePage가 공유).
+- **브라우저 실검증에서 발견·수정한 버그 2건**(둘 다 실제 배포됐다면 사용자가 겪었을 문제):
+  1. `WorkerDataWorkbench`가 caseStore 시드 이펙트를 빠뜨려 `/cases/workers` 직접 진입 시
+     "0명"으로 렌더 — 다른 케이스 컨테이너와 동일한 시드 패턴 추가로 수정(Phase 3b).
+  2. `ExpertLinkPage.test.tsx`의 `vi.resetModules()`가 매 테스트마다 모듈 그래프를 새로
+     만들어, 정적 import한 `useEvidenceStore`가 실제 렌더된 컴포넌트와 다른 스토어
+     인스턴스를 참조하던 결함(Phase 3e) — `renderAt()`이 그 시점의 스토어를 함께
+     동적 import해 반환하도록 고쳐 6개 테스트 전부 안전하게 만듦.
+  두 버그 모두 유닛 테스트만으로는 잡히지 않고 **브라우저 실검증 단계**에서 발견됐다 —
+  이번 세션 내내 "각 화면 구현 후 반드시 브라우저로 실클릭 검증"을 지킨 이유.
+- 의도적으로 다루지 않은 것(후속 과제, `plans/ROADMAP.md` M4.5 절 참고): 서류 스캔 OCR,
+  발송 큐↔승인 파이프라인 자동 연동, 행정사 회신의 케이스 타임라인 실시간 반영, PC 나비
+  IA 재정렬(52px/64px, 최상위 탭 라벨).
+- **테스트 인프라 관찰**: 전체 스위트를 여러 번 재실행하며 매번 다른 테스트가 1건씩
+  간헐적으로 실패(`MessagesFlow.test.tsx`, `CaseWorkbench.test.tsx` 딥링크 테스트 등)하는
+  것을 확인 — 전부 격리 실행 시 통과, 이 프로젝트에 이미 문서화된 병렬 워커 부하 하의
+  기존 flake 패턴과 일치(내 변경으로 인한 회귀 아님).
+- 남은 작업: 없음(사용자가 지시한 범위 전부 완료). 여전히 블록 상태인 항목은 스펙 §7
+  "미해결 → 후속"과 4.1/4.4가 처음에 막혀 있던 이유였던 항목들이 아니라, 위 "의도적으로
+  다루지 않은 것" 목록뿐 — 전부 명시적으로 후속 과제로 문서화됨.
+
+---
+
 ### [2026-07-13] 사장님 PC 최소화면(4f) — Phase 3f 완료, PC 4a-4f 전 항목 마무리
 - 한 일: `HomePage.tsx`에 role 분기 추가 — `role==='owner' && isDesktop`이면 `ControlTowerPage`
   대신 `OwnerHomeWorkbench`(신설, `features/control/`) 렌더. 승인 대기 배너("승인 대기 N건 —
