@@ -54,6 +54,30 @@ CREATE TABLE users (
   updated_at            timestamptz NOT NULL DEFAULT now()
 );
 
+-- 휴대폰 인증번호 로그인(3단계 O1). 세션 발급 전 단계 — company 비종속(로그인은 회사 선택 이전)
+CREATE TABLE login_otps (
+  id            text PRIMARY KEY,
+  phone         text NOT NULL,               -- users.phone과 동일 포맷. FK 없음(가입 전 번호도 요청 가능)
+  code_hash     text NOT NULL,               -- HMAC-SHA256(pepper, code) — 원문 저장 금지
+  attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  expires_at    timestamptz NOT NULL,
+  consumed_at   timestamptz,                 -- 검증 성공 시 1회만 설정
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_login_otps_phone ON login_otps (phone, created_at DESC);
+
+-- 발급된 로그인 세션 — 불투명 토큰(해시만 저장, users.pin_hash와 동일 원칙)
+CREATE TABLE sessions (
+  id           text PRIMARY KEY,
+  user_id      text NOT NULL REFERENCES users(id),
+  token_hash   text NOT NULL UNIQUE,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  expires_at   timestamptz NOT NULL,
+  revoked_at   timestamptz,
+  CHECK (expires_at > created_at)
+);
+CREATE INDEX ix_sessions_user ON sessions (user_id);
+
 CREATE TABLE memberships (
   id                 text PRIMARY KEY,
   company_id         text NOT NULL REFERENCES companies(id),
@@ -707,6 +731,44 @@ CREATE TRIGGER evidence_events_no_update BEFORE UPDATE ON evidence_events
   FOR EACH ROW EXECUTE FUNCTION trg_evidence_events_immutable();
 CREATE TRIGGER evidence_events_no_delete BEFORE DELETE ON evidence_events
   FOR EACH ROW EXECUTE FUNCTION trg_evidence_events_immutable();
+
+-- login_otps: 요청/코드/만료는 불변, consumed_at은 NULL→값 1회만 허용(재검증·재사용 금지)
+CREATE FUNCTION trg_login_otps_update_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.phone IS DISTINCT FROM OLD.phone
+     OR NEW.code_hash IS DISTINCT FROM OLD.code_hash
+     OR NEW.expires_at IS DISTINCT FROM OLD.expires_at
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'login otp request is immutable';
+  END IF;
+  IF OLD.consumed_at IS NOT NULL AND NEW.consumed_at IS DISTINCT FROM OLD.consumed_at THEN
+    RAISE EXCEPTION 'login otp is already consumed';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER login_otps_update_guard
+  BEFORE UPDATE ON login_otps
+  FOR EACH ROW EXECUTE FUNCTION trg_login_otps_update_guard();
+
+-- sessions: 신원/만료는 불변, revoked_at은 NULL→값 1회만 허용(재활성화 금지)
+CREATE FUNCTION trg_sessions_update_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.user_id IS DISTINCT FROM OLD.user_id
+     OR NEW.token_hash IS DISTINCT FROM OLD.token_hash
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at
+     OR NEW.expires_at IS DISTINCT FROM OLD.expires_at THEN
+    RAISE EXCEPTION 'session identity/expiry is immutable';
+  END IF;
+  IF OLD.revoked_at IS NOT NULL THEN
+    RAISE EXCEPTION 'session is already revoked';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER sessions_update_guard
+  BEFORE UPDATE ON sessions
+  FOR EACH ROW EXECUTE FUNCTION trg_sessions_update_guard();
 
 -- document_requirements.citation_id 는 전역 근거(company_id IS NULL)만
 CREATE FUNCTION trg_doc_req_citation_global() RETURNS trigger LANGUAGE plpgsql AS $$

@@ -8,7 +8,7 @@ backend가 없으므로 `db/schema.sql`이 현재 정본 DDL이다.
 |---|---|
 | `schema.sql` | 테이블 31개, 파생 뷰 4개, PL/pgSQL 트리거 함수(테넌트·승인·감사 가드레일) |
 | `seed_demo.sql` | 6인 로스터와 판단 기록 데모 시드 |
-| `validate.py` | 테넌트 격리, 승인 상태머신, 외부 실행 차단을 포함한 **160개 회귀 검증**(psycopg) |
+| `validate.py` | 테넌트 격리, 승인 상태머신, 외부 실행 차단을 포함한 **178개 회귀 검증**(psycopg) |
 
 ## 로컬 PostgreSQL (Docker)
 
@@ -49,8 +49,8 @@ DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang" 
   uv run --no-project --with "psycopg[binary]" python db/validate.py --reset
 ```
 
-`--reset`을 명시한 경우에만 validate는 대상 스키마를 drop/recreate한 뒤 `schema.sql`·`seed_demo.sql`을 실행하고 160개 회귀를
-검사한다. 마지막 줄은 `Result: PASS 160 / FAIL 0`이어야 한다. (Windows 콘솔에서 한글 출력이
+`--reset`을 명시한 경우에만 validate는 대상 스키마를 drop/recreate한 뒤 `schema.sql`·`seed_demo.sql`을 실행하고 178개 회귀를
+검사한다. 마지막 줄은 `Result: PASS 178 / FAIL 0`이어야 한다. (Windows 콘솔에서 한글 출력이
 깨지면 `PYTHONIOENCODING=utf-8`을 앞에 붙인다.)
 
 ## 편집 규칙
