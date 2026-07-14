@@ -82,7 +82,7 @@
 
 ## 백엔드 접속점 (이후 — 별도 계획)
 
-- mockApi → FastAPI(기존 Daily Briefing PRD 백엔드)로 교체. 계약: `src/types.ts` = PRD §11 Data Contracts
+- mockApi → 별도 승인된 backend 이식으로 교체. `db/schema.sql`의 복합 FK·CHECK·trigger 계약과 `src/types.ts`를 함께 이식하며, 인증 principal·본인확인·delegation 검증 전에는 승인 결정 endpoint를 만들지 않는다.
 - runEngine 각본 → LangGraph createAgent 스트리밍으로 교체 (RunConfig 인터페이스 유지)
 - 발송 어댑터·알림톡은 계속 범위 밖 (승인 기반 어댑터, PRD Sprint 6)¹
 

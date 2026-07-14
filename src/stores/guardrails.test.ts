@@ -153,6 +153,17 @@ describe('가드레일 2 — evidence append-only', () => {
 });
 
 describe('가드레일 3 — 중복 승인 차단', () => {
+  it('요청 단계에는 결정 idempotencyKey를 만들지 않는다', () => {
+    const approval = useApprovalStore.getState().requestApproval('a1');
+    expect(approval.idempotencyKey).toBeNull();
+  });
+
+  it('결정에는 비어 있지 않은 idempotencyKey가 필요하다', () => {
+    const store = useApprovalStore.getState();
+    store.requestApproval('a1');
+    expect(() => store.decide('a1', 'approved', '   ')).toThrow(GuardrailError);
+  });
+
   it('같은 idempotencyKey로 두 번 decide하면 두 번째는 no-op', () => {
     const store = useApprovalStore.getState();
     store.requestApproval('a1');

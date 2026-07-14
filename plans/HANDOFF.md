@@ -18,6 +18,31 @@
 
 ---
 
+### [2026-07-13] PR #5 PostgreSQL 단일화 (DDL 계약) — 완료
+- 한 일: 서비스 DB를 **PostgreSQL 16으로 확정**하고 설계 킷·문서를 전량 이식했다. `db/schema.sql`을 PG DDL로 재작성(타입 네이티브화, `PRAGMA`·`json_valid`·`boolean IN(0,1)` CHECK 제거, 트리거 60종 → PL/pgSQL 함수, 순환 FK `cases↔runs`를 `DEFERRABLE INITIALLY DEFERRED`로), `db/seed_demo.sql` 이식(boolean `1/0`→`true/false`, `char(10)`→`chr(10)`), `db/validate.cjs`(node:sqlite) → **`db/validate.py`(psycopg)** 재작성. `db/README.md`·`docs/DB_SCHEMA.md`(§1 엔진표·§2 FK 규약·§5.2 append-only 예시)를 PG로 갱신. 직전 항목의 160개 안전성 검증을 **글자 단위로 보존**했다(RAISE EXCEPTION 메시지는 validate가 substring 매칭).
+- 핵심 함정 해결: **PostgreSQL은 같은 테이블 BEFORE 트리거를 이름 알파벳순으로 발화**한다(SQLite는 생성순). 전이 가드가 catch-all `state_update`보다 먼저 발화해야 위반에 맞는 메시지가 표면화되므로, 가드 트리거를 `link < reopen < state` 순으로 정렬되게 명명했다(예: `drafts_approval_reopen_guard`).
+- 남은 일 / 중단 지점: 이 PR은 **DDL 계약 범위만**이다(실행 backend 없음). PG backend(SQLAlchemy 31모델·Alembic·psycopg·savepoint 테스트 격리·승인 F1~F3 픽스)는 로컬 브랜치 `claude/pg-backend`(커밋 3b0c657)에 분리 보관 — **별도 PR**로 올린다. 그 PR은 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다.
+- 결정 사항 (다음 세션이 알아야 할 것): ① 서비스 DB는 PostgreSQL 단일 방언 — SQLite 은퇴(설계 킷·문서·검증 모두 PG). ② 검증은 backend 없이 독립 실행: `DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang" uv run --no-project --with "psycopg[binary]" python db/validate.py`. ③ 트리거 함수 이름은 알파벳 발화 순서에 의존하므로 이름을 임의로 바꾸지 않는다. ④ RLS는 선택적 후속 강화(복합 FK+트리거가 테넌트 격리를 이미 강제).
+- verify 상태: PASS — Docker PG 16(`localhost:55432`)에 `db/schema.sql`+`db/seed_demo.sql` 클린 로드, `db/validate.py` **160/0** 통과.
+- 지도/규칙 갱신: `db/schema.sql`, `db/seed_demo.sql`, `db/validate.py`(신규), `db/validate.cjs`(삭제), `db/README.md`, `docs/DB_SCHEMA.md`.
+---
+
+### [2026-07-13] PR #5 DDL 안전성 범위 정리 — 완료
+- 한 일: PR에만 추가됐던 `backend/` API·ORM·Alembic 스캐폴드와 이를 운영 대상으로 선언한 `AGENTS.md` 변경을 제거했다. `db/schema.sql`을 현행 실행 정본으로 유지하고, 전체 테넌트 복합 FK·active membership·citation scope·MVP 외부 실행 차단을 DDL로 강제한다.
+- 추가 보강: pending/approved draft와 handoff package는 `approval_id`를 제거·교체하거나 `draft`로 되돌릴 수 없고, approval 삭제는 pending을 포함해 모두 차단한다. 프론트 pending approval의 `idempotencyKey`는 `null`, decide()는 비어 있지 않은 키를 요구하도록 맞춘다.
+- 남은 일 / 중단 지점: 후속 backend PR에서만 이 DDL과 동등한 migration/ORM을 만들고, 인증 principal·서버 측 PIN/biometric·유효 delegation 검증 전에는 approve/reject endpoint를 노출하지 않는다.
+- 결정 사항 (다음 세션이 알아야 할 것): 설계 정본은 `db/schema.sql`과 `docs/DB_SCHEMA.md`다. SQLite 연결은 매번 `PRAGMA foreign_keys=ON`을 적용·검사해야 한다. `ApprovalStatus` 저장값은 `pending|approved|rejected`만이며 프론트 `locked`는 파생 표시다. pending approval의 결정 idempotency key는 NULL을 허용하고 decide 시점에만 채운다.
+- verify 상태: PASS — `node --experimental-sqlite db/validate.cjs` **160/0**, `npm run verify` **41 files / 225 tests**(typecheck·lint·production build 포함) 통과.
+- 지도/규칙 갱신: `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/DB_SCHEMA.md`, `db/README.md`, `db/schema.sql`, `db/validate.cjs`, `src/types.ts`, `src/stores/approvalStore.ts`.
+---
+
+### [2026-07-12] DB 설계 + DBeaver 킷 — 완료
+- 한 일: `docs/DB_SCHEMA.md`와 `db/` 설계 킷(DDL·데모 시드·검증기)을 추가했다. 이 기록의 backend 접속점 표현은 2026-07-13 PR #5 범위 정리로 대체됐다.
+- 결정 사항: 현재 정본은 `db/schema.sql`이며, backend migration/API는 별도 승인 PR에서 이 DDL과 동등하게 이식한다.
+- verify 상태: 당시 DDL 검증 PASS 30 / FAIL 0. 이후 검증 수와 안전 계약은 최신 PR #5 항목을 따른다.
+
+---
+
 ### [2026-07-11] 디자인 원본 저장소 고정 — 완료 (PR 리뷰 반영)
 - 한 일: PR 리뷰 지적("외부 디자인 원본을 저장소 안의 재현 가능한 스펙으로 고정한 뒤 병합하는 편이 안전")을 반영. `rules/design.md`·ROADMAP 2.5.4~2.5.6·`.claude/agents/ui-matcher.md`가 전부 claude.ai/design 라이브 프로젝트(`bd0fd8f8-615f-48e9-875b-eb5c9e9b398d`)만 가리키고 있어, 그 프로젝트가 바뀌거나 접근 불가해지면 스펙 근거가 사라지는 구조였다. `reference/design-system/`에 4개 파일을 그대로 고정: `montage-wanted/colors_and_type.css`(원본 CSS — 기존 `외고반장_통합/09_.../colors_and_type.css` 미러와 sha256 비교로 100% 일치 확인, 드리프트 없었음), `montage-wanted/source-rules-design.md`(디자인 프로젝트 자체 rules/design.md 원문 — 우리 저장소의 `rules/design.md`는 이걸 각색한 것), `외고반장 PC.dc.html`(190KB, ROADMAP 2.5.4~2.5.6의 1차 스펙), `외고반장 Mobile.dc.html`(85KB, 채택 보류된 개편안 — 참고 고정만). `rules/design.md`·`plans/ROADMAP.md`(M2.5 블록쿼트 + 2.5.4/5/6 스펙 컬럼)·`docs/SPEC_INDEX.md`·`docs/DESIGN_SYNC_AUDIT_2026-07-11.md`·`.claude/agents/ui-matcher.md`의 참조를 전부 고정 사본 경로로 갱신.
 - 남은 일 / 중단 지점: 없음. 디자인 프로젝트가 실제로 바뀌면 다시 `get_file`로 받아 `reference/design-system/`을 갱신하고 이 파일 + `reference/design-system/README.md`에 남긴다(README에 절차 명시).
