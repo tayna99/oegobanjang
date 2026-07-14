@@ -82,7 +82,9 @@
       "PowerShell(Get-WmiObject *)",
       "PowerShell(Get-CimInstance *)",
       "PowerShell(netstat *)",
-      "Bash(git check-attr *)"
+      "Bash(git check-attr *)",
+      "Read(//c/oegobanjang/**)",
+      "Bash(gh pr *)"
     ]
   },
   "statusLine": {
