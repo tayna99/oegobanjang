@@ -17,6 +17,8 @@ import { MessagesPage } from '@/features/messages/MessagesPage';
 import { ThreadPage } from '@/features/messages/ThreadPage';
 import { PackagePage } from '@/features/packagePkg/PackagePage';
 import { ExpertLinkPage } from '@/features/packagePkg/ExpertLinkPage';
+import { ExpertDashboardPage } from '@/features/expert/ExpertDashboardPage';
+import { ExpertPackagePage } from '@/features/expert/ExpertPackagePage';
 import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
 import { MembersPage } from '@/features/settings/MembersPage';
 import { DelegationPage } from '@/features/settings/DelegationPage';
@@ -92,6 +94,16 @@ export const routeConfig: RouteObject[] = [
   {
     path: ROUTE_PATHS.onboardingAbsolute,
     element: <OnboardingFlow />,
+  },
+  // 행정사 화이트라벨(7-1) — 계정 없이 브랜드 화면으로 접근. Shell 바깥 형제 라우트
+  // (무인증 링크와 동일 관례). 대시보드 → 패키지 뷰(둘 다 브랜드 헤더 + 만료·열람 로그).
+  {
+    path: ROUTE_PATHS.expertDashboardAbsolute,
+    element: <ExpertDashboardPage />,
+  },
+  {
+    path: ROUTE_PATHS.expertPackageAbsolute,
+    element: <ExpertPackagePage />,
   },
 ];
 

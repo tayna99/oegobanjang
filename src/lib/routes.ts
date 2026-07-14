@@ -19,6 +19,8 @@ export const ROUTES = {
     ref ? `/evidence?ref=${encodeURIComponent(ref)}` : '/evidence',
   package: (packageId: string) => `/package/${packageId}`,
   packageLink: (packageId: string) => `/link/${packageId}`, // 행정사 무인증 링크(운영급 RBAC 확장)
+  expertDashboard: (expertId: string) => `/expert/${expertId}`, // 행정사 화이트라벨 대시보드(7-1)
+  expertPackage: (expertId: string, packageId: string) => `/expert/${expertId}/package/${packageId}`,
   done: '/done',
   onboarding: '/onboarding', // Shell 바깥 최상위 형제 라우트(4.1) — packageLinkAbsolute와 동일 관례
   settings: '/settings', // 운영급 RBAC 확장(7단계 §6 "설정")
@@ -49,4 +51,7 @@ export const ROUTE_PATHS = {
   packageLinkAbsolute: '/link/:packageId',
   // 온보딩도 Shell(로그인 앱 챙) 없이 진행하는 전체 화면 플로우라 형제 라우트로 둔다(4.1).
   onboardingAbsolute: '/onboarding',
+  // 행정사 화이트라벨(7-1) — 계정 없이 브랜드 화면으로 접근하는 Shell 바깥 형제 라우트.
+  expertDashboardAbsolute: '/expert/:expertId',
+  expertPackageAbsolute: '/expert/:expertId/package/:packageId',
 } as const;

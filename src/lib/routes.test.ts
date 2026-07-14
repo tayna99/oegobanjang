@@ -25,6 +25,11 @@ describe('ROUTES', () => {
     expect(ROUTES.casesDispatch).toBe('/cases/dispatch');
   });
 
+  it('행정사 화이트라벨 경로는 expertId·packageId를 포함한다', () => {
+    expect(ROUTES.expertDashboard('expert-kimlee')).toBe('/expert/expert-kimlee');
+    expect(ROUTES.expertPackage('expert-kimlee', 'batbayar')).toBe('/expert/expert-kimlee/package/batbayar');
+  });
+
   it('evidence는 ref 유무에 따라 쿼리를 붙인다', () => {
     expect(ROUTES.evidence()).toBe('/evidence');
     expect(ROUTES.evidence('4789')).toBe('/evidence?ref=4789');

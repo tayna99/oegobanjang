@@ -153,3 +153,28 @@ export interface DelegationConfig {
 
 // 회사 승인 정책(7단계 §2 각주1) — owner_only(기본, 20인 미만) | manager_allowed(20인 이상).
 export type ApprovalPolicy = 'owner_only' | 'manager_allowed';
+
+// --- 행정사 화이트라벨 (7단계 §7 후속 · 설계 reference/specs/7-1_행정사_화이트라벨_v0.md) ---
+// 스펙 §1 씨앗("역할은 tenant 단위, 한 사용자가 여러 회사에 회사별 역할 — 행정사 화이트라벨
+// 대비")의 실체화. 지금까지 암묵적 단일 회사였던 것을 명시적 Tenant로 올리고, 계정 없는
+// 링크 수신자(expert)를 영속 신원(ExpertAccount)으로 승격한다.
+
+// 회사(tenant) — 화이트라벨은 한 expert가 여러 tenant를 보는 것을 전제한다.
+export interface Tenant {
+  id: string;
+  name: string; // '그린푸드 제조'
+}
+
+// 행정사 계정 — 영속 매직링크 토큰으로 접근하는 개인 신원 + 화이트라벨 브랜드.
+export interface ExpertAccount {
+  id: string; // 'expert-kimlee' — 영속 매직링크 토큰 역할(mock; 실서비스는 서명 토큰 + 이메일 OTP)
+  officeName: string; // '김앤리 행정사무소'
+  brandInitial: string; // 로고 대체 이니셜 '김'
+  brandColor: string; // 행정사 제공 브랜드색(데이터 — 업로드 로고와 동급). 앱 primary와 구분되게 둔다
+}
+
+// expert ↔ tenant 멤버십 — 스펙 §1 "회사별 역할"의 expert 고정판. 한 expert가 여러 행을 갖는다.
+export interface ExpertMembership {
+  expertId: string;
+  tenantId: string;
+}

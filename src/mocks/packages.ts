@@ -18,6 +18,7 @@ export interface PackageDocSection {
 
 export interface HandoffPackage {
   packageId: string; // = caseId
+  tenantId?: string; // 소속 회사(tenant) — 화이트라벨 대시보드에서 회사별 그룹핑(7-1). 없으면 기본 회사.
   workerName: string;
   eyebrow: string; // "케이스 · Batbayar E. · 체류기간 만료 경과"
   severityLabel: string; // "CRITICAL · D+2"
@@ -41,6 +42,7 @@ export const PACKAGE_EXPORT_FOOTER = '승인 전에는 외부 발송·전달이 
 export const HANDOFF_PACKAGES: Record<string, HandoffPackage> = {
   batbayar: {
     packageId: 'batbayar',
+    tenantId: 'greenfood',
     workerName: 'Batbayar E.',
     eyebrow: '케이스 · Batbayar E. · 체류기간 만료 경과',
     severityLabel: 'CRITICAL · D+2',
@@ -79,6 +81,48 @@ export const HANDOFF_PACKAGES: Record<string, HandoffPackage> = {
     exportHistory: [
       { at: '07/02 14:10', kind: 'PDF', actor: '김담당', ref: 'export_0031', hash: 'sha256:aa72…3c19' },
       { at: '06/28 09:55', kind: '미리보기 링크', actor: '김담당', ref: 'export_0027', hash: 'sha256:5e08…77b4' },
+    ],
+  },
+  // 두 번째 회사(한빛식품)의 패키지 — 같은 행정사(김앤리)가 화이트라벨 대시보드에서
+  // 그린푸드와 함께 통합해 본다(7-1 데모). 회신도 각 회사 케이스에 독립적으로 등록된다.
+  levan: {
+    packageId: 'levan',
+    tenantId: 'hanbit',
+    workerName: 'Le Van T.',
+    eyebrow: '케이스 · Le Van T. · 고용변동 신고 기한',
+    severityLabel: 'HIGH · D-5',
+    statusLabel: '승인 대기',
+    recipient: '김앤리 행정사무소',
+    senderLine: '한빛식품 · 박담당',
+    createdAt: '2026-07-08',
+    recordRef: '#5120 · trace_1194',
+    items: [
+      { key: 'summary', label: '케이스 요약', defaultOn: true },
+      { key: 'worker', label: '근로자 정보', note: '(PII 마스킹)', defaultOn: true },
+      { key: 'missing', label: '누락 서류 목록', note: '(1건)', defaultOn: true },
+    ],
+    sections: [
+      {
+        heading: '1. 케이스 개요',
+        lines: [
+          '근로자: Le Van T. (가공1팀 · E-9)',
+          '외국인등록번호: ******-*******',
+          '체류만료일: 2026-12-20',
+          '리스크: HIGH · employment_change (고용변동 신고 기한 임박)',
+        ],
+      },
+      {
+        heading: '2. 누락 서류',
+        lines: ['· 고용변동 신고서 초안 (첨부 1)'],
+      },
+      {
+        heading: '3. 요청 사항',
+        lines: [PACKAGE_REQUEST_BODY],
+      },
+    ],
+    citations: [libCitation('cit_003'), libCitation('cit_007')],
+    exportHistory: [
+      { at: '07/08 11:20', kind: '미리보기 링크', actor: '박담당', ref: 'export_0044', hash: 'sha256:b19c…8a02' },
     ],
   },
 };

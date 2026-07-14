@@ -18,6 +18,36 @@
 
 ---
 
+### [2026-07-14] 행정사 화이트라벨 — 설계 + 동작 목업 완료
+- 한 일: 스펙 §7 후속 항목이던 화이트라벨을 사용자 요청으로 선행 설계 + 목업까지 구현.
+  사용자 결정(3포크): 인증=영속 매직링크+개인 대시보드, 범위=여러 회사 통합 뷰 + 행정사
+  브랜딩, 산출물=설계 문서 + 동작 목업. 설계 문서 `reference/specs/7-1_행정사_화이트라벨_v0.md`
+  신설. 데이터 모델(`types.ts`에 Tenant/ExpertAccount/ExpertMembership, `mocks/expert.ts`,
+  `packages.ts`에 tenantId + 두 번째 회사 패키지 levan) + 화면 3종(`features/expert/`:
+  ExpertDashboardPage `/expert/:expertId`, ExpertPackagePage `/expert/:expertId/package/:packageId`,
+  ExpertBrandHeader) + `StructuredReplyForm`을 ExpertLinkPage에서 별도 파일로 추출해 공유.
+- 결정 사항 / 경계:
+  1. **인증은 mock** — URL의 expertId가 곧 토큰. 열람(package_link_viewed)·회신(package_reply)
+     evidence는 실제로 남는다. 실 서명 토큰+이메일 OTP·tenant scope 서버 강제(404)·실 계정·
+     담당자→행정사 초대 플로우는 백엔드 몫(문서 §3·§7).
+  2. **tenant scope**: 이 행정사에게 오지 않은 패키지(recipient 불일치)·없는 토큰은 "링크를
+     찾을 수 없습니다"로만(존재 비노출) + 열람 로그 없음 — ExpertPackagePage의 inScope 검사.
+     데모는 클라이언트 가드, 실서비스는 서버 강제로 승격 필요.
+  3. **brandColor**는 행정사 제공 데이터(업로드 로고 동급)라 인라인 style로만 — 디자인 토큰
+     아님(Montage cyan-30 값으로 시드, 앱 primary와 구분되게).
+  4. `/link/:packageId`(단발 무인증 링크)는 **유지** — 화이트라벨은 그 위 영속 계층.
+  5. StructuredReplyForm 추출로 ExpertLinkPage가 얇아짐 — 기존 6개 테스트 그대로 통과(회귀 없음).
+- **버그 발견·수정(테스트에서)**: ExpertPackagePage에선 "김앤리 행정사무소"가 브랜드 헤더 +
+  문서 "수신" 줄 둘 다 나와 getByText가 복수 매치로 실패 → 테스트를 banner 스코프로 교정.
+- verify 상태: PASS — `tsc` 클린, 신규 white-label 테스트 7건 + routes 2건 통과, `vite build`
+  클린. 전체 스위트는 360개 중 4건이 병렬 부하 flake(approvalFlow/CaseWorkbench/MessagesFlow —
+  격리 실행 시 22/22 통과 확인, 이 세션 내내 문서화된 기존 패턴, 회귀 아님). 브라우저 실검증:
+  대시보드(2개 회사 통합·브랜드) → 한빛 패키지 뷰(브랜드·소속회사·문서) → 대시보드 복귀 확인.
+- 지도/규칙 갱신: `reference/specs/7-1_...v0.md`(신규), `plans/ROADMAP.md`(§7 expert 화이트라벨
+  ✅ 표시 + M4.6 절 신설).
+
+---
+
 ### [2026-07-13] 온보딩·CSV·PC 4a-4f 전체 — Phase 0~3f 완료(세션 마무리)
 - 한 일 요약: 사용자 지시("PC 순신규 화면까지 전부", 전체 마스킹 채택)로 Phase 0(목업
   프리즈+델타 감사)부터 Phase 3f(사장님 PC 최소화면)까지 9개 커밋으로 순차 완료.
