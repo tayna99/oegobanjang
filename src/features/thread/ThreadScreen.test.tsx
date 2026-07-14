@@ -148,7 +148,7 @@ describe('ThreadScreen — 상태 5종', () => {
     });
 
     expect(screen.getByText(/오프라인/)).toBeInTheDocument();
-    expect(screen.getByText('08:12')).toBeInTheDocument();
+    expect(screen.getByText('오프라인 상태입니다 · 재연결 시 자동 동기화')).toBeInTheDocument();
     expect(screen.getByText(INTERPRETATION.summaryKo)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '상태 반영 확인' })).toBeDisabled();
   });

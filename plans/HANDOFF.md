@@ -18,6 +18,16 @@
 
 ---
 
+### [2026-07-14] PR #5 병합 후 검증 안정화 — 완료
+- 한 일: 병합된 `main`에서 `CaseSheetPage`의 조건부 `useMemo` 호출을 수정하고, 최신 OfflineBanner 계약에 맞게 M6 오프라인 테스트를 갱신했다. `docs/ARCHITECTURE.md`에 PostgreSQL DDL 계약 진입점을 복원했다.
+- 추가 보강: 병렬 JSDOM 파일 실행에서 빈 DOM과 5초 시간 초과가 재현되어, Vitest의 파일 병렬 실행을 껐다. 단일 실행에서는 모든 UI·라우팅 테스트가 정상이며, 이 설정으로 전체 검증도 결정적으로 통과한다.
+- 남은 일 / 중단 지점: 없음. 이 PR은 PostgreSQL DDL 계약 범위만 포함하며, backend 이식은 별도 PR 범위다.
+- 결정 사항 (다음 세션이 알아야 할 것): 프론트 전체 테스트는 `vite.config.ts`의 `fileParallelism: false`로 실행한다. `lastSyncedAt`은 OfflineBanner의 구 시그니처 호환값이며 UI에 표시하지 않는다.
+- verify 상태: PASS — 전용 Docker PostgreSQL 16 컨테이너에서 `db/validate.py` **160/0**, `npm run verify` **49 files / 286 tests**(typecheck·lint·production build 포함) 통과.
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` DB 계약 진입점, `vite.config.ts` 검증 안정화, M6 오프라인 테스트 계약.
+
+---
+
 ### [2026-07-13] PR #5 PostgreSQL 단일화 (DDL 계약) — 완료
 - 한 일: 서비스 DB를 **PostgreSQL 16으로 확정**하고 설계 킷·문서를 전량 이식했다. `db/schema.sql`을 PG DDL로 재작성(타입 네이티브화, `PRAGMA`·`json_valid`·`boolean IN(0,1)` CHECK 제거, 트리거 60종 → PL/pgSQL 함수, 순환 FK `cases↔runs`를 `DEFERRABLE INITIALLY DEFERRED`로), `db/seed_demo.sql` 이식(boolean `1/0`→`true/false`, `char(10)`→`chr(10)`), `db/validate.cjs`(node:sqlite) → **`db/validate.py`(psycopg)** 재작성. `db/README.md`·`docs/DB_SCHEMA.md`(§1 엔진표·§2 FK 규약·§5.2 append-only 예시)를 PG로 갱신. 직전 항목의 160개 안전성 검증을 **글자 단위로 보존**했다(RAISE EXCEPTION 메시지는 validate가 substring 매칭).
 - 핵심 함정 해결: **PostgreSQL은 같은 테이블 BEFORE 트리거를 이름 알파벳순으로 발화**한다(SQLite는 생성순). 전이 가드가 catch-all `state_update`보다 먼저 발화해야 위반에 맞는 메시지가 표면화되므로, 가드 트리거를 `link < reopen < state` 순으로 정렬되게 명명했다(예: `drafts_approval_reopen_guard`).

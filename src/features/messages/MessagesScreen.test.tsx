@@ -118,7 +118,7 @@ describe('MessagesScreen — 상태 5종', () => {
     renderScreen({ status: 'offline', cachedThreads: [TRAN], lastSyncedAt: '08:12' });
 
     expect(screen.getByText(/오프라인/)).toBeInTheDocument();
-    expect(screen.getByText('08:12')).toBeInTheDocument();
+    expect(screen.getByText('오프라인 상태입니다 · 재연결 시 자동 동기화')).toBeInTheDocument();
     expect(screen.getByText('Tran T.H.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tran T.H.' })).not.toBeInTheDocument();
   });
