@@ -18,6 +18,31 @@
 
 ---
 
+### [2026-07-13] 행정사 패키지 구조화된 회신(4e 확장) — Phase 3e 완료
+- 한 일: `ExpertLinkPage.tsx`에 `StructuredReplyForm` 추가 — 회신 유형(보완요청/검토완료/
+  질문 세그먼트) + 자주 쓰는 요청 3종(퀵필) + 상세 내용(textarea, 필수) + 기한(선택,
+  date input) + "회신 보내기". 전송 시 신규 `EvidenceType` `package_reply` 기록(`types.ts`
+  + `lib/audit.ts` 두 Record + `audit.test.ts` ALL_TYPES 갱신), 폼은 전송 후 확인 문구로
+  잠긴다(재전송 UI 없음 — PackagePage의 "승인 요청됨" 잠금 패턴과 동일 관례).
+- 결정 사항: "회신은 담당자 케이스에 할일로 등록됩니다"는 M8 전역 판단 기록
+  (`GlobalEvidencePage`, evidenceStore 병합)에서 확인 가능한 수준까지만 구현 — 케이스
+  타임라인(`CaseWorkbench`의 `CaseTimeline`)은 `CASE_SHEETS` 정적 데이터를 읽어 런타임에
+  새 항목이 늘지 않으므로, 회신이 케이스 상세 화면에 실시간으로 나타나게 하려면 별도
+  리팩터(타임라인이 evidenceStore도 병합하도록)가 필요 — 이번 스코프 밖, 후속 과제.
+- **버그 발견·수정(브라우저 실검증 준비 중 테스트에서 발견)**: `ExpertLinkPage.test.tsx`의
+  기존 `afterEach`가 매 테스트마다 `vi.resetModules()`를 호출하는데, 이후 테스트가 파일
+  상단에서 정적 import한 `useEvidenceStore`는 `renderAt()`이 동적으로 다시 import하는
+  `ExpertLinkPage`가 실제로 쓰는 **다른 모듈 인스턴스**를 참조하게 된다 — 새 회신 테스트가
+  evidence를 못 찾는 원인이었다. 기존 3개 테스트는 "이벤트가 없다"(false) 단언만 해서
+  이 문제가 드러나지 않았을 뿐 잠재적으로 같은 결함을 안고 있었다. `renderAt()`이
+  그 시점의 `evidenceStore`를 함께 동적 import해 반환하도록 고쳐 전체 6개 테스트 모두
+  안전하게 만들었다.
+- verify 상태: PASS — `tsc`/`vitest run`(348/348, 신규 3건 + 기존 3건 버그 수정)/
+  `vite build` 클린. 브라우저 실검증으로 회신 전송→확인 문구 전환 확인.
+- 지도/규칙 갱신: `plans/ROADMAP.md` 4.5e 완료 표시.
+
+---
+
 ### [2026-07-13] PC 발송 실행 큐(4d) 구현 — Phase 3d 완료
 - 한 일: `/cases/dispatch`(담당자 전용) 신설. `mocks/dispatch.ts` — 각본 기반 고정
   큐(`DISPATCH_QUEUE` 3건: Nguyen/Siti 메시지 발송·Batbayar 행정사 패키지 전달) + 이력

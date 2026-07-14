@@ -31,6 +31,7 @@ export const AUDIT_TYPE_LABEL: Record<EvidenceType, string> = {
   package_link_viewed: '패키지 링크 열람',
   dispatch_executed: '발송 실행',
   delivery_confirmed: '전달 확인',
+  package_reply: '행정사 회신',
 };
 
 export const AUDIT_TYPE_TONE: Record<EvidenceType, ChipTone> = {
@@ -59,6 +60,7 @@ export const AUDIT_TYPE_TONE: Record<EvidenceType, ChipTone> = {
   package_link_viewed: 'neutral',
   dispatch_executed: 'neutral',
   delivery_confirmed: 'positive',
+  package_reply: 'approval',
 };
 
 export type AuditFilterKey = 'all' | 'risk' | 'approval' | 'export';
