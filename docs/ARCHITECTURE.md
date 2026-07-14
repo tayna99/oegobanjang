@@ -13,11 +13,11 @@
 |---|---|
 | 라우팅·딥링크 | `src/router.tsx` — 딥링크 맵은 스펙 `2단계_알림카탈로그` §3과 1:1 |
 | 화면 셸(탭바/헤더) | `src/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
-| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseSheet`(5블록+ActionBar, citation 0건 승인 잠금) + `CaseSheetPage`(BriefingHomePage를 배경으로 재사용하는 오버레이 근사 — 진짜 background-location은 M7(2.1) 이후 재검토). `src/features/run/`(M4/M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'|'command'|'replay') + `RunPage`(컨테이너 — `/case/:caseId/approve`·`/run/:runId` 두 라우트를 이 하나로 공유, caseId면 approval config를, runId면 runKey로 조회). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
-| 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
-| 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore |
+| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseSheet`(5블록+ActionBar, citation 0건 승인 잠금) + `CaseSheetPage`(BriefingHomePage를 배경으로 재사용하는 오버레이 근사 — 진짜 background-location은 M7(2.1) 이후 재검토). `src/features/run/`(M4/M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'|'command'|'replay') + `RunPage`(컨테이너 — `/case/:caseId/approve`·`/run/:runId` 두 라우트를 이 하나로 공유, caseId면 approval config를, runId면 runKey로 조회). `src/features/messages/`(2.2, 메시지 탭) — `MessagesScreen`(default/empty 프레젠테이션, `sortThreads`로 응답 도착 스레드 최상단 고정) + `MessagesPage`(threadStore 시딩 컨테이너 — Page+Screen 분리 패턴의 또 다른 실사례). `src/features/thread/`(2.2, M6 포함) — `ThreadScreen`(5상태, `default` 안에 `interpretation`(M6 해석 확인)/`timeline`(대화+확정 카드) 2모드) + `InterpretationCard`(surface 카드, 유일한 파랑 CTA "상태 반영 확인") + `ThreadPage`(threadStore 조회 + confirmInterpretation→caseStore.applyInterpretationUpdates→evidenceStore.append 오케스트레이션, 승인 대기 초안 스레드는 `<Navigate>`로 M3 직행). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
+| 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4), Message·MessageThread·Interpretation(2.2, 스펙 원본은 `docs/MESSAGING_CHANNELS.md` §4) |
+| 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore, threadStore(2.2 — `upsert`/`confirmInterpretation`. 발송 함수 없음: 승인은 `interpretationStatus`를 `confirmed`로 옮길 뿐, 실제 채널 발송은 approvalStore.dispatch 몫) |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
-| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — 1.5부터 command/replay 포함 8건) · `evidence.ts`(EVIDENCE_SEED). Nguyen/Tran/Bayar/Mohammad/채용. Candidate는 PKG 전용(M2.4) |
+| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — 1.5부터 command/replay 포함 8건) · `evidence.ts`(EVIDENCE_SEED) · `threads.ts`(2.2 — `THREADS` 스레드·해석 픽스처 + `threadIdForCase` caseId→threadId 매핑, 셀렉터는 `src/lib/threads.ts`의 `sortThreads`/`threadBadge`/`countArrivedResponses`/`formatClockTime`/`formatDateCaption`/`latestInboundMessage`). Nguyen/Tran/Bayar/Mohammad/채용. Candidate는 PKG 전용(M2.4) |
 
 ## 3. 화면 ↔ 라우트 ↔ 스펙
 
@@ -29,7 +29,7 @@
 | `/case/:id/draft` | M3 초안 | 1단계 M3 |
 | `/case/:id/approve` | M4 승인 직전 (런 화면 mode=approval) | 1단계 M4 |
 | `/run/:id` | M9 런 / 재생 | 1단계 M9 (v1.2) |
-| `/messages` `/thread/:id` | 메시지·M6 응답 해석 | 1단계 M6, 탭별기획 §3 |
+| `/messages` `/thread/:id` | 메시지 탭(스레드 리스트) · M6 응답 해석(스레드 대화 뷰, interpretation/timeline 2모드) — 구현 완료(2.2) | 1단계 M6, 탭별기획 §3 |
 | `/evidence` `?ref=` | M8 판단 기록 | 1단계 M8, 탭별기획 §4 |
 | `/package/:id` | 행정사 패키지 | 프로토타입 v3 pkg 화면 |
 | `/done` | M5 완료 (라우트보다 push 화면) | 1단계 M5 |
@@ -38,10 +38,11 @@
 ## 4. 데이터 흐름 (단방향)
 
 ```
-mocks/fixtures ──▶ stores (zustand)
+mocks/fixtures, mocks/threads ──▶ stores (zustand)
                      │ caseStore: 케이스·NextAction 상태 전이
                      │ approvalStore: 승인 요청/결정 (idempotency key)
                      │ evidenceStore: append-only 이벤트 로그
+                     │ threadStore: 스레드·해석 상태 (upsert / confirmInterpretation, 2.2)
                      ▼
                features/* 화면 (구독) ──액션──▶ stores 갱신 ──▶ evidenceStore.append (항상)
 ```

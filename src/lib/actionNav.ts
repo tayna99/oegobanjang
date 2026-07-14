@@ -1,4 +1,5 @@
 import { useNav } from '@/lib/nav';
+import { threadIdForCase } from '@/mocks/threads';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import type { NextActionRef } from '@/types';
 
@@ -19,9 +20,18 @@ export function useNextAction() {
       case 'detail':
         nav.toCase(caseId);
         return;
-      case 'thread':
-        nav.toMessages();
+      case 'thread': {
+        // M1/M2의 [응답 요약 보기]는 메시지 탭이 아니라 해당 스레드(M6)로 바로 이동한다
+        // (탭별기획 "M1 [응답 요약 보기] → M6"). 매핑이 없으면(아직 스레드가 없는 케이스 등)
+        // 기존대로 메시지 탭으로 폴백.
+        const threadId = threadIdForCase(caseId);
+        if (threadId) {
+          nav.toThread(threadId);
+        } else {
+          nav.toMessages();
+        }
         return;
+      }
       case 'package':
         nav.toPackage(caseId);
         return;
