@@ -278,6 +278,19 @@ describe('가드레일 4 — 해석 확인(threadStore.confirmInterpretation)', 
     );
   });
 
+  it('중복 updateId는 GuardrailError — 각 업데이트를 정확히 한 번씩 확인해야 한다', () => {
+    const interpretation = {
+      ...baseInterpretation,
+      updates: [baseInterpretation.updates[0], { ...baseInterpretation.updates[0], updateId: 'u2' }],
+    };
+    seedThread('pending_review', interpretation);
+
+    expect(() =>
+      useThreadStore.getState().confirmInterpretation('t1', ['u1', 'u1', 'u2']),
+    ).toThrow(GuardrailError);
+    expect(useThreadStore.getState().threads.t1.interpretationStatus).toBe('pending_review');
+  });
+
   it('존재하지 않는 updateId가 섞이면 GuardrailError — 부분 일치도 거부한다', () => {
     seedThread('pending_review', baseInterpretation);
     expect(() =>

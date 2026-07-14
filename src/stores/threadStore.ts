@@ -66,7 +66,13 @@ export const useThreadStore = create<ThreadStoreState>((set, get) => ({
     const providedSet = new Set(updateIds);
     const missing = validIds.filter((id) => !providedSet.has(id));
     const unknown = updateIds.filter((id) => !validIds.includes(id));
-    if (updateIds.length === 0 || missing.length > 0 || unknown.length > 0) {
+    const hasDuplicate = providedSet.size !== updateIds.length;
+    if (
+      updateIds.length !== validIds.length ||
+      hasDuplicate ||
+      missing.length > 0 ||
+      unknown.length > 0
+    ) {
       throw new GuardrailError(
         `해석의 모든 업데이트를 정확히 확인해야 합니다: 기대 [${validIds.join(', ')}], 받음 [${updateIds.join(', ')}]`,
       );
