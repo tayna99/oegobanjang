@@ -44,12 +44,6 @@ export function CaseSheetPage() {
     }
   }, [upsert]);
 
-  // lg+ 에서는 바텀시트 대신 PC 워크벤치가 해당 케이스를 선택 상태로 렌더한다(M2.5.4).
-  // returnTo에 실려 온 필터를 워크벤치 목록 레일에도 그대로 적용해 컨텍스트를 보존한다.
-  if (isDesktop) {
-    return <CaseWorkbenchPage selectedCaseId={caseId} filterOverride={filterFromReturnTo(returnTo)} />;
-  }
-
   const card = caseId ? cases[caseId] : undefined;
   const baseSheet = caseId ? CASE_SHEETS[caseId] : undefined;
 
@@ -65,6 +59,13 @@ export function CaseSheetPage() {
       ),
     };
   }, [baseSheet, docUpdates]);
+
+  // lg+ 에서는 바텀시트 대신 PC 워크벤치가 해당 케이스를 선택 상태로 렌더한다(M2.5.4).
+  // returnTo에 실려 온 필터를 워크벤치 목록 레일에도 그대로 적용해 컨텍스트를 보존한다.
+  // Hook은 화면 크기와 무관하게 같은 순서로 호출해야 한다.
+  if (isDesktop) {
+    return <CaseWorkbenchPage selectedCaseId={caseId} filterOverride={filterFromReturnTo(returnTo)} />;
+  }
 
   return (
     <>
