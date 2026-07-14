@@ -1,7 +1,7 @@
 """PostgreSQL design DDL guardrail verification.
 
 Run:  DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang" \
-        uv run --no-project --with "psycopg[binary]" python db/validate.py
+        uv run --no-project --with "psycopg[binary]" python db/validate.py --reset
 Env:  DATABASE_URL (default: local Docker PG on :55432)
 
 db/schema.sql(정본) + db/seed_demo.sql을 대상 스키마에 로드한 뒤, 테넌트 격리·승인
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import sys
+import argparse
 from pathlib import Path
 
 import psycopg
@@ -26,6 +27,18 @@ DIR = Path(__file__).resolve().parent
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang"
 ).replace("postgresql+psycopg://", "postgresql://")
+
+parser = argparse.ArgumentParser(description="Reset and validate the local PostgreSQL schema")
+parser.add_argument(
+    "--reset",
+    action="store_true",
+    help="drop and recreate the target public schema before validation (destructive)",
+)
+args = parser.parse_args()
+if not args.reset:
+    raise SystemExit(
+        "Refusing to drop the database schema. Re-run with --reset against a disposable validation DB."
+    )
 
 passed = 0
 failed = 0

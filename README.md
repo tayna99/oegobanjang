@@ -60,7 +60,7 @@ npm run verify
 
 ```bash
 DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang" \
-  uv run --no-project --with "psycopg[binary]" python db/validate.py
+  uv run --no-project --with "psycopg[binary]" python db/validate.py --reset
 ```
 
 세부 규칙과 DBeaver 사용법은 [docs/DB_SCHEMA.md](docs/DB_SCHEMA.md), [db/README.md](db/README.md)를 참고합니다.

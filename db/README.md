@@ -46,10 +46,10 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seed_demo.sql
 
 ```bash
 DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang" \
-  uv run --no-project --with "psycopg[binary]" python db/validate.py
+  uv run --no-project --with "psycopg[binary]" python db/validate.py --reset
 ```
 
-validate는 대상 스키마를 drop/recreate한 뒤 `schema.sql`·`seed_demo.sql`을 실행하고 160개 회귀를
+`--reset`을 명시한 경우에만 validate는 대상 스키마를 drop/recreate한 뒤 `schema.sql`·`seed_demo.sql`을 실행하고 160개 회귀를
 검사한다. 마지막 줄은 `Result: PASS 160 / FAIL 0`이어야 한다. (Windows 콘솔에서 한글 출력이
 깨지면 `PYTHONIOENCODING=utf-8`을 앞에 붙인다.)
 
