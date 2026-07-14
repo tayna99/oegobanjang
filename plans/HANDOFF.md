@@ -18,6 +18,24 @@
 
 ---
 
+### [2026-07-13] 사장님 PC 최소화면(4f) — Phase 3f 완료, PC 4a-4f 전 항목 마무리
+- 한 일: `HomePage.tsx`에 role 분기 추가 — `role==='owner' && isDesktop`이면 `ControlTowerPage`
+  대신 `OwnerHomeWorkbench`(신설, `features/control/`) 렌더. 승인 대기 배너("승인 대기 N건 —
+  승인은 모바일 앱에서 처리해 주세요")는 caseStore의 실제 `approval_pending` 개수를 반영,
+  "이번 달 운영 리포트"는 정적 목데이터(처리 케이스/사전감지율/평균 승인 소요 — 계산 로직 없음,
+  `EXECUTED_WEEKLY_MOCK`과 동일 철학), "구성원 · 위임"은 **새 데이터를 만들지 않고**
+  기존 `companyStore`(Phase C에서 이미 구축)를 그대로 재사용 — 구성원 목록·역할 배지(Chip
+  tone="line")·위임 상태 표시 + "구성원 초대"/"위임 설정" 버튼이 기존 설정 화면(`/settings/
+  members`, `/settings/delegation`)으로 연결된다.
+- 이걸로 **2026-07-13 PC 재수입 델타(4a~4f) 전 항목이 마무리**됐다 — 4a(부분)/4b(신규)/
+  4c(부분)/4d(신규)/4e(확장)/4f(부분) 전부 완료. 남은 건 Phase 4(전체 검증+ROADMAP/HANDOFF
+  마감)뿐.
+- verify 상태: PASS — `tsc`/`vitest run`(352/352, 신규 4건)/`vite build` 클린. 브라우저
+  1440×900 실검증으로 owner 전환→최소화면 확인, manager는 기존 컨트롤 타워 그대로 확인.
+- 지도/규칙 갱신: `plans/ROADMAP.md` 4.5f 완료 표시(M4.5 표 전 항목 ✅).
+
+---
+
 ### [2026-07-13] 행정사 패키지 구조화된 회신(4e 확장) — Phase 3e 완료
 - 한 일: `ExpertLinkPage.tsx`에 `StructuredReplyForm` 추가 — 회신 유형(보완요청/검토완료/
   질문 세그먼트) + 자주 쓰는 요청 3종(퀵필) + 상세 내용(textarea, 필수) + 기한(선택,
