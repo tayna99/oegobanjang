@@ -88,3 +88,24 @@ def test_model_columns_match_db_columns(session_engine, table):
         mcat = _type_category(mcol.type)
         dcat = _type_category(dbcol["type"])
         assert mcat == dcat, f"[{table}.{name}] 타입 카테고리 불일치: 모델={mcat} DB={dcat}"
+
+
+@pytest.mark.parametrize("table", sorted(EXPECTED_TABLES))
+def test_model_default_presence_matches_db(session_engine, table):
+    """server_default **유무**가 DB column_default 유무와 일치하는지만 본다(F5 심화).
+
+    값 형식까지는 비교하지 않는다 — PG가 리터럴에 타입 캐스트를 붙이거나 `now()`를
+    `CURRENT_TIMESTAMP`로 반영하는 등 표현이 달라질 수 있어서다. 유무만 봐도 "schema.sql에
+    DEFAULT를 추가했는데 모델의 server_default 선언을 깜빡한" 드리프트는 충분히 잡는다.
+    """
+    inspector = inspect(session_engine)
+    db_cols = {c["name"]: c for c in inspector.get_columns(table, schema="public")}
+    model = MODELS_BY_TABLE[table]
+    model_cols = {c.name: c for c in model.__table__.columns}
+
+    for name, mcol in model_cols.items():
+        model_has_default = mcol.server_default is not None
+        db_has_default = db_cols[name].get("default") is not None
+        assert model_has_default == db_has_default, (
+            f"[{table}.{name}] server_default 유무 불일치: 모델={model_has_default} DB={db_has_default}"
+        )
