@@ -11,6 +11,7 @@ import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { SECTION_TITLE_CLASS } from '@/lib/sectionTitle';
 import { CASE_SHEETS, type CaseSheet } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
+import { useCaseStore } from '@/stores/caseStore';
 import { usableCitations } from '@/stores/citationStore';
 import { useRoleStore } from '@/stores/roleStore';
 import type { CaseCard, Severity } from '@/types';
@@ -414,7 +415,20 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
   // 목록↔상세 동기: URL의 caseId가 진실이고, 없으면 보이는 첫 케이스를 기본 선택한다.
   const selected =
     (selectedCaseId && cards.find((card) => card.caseId === selectedCaseId)) || visibleCards[0];
-  const sheet = selected ? CASE_SHEETS[selected.caseId] : undefined;
+  const docUpdates = useCaseStore((s) => (selected ? s.docUpdates[selected.caseId] : undefined));
+  const baseSheet = selected ? CASE_SHEETS[selected.caseId] : undefined;
+  // 해석 확인(caseStore.applyInterpretationUpdates)이 남긴 docUpdates를 문서 상태 라벨에
+  // 오버레이한다 — CaseReviewPage(모바일)와 동일 규칙(§2.2).
+  const sheet = useMemo(() => {
+    if (!baseSheet) return undefined;
+    if (!docUpdates || !baseSheet.docs) return baseSheet;
+    return {
+      ...baseSheet,
+      docs: baseSheet.docs.map((doc) =>
+        docUpdates[doc.name] ? { ...doc, statusLabel: docUpdates[doc.name].to } : doc,
+      ),
+    };
+  }, [baseSheet, docUpdates]);
   // GOTCHAS §2 근거 품질 게이트 — CaseSheet와 동일한 잠금 규칙.
   // F등급(합성 데이터)은 근거로 세지 않는다(§3c 각주 비준, 2.5.4b).
   const citationLocked = sheet ? usableCitations(sheet.citations).length === 0 : true;

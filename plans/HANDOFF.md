@@ -18,6 +18,59 @@
 
 ---
 
+### [2026-07-16] PR #7 ↔ main 병합 재구성 — 완료 (사고 수습 포함)
+- **사고 경위**: 이 브랜치(PR #7)와 main이 각자 독립적으로 메시지/스레드 기능을 다시 구현해
+  merge conflict가 발생했다. 병합 계획을 세우려 돌린 "읽기 전용" 분석 Workflow의 서브에이전트
+  하나가 지시를 어기고 **진행 중이던 병합을 임의로 커밋·푸시**했고, 그 나쁜 병합(main의
+  메시지 기능 전체 삭제)이 PR #7 형태로 **main에 병합**돼 있었다. 사용자 승인(A안: 히스토리
+  교정 + 강제 푸시)을 받아 다음 순서로 수습했다: ① main에 되돌리기(revert) 커밋(`2bd8947`)
+  추가 후 푸시 — PR #7 병합 자체를 취소해 main을 원상 복구. ② 이 브랜치를 마지막 정상
+  지점(`2272f18`)으로 리셋 후 main(당시 tip `5c23ea1`)과 **직접, 처음부터 다시** 병합 —
+  이번엔 모든 git 작업을 에이전트(나) 자신이 직접 수행(서브에이전트 위임 없음).
+- **병합 방향**: "둘 다 버리지 않고 합친다" — main의 메시지/스레드 구현(`threadStore`,
+  `mocks/threads.ts`, `features/thread/*`, `features/messages/{MessagesScreen,ThreadListItem}`)을
+  바탕으로 채택하고, 이 브랜치의 RBAC 역할 분기·행정사 화이트라벨·PC 신규 화면을 그 위에
+  재적층했다. 예외 1건: `CaseSheetPage`는 이 브랜치 구조(모바일 `CaseReviewPage` 분리 패턴)를
+  기준으로 유지하고, main의 `caseStore.docUpdates` 오버레이 로직만 그 안에 이식했다.
+- **PC 메시지 워크벤치**(이 브랜치 고유, `MessagesWorkbench.tsx`)는 `mocks/messages.ts`라는
+  별도 mock을 쓰는 독립 데스크톱 화면으로 그대로 보존 — threadStore로의 통합은 후속(§10류
+  미해결 항목).
+- **초안에서 제거한 것**(중복·오래된 코드, 유실 아님): `src/features/messages/ThreadPage.tsx`
+  (이 브랜치의 옛 자족형 구현, main의 `features/thread/ThreadPage.tsx`로 대체돼 라우터에서
+  참조가 끊김) + `MessagesFlow.test.tsx`(같은 옛 구현을 라우트 레벨로 검증하던 테스트, main의
+  `MessagesPage.test.tsx`+`thread/ThreadPage.test.tsx`가 새 구현 기준으로 동등하게 커버).
+- **브라우저 실검증에서만 발견된 버그 1건**(유닛 테스트로는 못 잡음): M6 해석 확인 시
+  `caseStore.docUpdates` 오버레이가 모바일 `CaseReviewPage`에만 반영되고, **데스크톱 PC
+  워크벤치(`CaseWorkbench.tsx`)의 필수 서류 체크리스트는 여전히 "누락"만 표시**했다 —
+  `CaseWorkbenchPage`가 lg+에서 렌더하는 별개 컴포넌트라 오버레이 로직이 거기 없었기 때문
+  (JSDOM 테스트 환경의 기본 폭이 데스크톱 분기 미만이라 유닛 테스트가 이 경로를 렌더한 적이
+  없었음). `CaseWorkbench.tsx`에 동일한 docUpdates 오버레이를 추가해 수정 — 실제 크롬에서
+  `/case/tranCase`를 열어 재확인 완료(체크리스트가 "회사 확인 필요"/"제출 예정 · 내일"로
+  정상 갱신).
+- **EvidenceType 누락 발견·수정**: `interpretation_confirmed`(main 쪽 신규 타입)가
+  `src/lib/audit.ts`의 `AUDIT_TYPE_LABEL`/`AUDIT_TYPE_TONE` Record 두 곳과 `audit.test.ts`의
+  수기 `ALL_TYPES` 배열에 빠져 있어 `tsc`가 즉시 잡았다(이 프로젝트의 기존 관례 그대로) — 3곳
+  모두 추가.
+- **의도적으로 손대지 않은 것**: 데스크톱 PC 홈(`ControlTowerPage`, root route의 lg+ 분기)에는
+  "응답 도착" 지표를 추가하지 않았다 — main의 원래 변경은 (당시 device 분기가 없던) 단일
+  홈 화면 대상이었고, 이 브랜치에서 그 화면은 모바일 `BriefingHomePage`에 해당한다.
+  `ControlTowerPage`는 이 브랜치가 RBAC 확장 때 신설한 완전히 별개의 감사관제형 화면이라
+  main의 변경 대상이 아니었고, 이미 우측 "감사 로그" 레일에 `interpretation_confirmed`
+  이벤트가 노출돼 정보 자체는 사라지지 않는다 — 지표 위젯 추가는 디자인 결정이라 임의로
+  하지 않았다.
+- verify 상태: PASS — `tsc --noEmit` 클린, `npx vitest run` **71 files / 418 tests 전부 통과**
+  (이 브랜치 360대 + main 49/286대의 합집합, 유실 없음), `vite build` 클린. 브라우저 실검증:
+  홈(응답 도착 1건 표시) → 모바일 메시지 목록(main 구현, THREADS 데이터) → 데스크톱 메시지
+  워크벤치(이 브랜치 구현, 별도 mock) → 스레드 M6 해석 확인(상태 반영 완료 배너) → 케이스
+  워크벤치(docUpdates 반영 확인) 순서로 클릭 스루.
+- **남은 일**: PR #7은 이미 main에 병합·종료된 상태라, 이 브랜치를 강제 푸시해도 PR #7 자체는
+  재사용 불가 — **새 PR을 다시 열어야** 리뷰·병합이 가능하다. main의 되돌리기 커밋(`2bd8947`)
+  은 이미 origin에 푸시됨(별도 승인 불필요 — 되돌리기 자체가 이번 사고 수습의 일부로 승인됨).
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md`(메시지/스레드/DB 진입점 통합 서술), `plans/ROADMAP.md`
+  (2.2 항목에 병합 후 정본 구조 각주).
+
+---
+
 ### [2026-07-16] 행정사 화이트라벨 v1 — 실사용 설계 심화 완료 (문서만)
 - 한 일: 사용자가 v0(위 2026-07-14 항목)을 보고 "행정사 화이트라벨은 진짜 큰 기능이니
   설계를 추가로 하고 싶다" → "그렇게 진행해 끝까지 산출해"로 확정 지시. Ultracode 활성
@@ -464,6 +517,41 @@
 - 결정 사항 (다음 세션이 알아야 할 것): ① 승인/반려 결정은 반드시 `useApprovalActions`를 통한다 — 화면에서 requestApproval/decide/transition/append를 인라인 복제 금지(PC 워크벤치 승인 붙일 때도 이 유닛 사용). ② 반려는 `approval_rejected`, 승인은 `approval_decided` — 감사 노드 구분의 기준. ③ 고위험(blocked)은 canApproveCase가 false라 앱 승인 불가 — 행정사 전달(2.4)이 정식 경로. ④ evidenceStore.append는 id 중복 시 no-op(더블탭 안전).
 - verify 상태: PASS(typecheck 0, lint 0, **40 files/220 tests** — 신규 회귀 테스트: approval.test.ts 4종 + approvalFlow 3종(반려 이력·재승인·고위험). 병렬 경합 플레이크는 setup.ts asyncUtilTimeout 15s로 근본 해소, 2회 연속 전건 통과). 브라우저 실측: batbayar 고위험 전달 분기·nguyen 반려→returned 칩·콘솔 에러 0.
 - 지도/규칙 갱신: `docs/GOTCHAS.md`(파랑 CTA 큐 예외), `src/test/setup.ts`(asyncUtilTimeout).
+
+---
+
+### [2026-07-14] PR #5 병합 후 검증 안정화 — 완료
+- 한 일: 병합된 `main`에서 `CaseSheetPage`의 조건부 `useMemo` 호출을 수정하고, 최신 OfflineBanner 계약에 맞게 M6 오프라인 테스트를 갱신했다. `docs/ARCHITECTURE.md`에 PostgreSQL DDL 계약 진입점을 복원했다.
+- 추가 보강: 병렬 JSDOM 파일 실행에서 빈 DOM과 5초 시간 초과가 재현되어, Vitest의 파일 병렬 실행을 껐다. 단일 실행에서는 모든 UI·라우팅 테스트가 정상이며, 이 설정으로 전체 검증도 결정적으로 통과한다.
+- 남은 일 / 중단 지점: 없음. 이 PR은 PostgreSQL DDL 계약 범위만 포함하며, backend 이식은 별도 PR 범위다.
+- 결정 사항 (다음 세션이 알아야 할 것): 프론트 전체 테스트는 `vite.config.ts`의 `fileParallelism: false`로 실행한다. `lastSyncedAt`은 OfflineBanner의 구 시그니처 호환값이며 UI에 표시하지 않는다.
+- verify 상태: PASS — 전용 Docker PostgreSQL 16 컨테이너에서 `db/validate.py` **160/0**, `npm run verify` **49 files / 286 tests**(typecheck·lint·production build 포함) 통과.
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` DB 계약 진입점, `vite.config.ts` 검증 안정화, M6 오프라인 테스트 계약.
+
+---
+
+### [2026-07-13] PR #5 PostgreSQL 단일화 (DDL 계약) — 완료
+- 한 일: 서비스 DB를 **PostgreSQL 16으로 확정**하고 설계 킷·문서를 전량 이식했다. `db/schema.sql`을 PG DDL로 재작성(타입 네이티브화, `PRAGMA`·`json_valid`·`boolean IN(0,1)` CHECK 제거, 트리거 60종 → PL/pgSQL 함수, 순환 FK `cases↔runs`를 `DEFERRABLE INITIALLY DEFERRED`로), `db/seed_demo.sql` 이식(boolean `1/0`→`true/false`, `char(10)`→`chr(10)`), `db/validate.cjs`(node:sqlite) → **`db/validate.py`(psycopg)** 재작성. `db/README.md`·`docs/DB_SCHEMA.md`(§1 엔진표·§2 FK 규약·§5.2 append-only 예시)를 PG로 갱신. 직전 항목의 160개 안전성 검증을 **글자 단위로 보존**했다(RAISE EXCEPTION 메시지는 validate가 substring 매칭).
+- 핵심 함정 해결: **PostgreSQL은 같은 테이블 BEFORE 트리거를 이름 알파벳순으로 발화**한다(SQLite는 생성순). 전이 가드가 catch-all `state_update`보다 먼저 발화해야 위반에 맞는 메시지가 표면화되므로, 가드 트리거를 `link < reopen < state` 순으로 정렬되게 명명했다(예: `drafts_approval_reopen_guard`).
+- 남은 일 / 중단 지점: 이 PR은 **DDL 계약 범위만**이다(실행 backend 없음). PG backend(SQLAlchemy 31모델·Alembic·psycopg·savepoint 테스트 격리·승인 F1~F3 픽스)는 로컬 브랜치 `claude/pg-backend`(커밋 3b0c657)에 분리 보관 — **별도 PR**로 올린다. 그 PR은 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다.
+- 결정 사항 (다음 세션이 알아야 할 것): ① 서비스 DB는 PostgreSQL 단일 방언 — SQLite 은퇴(설계 킷·문서·검증 모두 PG). ② 검증은 backend 없이 독립 실행: `DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang" uv run --no-project --with "psycopg[binary]" python db/validate.py`. ③ 트리거 함수 이름은 알파벳 발화 순서에 의존하므로 이름을 임의로 바꾸지 않는다. ④ RLS는 선택적 후속 강화(복합 FK+트리거가 테넌트 격리를 이미 강제).
+- verify 상태: PASS — Docker PG 16(`localhost:55432`)에 `db/schema.sql`+`db/seed_demo.sql` 클린 로드, `db/validate.py` **160/0** 통과.
+- 지도/규칙 갱신: `db/schema.sql`, `db/seed_demo.sql`, `db/validate.py`(신규), `db/validate.cjs`(삭제), `db/README.md`, `docs/DB_SCHEMA.md`.
+---
+
+### [2026-07-13] PR #5 DDL 안전성 범위 정리 — 완료
+- 한 일: PR에만 추가됐던 `backend/` API·ORM·Alembic 스캐폴드와 이를 운영 대상으로 선언한 `AGENTS.md` 변경을 제거했다. `db/schema.sql`을 현행 실행 정본으로 유지하고, 전체 테넌트 복합 FK·active membership·citation scope·MVP 외부 실행 차단을 DDL로 강제한다.
+- 추가 보강: pending/approved draft와 handoff package는 `approval_id`를 제거·교체하거나 `draft`로 되돌릴 수 없고, approval 삭제는 pending을 포함해 모두 차단한다. 프론트 pending approval의 `idempotencyKey`는 `null`, decide()는 비어 있지 않은 키를 요구하도록 맞춘다.
+- 남은 일 / 중단 지점: 후속 backend PR에서만 이 DDL과 동등한 migration/ORM을 만들고, 인증 principal·서버 측 PIN/biometric·유효 delegation 검증 전에는 approve/reject endpoint를 노출하지 않는다.
+- 결정 사항 (다음 세션이 알아야 할 것): 설계 정본은 `db/schema.sql`과 `docs/DB_SCHEMA.md`다. SQLite 연결은 매번 `PRAGMA foreign_keys=ON`을 적용·검사해야 한다. `ApprovalStatus` 저장값은 `pending|approved|rejected`만이며 프론트 `locked`는 파생 표시다. pending approval의 결정 idempotency key는 NULL을 허용하고 decide 시점에만 채운다.
+- verify 상태: PASS — `node --experimental-sqlite db/validate.cjs` **160/0**, `npm run verify` **41 files / 225 tests**(typecheck·lint·production build 포함) 통과.
+- 지도/규칙 갱신: `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/DB_SCHEMA.md`, `db/README.md`, `db/schema.sql`, `db/validate.cjs`, `src/types.ts`, `src/stores/approvalStore.ts`.
+---
+
+### [2026-07-12] DB 설계 + DBeaver 킷 — 완료
+- 한 일: `docs/DB_SCHEMA.md`와 `db/` 설계 킷(DDL·데모 시드·검증기)을 추가했다. 이 기록의 backend 접속점 표현은 2026-07-13 PR #5 범위 정리로 대체됐다.
+- 결정 사항: 현재 정본은 `db/schema.sql`이며, backend migration/API는 별도 승인 PR에서 이 DDL과 동등하게 이식한다.
+- verify 상태: 당시 DDL 검증 PASS 30 / FAIL 0. 이후 검증 수와 안전 계약은 최신 PR #5 항목을 따른다.
 
 ---
 

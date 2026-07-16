@@ -13,11 +13,12 @@
 |---|---|
 | 라우팅·딥링크 | `src/router.tsx` — 딥링크 맵은 스펙 `2단계_알림카탈로그` §3과 1:1 |
 | 화면 셸(탭바/헤더) | `src/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
-| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseReviewPage`(2b 사례 검토, citation 0건 승인 잠금) + `CaseHistoryPage`(2d 승인 이력). `src/features/approve/ApprovePage.tsx`(2c, M2.6.3) — 체크리스트 4/4 + citation-lock + PIN 게이트, 결정은 `lib/approval.ts`의 `useApprovalActions`(approve/reject) 공유 유닛이 수행. `src/features/run/`(M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'\|'command'\|'replay') + `RunPage`(`/run/:runId` 전용 — RUN_CONFIGS를 runKey로 조회, mode 무관 단일 라우트. 케이스 최종 승인(`/case/:id/approve`)과는 별개 화면·별개 결정 경로다). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
-| 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
-| 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore, citationStore, roleStore, companyStore |
+| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore·threadStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseReviewPage`(2b 사례 검토, citation 0건 승인 잠금, caseStore.docUpdates 오버레이) + `CaseHistoryPage`(2d 승인 이력). `src/features/approve/ApprovePage.tsx`(2c, M2.6.3) — 체크리스트 4/4 + citation-lock + PIN 게이트, 결정은 `lib/approval.ts`의 `useApprovalActions`(approve/reject) 공유 유닛이 수행. `src/features/run/`(M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'\|'command'\|'replay') + `RunPage`(`/run/:runId` 전용 — RUN_CONFIGS를 runKey로 조회, mode 무관 단일 라우트. 케이스 최종 승인(`/case/:id/approve`)과는 별개 화면·별개 결정 경로다). `src/features/messages/`(2.2, 메시지 탭) — 모바일은 `MessagesScreen`(default/empty 프레젠테이션, `sortThreads`로 응답 도착 스레드 최상단 고정) + `MessagesPage`(threadStore 시딩 컨테이너, lg+에서는 `MessagesWorkbench`(PC 4c, 독립 mock `mocks/messages.ts` 사용)로 분기). `src/features/thread/`(2.2, M6) — `ThreadScreen`(5상태, `default` 안에 `interpretation`(M6 해석 확인)/`timeline`(대화+확정 카드) 2모드) + `InterpretationCard`(surface 카드, 유일한 파랑 CTA "상태 반영 확인") + `ThreadPage`(threadStore 조회 + confirmInterpretation→caseStore.applyInterpretationUpdates→evidenceStore.append 오케스트레이션, 승인 대기 초안 스레드는 `<Navigate>`로 M3 직행). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
+| 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4), Message·MessageThread·Interpretation(2.2, 스펙 원본은 `docs/MESSAGING_CHANNELS.md` §4), CompanyMember·DelegationConfig·ApprovalPolicy·Tenant·ExpertAccount·ExpertMembership(7단계 RBAC·행정사 화이트라벨) |
+| DB 설계 계약 | `docs/DB_SCHEMA.md` — PostgreSQL 16+ 서비스 DB의 데이터 계약 정본. 실행 DDL·데모 시드·160개 회귀 검증은 `db/`(`db/schema.sql`, `db/seed_demo.sql`, `db/validate.py`)에 있으며, backend 이식은 별도 PR 범위 |
+| 상태 | `src/stores/` — caseStore(docUpdates 포함), approvalStore, evidenceStore, citationStore, roleStore, companyStore, threadStore(2.2 — `upsert`/`confirmInterpretation`. 발송 함수 없음: 승인은 `interpretationStatus`를 `confirmed`로 옮길 뿐, 실제 채널 발송은 approvalStore.dispatch 몫) |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
-| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS, 6인 로스터: Batbayar·Nguyen·Siti·Tran·Rahmat·Oyunaa) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — command/replay 포함) · `evidence.ts`(EVIDENCE_SEED) · `messages.ts`(M6 스레드) · `packages.ts`(행정사 패키지, M2.4) |
+| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS, 6인 로스터: Batbayar·Nguyen·Siti·Tran·Rahmat·Oyunaa) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — command/replay 포함) · `evidence.ts`(EVIDENCE_SEED) · `threads.ts`(2.2 — `THREADS` 스레드·해석 픽스처 + `threadIdForCase` caseId→threadId 매핑, 셀렉터는 `src/lib/threads.ts`의 `sortThreads`/`threadBadge`/`countArrivedResponses`/`formatClockTime`/`formatDateCaption`/`latestInboundMessage`) · `messages.ts`(MessagesWorkbench 전용 독립 mock, threadStore와 별개) · `packages.ts`(행정사 패키지, M2.4) |
 
 ## 3. 화면 ↔ 라우트 ↔ 스펙
 
@@ -30,7 +31,7 @@
 | `/case/:id/approve` | 2c 최종 승인 체크리스트(필수 4/4 게이트 + 반려 사유) — M2.6.3에서 런 화면 대체, 에이전트 런은 /run/:runId 전용 | Mobile.dc.html §2c |
 | `/case/:id/history` | 2d 승인 이력(생애 타임라인, 사람 결정만 primary) — M2.6.4 신설 | Mobile.dc.html §2d, 탭별기획 §4.2 |
 | `/run/:id` | M9 런 / 재생 | 1단계 M9 (v1.2) |
-| `/messages` `/thread/:id` | 메시지·M6 응답 해석 | 1단계 M6, 탭별기획 §3 |
+| `/messages` `/thread/:id` | 메시지 탭(스레드 리스트) · M6 응답 해석(스레드 대화 뷰, interpretation/timeline 2모드) — 구현 완료(2.2) | 1단계 M6, 탭별기획 §3 |
 | `/evidence` `?ref=` | M8 판단 기록 | 1단계 M8, 탭별기획 §4 |
 | `/package/:id` | 행정사 패키지 | 프로토타입 v3 pkg 화면 |
 | `/done` | M5 완료 (라우트보다 push 화면) | 1단계 M5 |
@@ -39,10 +40,11 @@
 ## 4. 데이터 흐름 (단방향)
 
 ```
-mocks/fixtures ──▶ stores (zustand)
+mocks/fixtures, mocks/threads ──▶ stores (zustand)
                      │ caseStore: 케이스·NextAction 상태 전이
                      │ approvalStore: 승인 요청/결정 (idempotency key)
                      │ evidenceStore: append-only 이벤트 로그
+                     │ threadStore: 스레드·해석 상태 (upsert / confirmInterpretation, 2.2)
                      ▼
                features/* 화면 (구독) ──액션──▶ stores 갱신 ──▶ evidenceStore.append (항상)
 ```

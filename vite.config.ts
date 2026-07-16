@@ -18,5 +18,7 @@ export default defineConfig({
     // 병렬 부하 시 /case/:caseId loader 대기 중 테스트가 먼저 5000ms에 종료되던 플레이크를 막는다.
     testTimeout: 15000,
     hookTimeout: 15000,
+    // Shared browser-like globals and cold transforms make parallel files flaky on this MVP suite.
+    fileParallelism: false,
   },
 });

@@ -19,6 +19,7 @@ export const AUDIT_TYPE_LABEL: Record<EvidenceType, string> = {
   checklist_completed: '체크리스트 완료',
   exported: '내보내기',
   final_response_generated: '응답 생성',
+  interpretation_confirmed: '해석 확인', // M6 응답 해석 확인(2.2, threadStore.confirmInterpretation)
   // 7단계 §5 권한 이벤트(운영급 RBAC 확장).
   role_granted: '역할 부여',
   role_changed: '역할 변경',
@@ -47,6 +48,7 @@ export const AUDIT_TYPE_TONE: Record<EvidenceType, ChipTone> = {
   checklist_completed: 'draft',
   exported: 'neutral',
   final_response_generated: 'neutral',
+  interpretation_confirmed: 'positive',
   // 역할 배지와 달리 이건 상태 톤이 필요한 감사 로그 칩 — 관리 이벤트는 neutral,
   // 에스컬레이션만 위험 계열(high, risk_flagged/approval_rejected와 동일 취급).
   role_granted: 'neutral',

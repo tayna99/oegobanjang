@@ -6,7 +6,7 @@ import type { EvidenceEvent, EvidenceType } from '@/types';
 const ALL_TYPES: EvidenceType[] = [
   'intent_classified', 'plan_created', 'tool_executed', 'rag_retrieved', 'risk_flagged',
   'approval_requested', 'approval_decided', 'approval_rejected', 'review_started',
-  'checklist_completed', 'exported', 'final_response_generated',
+  'checklist_completed', 'exported', 'final_response_generated', 'interpretation_confirmed',
   // 7단계 §5 권한 이벤트(운영급 RBAC 확장).
   'role_granted', 'role_changed', 'member_invited', 'member_removed',
   'delegation_granted', 'delegation_revoked', 'approval_escalated',

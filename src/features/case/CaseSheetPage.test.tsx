@@ -43,4 +43,23 @@ describe('CaseSheetPage', () => {
     renderAt('/case/nope');
     expect(screen.getByText('케이스를 찾을 수 없습니다.')).toBeInTheDocument();
   });
+
+  it('caseStore.docUpdates(해석 확인 결과)를 문서 상태 라벨에 오버레이해 보여준다', () => {
+    // threadStore.confirmInterpretation → caseStore.applyInterpretationUpdates 오케스트레이션의
+    // 결과가 실제 M2 시트 UI에 반영되는지 검증한다(2.2 DoD — "해석 확인 시 상태 갱신").
+    useCaseStore.getState().applyInterpretationUpdates('tranCase', [
+      { updateId: 'tran-doc-contract', field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'pending' },
+      { updateId: 'tran-doc-passport', field: '여권 사본', from: '누락', to: '제출 예정 · 내일', badgeTone: 'pending' },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/case/tranCase']}>
+        <Routes>
+          <Route path="/case/:caseId" element={<CaseSheetPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('회사 확인 필요')).toBeInTheDocument();
+    expect(screen.getByText('제출 예정 · 내일')).toBeInTheDocument();
+    expect(screen.queryByText('누락')).not.toBeInTheDocument();
+  });
 });
