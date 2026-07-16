@@ -3,7 +3,6 @@ import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routeConfig } from '@/router';
 import { useCaseStore } from '@/stores/caseStore';
-import { useRoleStore } from '@/stores/roleStore';
 
 // jsdom에는 matchMedia가 없다 — useIsDesktop 분기 덕에 기존 모바일 테스트는
 // 워크벤치를 전혀 만나지 않는다. 여기서는 데스크톱을 명시적으로 흉내낸다.
@@ -30,7 +29,6 @@ function renderAt(path: string) {
 afterEach(() => {
   // 다른 테스트 파일 환경을 오염시키지 않도록 원복.
   delete (window as { matchMedia?: unknown }).matchMedia;
-  useRoleStore.getState().reset();
 });
 
 describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
@@ -61,14 +59,6 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     expect(within(evidenceRail).getByText('가능/불가능 판단은 제공하지 않습니다.')).toBeInTheDocument();
   });
 
-  // PC 4a 델타(2026-07-13) — 목록 레일에 담당·서류 준비율을 노출한다.
-  it('목록 행에 담당자와 서류 준비율 분수를 보여준다', () => {
-    renderAt('/cases');
-    const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
-    expect(within(listRail).getByRole('button', { name: '체류기간 연장 서류 요청' })).toHaveTextContent('담당 김담당');
-    expect(within(listRail).getByRole('button', { name: '계약 만료 사전 모니터링' })).toHaveTextContent('담당 —');
-  });
-
   it('목록 행 클릭이 URL(/case/:caseId)과 상세 패널을 동기화한다', async () => {
     const router = renderAt('/cases');
     const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
@@ -77,7 +67,7 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
 
     // /case/:caseId loader가 비동기라 router state보다 DOM 커밋이 늦을 수 있다 — DOM 기준으로 대기.
     // 전체 스위트 병렬 부하에서 기본 1초가 모자랄 수 있어 여유를 준다.
-    await screen.findByRole('heading', { name: '체류기간 만료 경과 · 행정사 검토' });
+    await screen.findByRole('heading', { name: '체류기간 만료 경과 · 행정사 검토' }, { timeout: 5000 });
     expect(router.state.location.pathname).toBe('/case/batbayar');
     const detail = screen.getByRole('region', { name: '케이스 상세' });
     // bayar 가드노트가 상세에 노출된다.
@@ -89,7 +79,7 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     const listRail = screen.getByRole('navigation', { name: '케이스 목록 레일' });
 
     fireEvent.click(within(listRail).getByRole('button', { name: /체류기간 연장 서류 요청/ }));
-    await screen.findByRole('heading', { name: '체류기간 연장 서류 요청' });
+    await screen.findByRole('heading', { name: '체류기간 연장 서류 요청' }, { timeout: 5000 });
     await waitFor(() => expect(router.state.location.pathname).toBe('/case/nguyen'));
 
     const railAfter = screen.getByRole('navigation', { name: '케이스 목록 레일' });
@@ -104,33 +94,10 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
   it('딥링크 /case/:caseId가 해당 케이스를 선택 상태로 연다', async () => {
     renderAt('/case/tranCase');
     // /case/:caseId 라우트는 loader(validateIdParam)가 있어 첫 렌더가 비동기다.
-    const detail = await screen.findByRole('region', { name: '케이스 상세' });
+    const detail = await screen.findByRole('region', { name: '케이스 상세' }, { timeout: 5000 });
     expect(
       within(detail).getByRole('heading', { name: '계약-체류 만료일 불일치 검토' }),
     ).toBeInTheDocument();
-  });
-
-  // 3.3 케이스 에이전트 활동 타임라인(런 체이닝)+nextWake.
-  it('케이스 타임라인이 런 체인(#4788→#4712)과 nextWake를 렌더한다', async () => {
-    renderAt('/case/nguyen');
-    await screen.findByRole('region', { name: '케이스 상세' });
-    const timeline = screen.getByRole('region', { name: '케이스 타임라인' });
-
-    // 체인 렌더: 자동 실행 → 이전 승인 발송, 두 런이 시간 역순으로 모두 보인다.
-    expect(within(timeline).getByText('#4788')).toBeInTheDocument();
-    expect(within(timeline).getByText('#4712')).toBeInTheDocument();
-    expect(within(timeline).getByText('서류요청 준비 · D-30 감지로 자동 실행 — 초안 생성 후 승인 대기')).toBeInTheDocument();
-    // nextWake 조건 문구.
-    expect(within(timeline).getByText('다음: 발송 후 2일간 응답 없으면 리마인드 여부를 판단합니다')).toBeInTheDocument();
-  });
-
-  it('타임라인의 판단 기록 #을 누르면 재생 런(/run/:id)으로 진입한다', async () => {
-    const router = renderAt('/case/nguyen');
-    await screen.findByRole('region', { name: '케이스 상세' });
-    const timeline = screen.getByRole('region', { name: '케이스 타임라인' });
-
-    fireEvent.click(within(timeline).getByRole('button', { name: '판단 기록 #4788 재생 열기' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/run/4788'));
   });
 
   it('검색어가 목록 레일을 제목·근로자명 기준으로 거른다', () => {
@@ -146,23 +113,6 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
       target: { value: 'Nguyen' },
     });
     expect(within(listRail).getByRole('button', { name: /체류기간 연장 서류 요청/ })).toBeInTheDocument();
-  });
-
-  // M2 ActionBar 역할 분기(7단계 §6, 운영급 RBAC 확장).
-  it('owner는 승인하기(primary)만 보고 상세 보기(secondary)는 숨는다', () => {
-    useRoleStore.getState().setRole('owner');
-    renderAt('/cases');
-    const detail = screen.getByRole('region', { name: '케이스 상세' });
-    expect(within(detail).getByRole('button', { name: '승인하기' })).toBeInTheDocument();
-    expect(within(detail).queryByRole('button', { name: '상세 보기' })).not.toBeInTheDocument();
-  });
-
-  it('viewer는 승인하기·상세 보기 버튼이 전부 없다', () => {
-    useRoleStore.getState().setRole('viewer');
-    renderAt('/cases');
-    const detail = screen.getByRole('region', { name: '케이스 상세' });
-    expect(within(detail).queryByRole('button', { name: '승인하기' })).not.toBeInTheDocument();
-    expect(within(detail).queryByRole('button', { name: '상세 보기' })).not.toBeInTheDocument();
   });
 });
 

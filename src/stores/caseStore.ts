@@ -27,10 +27,9 @@ interface CaseStoreState {
   upsert: (card: CaseCard) => void;
   transition: (caseId: string, to: CaseState) => void;
   /**
-   * 해석 확인(ThreadPage.onConfirm, mocks/messages.ts ResponseInterpretation.updates)이
-   * 제안한 서류 상태 갱신을 케이스에 반영한다. CASE_TRANSITIONS 표에 이 경로는 없다 —
-   * CaseState를 전이시키지 않는다(actionNav.ts의 kind:'confirm' 케이스와 같은 취지:
-   * 해석 확인은 케이스 상태 전이가 아니라 문서 갱신이다).
+   * 해석 확인(threadStore.confirmInterpretation)이 제안한 서류 상태 갱신을 케이스에 반영한다.
+   * CASE_TRANSITIONS 표에 이 경로는 없다 — CaseState를 전이시키지 않는다(actionNav.ts의
+   * kind:'confirm' 케이스와 같은 취지: 해석 확인은 케이스 상태 전이가 아니라 문서 갱신이다).
    */
   applyInterpretationUpdates: (
     caseId: string,

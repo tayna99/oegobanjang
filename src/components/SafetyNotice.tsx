@@ -15,14 +15,11 @@ function IconWarnTriangle() {
   );
 }
 
-// 고정 문구의 단일 출처 — 다른 화면(2c 배너 등)이 문구를 다시 타이핑하지 않고 이 상수를 쓴다.
-export const SAFETY_NOTICE_TEXT = '승인 전에는 외부 발송이 차단됩니다.';
-
 export function SafetyNotice() {
   return (
     <div className="flex items-center justify-center gap-safety-gap rounded-in bg-surface px-3.5 py-3 text-safety text-subtle">
       <IconShield width={15} height={15} className="shrink-0 text-primary" />
-      <span>{SAFETY_NOTICE_TEXT}</span>
+      <span>승인 전에는 외부 발송이 차단됩니다.</span>
     </div>
   );
 }

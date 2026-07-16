@@ -64,20 +64,21 @@ describe('CaseListPage', () => {
     expect(screen.getByRole('button', { name: /Nguyen V\. 승인 완료/ })).toBeInTheDocument();
   });
 
-  it('returns to the filtered case list after opening and closing the review page', async () => {
+  it('returns to the filtered case list after opening and closing a case sheet', async () => {
     const router = renderAt('/cases?filter=info');
 
     fireEvent.click(screen.getByRole('button', { name: /계약-체류 만료일 불일치 검토/ }));
-    // M2.6.2: 모바일 /case/:caseId는 2b 전면 검토 페이지 — 뒤로가기가 returnTo(필터 유지)로 돌아간다.
-    const backButton = await screen.findByRole('button', { name: '뒤로' });
-    expect(screen.getByRole('heading', { name: '사례 검토' })).toBeInTheDocument();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/case/tranCase'));
+    // /case/:caseId loader가 비동기라 router state 갱신 후에도 DOM 커밋이 한 틱 늦을 수
+    // 있다(전체 스위트에서만 간헐 실패하던 원인). 시트 DOM이 실제로 나타날 때까지 기다린다.
+    const scrim = await screen.findByTestId('bottom-sheet-scrim', {}, { timeout: 5000 });
+    expect(screen.getByText('적용됨: 확인 필요')).toBeInTheDocument();
 
-    fireEvent.click(backButton);
+    fireEvent.click(scrim);
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe('/cases');
       expect(router.state.location.search).toBe('?filter=info');
     });
-    expect(screen.getByText('적용됨: 확인 필요')).toBeInTheDocument();
   });
 });

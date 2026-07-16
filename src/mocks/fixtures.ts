@@ -47,10 +47,6 @@ export interface CaseSheet {
   nextWake?: string; // AgentActivityBlock.nextWake.condition
 }
 
-// "실행(주) 12 · mock 발송" — 주간 실행(mock) 집계는 백엔드 접속점 전까지 데모 고정값
-// (디자인 §2a 스탯 로우·§3a 타일 5번. 활성 케이스에서 파생 불가한 지난주 이력 값).
-export const EXECUTED_WEEKLY_MOCK = 12;
-
 export const CASE_CARDS: CaseCard[] = [
   {
     caseId: 'batbayar',
@@ -319,11 +315,11 @@ export const CASE_SHEETS: Record<string, CaseSheet> = {
       { label: '체류만료일', value: '2026.09.15' },
       { label: '탐지 규칙', value: 'contract_visa_conflict' },
     ],
-    // 확인 전 상태 — 해석 카드(src/mocks/messages.ts MESSAGE_THREADS.tranCase.interpretation.updates)의
+    // 확인 전 상태 — 해석 카드(src/mocks/threads.ts TRAN_INTERPRETATION.updates)의
     // "누락 → 회사 확인 필요" / "누락 → 제출 예정 · 내일" 전이가 성립하려면 확인 전 값은
-    // 반드시 '누락'이어야 한다. 담당자가 ThreadPage에서 해석을 확인하면
-    // caseStore.applyInterpretationUpdates → docUpdates에 쌓인 값이 CaseReviewPage에서
-    // statusLabel에 오버레이된다(status 열거값 자체는 이 화면에서 쓰이지 않으므로 바꾸지 않는다).
+    // 반드시 '누락'이어야 한다. 담당자가 응답 해석을 확인(threadStore.confirmInterpretation)한
+    // 뒤 caseStore.docUpdates에 쌓인 값이 CaseSheetPage에서 statusLabel에 오버레이된다
+    // (status 열거값 자체는 이 화면에서 쓰이지 않으므로 바꾸지 않는다).
     docs: [
       { name: '표준근로계약서', status: 'missing', statusLabel: '누락' },
       { name: '여권 사본', status: 'missing', statusLabel: '누락' },

@@ -4,20 +4,10 @@
 // 새 단계·라벨을 임의로 추가하지 말 것(임의값 금지 — 디자인 원문 라벨 그대로).
 import type { AgentStage, CaseCard } from '@/types';
 import type { CaseSheet } from '@/mocks/fixtures';
-import { usableCitations } from '@/stores/citationStore';
 
 export const CASE_STAGES = ['감지', '근거 수집', '초안 생성', '승인 대기', '실행 (mock)'] as const;
 
-// 모바일 §2a 진행 배지의 짧은 어휘(감지/근거 수집/초안 생성) — PC §3a 어휘와 표기가 다르다.
-export const AGENT_STAGE_LABELS_SHORT: Record<AgentStage, string> = {
-  detected: '감지',
-  collecting: '근거 수집',
-  drafted: '초안 생성',
-  awaiting_approval: '승인 대기',
-  executed: '실행',
-};
-
-// 파이프라인 단계 라벨 — 디자인 §3a 타일·큐 컬럼 어휘(블루프린트 §3).
+// 파이프라인 단계 라벨 — 디자인 §3a 타일·§2a 스탯 로우 어휘(블루프린트 §3).
 // CASE_STAGES(워크벤치 스테퍼)와 표기가 다른 것은 디자인 원문이 다르기 때문 — 임의 통일 금지.
 export const AGENT_STAGE_LABELS: Record<AgentStage, string> = {
   detected: '감지됨',
@@ -50,9 +40,8 @@ export function caseStageIndex(card: CaseCard, sheet?: CaseSheet): number {
     case 'blocked':
       return 3;
     default:
-      // draft / risk_review: 실사용 근거(F등급 제외)가 연결됐으면 초안 생성, 아니면 근거 수집
-      // (코드리뷰 C1 교정: 합성 F등급을 근거로 세지 않는다 — usableCitations 경유).
-      return sheet && usableCitations(sheet.citations).length > 0 ? 2 : 1;
+      // draft / risk_review: 근거가 연결됐으면 초안 생성 단계, 아니면 근거 수집 단계.
+      return sheet && sheet.citations.length > 0 ? 2 : 1;
   }
 }
 

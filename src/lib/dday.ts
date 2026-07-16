@@ -52,16 +52,3 @@ export function dDayTone(dDay: number): DDayTone {
   if (dDay <= 90) return 'medium';
   return 'neutral';
 }
-
-// D-day 텍스트 색 클래스 — dDay 없으면 faint. 이 규칙의 단일 출처(코드리뷰 D 교정:
-// 워크벤치·에이전트 진행 리스트가 각자 복제하던 DDAY_TEXT 맵을 여기로 통합).
-const DDAY_TEXT_CLASS: Record<DDayTone, string> = {
-  critical: 'text-critical',
-  high: 'text-warning',
-  medium: 'text-medium',
-  neutral: 'text-muted',
-};
-
-export function dDayTextClass(dDay: number | undefined): string {
-  return dDay === undefined ? 'text-faint' : DDAY_TEXT_CLASS[dDayTone(dDay)];
-}

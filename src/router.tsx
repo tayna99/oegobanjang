@@ -1,28 +1,15 @@
 import { createBrowserRouter } from 'react-router-dom';
 import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
-import { HomePage } from '@/features/HomePage';
+import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
-import { CsvUploadPage } from '@/features/cases/CsvUploadPage';
-import { WorkerDataPage } from '@/features/cases/WorkerDataPage';
-import { DispatchQueuePage } from '@/features/cases/DispatchQueuePage';
+import { MessagesPage } from '@/features/messages/MessagesPage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
-import { CaseHistoryPage } from '@/features/case/CaseHistoryPage';
-import { ApprovePage } from '@/features/approve/ApprovePage';
 import { RunPage } from '@/features/run/RunPage';
 import { DraftPage } from '@/features/draft/DraftPage';
+import { ThreadPage } from '@/features/thread/ThreadPage';
 import { DonePage } from '@/features/done/DonePage';
-import { EvidencePage } from '@/features/governance/EvidencePage';
-import { MessagesPage } from '@/features/messages/MessagesPage';
-import { ThreadPage } from '@/features/messages/ThreadPage';
-import { PackagePage } from '@/features/packagePkg/PackagePage';
-import { ExpertLinkPage } from '@/features/packagePkg/ExpertLinkPage';
-import { ExpertDashboardPage } from '@/features/expert/ExpertDashboardPage';
-import { ExpertPackagePage } from '@/features/expert/ExpertPackagePage';
-import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
-import { MembersPage } from '@/features/settings/MembersPage';
-import { DelegationPage } from '@/features/settings/DelegationPage';
-import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
+import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
 
@@ -32,12 +19,8 @@ export const routeConfig: RouteObject[] = [
   {
     element: <Shell />,
     children: [
-      { index: true, element: <HomePage /> },
+      { index: true, element: <BriefingHomePage /> },
       { path: ROUTE_PATHS.cases, element: <CaseListPage /> },
-      // CSV 일괄 등록(4.4) — PC 전용(4b), case/:caseId보다 앞에 둘 필요는 없다(다른 최상위 세그먼트).
-      { path: ROUTE_PATHS.casesImport, element: <CsvUploadPage /> },
-      { path: ROUTE_PATHS.casesWorkers, element: <WorkerDataPage /> },
-      { path: ROUTE_PATHS.casesDispatch, element: <DispatchQueuePage /> },
       {
         path: ROUTE_PATHS.case,
         loader: validateIdParam('caseId'),
@@ -49,15 +32,9 @@ export const routeConfig: RouteObject[] = [
         element: <DraftPage />,
       },
       {
-        // M2.6.3: 승인은 사람 체크리스트 페이지(2c)가 담당 — 에이전트 런은 /run/:runId로 이동.
         path: ROUTE_PATHS.caseApprove,
         loader: validateIdParam('caseId'),
-        element: <ApprovePage />,
-      },
-      {
-        path: ROUTE_PATHS.caseHistory,
-        loader: validateIdParam('caseId'),
-        element: <CaseHistoryPage />,
+        element: <RunPage />,
       },
       {
         path: ROUTE_PATHS.run,
@@ -70,40 +47,18 @@ export const routeConfig: RouteObject[] = [
         loader: validateIdParam('threadId'),
         element: <ThreadPage />,
       },
-      { path: ROUTE_PATHS.evidence, element: <EvidencePage /> },
+      { path: ROUTE_PATHS.evidence, element: <PlaceholderScreen name="M8 판단 기록" /> },
       {
         path: ROUTE_PATHS.package,
         loader: validateIdParam('packageId'),
-        element: <PackagePage />,
+        element: <PlaceholderScreen name="행정사 패키지" />,
       },
       { path: ROUTE_PATHS.done, element: <DonePage /> },
-      { path: ROUTE_PATHS.settings, element: <SettingsHubPage /> },
-      { path: ROUTE_PATHS.settingsMembers, element: <MembersPage /> },
-      { path: ROUTE_PATHS.settingsDelegation, element: <DelegationPage /> },
+      {
+        path: ROUTE_PATHS.onboardingWorkers,
+        element: <PlaceholderScreen name="근로자 등록" />,
+      },
     ],
-  },
-  // Shell(로그인 앱 챙) 바깥의 최상위 형제 라우트 — 행정사는 계정이 없어 nav/tabbar가 없다
-  // (7단계 §1·§4). loader 없음 — 만료 여부는 화면 안에서 판정(리다이렉트가 아니라 안내문 표시).
-  {
-    path: ROUTE_PATHS.packageLinkAbsolute,
-    element: <ExpertLinkPage />,
-  },
-  // 온보딩(4.1)도 로그인 전 전체 화면 플로우라 Shell 바깥 형제 라우트 — 상태 머신은
-  // OnboardingFlow 내부에서 관리하고 딥링크 카탈로그(2단계)엔 O1~O5 개별 경로가 없다
-  // (순차 게이트라 중간 단계 딥링크를 허용하지 않는다).
-  {
-    path: ROUTE_PATHS.onboardingAbsolute,
-    element: <OnboardingFlow />,
-  },
-  // 행정사 화이트라벨(7-1) — 계정 없이 브랜드 화면으로 접근. Shell 바깥 형제 라우트
-  // (무인증 링크와 동일 관례). 대시보드 → 패키지 뷰(둘 다 브랜드 헤더 + 만료·열람 로그).
-  {
-    path: ROUTE_PATHS.expertDashboardAbsolute,
-    element: <ExpertDashboardPage />,
-  },
-  {
-    path: ROUTE_PATHS.expertPackageAbsolute,
-    element: <ExpertPackagePage />,
   },
 ];
 

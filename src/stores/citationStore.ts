@@ -51,6 +51,5 @@ export function linkedCaseCount(
   recordId: string,
   sheets: Array<{ citations: Citation[] }>,
 ): number {
-  // F등급 참조는 "연계"로 세지 않는다 — citation-lock 판정과 동일 규칙(코드리뷰 지적).
-  return sheets.filter((sheet) => usableCitations(sheet.citations).some((c) => c.id === recordId)).length;
+  return sheets.filter((sheet) => sheet.citations.some((c) => c.id === recordId)).length;
 }
