@@ -51,5 +51,5 @@ describe('M1~M5 approval happy path', () => {
     expect(useCaseStore.getState().cases.nguyen.state).toBe('human_approved');
     expect(useApprovalStore.getState().approvals['nguyen-approve'].status).toBe('approved');
     expect(useEvidenceStore.getState().events.some((event) => event.type === 'approval_decided')).toBe(true);
-  });
+  }, 10_000);
 });

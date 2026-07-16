@@ -20,6 +20,7 @@
 
 ```
 Case.state:      draft → risk_review → approval_pending → human_approved → completed
+                                       ⇅ returned (반려 — 사유는 판단 기록에 남고, 보완 후 approval_pending 재진입만 허용. 왕복 밖 전이는 가드레일이 거부)
                                      ↘ blocked (근거 없음·high risk·오류 — 조용히 넘어가지 말고 표면화)
 NextAction.state: locked → ready → scheduled|waiting
 Approval.status:  pending → approved | rejected  (idempotency key 필수 — 중복 승인 차단)

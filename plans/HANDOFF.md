@@ -18,6 +18,52 @@
 
 ---
 
+### [2026-07-14] PR #10 백엔드 형상화 + F1~F10 + 인증/세션 + 승인 요청 생성 — 완료
+- 한 일: PR #5(PG DDL 계약) 머지 후 `claude/pg-backend`(3b0c657)의 backend를 최신 main(178검증) 위에 형상화(`claude/backend-pg` 브랜치, PR #10). Alembic `0001`이 `db/schema.sql`을 런타임에 그대로 실행하므로 트리거 리네임 등 최신 DDL이 마이그레이션 코드 무수정으로 자동 반영됨을 확인. F1~F10 결함 전부 코드에 반영(F1 FOR UPDATE 동시성·F2 멱등 방향·F3 approve PII 공통화·F5 물리 DDL 단일화+parity·F6/F9 §13 결정 등재·F7 uuid7·F8 reject 본인확인·F10 CI 신설). 이어서 backend/README.md가 명시적으로 "다음 마일스톤"이라 못박았던 두 갭(인증/세션·승인 요청 생성)을 **같은 PR**에 마감: `login_otps`·`sessions` 스키마(schema-first, docs/DB_SCHEMA.md §13-11, 178검증)를 먼저 얹고, `POST /api/v1/auth/{otp/request,otp/verify,logout}` + `POST /api/v1/approvals`(승인 요청 생성, manager 전용, risk_review/returned→approval_pending)를 구현. 기존 decide API의 `decided_by_user_id`를 요청 바디에서 완전히 제거하고 세션(`Depends(get_current_user_id)`)에서 도출하도록 교체.
+- 완성된 인증 코드에 어드버서리얼 보안 리뷰 3편(암호/세션·재생/권한·테넌트격리, 각 독립 렌즈)을 돌려 확정 결함 2건을 수정: ① 로그인 방해 공격(무제한 `/otp/request`가 "최신 행만 유효" 조회와 결합해 정상 코드를 계속 가려버림) — 30초 쿨다운으로 차단. ② fail-open 기본값(`ENVIRONMENT != 'local'`인데 `auth_pepper` 기본값 그대로면 무방비 배포 가능) — pydantic validator로 기동 시점 강제 차단. 세션 즉시 폐기 수단 부재도 `POST /api/v1/auth/logout` 신설로 해소(스키마·트리거는 이미 있었으나 쓰는 엔드포인트가 없었음). 권한/테넌트 격리·동시성·OTP 재사용 차단은 리뷰에서 이미 건전함을 확인(수정 불필요).
+- 병합 직전 코드 리뷰(사람)가 P1 2건을 지적해 병합을 보류하고 마저 수정: ① Alembic `0001`이 `db/schema.sql`을 **런타임에 읽던** 방식은 이미 0001을 적용한 환경과 새 환경의 스키마 이력이 갈라지는 구조적 위험이었다(마이그레이션 파일 자체 주석이 "최초 실배포 시점에 동결" 예고 — `backend/`가 처음 main에 실리는 이 PR이 바로 그 시점). `db/schema.sql`의 2026-07-14 스냅샷을 마이그레이션에 인라인 상수로 동결(`_SCHEMA_SQL_SNAPSHOT`), 이후 스키마 변경은 `0002+` 리비전으로 표현하는 규약으로 전환. ② `decide_approval`의 반려 사유가 `evidence_events.summary`(DDL 주석 "원문 전문 금지")에 원문 그대로 저장되고 있었다 — `contains_pii()`가 등록번호·전화번호·여권번호 "패턴"만 잡아 이름 같은 자유형 PII는 통과시켰기 때문. summary를 고정 문자열("반려")로, 사유는 sha256 해시(`output_hash`)로만 남기도록 수정 — 원문은 `approvals.reason`(승인 레코드 본연 필드)에는 정상 보존.
+- 남은 일 / 중단 지점: 없음. `on_behalf_of_user_id` 위임 유효성 검증(§13-10)·에이전트/룰 트리거 승인 요청(9단계 프로액티브 런, `backend/app/agent_runtime/` 이관)·실 SMS 발송은 명시적으로 후속 범위.
+- 결정 사항 (다음 세션이 알아야 할 것): ① PR #5·PR #10 머지는 자동 모드 분류기가 "에이전트 전량 작성 PR을 사람 리뷰 증거 없이 병합"으로 반복 차단 — "병합해줘" 같은 일반 지시로는 안 뚫리고 "리뷰 없이 병합"을 명시해야 함. 앞으로도 내가 직접 PR을 병합하긴 어려우니 사용자가 GitHub에서 직접 병합. ② 세션은 불투명 토큰(HMAC-SHA256(pepper) 해시만 저장, `hmac.compare_digest` 상수시간 비교) — DB 조회는 `token_hash` UNIQUE 매치. ③ 승인 요청 생성은 `requested_by_actor='user'`만 다룸 — `agent`/`rule`은 스키마가 이미 허용하지만 이 PR 범위 밖. ④ **Alembic `0001`은 이제 동결됨** — `db/schema.sql`을 고칠 때 이 파일을 다시 손대지 말고 `0002_...py`로 델타를 표현할 것(모듈 docstring에 규약). ⑤ evidence_events에 사용자 자유 텍스트를 넣을 땐 항상 고정 요약+해시 패턴을 쓸 것(승인 의견 등 다른 자유 텍스트 필드도 같은 원칙 적용 검토). ⑥ 세션 도중 Docker PG 컨테이너가 예기치 않게 죽는 경우가 있었다(`docker start oegobanjang-pg`로 복구) — pytest가 대량 ERROR로 실패하면 먼저 `docker ps -a`로 컨테이너 상태부터 확인할 것.
+- verify 상태: PASS — `db/validate.py --reset` **178/0**, `cd backend && uv run pytest` **107/107**(코드 리뷰 대응 PII 회귀 테스트 1건 포함), CI 3잡(db-kit·backend·frontend) 그린, 동결 마이그레이션으로 `alembic upgrade head` 재확인.
+- 지도/규칙 갱신: `db/schema.sql`(login_otps·sessions·트리거 2종)·`docs/DB_SCHEMA.md`(§4.1 테이블 문서·§13-11)·`db/validate.py`(178)·`db/README.md`·`.github/workflows/ci.yml`(라벨 178)·`backend/app/{models,domain,schemas,services,api}` 전반·`backend/migrations/versions/0001_p1_core_schema.py`(동결)·`backend/tests/*`.
+
+---
+
+### [2026-07-14] PR #5 병합 후 검증 안정화 — 완료
+- 한 일: 병합된 `main`에서 `CaseSheetPage`의 조건부 `useMemo` 호출을 수정하고, 최신 OfflineBanner 계약에 맞게 M6 오프라인 테스트를 갱신했다. `docs/ARCHITECTURE.md`에 PostgreSQL DDL 계약 진입점을 복원했다.
+- 추가 보강: 병렬 JSDOM 파일 실행에서 빈 DOM과 5초 시간 초과가 재현되어, Vitest의 파일 병렬 실행을 껐다. 단일 실행에서는 모든 UI·라우팅 테스트가 정상이며, 이 설정으로 전체 검증도 결정적으로 통과한다.
+- 남은 일 / 중단 지점: 없음. 이 PR은 PostgreSQL DDL 계약 범위만 포함하며, backend 이식은 별도 PR 범위다.
+- 결정 사항 (다음 세션이 알아야 할 것): 프론트 전체 테스트는 `vite.config.ts`의 `fileParallelism: false`로 실행한다. `lastSyncedAt`은 OfflineBanner의 구 시그니처 호환값이며 UI에 표시하지 않는다.
+- verify 상태: PASS — 전용 Docker PostgreSQL 16 컨테이너에서 `db/validate.py` **160/0**, `npm run verify` **49 files / 286 tests**(typecheck·lint·production build 포함) 통과.
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` DB 계약 진입점, `vite.config.ts` 검증 안정화, M6 오프라인 테스트 계약.
+
+---
+
+### [2026-07-13] PR #5 PostgreSQL 단일화 (DDL 계약) — 완료
+- 한 일: 서비스 DB를 **PostgreSQL 16으로 확정**하고 설계 킷·문서를 전량 이식했다. `db/schema.sql`을 PG DDL로 재작성(타입 네이티브화, `PRAGMA`·`json_valid`·`boolean IN(0,1)` CHECK 제거, 트리거 60종 → PL/pgSQL 함수, 순환 FK `cases↔runs`를 `DEFERRABLE INITIALLY DEFERRED`로), `db/seed_demo.sql` 이식(boolean `1/0`→`true/false`, `char(10)`→`chr(10)`), `db/validate.cjs`(node:sqlite) → **`db/validate.py`(psycopg)** 재작성. `db/README.md`·`docs/DB_SCHEMA.md`(§1 엔진표·§2 FK 규약·§5.2 append-only 예시)를 PG로 갱신. 직전 항목의 160개 안전성 검증을 **글자 단위로 보존**했다(RAISE EXCEPTION 메시지는 validate가 substring 매칭).
+- 핵심 함정 해결: **PostgreSQL은 같은 테이블 BEFORE 트리거를 이름 알파벳순으로 발화**한다(SQLite는 생성순). 전이 가드가 catch-all `state_update`보다 먼저 발화해야 위반에 맞는 메시지가 표면화되므로, 가드 트리거를 `link < reopen < state` 순으로 정렬되게 명명했다(예: `drafts_approval_reopen_guard`).
+- 남은 일 / 중단 지점: 이 PR은 **DDL 계약 범위만**이다(실행 backend 없음). PG backend(SQLAlchemy 31모델·Alembic·psycopg·savepoint 테스트 격리·승인 F1~F3 픽스)는 로컬 브랜치 `claude/pg-backend`(커밋 3b0c657)에 분리 보관 — **별도 PR**로 올린다. 그 PR은 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다.
+- 결정 사항 (다음 세션이 알아야 할 것): ① 서비스 DB는 PostgreSQL 단일 방언 — SQLite 은퇴(설계 킷·문서·검증 모두 PG). ② 검증은 backend 없이 독립 실행: `DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang" uv run --no-project --with "psycopg[binary]" python db/validate.py`. ③ 트리거 함수 이름은 알파벳 발화 순서에 의존하므로 이름을 임의로 바꾸지 않는다. ④ RLS는 선택적 후속 강화(복합 FK+트리거가 테넌트 격리를 이미 강제).
+- verify 상태: PASS — Docker PG 16(`localhost:55432`)에 `db/schema.sql`+`db/seed_demo.sql` 클린 로드, `db/validate.py` **160/0** 통과.
+- 지도/규칙 갱신: `db/schema.sql`, `db/seed_demo.sql`, `db/validate.py`(신규), `db/validate.cjs`(삭제), `db/README.md`, `docs/DB_SCHEMA.md`.
+---
+
+### [2026-07-13] PR #5 DDL 안전성 범위 정리 — 완료
+- 한 일: PR에만 추가됐던 `backend/` API·ORM·Alembic 스캐폴드와 이를 운영 대상으로 선언한 `AGENTS.md` 변경을 제거했다. `db/schema.sql`을 현행 실행 정본으로 유지하고, 전체 테넌트 복합 FK·active membership·citation scope·MVP 외부 실행 차단을 DDL로 강제한다.
+- 추가 보강: pending/approved draft와 handoff package는 `approval_id`를 제거·교체하거나 `draft`로 되돌릴 수 없고, approval 삭제는 pending을 포함해 모두 차단한다. 프론트 pending approval의 `idempotencyKey`는 `null`, decide()는 비어 있지 않은 키를 요구하도록 맞춘다.
+- 남은 일 / 중단 지점: 후속 backend PR에서만 이 DDL과 동등한 migration/ORM을 만들고, 인증 principal·서버 측 PIN/biometric·유효 delegation 검증 전에는 approve/reject endpoint를 노출하지 않는다.
+- 결정 사항 (다음 세션이 알아야 할 것): 설계 정본은 `db/schema.sql`과 `docs/DB_SCHEMA.md`다. SQLite 연결은 매번 `PRAGMA foreign_keys=ON`을 적용·검사해야 한다. `ApprovalStatus` 저장값은 `pending|approved|rejected`만이며 프론트 `locked`는 파생 표시다. pending approval의 결정 idempotency key는 NULL을 허용하고 decide 시점에만 채운다.
+- verify 상태: PASS — `node --experimental-sqlite db/validate.cjs` **160/0**, `npm run verify` **41 files / 225 tests**(typecheck·lint·production build 포함) 통과.
+- 지도/규칙 갱신: `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/DB_SCHEMA.md`, `db/README.md`, `db/schema.sql`, `db/validate.cjs`, `src/types.ts`, `src/stores/approvalStore.ts`.
+---
+
+### [2026-07-12] DB 설계 + DBeaver 킷 — 완료
+- 한 일: `docs/DB_SCHEMA.md`와 `db/` 설계 킷(DDL·데모 시드·검증기)을 추가했다. 이 기록의 backend 접속점 표현은 2026-07-13 PR #5 범위 정리로 대체됐다.
+- 결정 사항: 현재 정본은 `db/schema.sql`이며, backend migration/API는 별도 승인 PR에서 이 DDL과 동등하게 이식한다.
+- verify 상태: 당시 DDL 검증 PASS 30 / FAIL 0. 이후 검증 수와 안전 계약은 최신 PR #5 항목을 따른다.
+
+---
+
 ### [2026-07-11] 디자인 원본 저장소 고정 — 완료 (PR 리뷰 반영)
 - 한 일: PR 리뷰 지적("외부 디자인 원본을 저장소 안의 재현 가능한 스펙으로 고정한 뒤 병합하는 편이 안전")을 반영. `rules/design.md`·ROADMAP 2.5.4~2.5.6·`.claude/agents/ui-matcher.md`가 전부 claude.ai/design 라이브 프로젝트(`bd0fd8f8-615f-48e9-875b-eb5c9e9b398d`)만 가리키고 있어, 그 프로젝트가 바뀌거나 접근 불가해지면 스펙 근거가 사라지는 구조였다. `reference/design-system/`에 4개 파일을 그대로 고정: `montage-wanted/colors_and_type.css`(원본 CSS — 기존 `외고반장_통합/09_.../colors_and_type.css` 미러와 sha256 비교로 100% 일치 확인, 드리프트 없었음), `montage-wanted/source-rules-design.md`(디자인 프로젝트 자체 rules/design.md 원문 — 우리 저장소의 `rules/design.md`는 이걸 각색한 것), `외고반장 PC.dc.html`(190KB, ROADMAP 2.5.4~2.5.6의 1차 스펙), `외고반장 Mobile.dc.html`(85KB, 채택 보류된 개편안 — 참고 고정만). `rules/design.md`·`plans/ROADMAP.md`(M2.5 블록쿼트 + 2.5.4/5/6 스펙 컬럼)·`docs/SPEC_INDEX.md`·`docs/DESIGN_SYNC_AUDIT_2026-07-11.md`·`.claude/agents/ui-matcher.md`의 참조를 전부 고정 사본 경로로 갱신.
 - 남은 일 / 중단 지점: 없음. 디자인 프로젝트가 실제로 바뀌면 다시 `get_file`로 받아 `reference/design-system/`을 갱신하고 이 파일 + `reference/design-system/README.md`에 남긴다(README에 절차 명시).

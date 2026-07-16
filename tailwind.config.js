@@ -64,6 +64,8 @@ export default {
         'badge-gap': 'var(--chip-gap)',
         // SafetyNotice — gap-safety-gap.
         'safety-gap': 'var(--safety-gap)',
+        // 탭바 도트 인디케이터 지름(7px, 프로토타입 v3 .dot) — w-dot/h-dot.
+        dot: 'var(--dot-size)',
       },
       fontSize: {
         // 탭바 라벨(11px), 버튼 기본(15px), SafetyNotice(13px) — 이 프로젝트 전용 치수.
