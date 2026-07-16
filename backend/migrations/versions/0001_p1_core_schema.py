@@ -1,3 +1,34 @@
+"""p1 core schema — PostgreSQL (frozen snapshot)
+
+이 리비전은 설계 정본 `db/schema.sql`의 **당시(2026-07-14, PR #10 — backend/의 최초 실배포)
+스냅샷**을 인라인으로 실행한다. 트리거 함수·복합 테넌트 FK·파생 뷰는 SQLAlchemy 모델로
+표현되지 않으므로, 이 리비전이 "빈 DB에서 시작할 때의 전체 DDL"을 그대로 담는다.
+
+**동결 규약(중요)**: 이 파일의 `_SCHEMA_SQL_SNAPSHOT`은 더 이상 `db/schema.sql`을 런타임에
+읽지 않는다 — 이미 0001을 적용한 환경(스키마 이력이 진행된 환경)과 앞으로 처음 적용하는
+환경이 서로 다른 DDL을 받아 스키마 이력이 분기되는 것을 막기 위해서다(코드 리뷰 지적,
+PR #10). **이후 `db/schema.sql`을 바꿀 때마다 이 파일을 다시 손대지 않는다** — 대신 그
+변경분(ALTER 등)을 표현하는 새 리비전을 `0002_...py` 형태로 추가한다. `db/schema.sql`은
+계속 설계 킷(`db/validate.py`가 빈 스키마에 그대로 적용해 검증하는 논리적 계약)의 단일
+정본으로 남고, Alembic 리비전들은 그 계약과 최종 상태가 동일하도록 유지하는 배포 경로다.
+
+Revision ID: 0001
+Revises:
+Create Date: 2026-07-13
+"""
+from typing import Sequence, Union
+
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision: str = "0001"
+down_revision: Union[str, Sequence[str], None] = None
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+# db/schema.sql 2026-07-14 스냅샷(PR #10 병합 시점) — 이후 db/schema.sql 변경은 이 상수에
+# 반영하지 않는다. 새 스키마 변경은 0002+ 리비전으로 표현한다(위 모듈 docstring 참고).
+_SCHEMA_SQL_SNAPSHOT = r"""
 -- ============================================================================
 -- 외고반장 서비스 DB — 실행 가능 DDL (PostgreSQL 16+)
 -- 정본 문서: docs/DB_SCHEMA.md — 이 파일은 그 문서 §4를 그대로 내린 것.
@@ -1555,3 +1586,15 @@ SELECT
   COUNT(*) AS case_count
 FROM cases
 GROUP BY company_id, stage;
+
+"""
+
+
+def upgrade() -> None:
+    # exec_driver_sql: SQLAlchemy의 bind 파라미터 파싱을 우회해 원문 그대로 드라이버에 보낸다
+    # (다중 문장 + $$ dollar-quoted 함수 본문을 안전하게 실행).
+    op.get_bind().exec_driver_sql(_SCHEMA_SQL_SNAPSHOT)
+
+
+def downgrade() -> None:
+    op.get_bind().exec_driver_sql("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")

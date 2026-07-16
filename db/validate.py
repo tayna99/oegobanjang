@@ -5,7 +5,7 @@ Run:  DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegoban
 Env:  DATABASE_URL (default: local Docker PG on :55432)
 
 db/schema.sql(정본) + db/seed_demo.sql을 대상 스키마에 로드한 뒤, 테넌트 격리·승인
-상태머신·외부 실행 차단 등 160개 회귀를 검증한다. 이 파일은 db/validate.cjs(SQLite)의
+상태머신·외부 실행 차단 등 178개 회귀를 검증한다. 이 파일은 db/validate.cjs(SQLite)의
 PG 이식본이다 — 검증 이름·시맨틱은 1:1로 보존하고, SQLite 전용(PRAGMA·sqlite_master·
 boolean 0/1)만 PG로 옮겼다.
 
@@ -108,7 +108,7 @@ n_tables = scalar(
     "SELECT count(*) AS n FROM information_schema.tables "
     "WHERE table_schema='public' AND table_type='BASE TABLE'"
 )["n"]
-ok("31 tables after removing package_links", n_tables == 31, f"actual={n_tables}")
+ok("33 tables (login_otps, sessions added)", n_tables == 33, f"actual={n_tables}")
 n_views = scalar("SELECT count(*) AS n FROM information_schema.views WHERE table_schema='public'")["n"]
 ok("4 views", n_views == 4, f"actual={n_views}")
 ok(
@@ -140,6 +140,64 @@ ok("seed PDF export marks its package exported",
 # Immutable evidence remains enforced.
 expect_throw("evidence UPDATE is blocked", "UPDATE evidence_events SET summary='x' WHERE id='ev_4783'", "append-only")
 expect_throw("evidence DELETE is blocked", "DELETE FROM evidence_events WHERE id='ev_4783'", "append-only")
+
+# login_otps / sessions (F1~F10 backend PR — 인증/세션).
+run("""
+  INSERT INTO login_otps (id, phone, code_hash, expires_at) VALUES
+    ('otp_1', '010-1111-2222', 'hash-abc', now() + interval '5 minutes');
+""")
+ok("login_otps insert succeeds", True)
+expect_throw("login_otps phone is immutable", "UPDATE login_otps SET phone='010-0000-0000' WHERE id='otp_1'", "immutable")
+expect_throw("login_otps code_hash is immutable", "UPDATE login_otps SET code_hash='hash-xyz' WHERE id='otp_1'", "immutable")
+expect_throw(
+    "login_otps expires_at is immutable",
+    "UPDATE login_otps SET expires_at = now() + interval '1 minute' WHERE id='otp_1'",
+    "immutable",
+)
+expect_throw(
+    "login_otps created_at is immutable", "UPDATE login_otps SET created_at = now() WHERE id='otp_1'", "immutable"
+)
+run("UPDATE login_otps SET attempt_count = attempt_count + 1 WHERE id='otp_1'")
+ok("login_otps attempt_count remains mutable", scalar("SELECT attempt_count AS n FROM login_otps WHERE id='otp_1'")["n"] == 1)
+expect_throw(
+    "login_otps attempt_count rejects negative",
+    "INSERT INTO login_otps (id, phone, code_hash, expires_at, attempt_count) "
+    "VALUES ('otp_bad', '010-1111-3333', 'hash-bad', now() + interval '5 minutes', -1)",
+)
+run("UPDATE login_otps SET consumed_at = now() WHERE id='otp_1'")
+ok("login_otps consumed_at settable once", True)
+expect_throw("login_otps cannot be consumed twice", "UPDATE login_otps SET consumed_at = now() WHERE id='otp_1'", "already consumed")
+
+run("""
+  INSERT INTO sessions (id, user_id, token_hash, expires_at) VALUES
+    ('sess_1', 'usr_kim', 'token-hash-abc', now() + interval '30 days');
+""")
+ok("sessions insert succeeds", True)
+expect_throw(
+    "sessions rejects unknown user_id",
+    "INSERT INTO sessions (id, user_id, token_hash, expires_at) "
+    "VALUES ('sess_bad', 'usr_does_not_exist', 'token-hash-zzz', now() + interval '30 days')",
+)
+expect_throw(
+    "sessions token_hash is unique",
+    "INSERT INTO sessions (id, user_id, token_hash, expires_at) "
+    "VALUES ('sess_dup', 'usr_kim', 'token-hash-abc', now() + interval '30 days')",
+)
+expect_throw(
+    "sessions rejects expires_at <= created_at",
+    "INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) "
+    "VALUES ('sess_bad_ttl', 'usr_kim', 'token-hash-ttl', now(), now())",
+)
+expect_throw("sessions user_id is immutable", "UPDATE sessions SET user_id='usr_park' WHERE id='sess_1'", "immutable")
+expect_throw("sessions token_hash is immutable", "UPDATE sessions SET token_hash='token-hash-changed' WHERE id='sess_1'", "immutable")
+expect_throw(
+    "sessions expires_at is immutable",
+    "UPDATE sessions SET expires_at = now() + interval '1 day' WHERE id='sess_1'",
+    "immutable",
+)
+run("UPDATE sessions SET revoked_at = now() WHERE id='sess_1'")
+ok("sessions revoked_at settable once", True)
+expect_throw("sessions cannot be revoked twice", "UPDATE sessions SET revoked_at = now() WHERE id='sess_1'", "already revoked")
 
 # Seed a second tenant and its valid graph for isolation attacks.
 run("""

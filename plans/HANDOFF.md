@@ -18,6 +18,17 @@
 
 ---
 
+### [2026-07-14] PR #10 백엔드 형상화 + F1~F10 + 인증/세션 + 승인 요청 생성 — 완료
+- 한 일: PR #5(PG DDL 계약) 머지 후 `claude/pg-backend`(3b0c657)의 backend를 최신 main(178검증) 위에 형상화(`claude/backend-pg` 브랜치, PR #10). Alembic `0001`이 `db/schema.sql`을 런타임에 그대로 실행하므로 트리거 리네임 등 최신 DDL이 마이그레이션 코드 무수정으로 자동 반영됨을 확인. F1~F10 결함 전부 코드에 반영(F1 FOR UPDATE 동시성·F2 멱등 방향·F3 approve PII 공통화·F5 물리 DDL 단일화+parity·F6/F9 §13 결정 등재·F7 uuid7·F8 reject 본인확인·F10 CI 신설). 이어서 backend/README.md가 명시적으로 "다음 마일스톤"이라 못박았던 두 갭(인증/세션·승인 요청 생성)을 **같은 PR**에 마감: `login_otps`·`sessions` 스키마(schema-first, docs/DB_SCHEMA.md §13-11, 178검증)를 먼저 얹고, `POST /api/v1/auth/{otp/request,otp/verify,logout}` + `POST /api/v1/approvals`(승인 요청 생성, manager 전용, risk_review/returned→approval_pending)를 구현. 기존 decide API의 `decided_by_user_id`를 요청 바디에서 완전히 제거하고 세션(`Depends(get_current_user_id)`)에서 도출하도록 교체.
+- 완성된 인증 코드에 어드버서리얼 보안 리뷰 3편(암호/세션·재생/권한·테넌트격리, 각 독립 렌즈)을 돌려 확정 결함 2건을 수정: ① 로그인 방해 공격(무제한 `/otp/request`가 "최신 행만 유효" 조회와 결합해 정상 코드를 계속 가려버림) — 30초 쿨다운으로 차단. ② fail-open 기본값(`ENVIRONMENT != 'local'`인데 `auth_pepper` 기본값 그대로면 무방비 배포 가능) — pydantic validator로 기동 시점 강제 차단. 세션 즉시 폐기 수단 부재도 `POST /api/v1/auth/logout` 신설로 해소(스키마·트리거는 이미 있었으나 쓰는 엔드포인트가 없었음). 권한/테넌트 격리·동시성·OTP 재사용 차단은 리뷰에서 이미 건전함을 확인(수정 불필요).
+- 병합 직전 코드 리뷰(사람)가 P1 2건을 지적해 병합을 보류하고 마저 수정: ① Alembic `0001`이 `db/schema.sql`을 **런타임에 읽던** 방식은 이미 0001을 적용한 환경과 새 환경의 스키마 이력이 갈라지는 구조적 위험이었다(마이그레이션 파일 자체 주석이 "최초 실배포 시점에 동결" 예고 — `backend/`가 처음 main에 실리는 이 PR이 바로 그 시점). `db/schema.sql`의 2026-07-14 스냅샷을 마이그레이션에 인라인 상수로 동결(`_SCHEMA_SQL_SNAPSHOT`), 이후 스키마 변경은 `0002+` 리비전으로 표현하는 규약으로 전환. ② `decide_approval`의 반려 사유가 `evidence_events.summary`(DDL 주석 "원문 전문 금지")에 원문 그대로 저장되고 있었다 — `contains_pii()`가 등록번호·전화번호·여권번호 "패턴"만 잡아 이름 같은 자유형 PII는 통과시켰기 때문. summary를 고정 문자열("반려")로, 사유는 sha256 해시(`output_hash`)로만 남기도록 수정 — 원문은 `approvals.reason`(승인 레코드 본연 필드)에는 정상 보존.
+- 남은 일 / 중단 지점: 없음. `on_behalf_of_user_id` 위임 유효성 검증(§13-10)·에이전트/룰 트리거 승인 요청(9단계 프로액티브 런, `backend/app/agent_runtime/` 이관)·실 SMS 발송은 명시적으로 후속 범위.
+- 결정 사항 (다음 세션이 알아야 할 것): ① PR #5·PR #10 머지는 자동 모드 분류기가 "에이전트 전량 작성 PR을 사람 리뷰 증거 없이 병합"으로 반복 차단 — "병합해줘" 같은 일반 지시로는 안 뚫리고 "리뷰 없이 병합"을 명시해야 함. 앞으로도 내가 직접 PR을 병합하긴 어려우니 사용자가 GitHub에서 직접 병합. ② 세션은 불투명 토큰(HMAC-SHA256(pepper) 해시만 저장, `hmac.compare_digest` 상수시간 비교) — DB 조회는 `token_hash` UNIQUE 매치. ③ 승인 요청 생성은 `requested_by_actor='user'`만 다룸 — `agent`/`rule`은 스키마가 이미 허용하지만 이 PR 범위 밖. ④ **Alembic `0001`은 이제 동결됨** — `db/schema.sql`을 고칠 때 이 파일을 다시 손대지 말고 `0002_...py`로 델타를 표현할 것(모듈 docstring에 규약). ⑤ evidence_events에 사용자 자유 텍스트를 넣을 땐 항상 고정 요약+해시 패턴을 쓸 것(승인 의견 등 다른 자유 텍스트 필드도 같은 원칙 적용 검토). ⑥ 세션 도중 Docker PG 컨테이너가 예기치 않게 죽는 경우가 있었다(`docker start oegobanjang-pg`로 복구) — pytest가 대량 ERROR로 실패하면 먼저 `docker ps -a`로 컨테이너 상태부터 확인할 것.
+- verify 상태: PASS — `db/validate.py --reset` **178/0**, `cd backend && uv run pytest` **107/107**(코드 리뷰 대응 PII 회귀 테스트 1건 포함), CI 3잡(db-kit·backend·frontend) 그린, 동결 마이그레이션으로 `alembic upgrade head` 재확인.
+- 지도/규칙 갱신: `db/schema.sql`(login_otps·sessions·트리거 2종)·`docs/DB_SCHEMA.md`(§4.1 테이블 문서·§13-11)·`db/validate.py`(178)·`db/README.md`·`.github/workflows/ci.yml`(라벨 178)·`backend/app/{models,domain,schemas,services,api}` 전반·`backend/migrations/versions/0001_p1_core_schema.py`(동결)·`backend/tests/*`.
+
+---
+
 ### [2026-07-14] PR #5 병합 후 검증 안정화 — 완료
 - 한 일: 병합된 `main`에서 `CaseSheetPage`의 조건부 `useMemo` 호출을 수정하고, 최신 OfflineBanner 계약에 맞게 M6 오프라인 테스트를 갱신했다. `docs/ARCHITECTURE.md`에 PostgreSQL DDL 계약 진입점을 복원했다.
 - 추가 보강: 병렬 JSDOM 파일 실행에서 빈 DOM과 5초 시간 초과가 재현되어, Vitest의 파일 병렬 실행을 껐다. 단일 실행에서는 모든 UI·라우팅 테스트가 정상이며, 이 설정으로 전체 검증도 결정적으로 통과한다.

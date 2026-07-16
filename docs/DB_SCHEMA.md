@@ -35,7 +35,7 @@
 
 - 실행 가능한 설계 정본은 `db/schema.sql`(PostgreSQL DDL)이고, 이 문서의 타입은 논리 타입이다. DDL이 물리 정본이다.
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
-- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 160항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(160)를 다시 통과시킨다.
+- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 178항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(178)를 다시 통과시킨다.
 - **backend 범위:** 이 PR에는 backend API·ORM·Alembic migration이 없다. 후속 backend PR은 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지하고, 인증된 principal·서버 측 PIN/biometric 검증·유효한 delegation 검증을 먼저 갖추기 전까지 approve/reject endpoint를 노출하지 않는다.
 
 ## 2. 공통 규약
@@ -136,6 +136,33 @@ erDiagram
 | **biometric_registered** | bool | default false | 기기 생체 등록 여부(실 검증은 기기 측) |
 | **terms_agreed_at** | timestamptz | | 약관·개인정보 동의(근로자 정보 행정 목적 사용 고지 포함) |
 | **created_at / updated_at** | timestamptz | | |
+
+#### login_otps — 휴대폰 인증번호 로그인 (3단계 O1)
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| **id** | uuid | PK | |
+| **phone** | text | | users.phone과 동일 포맷. FK 없음 — 가입 전 번호도 요청 가능(company 비종속, 로그인은 회사 선택 이전) |
+| **code_hash** | text | | HMAC-SHA256(pepper, code) — 원문 저장 금지 |
+| **attempt_count** | int | CHECK(≥0), default 0 | 검증 실패마다 증가 — 초과 시 재발급 필요 |
+| **expires_at** | timestamptz | | |
+| consumed_at | timestamptz | | 검증 성공 시 1회만 설정, 이후 UPDATE 금지(trigger) |
+| **created_at** | timestamptz | | |
+
+- 신원(phone/code_hash/expires_at/created_at)은 불변, `consumed_at`은 NULL→값 1회 전이만 허용(trigger). 재검증·재사용 차단.
+- FK 없음·no-delete trigger 없음(approvals와 달리 영구 감사 기록이 아니라 `notifications`·`csv_imports`처럼 운영성 데이터 — 만료분 정리 가능).
+
+#### sessions — 발급된 로그인 세션
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| **id** | uuid | PK | |
+| **user_id** | uuid | →users.id | |
+| **token_hash** | text | UNIQUE | 불투명 토큰 해시만 저장(users.pin_hash와 동일 원칙 — 원문 저장 금지) |
+| **created_at** | timestamptz | | |
+| **expires_at** | timestamptz | CHECK(`expires_at > created_at`) | |
+| revoked_at | timestamptz | | 로그아웃/폐기 시 1회만 설정(trigger) |
+
+- 신원/만료(user_id/token_hash/created_at/expires_at)는 불변, `revoked_at`은 NULL→값 1회 전이만 허용(trigger). 재활성화 금지.
+- 승인 decide API의 `decided_by_user_id`는 이 테이블에서 도출한 세션 사용자로 대체된다(더 이상 요청 바디로 신뢰하지 않음) — §13-11.
 
 #### memberships — 회사↔사용자 역할 (테넌트 단위 부여)
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -841,3 +868,6 @@ P1 안에서도 프론트가 아직 안 읽는 컬럼(checklist 등)은 nullable
 6. **M1 승인 완료 카드 익일 처리 — 결정: 추가 컬럼·테이블 불필요, 일별 재발행이 자연히 해소한다.** `briefings`/`briefing_items`는 `(company_id, briefing_date)` 유니크라 매일 새 스냅샷을 만든다(§4.9). 완료된 케이스(`cases.state='completed'`)는 다음 날 브리핑 생성 쿼리가 열린 상태만 대상으로 하는 한 자연히 제외되므로, 익일 처리 정책은 브리핑 생성 SQL의 WHERE 절 하나로 해결된다 — 별도 "당일까지만 유지" 플래그가 필요 없다.
 7. **근로자 0명 계정 알림 mute — 결정: 실제 delivery 마일스톤으로 이연.** 현재 `notifications`는 전송 의도 큐일 뿐 외부 발송 상태·adapter가 없다. mute 정책은 delivery-outbox를 도입할 때 재검토한다.
 8. **표시 번호 시작값 — 결정: 신규 테넌트는 #0001부터.** `companies.case_seq`/`evidence_seq`의 DDL 기본값은 `0`이며, 새 테넌트는 `case_001`/`#0001`부터 발급된다. 데모 세계관(#4783~#4797)은 `db/seed_demo.sql`에서 시드로만 주입하고, 실제 회사 레코드의 카운터도 그 최고값 이상으로 맞춰 다음 발급과 충돌하지 않게 한다.
+9. **manager 승인 조건의 '위험도' 근사 — 결정: MVP는 `case.severity='LOW'`로 근사(정식 액션 위험도 모델 이연).** 7단계 권한 매트릭스는 manager가 '저위험' 승인만 가능하다고 규정하나, '저위험'의 정본은 액션 단위 위험도다. MVP 백엔드(`app/services/approvals.py`)는 이를 케이스 `severity='LOW'` + `companies.approval_policy='manager_allowed'`로 근사한다. 실제 액션 위험도 컬럼/모델은 파일럿에서 필요가 확인되면 도입한다 — 근사가 과승인을 만들지 않는다(LOW가 아닌 케이스는 owner 전용으로 남으므로 보수적).
+10. **대리 승인(`on_behalf_of_user_id`) 위임 유효성 — 결정: MVP는 '활성 멤버'까지만 검증, 위임 관계는 이연.** 현재 트리거·서비스는 대리인이 같은 회사의 active 멤버인지까지만 확인한다. 실제 위임 관계(위임자→대리인·유효 기간·범위)의 유효성 검증은 `delegations` 테이블(§4.1, P3)이 화면·엔드포인트와 함께 배선되는 시점으로 미룬다. 그때까지 대리 승인은 감사 기록(`actor_display='… (대리 승인)'`)만 남기고 관계 검증은 하지 않는다.
+11. **OTP·세션 TTL, 재시도 한도 — 결정(엔지니어링 재량, 파일럿 피드백으로 조정 가능).** `login_otps` 코드 유효기간 5분·최대 검증 시도 5회(초과 시 재발급 필요), `sessions` 유효기간 30일. 값은 스키마가 아니라 서비스 상수로 관리한다(컬럼 제약이 아님 — TTL은 `expires_at` 계산 입력일 뿐). OTP 발송은 이 시점에 실제 SMS 연동이 없으므로 `notifications`와 동일하게 mock(§13-7 선례)이며, `login_otps.phone`은 발급 시점에 계정 존재 여부를 노출하지 않는다(계정 유무와 무관하게 항상 발급 성공).
