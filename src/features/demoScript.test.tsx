@@ -36,7 +36,7 @@ describe('데모 스모크 — 8단계 4막 대본', () => {
     await screen.findByText('서류요청 준비 (재생)');
     // 재생 뷰는 읽기 전용(승인 버튼 없음) + 발송 직전 가드레일 정지 스텝.
     expect(screen.queryByRole('button', { name: '승인' })).not.toBeInTheDocument();
-    expect(screen.getByText('발송 전 정지 · 승인 요청 생성')).toBeInTheDocument();
+    await screen.findByText('발송 전 정지 · 승인 요청 생성');
 
     // 케이스 상세 → 근로자에겐 베트남어, 담당자에겐 한국어 토글.
     router.navigate('/case/nguyen');
