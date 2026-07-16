@@ -38,6 +38,12 @@ AI는 다음을 하지 않는다.
 src/
 = 현재 제품 UI, 라우팅, 화면 상태, 데모 런 엔진
 
+backend/, db/
+= 백엔드 접속점 선행 산출물 — PostgreSQL 정본 스키마(db/schema.sql)와 승인 API(FastAPI, Python 3.14)
+
+rag/
+= RAG 인제스천 파이프라인 — 수집→청킹→pgvector 적재→LangChain 1.x 검색 (Python 3.13 독립 uv 프로젝트, ROADMAP M5)
+
 docs/, plans/, rules/
 = 현재 프론트 MVP의 사양, 로드맵, 작업 규칙
 
@@ -45,7 +51,7 @@ legacy/
 = 이전 FastAPI 백엔드, 데이터 파이프라인, Agent Runtime, eval, 기존 문서 보관 영역
 ```
 
-루트에는 더 이상 운영 대상 `backend/` 디렉터리가 없다. `legacy/backend/`는 이전 백엔드와 Agent Runtime을 보존한 경로이며, 새 프론트 MVP 작업의 production import 대상이 아니다.
+루트 `backend/`·`db/`·`rag/`는 "백엔드 접속점"을 향한 신규 산출물이다. `legacy/backend/`는 이전 백엔드와 Agent Runtime을 보존한 경로이며, 새 작업의 production import 대상이 아니다 — `rag/`는 legacy RAG 자산을 복사·정제해 이식한 것이고 legacy 자체는 수정하지 않는다.
 
 Agent Runtime 관련 코드는 legacy 영역에 남아 있다.
 

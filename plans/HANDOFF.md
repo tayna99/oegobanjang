@@ -18,6 +18,46 @@
 
 ---
 
+### [2026-07-17] M5 — RAG 인제스천 파이프라인 (legacy 이식 + pgvector + LangChain 1.x) — 완료
+- **한 일**: ROADMAP에 M5 마일스톤 신설 후 루트 `rag/` 독립 uv 프로젝트(Python 3.13)를 구축했다.
+  legacy/backend/app/agent_runtime/rag*의 raw_ingest·domain_splitters·workforce_metadata·
+  chunking·embeddings를 복사·정제 이식하고(legacy는 무수정), VectorDB는 사용자 선택에 따라
+  **pgvector**로 결정(Chroma 아님) — `VectorIndex` 프로토콜 위에 `PgVectorIndex`(langchain-postgres
+  PGVectorStore 기반, 전용 `rag` PG 스키마, provider/dimensions manifest로 색인-질의 provider
+  불일치를 차단)를 구현했다. 런타임 retriever(3버킷+어휘 재랭킹+D/F 차단), `rag eval` 품질
+  게이트(Hit@1≥0.60·Hit@3≥0.80·Hit@5≥0.90·MRR≥0.65·safety/misuse=0), LangChain 1.x
+  `create_agent`(+`@tool retrieve_workforce_materials`+`RagAnswer` structured output),
+  `rag_retrieved` 이벤트 계약(질의는 sha256 해시만, 원문·PII 없음)까지 전부 이식·구현했다.
+  CI에 `rag` 잡(pgvector 서비스 + pytest + E2E ingest→index→eval) 신설. 최종 산출물:
+  2033청크, workforce 컬렉션 945(official)+38(templates), eval hit@3=1.0/MRR=0.84.
+- **남은 일 / 중단 지점**: 없음(M5.1~5.4 전부 완료). 5.5(후속, ROADMAP에 미완료로 남겨둠):
+  Playwright 크롤러 `[crawl]` optional extra 이식, OpenAI 운영 인덱스 전환, 실제 Evidence Log
+  백엔드 연동(현재는 로컬 JSONL까지만), src/ runEngine RunConfig와의 결선 — 전부 "백엔드
+  접속점" 별도 계획 범위로 명시적으로 미룸.
+- **결정 사항 (다음 세션이 알아야 할 것)**:
+  - `rag/`는 legacy와 **별도 Python 버전**(3.12~3.13, backend/는 3.14) — langgraph/chromadb류
+    3.14 미검증이라 의도적으로 분리했다. uv workspace로 묶지 말 것.
+  - VectorDB는 pgvector 확정. 로컬은 전용 컨테이너 `oegobanjang-rag-pg`(포트 55433, 스키마
+    `rag`) — 서비스 DB(`oegobanjang-pg`:55432, `postgres:16`)와 별개 인스턴스다. 합치고
+    싶으면 서비스 DB 이미지를 `pgvector/pgvector:pg16`으로 바꾸면 되지만(상위호환), 이번
+    세션에서는 분리 상태로 뒀다.
+  - legacy 커밋 산출물(all_chunks.jsonl 964청크, 2026-05)은 doc_type 청킹 도입 이전 것이라
+    이식 검증의 텍스트 비교 기준으로 못 썼다. 대신 무손실 검증(입력 각 줄이 출력 청크에
+    보존되는지)과 source_id 집합 패리티로 대체했다. 그 과정에서 legacy 청킹 버그(첫 헤딩
+    매치 이전 서두 텍스트를 조용히 버리는 문제, 절차문서 도입부 유실)를 발견해 이식본에서
+    수정했다(`rag/src/oe_rag/chunking.py`의 `_preamble_chunks`) — legacy 자체는 무수정.
+  - 청크 ID에 내용해시 접미사(`_{hash8}`)를 추가해 멱등 upsert를 가능하게 했다(legacy는
+    위치 기반 ID라 갱신 시 잔존 청크 문제가 있었음).
+- **verify 상태**: PASS — `rag/`: `uv run pytest` 66 passed(offline, OPENAI_API_KEY 불필요).
+  `rag eval` GATE: PASS(hit@3=1.0). CI YAML 문법 검증 통과. 루트 `npm run verify`: exit 0
+  (71 files/419 tests + vite build) — 프론트 MVP 비영향 확인. `verifier` 서브에이전트 DoD
+  검증 PASS(5.1~5.4 전항목, legacy 무수정, 문서 diff는 추가/교정 수준).
+- **지도/규칙 갱신**: `AGENTS.md` §3에 `backend/`·`rag/` 항목 추가 + "루트에 backend 없다"는
+  낡은 문구를 실체에 맞게 교정. `db/README.md`에 RAG 전용 pgvector 컨테이너 안내 1줄 추가.
+  `plans/ROADMAP.md`에 M5 마일스톤 신설(5.1~5.4 완료, 5.5 후속 미완료로 표시).
+
+---
+
 ### [2026-07-16] PR #7 ↔ main 병합 재구성 — 완료 (사고 수습 포함)
 - **사고 경위**: 이 브랜치(PR #7)와 main이 각자 독립적으로 메시지/스레드 기능을 다시 구현해
   merge conflict가 발생했다. 병합 계획을 세우려 돌린 "읽기 전용" 분석 Workflow의 서브에이전트

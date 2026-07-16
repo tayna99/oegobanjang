@@ -74,3 +74,37 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+
+  rag:
+    name: RAG 파이프라인 (pytest + pgvector E2E, hit@3 게이트)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # 서비스 DB(postgres:16)와 달리 RAG 인덱스는 pgvector 확장이 필요하다
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: oegobanjang_rag
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: uv sync (Python 3.13 — langchain 스택은 3.14 미검증이라 backend와 분리 핀)
+        working-directory: rag
+        run: uv sync --python 3.13
+      - name: pytest (단위 + pgvector 통합)
+        working-directory: rag
+        run: uv run pytest
+      - name: E2E — ingest → index(deterministic) → eval 게이트
+        working-directory: rag
+        run: |
+          uv run python -m oe_rag.cli ingest --eval-dataset evals/datasets/rag_retrieval_cases.jsonl
+          uv run python -m oe_rag.cli index --embedding-provider deterministic --reset
+          uv run python -m oe_rag.cli eval

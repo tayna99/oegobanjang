@@ -1,0 +1,13 @@
+case_type,field,required,source_id,check_method,notes
+new_hiring,industry,true,eps_employer_process,db_field,업종 확인
+new_hiring,region,true,eps_employer_process,db_field,사업장 소재지 확인
+new_hiring,needed_headcount,true,internal_workforce_request_template,db_field,필요 인원
+new_hiring,housing,true,internal_workforce_request_template,db_field,숙소 제공 여부
+new_hiring,shift_type,true,internal_workforce_request_template,db_field,근무 형태
+candidate_review,passport,true,eps_candidate_check,boolean,여권 보유 여부
+candidate_review,photo,true,internal_candidate_readiness_template,boolean,증명사진 제출 여부
+candidate_review,health_check,false,internal_candidate_readiness_template,boolean,건강검진 확인 여부
+candidate_review,available_from,true,internal_candidate_readiness_template,date,근무 가능일
+candidate_review,desired_role_match,true,internal_candidate_readiness_template,boolean,요청 직무와 희망 직무 일치 여부
+candidate_review,understood_housing,true,internal_candidate_readiness_template,boolean,기숙사 안내 여부
+candidate_review,understood_shift,true,internal_candidate_readiness_template,boolean,근무조건 안내 여부
