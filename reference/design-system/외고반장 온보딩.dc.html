@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
+  <link rel="stylesheet" href="_ds/montage-wanted-design-system-019e203d-1226-70d2-89dc-5cf5dc0a81a4/colors_and_type.css">
+  <script src="_ds/montage-wanted-design-system-019e203d-1226-70d2-89dc-5cf5dc0a81a4/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; background: #EAEBEC; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    @keyframes shimmer { 0% { background-position: 120% 0; } 100% { background-position: -20% 0; } }
+    @keyframes stepRing { 0%, 100% { box-shadow: 0 0 0 0 rgba(0,102,255,0.24); } 50% { box-shadow: 0 0 0 5px rgba(0,102,255,0.10); } }
+    @keyframes caret { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+  </style>
+</helmet>
+
+<section style="padding:56px 64px;display:flex;flex-direction:column;gap:32px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
+    <div style="font-size:24px;line-height:32px;font-weight:700;letter-spacing:-0.023em;color:#171719">외고반장 온보딩 — O1~O5 (ROADMAP 4.1)</div>
+    <div style="font-size:14px;line-height:20px;color:rgba(55,56,60,0.61)">전화번호 인증 → 역할 선택 → 사업장 정보 → 첫 근로자 등록 → 첫 브리핑 생성. Montage(Wanted) v2 토큰 · 375px · 마스킹·무판단·비단정 카피. <a href="#1a" style="color:#0066FF;text-decoration:none">1a</a> 인터랙티브 플로우 · <a href="#1b" style="color:#0066FF;text-decoration:none">1b</a> 정적 화면 O1~O5</div>
+  </div>
+
+  <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:flex-start">
+
+    <!-- ═══════════ 1a. Interactive O1→O5 ═══════════ -->
+    <div id="1a" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#1a" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">1a</a>
+        <div style="display:flex;flex-direction:column">
+          <div style="font-size:15px;font-weight:600;color:#171719">인터랙티브 플로우</div>
+          <div style="font-size:12px;color:rgba(55,56,60,0.61)">인증번호 받기 · 역할 카드 · 3경로 세그먼트 · O5 로딩→완료 애니메이션</div>
+        </div>
+      </div>
+
+      <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+        <div data-screen-label="온보딩 인터랙티브" style="position:relative;height:100%;overflow:hidden;background:#FFFFFF;display:flex;flex-direction:column;font-family:'Pretendard',-apple-system,sans-serif">
+
+          <!-- header: status bar space + back + progress -->
+          <div style="padding:56px 20px 8px;display:flex;align-items:center;gap:12px;min-height:76px">
+            <sc-if value="{{ showBack }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ back }}" style="border:none;background:none;padding:0;margin:0;cursor:pointer;display:flex;align-items:center;flex-shrink:0">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M15 5L8 12L15 19" stroke="#171719" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              </button>
+            </sc-if>
+            <sc-if value="{{ showProgress }}" hint-placeholder-val="{{ true }}">
+              <div style="flex:1;display:flex;gap:5px">
+                <sc-for list="{{ dots }}" as="dot" hint-placeholder-count="5">
+                  <div style="flex:1;height:4px;border-radius:99px;background:{{ dot.barColor }};transition:background 0.2s ease"></div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+
+          <!-- body -->
+          <div style="flex:1;overflow-y:auto;padding:8px 24px 16px;display:flex;flex-direction:column">
+
+            <!-- O1 -->
+            <sc-if value="{{ isO1 }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-direction:column;gap:24px">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.023em;color:#171719">시작하기</div>
+                  <div style="font-size:15px;line-height:22px;color:rgba(55,56,60,0.61)">휴대폰 번호로 시작합니다</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <span style="font-size:14px;font-weight:600;color:#171719">휴대폰 번호</span>
+                  <div style="height:52px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;gap:10px">
+                    <span style="font-size:15px;font-weight:600;color:rgba(55,56,60,0.61);padding-right:10px;border-right:1px solid rgba(112,115,124,0.16)">+82</span>
+                    <span style="font-size:15px;color:#171719;letter-spacing:0.01em">010 1234 5678</span>
+                  </div>
+                  <sc-if value="{{ needCode }}" hint-placeholder-val="{{ true }}">
+                    <button onClick="{{ reqCode }}" style="height:48px;border:none;border-radius:12px;background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(0,102,255,0.43);color:#0066FF;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;margin-top:2px">인증번호 받기</button>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ codeReq }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <div style="display:flex;align-items:baseline;justify-content:space-between">
+                      <span style="font-size:14px;font-weight:600;color:#171719">인증번호</span>
+                      <span style="font-size:12px;color:rgba(55,56,60,0.61)">문자로 받은 6자리를 입력합니다</span>
+                    </div>
+                    <div style="display:flex;gap:8px">
+                      <sc-for list="{{ segs }}" as="seg" hint-placeholder-count="6">
+                        <div style="flex:1;height:54px;border-radius:12px;box-shadow:{{ seg.boxShadow }};display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:#171719;transition:box-shadow 0.2s ease">{{ seg.digit }}</div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+                <div style="display:flex;flex-direction:column;gap:10px;background:#F7F7F8;border-radius:12px;padding:14px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                    <span style="font-size:14px;font-weight:600;color:#171719">승인 시 본인확인 사용</span>
+                    <button onClick="{{ toggleBio }}" style="border:none;padding:0;cursor:pointer;width:44px;height:26px;border-radius:99px;background:{{ bioTrackBg }};position:relative;flex-shrink:0;transition:background 0.2s ease">
+                      <span style="position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:99px;background:#FFFFFF;box-shadow:0px 1px 2px rgba(23,23,23,0.12);transform:{{ bioKnob }};transition:transform 0.2s ease"></span>
+                    </button>
+                  </div>
+                  <span style="font-size:12px;line-height:17px;color:rgba(55,56,60,0.61)">승인 화면에서 생체·PIN을 본인확인 용도로만 사용합니다. 실제 등록은 다음 단계에서 진행합니다.</span>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- O2 -->
+            <sc-if value="{{ isO2 }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:22px">
+                <div style="font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.023em;color:#171719">어떤 역할로 시작하시나요?</div>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <button onClick="{{ pickOwner }}" style="text-align:left;border:none;cursor:pointer;font-family:inherit;border-radius:14px;background:{{ ownerBg }};box-shadow:{{ ownerShadow }};padding:16px;display:flex;gap:12px;align-items:flex-start;transition:box-shadow 0.2s ease,background 0.2s ease">
+                    <div style="width:22px;height:22px;border-radius:99px;box-shadow:{{ ownerDot }};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
+                      <sc-if value="{{ ownerSel }}" hint-placeholder-val="{{ false }}"><div style="width:10px;height:10px;border-radius:99px;background:#0066FF"></div></sc-if>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:3px">
+                      <span style="font-size:16px;font-weight:600;color:#171719">대표 <span style="font-size:12px;font-weight:500;color:rgba(55,56,60,0.61)">owner</span></span>
+                      <span style="font-size:13px;line-height:19px;color:rgba(55,56,60,0.61)">승인 권한 · 자율성 승급 결정</span>
+                    </div>
+                  </button>
+                  <button onClick="{{ pickMgr }}" style="text-align:left;border:none;cursor:pointer;font-family:inherit;border-radius:14px;background:{{ mgrBg }};box-shadow:{{ mgrShadow }};padding:16px;display:flex;gap:12px;align-items:flex-start;transition:box-shadow 0.2s ease,background 0.2s ease">
+                    <div style="width:22px;height:22px;border-radius:99px;box-shadow:{{ mgrDot }};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">
+                      <sc-if value="{{ mgrSel }}" hint-placeholder-val="{{ false }}"><div style="width:10px;height:10px;border-radius:99px;background:#0066FF"></div></sc-if>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:3px">
+                      <span style="font-size:16px;font-weight:600;color:#171719">담당자 <span style="font-size:12px;font-weight:500;color:rgba(55,56,60,0.61)">manager</span></span>
+                      <span style="font-size:13px;line-height:19px;color:rgba(55,56,60,0.61)">케이스 검토 · 승인 요청 처리</span>
+                    </div>
+                  </button>
+                </div>
+                <div style="display:flex;gap:8px;background:#F7F7F8;border-radius:10px;padding:12px 14px">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="9" stroke="#70737C" stroke-width="1.8"></circle><path d="M12 11v5" stroke="#70737C" stroke-width="1.8" stroke-linecap="round"></path><circle cx="12" cy="7.8" r="1" fill="#70737C"></circle></svg>
+                  <span style="font-size:12.5px;line-height:18px;color:rgba(55,56,60,0.61)">{{ roleDiff }}</span>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- O3 -->
+            <sc-if value="{{ isO3 }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:22px">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.023em;color:#171719">사업장 정보</div>
+                  <div style="font-size:15px;line-height:22px;color:rgba(55,56,60,0.61)">브리핑 기준이 되는 사업장을 등록합니다</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:16px">
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <span style="font-size:14px;font-weight:600;color:#171719">사업장명</span>
+                    <div style="height:50px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;font-size:15px;color:#171719">그린푸드 제조</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <span style="font-size:14px;font-weight:600;color:#171719">지역</span>
+                    <div style="height:50px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;font-size:15px;color:#171719">경기 화성</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <span style="font-size:14px;font-weight:600;color:#171719">업종</span>
+                    <div style="height:50px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;font-size:15px;color:#171719">식품 제조업</div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <span style="font-size:14px;font-weight:600;color:#171719">E-9 근로자 수</span>
+                    <div style="height:50px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;font-size:15px;color:#171719">6명</div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- O4 -->
+            <sc-if value="{{ isO4 }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:20px">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.023em;color:#171719">첫 근로자를 등록하세요</div>
+                  <div style="font-size:15px;line-height:22px;color:rgba(55,56,60,0.61)">1명 · 필드 4개면 시작할 수 있습니다</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;gap:3px;background:#F7F7F8;border-radius:10px;padding:3px">
+                    <button onClick="{{ pickDoc }}" style="flex:1;border:none;cursor:pointer;font-family:inherit;height:38px;border-radius:8px;background:{{ docBg }};box-shadow:{{ docShadow }};color:{{ docColor }};font-size:12.5px;font-weight:600;transition:all 0.2s ease">서류 사진</button>
+                    <button onClick="{{ pickDirect }}" style="flex:1;border:none;cursor:pointer;font-family:inherit;height:38px;border-radius:8px;background:{{ directBg }};box-shadow:{{ directShadow }};color:{{ directColor }};font-size:12.5px;font-weight:600;transition:all 0.2s ease">직접 입력</button>
+                    <button onClick="{{ pickCsv }}" style="flex:1;border:none;cursor:pointer;font-family:inherit;height:38px;border-radius:8px;background:{{ csvBg }};box-shadow:{{ csvShadow }};color:{{ csvColor }};font-size:12.5px;font-weight:600;transition:all 0.2s ease">CSV 업로드</button>
+                  </div>
+                  <span style="font-size:12px;line-height:17px;color:rgba(55,56,60,0.61);padding:0 2px">{{ pathCaption }}</span>
+                </div>
+
+                <sc-if value="{{ showDirect }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:14px">
+                    <div style="display:flex;flex-direction:column;gap:7px">
+                      <span style="font-size:13px;font-weight:600;color:#171719">이름</span>
+                      <div style="height:48px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;font-size:14.5px;color:#171719">Nguyen Van A</div>
+                    </div>
+                    <div style="display:flex;gap:12px">
+                      <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+                        <span style="font-size:13px;font-weight:600;color:#171719">국적</span>
+                        <div style="height:48px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;font-size:14.5px;color:#171719">베트남</div>
+                      </div>
+                      <div style="flex:1;display:flex;flex-direction:column;gap:7px">
+                        <span style="font-size:13px;font-weight:600;color:#171719">팀</span>
+                        <div style="height:48px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;font-size:14.5px;color:#171719">제조1팀</div>
+                      </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:7px">
+                      <span style="font-size:13px;font-weight:600;color:#171719">체류만료일</span>
+                      <div style="height:48px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;font-size:14.5px;color:#171719">2026-08-09</div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:7px">
+                      <span style="font-size:13px;font-weight:600;color:#171719">외국인등록번호</span>
+                      <div style="height:48px;border-radius:12px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 14px;gap:8px;background:#F7F7F8">
+                        <span style="flex:1;font-size:14.5px;color:#171719;letter-spacing:0.04em">900412-6●●●●●●</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+                      </div>
+                      <span style="font-size:11.5px;line-height:16px;color:rgba(55,56,60,0.61)">마스킹 저장 · 원문 번호는 저장하지 않습니다</span>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ showDoc }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:12px">
+                    <div style="border-radius:14px;border:1.5px dashed rgba(112,115,124,0.32);background:#F7F7F8;padding:28px 20px;display:flex;flex-direction:column;align-items:center;gap:10px">
+                      <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="#70737C" stroke-width="1.8"></rect><circle cx="12" cy="13" r="3.4" stroke="#70737C" stroke-width="1.8"></circle><path d="M8 6l1.2-2h5.6L16 6" stroke="#70737C" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+                      <span style="font-size:14px;font-weight:600;color:#171719">서류 사진을 촬영하거나 선택</span>
+                      <span style="font-size:12px;line-height:17px;color:rgba(55,56,60,0.61);text-align:center">외국인등록증 · 여권 사진에서 항목을 인식한 뒤<br>등록 전에 직접 확인합니다</span>
+                    </div>
+                    <div style="display:flex;gap:8px;background:#F7F7F8;border-radius:10px;padding:11px 13px">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:1px"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+                      <span style="font-size:12px;line-height:17px;color:rgba(55,56,60,0.61)">외국인등록번호는 인식 후에도 마스킹으로 저장합니다</span>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ showCsv }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;flex-direction:column;gap:10px;background:#F7F7F8;border-radius:14px;padding:20px 18px">
+                    <div style="display:flex;align-items:center;gap:9px">
+                      <div style="width:34px;height:34px;border-radius:9px;background:#EAF2FE;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M7 3h7l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="#0066FF" stroke-width="1.8" stroke-linejoin="round"></path><path d="M9 13h6M9 16.5h4" stroke="#0066FF" stroke-width="1.8" stroke-linecap="round"></path></svg></div>
+                      <div style="display:flex;flex-direction:column;gap:2px">
+                        <span style="font-size:14px;font-weight:600;color:#171719">CSV로 여러 명 한 번에 등록</span>
+                        <span style="font-size:12px;color:rgba(55,56,60,0.61)">PC 권장 · 검증 미리보기 후 확정</span>
+                      </div>
+                    </div>
+                    <span style="font-size:12px;line-height:18px;color:rgba(55,56,60,0.61)">지금은 1명만 먼저 등록하고, 나머지는 PC에서 CSV로 일괄 등록하는 것을 권장합니다.</span>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <!-- O5 loading -->
+            <sc-if value="{{ isO5load }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:24px;padding-top:8px">
+                <div style="display:flex;flex-direction:column;gap:6px">
+                  <div style="font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.023em;color:#171719">첫 브리핑을 준비하고 있어요</div>
+                  <div style="font-size:15px;line-height:22px;color:rgba(55,56,60,0.61)">6명의 체류 · 계약 · 서류를 확인하는 중</div>
+                </div>
+                <div style="background:#FFFFFF;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.16);padding:20px 18px">
+                  <sc-for list="{{ loadSteps }}" as="ls" hint-placeholder-count="3">
+                    <div style="display:flex;gap:13px">
+                      <div style="display:flex;flex-direction:column;align-items:center;width:22px;flex-shrink:0">
+                        <sc-if value="{{ ls.isDone }}" hint-placeholder-val="{{ false }}">
+                          <div style="width:22px;height:22px;border-radius:99px;background:#009632;display:flex;align-items:center;justify-content:center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+                        </sc-if>
+                        <sc-if value="{{ ls.isActive }}" hint-placeholder-val="{{ true }}">
+                          <div style="width:22px;height:22px;border-radius:99px;background:#0066FF;animation:stepRing 1.6s ease infinite"></div>
+                        </sc-if>
+                        <sc-if value="{{ ls.isPending }}" hint-placeholder-val="{{ false }}">
+                          <div style="width:22px;height:22px;border-radius:99px;background:rgba(112,115,124,0.16);box-shadow:inset 0 0 0 1.5px rgba(112,115,124,0.32)"></div>
+                        </sc-if>
+                        <sc-if value="{{ ls.notLast }}" hint-placeholder-val="{{ true }}">
+                          <div style="width:2px;flex:1;min-height:26px;background:{{ ls.lineBg }};transition:background 0.2s ease"></div>
+                        </sc-if>
+                      </div>
+                      <div style="padding-bottom:22px;display:flex;flex-direction:column;gap:3px;flex:1">
+                        <span style="font-size:14.5px;font-weight:600;color:{{ ls.labelColor }}">{{ ls.label }}</span>
+                        <sc-if value="{{ ls.isActive }}" hint-placeholder-val="{{ true }}">
+                          <div style="height:12px;width:70%;border-radius:6px;margin-top:3px;background:linear-gradient(90deg, rgba(112,115,124,0.10) 25%, rgba(112,115,124,0.20) 37%, rgba(112,115,124,0.10) 63%);background-size:400% 100%;animation:shimmer 1.6s ease infinite"></div>
+                        </sc-if>
+                        <sc-if value="{{ ls.showDesc }}" hint-placeholder-val="{{ false }}">
+                          <span style="font-size:12.5px;line-height:18px;color:{{ ls.descColor }}">{{ ls.desc }}</span>
+                        </sc-if>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+                  <span style="font-size:12px;color:rgba(55,56,60,0.61)">확인한 뒤 승인 단계에서 진행합니다</span>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- O5 done -->
+            <sc-if value="{{ isO5done }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:20px;padding-top:8px">
+                <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+                  <div style="width:44px;height:44px;border-radius:99px;background:#D9FFE6;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 12.5L10.5 17L18 7.5" stroke="#009632" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <div style="font-size:22px;line-height:30px;font-weight:700;letter-spacing:-0.023em;color:#171719">첫 브리핑이 준비됐어요</div>
+                    <div style="font-size:15px;line-height:22px;color:rgba(55,56,60,0.61)">오늘 확인할 항목을 정리했어요</div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <span style="font-size:12.5px;font-weight:600;color:rgba(55,56,60,0.61);padding:0 2px">가장 먼저 볼 카드</span>
+                  <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);padding:16px;display:flex;flex-direction:column;gap:12px">
+                    <div style="display:flex;flex-direction:column;gap:2px">
+                      <div style="font-size:16px;line-height:24px;font-weight:600;color:#171719">체류기간 연장 서류 요청</div>
+                      <div style="font-size:13px;color:rgba(55,56,60,0.61)">Nguyen Van A · 제조1팀</div>
+                    </div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <span style="background:#FEF4E6;color:#D47800;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">HIGH · D-30</span>
+                      <span style="background:rgba(112,115,124,0.08);color:rgba(55,56,60,0.88);border-radius:6px;padding:3px 8px;font-size:12px;font-weight:500">누락 2건</span>
+                      <span style="background:#EAF2FE;color:#0066FF;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">승인 필요</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;background:#F7F7F8;border-radius:10px;padding:10px 12px">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#0066FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      <span style="font-size:13px;line-height:18px;color:rgba(55,56,60,0.88)">다음 안전한 행동은 서류 요청 검토입니다</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+                  <span style="font-size:12px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다</span>
+                </div>
+              </div>
+            </sc-if>
+
+          </div>
+
+          <!-- bottom CTA -->
+          <sc-if value="{{ showCTA }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:12px 20px 40px;background:#FFFFFF;display:flex;flex-direction:column;gap:10px;border-top:1px solid rgba(112,115,124,0.08)">
+              <button onClick="{{ cta }}" style="height:48px;border:none;border-radius:12px;background:{{ ctaBg }};color:{{ ctaColor }};font-size:15px;font-weight:600;cursor:{{ ctaCursor }};font-family:inherit;pointer-events:{{ ctaPe }};transition:background 0.2s ease">{{ ctaLabel }}</button>
+              <sc-if value="{{ isO5done }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ reset }}" style="border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:rgba(55,56,60,0.61);padding:2px">온보딩 다시 보기</button>
+              </sc-if>
+            </div>
+          </sc-if>
+
+          <!-- toast -->
+          <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;top:64px;left:16px;right:16px;z-index:60;background:#212225;border-radius:12px;padding:13px 16px;display:flex;align-items:center;gap:10px;box-shadow:0px 6px 10px -4px rgba(23,23,23,0.08),0px 16px 24px -6px rgba(23,23,23,0.28)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#1ED45A"></circle><path d="M7.5 12.5L10.5 15.5L16.5 9" stroke="#0F0F10" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span style="font-size:14px;line-height:20px;font-weight:500;color:#F7F7F8">{{ toastText }}</span>
+            </div>
+          </sc-if>
+
+        </div>
+      </x-import>
+    </div>
+
+  </div>
+
+  <div id="1b" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="#1b" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">1b</a>
+      <div style="display:flex;flex-direction:column">
+        <div style="font-size:15px;font-weight:600;color:#171719">정적 화면 — O1~O5 나란히</div>
+        <div style="font-size:12px;color:rgba(55,56,60,0.61)">문서·리뷰용 스냅샷</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">O1 · 시작하기</span>
+        <div style="width:320px;height:680px;background:#FFFFFF;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:16px 20px 8px;display:flex;gap:5px">
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+          </div>
+          <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:20px;font-weight:700;letter-spacing:-0.023em;color:#171719">시작하기</span>
+              <span style="font-size:13px;line-height:19px;color:rgba(55,56,60,0.61)">휴대폰 번호로 시작합니다</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <span style="font-size:13px;font-weight:600;color:#171719">휴대폰 번호</span>
+              <div style="height:46px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;gap:9px">
+                <span style="font-size:14px;font-weight:600;color:rgba(55,56,60,0.61);padding-right:9px;border-right:1px solid rgba(112,115,124,0.16)">+82</span>
+                <span style="font-size:14px;color:#171719">010 1234 5678</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <span style="font-size:13px;font-weight:600;color:#171719">인증번호</span>
+              <div style="display:flex;gap:6px">
+                <div style="flex:1;height:46px;border-radius:11px;box-shadow:inset 0 0 0 1.5px rgba(0,102,255,0.43);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:#171719">1</div>
+                <div style="flex:1;height:46px;border-radius:11px;box-shadow:inset 0 0 0 1.5px rgba(0,102,255,0.43);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:#171719">2</div>
+                <div style="flex:1;height:46px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:#171719">9</div>
+                <div style="flex:1;height:46px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22)"></div>
+                <div style="flex:1;height:46px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22)"></div>
+                <div style="flex:1;height:46px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22)"></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;background:#F7F7F8;border-radius:11px;padding:13px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:13px;font-weight:600;color:#171719">승인 시 본인확인 사용</span>
+                <div style="width:40px;height:24px;border-radius:99px;background:#0066FF;position:relative"><span style="position:absolute;top:2px;left:18px;width:20px;height:20px;border-radius:99px;background:#fff;box-shadow:0 1px 2px rgba(23,23,23,0.12)"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">O2 · 역할 선택</span>
+        <div style="width:320px;height:680px;background:#FFFFFF;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:16px 20px 8px;display:flex;gap:5px">
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+          </div>
+          <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:20px">
+            <span style="font-size:20px;font-weight:700;letter-spacing:-0.023em;color:#171719">어떤 역할로<br>시작하시나요?</span>
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <div style="border-radius:13px;background:rgba(0,102,255,0.04);box-shadow:inset 0 0 0 2px #0066FF;padding:15px;display:flex;gap:11px">
+                <div style="width:20px;height:20px;border-radius:99px;box-shadow:inset 0 0 0 2px #0066FF;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px"><div style="width:9px;height:9px;border-radius:99px;background:#0066FF"></div></div>
+                <div style="display:flex;flex-direction:column;gap:3px">
+                  <span style="font-size:15px;font-weight:600;color:#171719">대표 <span style="font-size:11px;font-weight:500;color:rgba(55,56,60,0.61)">owner</span></span>
+                  <span style="font-size:12px;line-height:17px;color:rgba(55,56,60,0.61)">승인 권한 · 자율성 승급 결정</span>
+                </div>
+              </div>
+              <div style="border-radius:13px;background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);padding:15px;display:flex;gap:11px">
+                <div style="width:20px;height:20px;border-radius:99px;box-shadow:inset 0 0 0 1.5px rgba(112,115,124,0.32);flex-shrink:0;margin-top:1px"></div>
+                <div style="display:flex;flex-direction:column;gap:3px">
+                  <span style="font-size:15px;font-weight:600;color:#171719">담당자 <span style="font-size:11px;font-weight:500;color:rgba(55,56,60,0.61)">manager</span></span>
+                  <span style="font-size:12px;line-height:17px;color:rgba(55,56,60,0.61)">케이스 검토 · 승인 요청 처리</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;background:#F7F7F8;border-radius:9px;padding:11px 12px">
+              <span style="font-size:11.5px;line-height:16px;color:rgba(55,56,60,0.61)">대표는 승인 권한을 가지고, 담당자에게 자율성 승급을 결정합니다.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">O3 · 사업장 정보</span>
+        <div style="width:320px;height:680px;background:#FFFFFF;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:16px 20px 8px;display:flex;gap:5px">
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+          </div>
+          <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:20px;font-weight:700;letter-spacing:-0.023em;color:#171719">사업장 정보</span>
+              <span style="font-size:13px;line-height:19px;color:rgba(55,56,60,0.61)">브리핑 기준이 되는 사업장을 등록합니다</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12.5px;font-weight:600;color:#171719">사업장명</span><div style="height:44px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;font-size:13.5px;color:#171719">그린푸드 제조</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12.5px;font-weight:600;color:#171719">지역</span><div style="height:44px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;font-size:13.5px;color:#171719">경기 화성</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12.5px;font-weight:600;color:#171719">업종</span><div style="height:44px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;font-size:13.5px;color:#171719">식품 제조업</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:12.5px;font-weight:600;color:#171719">E-9 근로자 수</span><div style="height:44px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;font-size:13.5px;color:#171719">6명</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">O4 · 첫 근로자 등록</span>
+        <div style="width:320px;height:680px;background:#FFFFFF;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:16px 20px 8px;display:flex;gap:5px">
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:#0066FF"></div>
+            <div style="flex:1;height:4px;border-radius:99px;background:rgba(112,115,124,0.16)"></div>
+          </div>
+          <div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:19px;font-weight:700;letter-spacing:-0.023em;color:#171719">첫 근로자를 등록하세요</span>
+              <span style="font-size:12.5px;line-height:18px;color:rgba(55,56,60,0.61)">1명 · 필드 4개면 시작할 수 있습니다</span>
+            </div>
+            <div style="display:flex;gap:3px;background:#F7F7F8;border-radius:9px;padding:3px">
+              <div style="flex:1;height:34px;border-radius:7px;background:rgba(55,56,60,0.61);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:rgba(55,56,60,0.61)">서류 사진</div>
+              <div style="flex:1;height:34px;border-radius:7px;background:#FFFFFF;box-shadow:0px 1px 2px rgba(23,23,23,0.08);display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:#171719">직접 입력</div>
+              <div style="flex:1;height:34px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:600;color:rgba(55,56,60,0.61)">CSV 업로드</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:11px">
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:12px;font-weight:600;color:#171719">이름</span><div style="height:42px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;font-size:13px;color:#171719">Nguyen Van A</div></div>
+              <div style="display:flex;gap:10px">
+                <div style="flex:1;display:flex;flex-direction:column;gap:5px"><span style="font-size:12px;font-weight:600;color:#171719">국적</span><div style="height:42px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;font-size:13px;color:#171719">베트남</div></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:5px"><span style="font-size:12px;font-weight:600;color:#171719">팀</span><div style="height:42px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;font-size:13px;color:#171719">제조1팀</div></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:5px"><span style="font-size:12px;font-weight:600;color:#171719">체류만료일</span><div style="height:42px;border-radius:11px;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);display:flex;align-items:center;padding:0 13px;font-size:13px;color:#171719">2026-08-09</div></div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <span style="font-size:12px;font-weight:600;color:#171719">외국인등록번호</span>
+                <div style="height:42px;border-radius:11px;background:#F7F7F8;display:flex;align-items:center;padding:0 13px;gap:7px">
+                  <span style="flex:1;font-size:13px;color:#171719;letter-spacing:0.03em">900412-6●●●●●●</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="5" y="10" width="14" height="10" rx="2" stroke="#70737C" stroke-width="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="#70737C" stroke-width="2"></path></svg>
+                </div>
+                <span style="font-size:10.5px;line-height:14px;color:rgba(55,56,60,0.61)">마스킹 저장 · 원문 번호는 저장하지 않습니다</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">O5 · 브리핑 완료</span>
+        <div style="width:320px;height:680px;background:#FFFFFF;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="flex:1;padding:56px 20px 20px;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="width:40px;height:40px;border-radius:99px;background:#D9FFE6;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 12.5L10.5 17L18 7.5" stroke="#009632" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <span style="font-size:20px;font-weight:700;letter-spacing:-0.023em;color:#171719">첫 브리핑이 준비됐어요</span>
+                <span style="font-size:13px;line-height:19px;color:rgba(55,56,60,0.61)">오늘 확인할 항목을 정리했어요</span>
+              </div>
+            </div>
+            <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);padding:15px;display:flex;flex-direction:column;gap:11px">
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <span style="font-size:15px;line-height:22px;font-weight:600;color:#171719">체류기간 연장 서류 요청</span>
+                <span style="font-size:12px;color:rgba(55,56,60,0.61)">Nguyen Van A · 제조1팀</span>
+              </div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <span style="background:#FEF4E6;color:#D47800;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:600">HIGH · D-30</span>
+                <span style="background:#EAF2FE;color:#0066FF;border-radius:6px;padding:3px 8px;font-size:11.5px;font-weight:600">승인 필요</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;background:#F7F7F8;border-radius:9px;padding:9px 11px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12.5L10 17.5L19 7" stroke="#0066FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-size:12px;line-height:17px;color:rgba(55,56,60,0.88)">다음 안전한 행동은 서류 요청 검토입니다</span>
+              </div>
+            </div>
+            <span style="margin-top:auto;text-align:center;font-size:11px;color:rgba(55,56,60,0.61)">승인 전에는 외부 발송이 차단됩니다</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;defaultRole&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;선택 안 함&quot;, &quot;대표&quot;, &quot;담당자&quot;], &quot;default&quot;: &quot;선택 안 함&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;온보딩&quot; },
+  &quot;o4Path&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;서류 사진(OCR)&quot;, &quot;직접 입력&quot;, &quot;CSV 업로드&quot;], &quot;default&quot;: &quot;직접 입력&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;온보딩&quot; },
+  &quot;loadingDurationMs&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 2700, &quot;min&quot;: 1200, &quot;max&quot;: 5000, &quot;step&quot;: 300, &quot;unit&quot;: &quot;ms&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;온보딩&quot; }
+}">
+class Component extends DCLogic {
+  state = { step: 'o1', codeReq: false, code: '', bio: true, role: null, o4: null, phase: -1, toast: false };
+
+  order = ['o1', 'o2', 'o3', 'o4', 'o5load', 'o5done'];
+
+  componentWillUnmount() { this.clearTimers(); }
+  clearTimers() { [this._t1, this._t2, this._t3, this._tc, this._toast].forEach(clearTimeout); }
+
+  initRole() { return ({ '대표': 'owner', '담당자': 'manager' })[this.props.defaultRole] || null; }
+  initPath() { return ({ '서류 사진(OCR)': 'doc', '직접 입력': 'direct', 'CSV 업로드': 'csv' })[this.props.o4Path] || 'direct'; }
+
+  reqCode() {
+    if (this.state.codeReq) return;
+    this.setState({ codeReq: true, code: '' });
+    clearTimeout(this._tc);
+    this._tc = setTimeout(() => this.setState({ code: '129046' }), 700);
+  }
+
+  next() {
+    const i = this.order.indexOf(this.state.step);
+    const nx = this.order[Math.min(i + 1, this.order.length - 1)];
+    if (nx === 'o5load') { this.startLoad(); return; }
+    this.clearTimers();
+    this.setState({ step: nx });
+  }
+  back() {
+    this.clearTimers();
+    const i = this.order.indexOf(this.state.step);
+    const pv = this.order[Math.max(i - 1, 0)];
+    this.setState({ step: pv, phase: -1 });
+  }
+
+  startLoad() {
+    this.clearTimers();
+    const total = Math.max(1200, this.props.loadingDurationMs || 2700);
+    const s = total / 3;
+    this.setState({ step: 'o5load', phase: 0 });
+    this._t1 = setTimeout(() => this.setState({ phase: 1 }), s);
+    this._t2 = setTimeout(() => this.setState({ phase: 2 }), s * 2);
+    this._t3 = setTimeout(() => this.setState({ step: 'o5done', phase: 3 }), s * 3);
+  }
+
+  reset() {
+    this.clearTimers();
+    this.setState({ step: 'o1', codeReq: false, code: '', bio: true, role: null, o4: null, phase: -1, toast: false });
+  }
+
+  goBrief() {
+    this.setState({ toast: true });
+    clearTimeout(this._toast);
+    this._toast = setTimeout(() => this.setState({ toast: false }), 2500);
+  }
+
+  renderVals() {
+    const step = this.state.step;
+    const idxMap = { o1: 0, o2: 1, o3: 2, o4: 3, o5load: 4, o5done: 4 };
+    const idx = idxMap[step];
+    const role = this.state.role !== null ? this.state.role : this.initRole();
+    const o4 = this.state.o4 !== null ? this.state.o4 : this.initPath();
+
+    const idle = 'inset 0 0 0 1px rgba(112,115,124,0.22)';
+    const sel = 'inset 0 0 0 2px #0066FF';
+    const idleBg = '#FFFFFF';
+    const selBg = 'rgba(0,102,255,0.04)';
+
+    // O1 code segments
+    const code = this.state.code;
+    const segs = [0, 1, 2, 3, 4, 5].map((i) => {
+      const filled = !!code[i];
+      const active = this.state.codeReq && i === code.length && !filled;
+      return {
+        digit: code[i] || '',
+        boxShadow: filled ? 'inset 0 0 0 1.5px rgba(0,102,255,0.43)' : active ? 'inset 0 0 0 1.5px #0066FF' : 'inset 0 0 0 1px rgba(112,115,124,0.22)',
+      };
+    });
+
+    // O2 role diff
+    const roleDiff = role === 'owner'
+      ? '대표는 승인 권한을 가지고, 담당자에게 자율성 승급을 결정합니다.'
+      : role === 'manager'
+        ? '담당자는 케이스를 검토하고 대표에게 승인을 요청합니다.'
+        : '역할에 따라 승인 권한과 처리 범위가 달라집니다.';
+
+    // O4 path segment styles
+    const segStyle = (key) => {
+      const on = o4 === key;
+      return {
+        bg: on ? '#FFFFFF' : 'transparent',
+        color: on ? '#171719' : 'rgba(55,56,60,0.61)',
+        shadow: on ? '0px 1px 2px rgba(23,23,23,0.08)' : 'none',
+      };
+    };
+    const dseg = segStyle('doc'), diseg = segStyle('direct'), cseg = segStyle('csv');
+    const pathCaption = o4 === 'doc'
+      ? '외국인등록증·여권 사진에서 항목을 인식한 뒤 확인합니다'
+      : o4 === 'csv'
+        ? 'PC에서 여러 명을 한 번에 등록합니다'
+        : '이름·국적·팀·체류만료일 4개만 입력하면 됩니다';
+
+    // O5 loading steps
+    const phase = this.state.phase;
+    const stepData = [
+      { label: '감지', desc: '체류·계약·서류 이벤트를 확인했습니다' },
+      { label: '근거 수집', desc: '관련 법령·내부 근거를 연결했습니다' },
+      { label: '초안', desc: '확인용 메시지 초안을 준비했습니다' },
+    ];
+    const loadSteps = stepData.map((s, i) => {
+      const isDone = phase > i;
+      const isActive = phase === i;
+      const isPending = phase < i;
+      return {
+        label: s.label, desc: s.desc,
+        isDone, isActive, isPending,
+        showDesc: isDone,
+        notLast: i !== stepData.length - 1,
+        lineBg: isDone ? '#009632' : 'rgba(112,115,124,0.16)',
+        labelColor: isPending ? 'rgba(55,56,60,0.43)' : '#171719',
+        descColor: 'rgba(55,56,60,0.61)',
+      };
+    });
+
+    // CTA
+    const canNext = step === 'o1' ? (this.state.codeReq && code.length >= 6)
+      : step === 'o2' ? !!role
+        : (step === 'o3' || step === 'o4');
+    const ctaLabel = (step === 'o1' || step === 'o2' || step === 'o3') ? '다음'
+      : step === 'o4' ? '등록하고 브리핑 만들기'
+        : step === 'o5done' ? '오늘 브리핑 보기' : '다음';
+    const enabled = step === 'o5done' ? true : canNext;
+
+    const dots = [0, 1, 2, 3, 4].map((i) => ({ barColor: i <= idx ? '#0066FF' : 'rgba(112,115,124,0.16)' }));
+
+    return {
+      isO1: step === 'o1', isO2: step === 'o2', isO3: step === 'o3', isO4: step === 'o4',
+      isO5load: step === 'o5load', isO5done: step === 'o5done',
+      showBack: step === 'o2' || step === 'o3' || step === 'o4',
+      showProgress: step !== 'o5load' && step !== 'o5done',
+      back: () => this.back(),
+      dots,
+
+      needCode: !this.state.codeReq,
+      codeReq: this.state.codeReq,
+      reqCode: () => this.reqCode(),
+      segs,
+      bioTrackBg: this.state.bio ? '#0066FF' : 'rgba(112,115,124,0.22)',
+      bioKnob: this.state.bio ? 'translateX(18px)' : 'translateX(0)',
+      toggleBio: () => this.setState({ bio: !this.state.bio }),
+
+      ownerSel: role === 'owner', mgrSel: role === 'manager',
+      ownerBg: role === 'owner' ? selBg : idleBg, ownerShadow: role === 'owner' ? sel : idle,
+      mgrBg: role === 'manager' ? selBg : idleBg, mgrShadow: role === 'manager' ? sel : idle,
+      ownerDot: role === 'owner' ? 'inset 0 0 0 2px #0066FF' : 'inset 0 0 0 1.5px rgba(112,115,124,0.32)',
+      mgrDot: role === 'manager' ? 'inset 0 0 0 2px #0066FF' : 'inset 0 0 0 1.5px rgba(112,115,124,0.32)',
+      pickOwner: () => this.setState({ role: 'owner' }), pickMgr: () => this.setState({ role: 'manager' }),
+      roleDiff,
+
+      showDirect: o4 === 'direct', showDoc: o4 === 'doc', showCsv: o4 === 'csv',
+      pickDoc: () => this.setState({ o4: 'doc' }), pickDirect: () => this.setState({ o4: 'direct' }), pickCsv: () => this.setState({ o4: 'csv' }),
+      docBg: dseg.bg, docColor: dseg.color, docShadow: dseg.shadow,
+      directBg: diseg.bg, directColor: diseg.color, directShadow: diseg.shadow,
+      csvBg: cseg.bg, csvColor: cseg.color, csvShadow: cseg.shadow,
+      pathCaption,
+
+      loadSteps,
+
+      showCTA: step !== 'o5load',
+      cta: () => (step === 'o5done' ? this.goBrief() : this.next()),
+      ctaLabel,
+      ctaBg: enabled ? '#0066FF' : 'rgba(112,115,124,0.16)',
+      ctaColor: enabled ? '#FFFFFF' : 'rgba(55,56,60,0.43)',
+      ctaCursor: enabled ? 'pointer' : 'default',
+      ctaPe: enabled ? 'auto' : 'none',
+      reset: () => this.reset(),
+
+      toastVisible: this.state.toast,
+      toastText: '오늘 브리핑으로 이동합니다',
+    };
+  }
+}
+</script>
+</body>
+</html>

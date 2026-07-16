@@ -7,10 +7,12 @@ import { CASE_FILTERS, buildCaseGroups, caseGroupFor, filterCases, type CaseFilt
 import { CASE_STAGES, DELIVERY_STAGES, caseStageIndex, deliveryStageIndex } from '@/lib/caseStage';
 import { severityTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
-import { dDayLabel, dDayTone, type DDayTone } from '@/lib/dday';
+import { dDayLabel, dDayTextClass } from '@/lib/dday';
+import { SECTION_TITLE_CLASS } from '@/lib/sectionTitle';
 import { CASE_SHEETS, type CaseSheet } from '@/mocks/fixtures';
-import { DRAFTS } from '@/mocks/drafts';
+import { draftForCase } from '@/mocks/drafts';
 import { usableCitations } from '@/stores/citationStore';
+import { useRoleStore } from '@/stores/roleStore';
 import type { CaseCard, Severity } from '@/types';
 
 // PC 케이스 워크벤치(M2.5.4) — reference/design-system/외고반장 PC.dc.html §3b(234~455행)
@@ -24,6 +26,10 @@ export interface CaseWorkbenchProps {
   selectedCaseId?: string;
   onSelectCase: (caseId: string) => void;
   onSelectFilter: (filter?: string) => void;
+  onOpenRun?: (runRef: string) => void; // 3.3 런 체이닝 — 타임라인의 판단 기록 #을 눌러 재생 런으로 진입
+  onImport?: () => void; // CSV 일괄 등록(4.4, PC 4b) 진입 — manager 전용
+  onOpenWorkerData?: () => void; // 근로자 데이터 관리(PC 4b) 진입 — manager 전용
+  onOpenDispatch?: () => void; // 발송 실행 큐(PC 4d) 진입 — manager 전용
 }
 
 const SEVERITY_AVATAR: Record<Severity, string> = {
@@ -31,13 +37,6 @@ const SEVERITY_AVATAR: Record<Severity, string> = {
   HIGH: 'bg-warnbg text-warning',
   MEDIUM: 'bg-medbg text-medium',
   LOW: 'bg-neutbg text-neutral',
-};
-
-const DDAY_TEXT: Record<DDayTone, string> = {
-  critical: 'text-critical',
-  high: 'text-warning',
-  medium: 'text-medium',
-  neutral: 'text-muted',
 };
 
 // 그룹 라벨(승인 대기/즉시 확인 …)을 행 부제·상태 칩에 재사용 — lib/cases의 라벨이 유일한 출처.
@@ -72,11 +71,7 @@ function readinessPercent(card: CaseCard, sheet?: CaseSheet): number {
   return Math.round((caseStageIndex(card, sheet) / (CASE_STAGES.length - 1)) * 100);
 }
 
-function findDraft(caseId: string) {
-  return Object.values(DRAFTS).find((draft) => draft.caseId === caseId);
-}
-
-const RAIL_SECTION_TITLE = 'text-caption1 font-bold tracking-wide text-muted';
+const RAIL_SECTION_TITLE = SECTION_TITLE_CLASS;
 
 function CaseListRow({
   card,
@@ -90,7 +85,10 @@ function CaseListRow({
   const sheet = CASE_SHEETS[card.caseId];
   const percent = readinessPercent(card, sheet);
   const due = card.dDay !== undefined ? dDayLabel(card.dDay) : '—';
-  const dueClass = card.dDay !== undefined ? DDAY_TEXT[dDayTone(card.dDay)] : 'text-faint';
+  const dueClass = dDayTextClass(card.dDay);
+  // 서류 준비율 분수(PC 4a 델타) — sheet.docs가 있는 케이스만(전부 이 정밀도로 채워져
+  // 있지 않다, 없으면 진행바 퍼센트만으로 충분).
+  const docsFraction = sheet?.docs ? `${sheet.docs.filter((d) => d.status === 'received').length}/${sheet.docs.length}` : undefined;
 
   return (
     <button
@@ -116,12 +114,17 @@ function CaseListRow({
         <span className="truncate text-pc-sm font-semibold text-ink">{card.title}</span>
         <span className="truncate text-pc-2xs text-subtle">
           {card.workerRef ? `${card.workerRef.team} · ${groupLabelFor(card)}` : groupLabelFor(card)}
+          {' · 담당 '}
+          {card.assignee ?? '—'}
         </span>
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
         <span className={cn('text-pc-xs font-bold tabular-nums', dueClass)}>{due}</span>
-        <span className="h-[3px] w-11 overflow-hidden rounded-full bg-neutbg">
-          <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+        <span className="flex items-center gap-1">
+          {docsFraction && <span className="text-pc-2xs tabular-nums text-faint">{docsFraction}</span>}
+          <span className="h-[3px] w-11 overflow-hidden rounded-full bg-neutbg">
+            <span className="block h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
+          </span>
         </span>
       </span>
     </button>
@@ -213,7 +216,7 @@ function DocChecklist({ sheet }: { sheet: CaseSheet }) {
 }
 
 function DraftPanel({ caseId }: { caseId: string }) {
-  const draft = findDraft(caseId);
+  const draft = draftForCase(caseId);
   if (!draft) return null;
   return (
     <div className="flex flex-col gap-2">
@@ -237,17 +240,30 @@ function DraftPanel({ caseId }: { caseId: string }) {
   );
 }
 
-function CaseTimeline({ sheet }: { sheet: CaseSheet }) {
+function CaseTimeline({ sheet, onOpenRun }: { sheet: CaseSheet; onOpenRun?: (runRef: string) => void }) {
   if (sheet.activity.length === 0 && !sheet.nextWake) return null;
   return (
-    <div className="flex flex-col gap-2">
+    <section aria-label="케이스 타임라인" className="flex flex-col gap-2">
       <span className={RAIL_SECTION_TITLE}>케이스 타임라인</span>
       {sheet.activity.length > 0 && (
         <ul className="overflow-hidden rounded-in border border-hairline">
           {sheet.activity.map((entry) => (
             <li key={entry.label} className="flex items-center gap-2.5 border-b border-hairline px-3 py-2 last:border-none">
               <span className="w-20 shrink-0 text-pc-2xs text-faint tabular-nums">{entry.at}</span>
-              {entry.runRef && <Chip tone="neutral">{entry.runRef}</Chip>}
+              {/* 3.3 런 체이닝 — runRef가 있으면 재생 런으로 진입하는 버튼, 없으면 정적 텍스트 */}
+              {entry.runRef &&
+                (onOpenRun ? (
+                  <button
+                    type="button"
+                    onClick={() => onOpenRun(entry.runRef!.replace('#', ''))}
+                    className="shrink-0 rounded-badge focus-visible:shadow-rail-focus"
+                    aria-label={`판단 기록 ${entry.runRef} 재생 열기`}
+                  >
+                    <Chip tone="neutral">{entry.runRef}</Chip>
+                  </button>
+                ) : (
+                  <Chip tone="neutral">{entry.runRef}</Chip>
+                ))}
               <span className="min-w-0 flex-1 truncate text-caption1 text-ink">
                 {entry.label} · {entry.detail}
               </span>
@@ -258,7 +274,7 @@ function CaseTimeline({ sheet }: { sheet: CaseSheet }) {
       {sheet.nextWake && (
         <p className="rounded-in bg-surface px-3 py-2.5 text-caption1 text-muted">{sheet.nextWake}</p>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -285,8 +301,9 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
       )}
 
       <section className="flex flex-col gap-2">
-        <span className={RAIL_SECTION_TITLE}>연결 근거 ({sheet.citations.length})</span>
-        {sheet.citations.length === 0 ? (
+        {/* 코드리뷰 지적: 헤더 카운트·0건 게이트가 F등급을 세고 있었다 — citationLocked와 동일 규칙으로 교정. */}
+        <span className={RAIL_SECTION_TITLE}>연결 근거 ({usableCitations(sheet.citations).length})</span>
+        {usableCitations(sheet.citations).length === 0 ? (
           <p className="rounded-in bg-approvalbg px-3 py-2.5 text-caption1 leading-relaxed text-approval">
             공식 근거가 연결되지 않았습니다. 승인 전 확인이 필요합니다.
           </p>
@@ -376,9 +393,10 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
   );
 }
 
-export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter }: CaseWorkbenchProps) {
+export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onSelectFilter, onOpenRun, onImport, onOpenWorkerData, onOpenDispatch }: CaseWorkbenchProps) {
   const [query, setQuery] = useState('');
   const handleAction = useNextAction();
+  const role = useRoleStore((s) => s.role);
 
   const groups = useMemo(() => buildCaseGroups(cards, preset), [cards, preset]);
   const visibleCards = useMemo(() => {
@@ -436,6 +454,38 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
               );
             })}
           </div>
+          {/* 근로자 데이터 대량관리(4b)·발송 실행 큐(4d) 진입 — 담당자만. */}
+          {role === 'manager' && (onImport || onOpenWorkerData || onOpenDispatch) && (
+            <div className="flex flex-wrap gap-1.5">
+              {onOpenWorkerData && (
+                <button
+                  type="button"
+                  onClick={onOpenWorkerData}
+                  className="rounded-badge px-2 py-1 text-caption1 font-medium text-muted shadow-outline hover:bg-surface"
+                >
+                  근로자 데이터
+                </button>
+              )}
+              {onOpenDispatch && (
+                <button
+                  type="button"
+                  onClick={onOpenDispatch}
+                  className="rounded-badge px-2 py-1 text-caption1 font-medium text-muted shadow-outline hover:bg-surface"
+                >
+                  발송 실행
+                </button>
+              )}
+              {onImport && (
+                <button
+                  type="button"
+                  onClick={onImport}
+                  className="rounded-badge px-2 py-1 text-caption1 font-medium text-primary shadow-outline hover:bg-surface"
+                >
+                  CSV로 일괄 등록
+                </button>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           {visibleCards.length === 0 ? (
@@ -492,30 +542,47 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
                       .join(' · ')}
                     {selected.preparedRunRef ? (
                       <>
-                        {' · 판단 기록 '}
-                        <span className="font-semibold text-primary">{selected.preparedRunRef}</span>
+                        {' · '}
+                        {/* 3.3 런 체이닝 — 헤더 판단 기록도 재생 런으로 진입(모바일 2b와 동일 패턴) */}
+                        {onOpenRun ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenRun(selected.preparedRunRef!.replace('#', ''))}
+                            className="font-semibold text-primary underline"
+                          >
+                            판단 기록 {selected.preparedRunRef}
+                          </button>
+                        ) : (
+                          <span className="font-semibold text-primary">판단 기록 {selected.preparedRunRef}</span>
+                        )}
                       </>
                     ) : null}
                   </p>
                 </div>
               </div>
-              <div className="flex shrink-0 gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleAction(selected.caseId, selected.secondaryAction)}
-                >
-                  {selected.secondaryAction.label}
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  disabled={citationLocked && selected.primaryAction.requiresApproval}
-                  onClick={() => handleAction(selected.caseId, selected.primaryAction)}
-                >
-                  {selected.primaryAction.label}
-                </Button>
-              </div>
+              {/* M2 ActionBar 역할 분기(7단계 §6) — owner는 승인하기 중심(초안 보기 숨김),
+                  manager는 둘 다, viewer는 버튼 없음. */}
+              {role !== 'viewer' && (
+                <div className="flex shrink-0 gap-2">
+                  {role === 'manager' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAction(selected.caseId, selected.secondaryAction)}
+                    >
+                      {selected.secondaryAction.label}
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={citationLocked && selected.primaryAction.requiresApproval}
+                    onClick={() => handleAction(selected.caseId, selected.primaryAction)}
+                  >
+                    {selected.primaryAction.label}
+                  </Button>
+                </div>
+              )}
             </header>
 
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-4">
@@ -529,7 +596,7 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
                 <DocChecklist sheet={sheet} />
                 <DraftPanel caseId={selected.caseId} />
               </div>
-              <CaseTimeline sheet={sheet} />
+              <CaseTimeline sheet={sheet} onOpenRun={onOpenRun} />
             </div>
 
             <footer className="flex justify-center border-t border-hairline px-6 py-2">

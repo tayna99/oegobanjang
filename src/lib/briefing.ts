@@ -6,6 +6,7 @@ import type { CaseCard, Role } from '@/types';
 const HONORIFIC: Record<Role, string> = {
   manager: '담당자님',
   owner: '대표님',
+  viewer: '열람자님',
 };
 
 export function greetingText(role: Role, count: number): string {
