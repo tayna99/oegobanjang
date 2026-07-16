@@ -2,17 +2,19 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { BriefingScreen } from './BriefingScreen';
-import type { CaseCard } from '@/types';
+import type { CaseCard, Role } from '@/types';
 
-const HEADER = { companyName: '화성1공장', date: '2026.07.06', unreadNotifications: 0 };
+const HEADER = { companyName: '그린푸드 제조', date: '7월 10일 (금)', unreadNotifications: 0 };
 
 const CARD: CaseCard = {
   caseId: 'nguyen',
   caseCode: 'case_002',
-  title: 'Nguyen V. 체류기간 연장 서류 요청',
+  title: '체류기간 연장 서류 요청',
+  workerRef: { displayName: 'Nguyen Van A', nationality: '베트남', team: '제조1팀', maskLevel: 'masked' },
   severity: 'HIGH',
   dDay: 30,
   missingDocCount: 2,
+  agentStage: 'awaiting_approval',
   state: 'approval_pending',
   approvalRequired: true,
   primaryAction: { actionId: 'a', label: '승인하기', state: 'ready', requiresApproval: true, kind: 'approve' },
@@ -21,27 +23,44 @@ const CARD: CaseCard = {
   preparedRunRef: '#4788',
 };
 
-function renderScreen(state: Parameters<typeof BriefingScreen>[0]['state']) {
+const PROGRESS_CARD: CaseCard = {
+  ...CARD,
+  caseId: 'oyunaa',
+  caseCode: 'case_006',
+  title: '계약 만료 사전 모니터링',
+  workerRef: { displayName: 'Oyunaa T.', nationality: '몽골', team: '포장팀', maskLevel: 'masked' },
+  severity: 'LOW',
+  dDay: 75,
+  missingDocCount: undefined,
+  agentStage: 'detected',
+  state: 'draft',
+  approvalRequired: false,
+  preparedRunRef: undefined,
+};
+
+function renderScreen(state: Parameters<typeof BriefingScreen>[0]['state'], role: Role = 'manager') {
   return render(
     <MemoryRouter>
-      <BriefingScreen state={state} header={HEADER} onOpenCase={vi.fn()} onSeeAllCases={vi.fn()} />
+      <BriefingScreen state={state} header={HEADER} onOpenCase={vi.fn()} onSeeAllCases={vi.fn()} role={role} />
     </MemoryRouter>,
   );
 }
 
+// M2.6.1 재구성(Mobile §2a): 파이프라인 스탯 로우 + 승인 큐(단일 검토 CTA) +
+// 에이전트 진행 중 리스트 + 고정 문구 + 커맨드바(존치). 상태 5종 유니온 유지.
 describe('BriefingScreen — 상태 5종', () => {
-  it('default: 카드·통계·안전고지·커맨드바를 전부 렌더한다', () => {
-    renderScreen({
-      status: 'default',
-      cards: [CARD],
-      stats: [],
-      greeting: '담당자님, 오늘 확인이 필요한 업무가 1건 있습니다.',
-    });
-    expect(screen.getByText('Nguyen V. 체류기간 연장 서류 요청')).toBeInTheDocument();
-    expect(screen.getByText('담당자님, 오늘 확인이 필요한 업무가 1건 있습니다.')).toBeInTheDocument();
-    expect(screen.getByText(/D-30이고 누락 서류 2건이 있어/)).toBeInTheDocument();
+  it('default: 파이프라인·승인 큐·진행 중 리스트·안전고지·커맨드바를 전부 렌더한다', () => {
+    renderScreen({ status: 'default', cards: [CARD, PROGRESS_CARD] });
+    expect(screen.getByLabelText('에이전트 파이프라인')).toBeInTheDocument();
+    expect(screen.getByText('내가 처리할 승인 1건')).toBeInTheDocument();
+    expect(screen.getByText('체류기간 연장 서류 요청')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '검토' })).toBeInTheDocument();
+    expect(screen.getByText('에이전트 진행 중 1건')).toBeInTheDocument();
+    expect(screen.getByText(/Oyunaa T./)).toBeInTheDocument();
     expect(screen.getByText('승인 전에는 외부 발송이 차단됩니다.')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('AI에게 요청하기')).toBeInTheDocument();
+    // 승인 버튼은 카드에 없다 — 승인은 체크리스트(2c)에서만.
+    expect(screen.queryByRole('button', { name: '승인하기' })).not.toBeInTheDocument();
   });
 
   it('empty(근로자 있음): 완료 문구 + 케이스 전체 보기 버튼을 보여준다', () => {
@@ -59,7 +78,7 @@ describe('BriefingScreen — 상태 5종', () => {
 
   it('loading: 헤더는 즉시 렌더되고 카드 자리는 스켈레톤이며 수치가 없다', () => {
     renderScreen({ status: 'loading' });
-    expect(screen.getByText('화성1공장')).toBeInTheDocument();
+    expect(screen.getByText(/그린푸드 제조/)).toBeInTheDocument();
     expect(screen.queryByText(/D-\d/)).not.toBeInTheDocument();
   });
 
@@ -72,14 +91,35 @@ describe('BriefingScreen — 상태 5종', () => {
   it('error(캐시 있음): 캐시된 카드 + 어제 데이터 배너를 보여준다', () => {
     renderScreen({ status: 'error', hasCachedData: true, cachedCards: [CARD] });
     expect(screen.getByText('어제 데이터입니다')).toBeInTheDocument();
-    expect(screen.getByText('Nguyen V. 체류기간 연장 서류 요청')).toBeInTheDocument();
+    expect(screen.getByText('체류기간 연장 서류 요청')).toBeInTheDocument();
   });
 
-  it('offline: 오프라인 배너를 보여주고 승인 CTA를 비활성화한다', () => {
+  it('offline: 경고형 오프라인 배너를 보여주고 검토 CTA를 비활성화한다', () => {
     renderScreen({ status: 'offline', cachedCards: [CARD], lastSyncedAt: '08:12' });
-    // 경고형 배너(2.5.4b, Montage 공용 컴포넌트 §4) — 시각 표기는 제거되고 고정 카피만.
     expect(screen.getByText('오프라인 상태입니다 · 재연결 시 자동 동기화')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '승인하기' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: '초안 보기' })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: '검토' })).toBeDisabled();
+  });
+});
+
+// 7단계 §6 M1 홈 역할 분기(운영급 RBAC 확장).
+describe('BriefingScreen — 역할 분기', () => {
+  it('owner: 파이프라인 통계는 숨기고 승인 관련 커맨드바 suggestion을 보여준다', () => {
+    renderScreen({ status: 'default', cards: [CARD, PROGRESS_CARD] }, 'owner');
+    expect(screen.queryByLabelText('에이전트 파이프라인')).not.toBeInTheDocument();
+    expect(screen.getByText('오늘 승인 대기 요약해줘')).toBeInTheDocument();
+  });
+
+  it('viewer: CTA가 비활성화되고 커맨드바 자체가 없다', () => {
+    renderScreen({ status: 'default', cards: [CARD, PROGRESS_CARD] }, 'viewer');
+    expect(screen.getByRole('button', { name: '검토' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: PROGRESS_CARD.title })).toBeDisabled();
+    expect(screen.queryByPlaceholderText('AI에게 요청하기')).not.toBeInTheDocument();
+  });
+
+  // 자동 에스컬레이션(7단계 §3.2) — mocks/evidence.ts의 siti-approval-escalated 시드를 탄다.
+  it('에스컬레이션 evidence가 있는 케이스는 승인 큐에 "승인 지연" Chip이 붙는다', () => {
+    const escalatedCard: CaseCard = { ...CARD, caseId: 'siti', title: '고용변동 신고 기한 임박' };
+    renderScreen({ status: 'default', cards: [escalatedCard] });
+    expect(screen.getByText('승인 지연')).toBeInTheDocument();
   });
 });

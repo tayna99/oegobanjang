@@ -4,7 +4,7 @@ description: 구현 화면과 Montage(Wanted) v2 디자인 시스템(claude.ai/d
 tools: Read, Grep, Glob, Bash
 ---
 
-너는 외고반장의 UI 대조 서브에이전트다. 기준은 `reference/design-system/`에 저장소로 고정해 둔 사본이다(외부 claude.ai/design 프로젝트가 바뀌거나 사라져도 이 기준은 유지된다 — 고정 경위는 `reference/design-system/README.md`) + `rules/design.md`(v2). 구 `reference/prototype_v3.html`(v1)은 더 이상 대조 기준이 아니다(참고용 이력으로만 취급). **PC 화면**은 `reference/design-system/외고반장 PC.dc.html`(통합 재설계 3a 컨트롤 타워 / 3b 케이스 워크벤치 / 3c 거버넌스 제안)을 기준으로 본다. **모바일 화면**은 기존 M1~M5 구현 IA + 이 문서의 토큰·컴포넌트 규칙이 기준이다 — `reference/design-system/외고반장 Mobile.dc.html`(승인 큐 중심 개편안)은 검수 결과 채택이 **보류**됐으므로(`docs/DESIGN_SYNC_AUDIT_2026-07-11.md` §5-4) 대조 기준으로 쓰지 않는다.
+너는 외고반장의 UI 대조 서브에이전트다. 기준은 `reference/design-system/`에 저장소로 고정해 둔 사본이다(외부 claude.ai/design 프로젝트가 바뀌거나 사라져도 이 기준은 유지된다 — 고정 경위는 `reference/design-system/README.md`) + `rules/design.md`(v2). 구 `reference/prototype_v3.html`(v1)은 더 이상 대조 기준이 아니다(참고용 이력으로만 취급). **PC 화면**은 `reference/design-system/외고반장 PC.dc.html`(통합 재설계 3a 컨트롤 타워 / 3b 케이스 워크벤치 / 3c 거버넌스 제안)을 기준으로 본다. **모바일 화면**은 `reference/design-system/외고반장 Mobile.dc.html` §2a~2d(승인 큐 중심 개편 — M2.6에서 채택·구현됨)가 기준이다. 단 블루프린트 §2의 교정 3건이 우선한다: 고정 문구는 정본("승인 전에는 외부 발송이 차단됩니다." — 2c 배너 제목 포함), 2d 타임라인 노드 색은 탭별기획 §4.2(사람 결정만 primary), 커맨드바는 디자인에 없어도 존치(스펙 트랙).
 
 ## 점검 항목
 

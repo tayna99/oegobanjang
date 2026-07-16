@@ -1,0 +1,109 @@
+import type { CaseCard } from '@/types';
+
+// CSV 일괄 등록(4.4) — reference/design-system/외고반장 CSV 업로드.dc.html §1a 이식.
+// 실제 파일 파싱 백엔드가 없어 "업로드"는 고정 샘플 8행을 검증→등록하는 각본이다
+// (RunEngine 각본 철학과 동일). 외국인등록번호는 화면 어디에도 원문을 들일 경로를
+// 만들지 않는다는 온보딩 O4의 결정을 그대로 따라 — 이 fixture부터 이미 마스킹된
+// 문자열(`lib/mask.ts` 규칙과 동일 형식)로만 존재한다(GOTCHAS §1).
+export type RowStatus = 'normal' | 'warn' | 'error';
+
+export interface CsvRow {
+  rowNo: number;
+  name: string;
+  nationality: string;
+  team: string;
+  stayExpiryDateRaw: string; // 파일에 적힌 그대로(형식이 틀릴 수 있음) — 빈 문자열=누락
+  externalRegNoMasked: string; // 이미 마스킹된 값만 존재
+}
+
+export interface ValidatedCsvRow extends CsvRow {
+  status: RowStatus;
+  reason?: string;
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// 샘플 업로드 파일(8행) — 6인 로스터(정상) + 형식 경고 1건 + 필수값 누락 1건.
+// 6인 로스터는 mocks/fixtures.ts CASE_CARDS의 workerRef와 동일 인물이지만, 등록은
+// 별도 caseId(imp- 접두)로 들어가 기존 시드 케이스를 덮어쓰지 않는다(멱등·비파괴).
+export const SAMPLE_CSV_ROWS: CsvRow[] = [
+  { rowNo: 1, name: 'Batbayar E.', nationality: '몽골', team: '제조2팀', stayExpiryDateRaw: '2026-07-08', externalRegNoMasked: '******-*******' },
+  { rowNo: 2, name: 'Nguyen Van A', nationality: '베트남', team: '제조1팀', stayExpiryDateRaw: '2026-08-09', externalRegNoMasked: '******-*******' },
+  { rowNo: 3, name: 'Siti R.', nationality: '인도네시아', team: '포장팀', stayExpiryDateRaw: '2027-02-14', externalRegNoMasked: '******-*******' },
+  { rowNo: 4, name: 'Tran Thi H.', nationality: '베트남', team: '품질팀', stayExpiryDateRaw: '2026-09-15', externalRegNoMasked: '******-*******' },
+  { rowNo: 5, name: 'Rahmat P.', nationality: '인도네시아', team: '제조1팀', stayExpiryDateRaw: '2026-11-05', externalRegNoMasked: '******-*******' },
+  { rowNo: 6, name: 'Oyunaa T.', nationality: '몽골', team: '포장팀', stayExpiryDateRaw: '2026-09-23', externalRegNoMasked: '******-*******' },
+  { rowNo: 7, name: 'Pham Duc M.', nationality: '베트남', team: '제조2팀', stayExpiryDateRaw: '2026.8.9', externalRegNoMasked: '******-*******' },
+  { rowNo: 8, name: 'Kyaw Zin', nationality: '미얀마', team: '포장팀', stayExpiryDateRaw: '', externalRegNoMasked: '******-*******' },
+];
+
+// 필수 컬럼 누락(헤더 누락과 동치 — 값이 비어 있으면 그 컬럼이 없는 것과 같다)·중복 이름
+// (사번이 없는 데이터 모델이라 "이름"을 유일 식별자로 대체)·날짜 형식만 검증한다.
+// 오류(error) > 경고(warn) 우선순위 — 둘 다 걸리면 오류로 표시.
+export function validateRows(rows: CsvRow[]): ValidatedCsvRow[] {
+  const nameCounts = new Map<string, number>();
+  for (const row of rows) nameCounts.set(row.name, (nameCounts.get(row.name) ?? 0) + 1);
+
+  return rows.map((row) => {
+    const missingField = (['name', 'nationality', 'team', 'stayExpiryDateRaw', 'externalRegNoMasked'] as const).find(
+      (key) => row[key].trim().length === 0,
+    );
+    if (missingField) {
+      const LABEL: Record<typeof missingField, string> = {
+        name: '이름',
+        nationality: '국적',
+        team: '팀',
+        stayExpiryDateRaw: '체류만료일',
+        externalRegNoMasked: '외국인등록번호',
+      };
+      return { ...row, status: 'error', reason: `${LABEL[missingField]} 값이 없습니다` };
+    }
+    if ((nameCounts.get(row.name) ?? 0) > 1) {
+      return { ...row, status: 'error', reason: '이름이 중복되었습니다' };
+    }
+    if (!ISO_DATE.test(row.stayExpiryDateRaw)) {
+      return { ...row, status: 'warn', reason: `체류만료일 형식 확인이 필요합니다 (${row.stayExpiryDateRaw} 입력됨)` };
+    }
+    return { ...row, status: 'normal' };
+  });
+}
+
+function slugFor(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+// 정상 판정 행만 CaseCard로 변환 — 경고·오류 행은 등록하지 않는다(브리프 가드레일).
+// 새로 등록된 근로자는 아직 특정 이슈가 없는 저단계 케이스로 시작한다(oyunaa 템플릿과 동일 모양).
+export function rowsToCards(rows: ValidatedCsvRow[]): CaseCard[] {
+  return rows
+    .filter((row): row is ValidatedCsvRow & { status: 'normal' } => row.status === 'normal')
+    .map((row) => {
+      const slug = slugFor(row.name);
+      return {
+        caseId: `imp-${slug}`,
+        caseCode: `case_imp_${row.rowNo}`,
+        title: '근로자 등록 확인',
+        workerRef: { displayName: row.name, nationality: row.nationality, team: row.team, maskLevel: 'masked' },
+        severity: 'LOW',
+        stayExpiryDate: row.stayExpiryDateRaw,
+        agentStage: 'detected',
+        state: 'draft',
+        approvalRequired: false,
+        primaryAction: {
+          actionId: `imp-${slug}-detail`,
+          label: '상세 보기',
+          state: 'ready',
+          requiresApproval: false,
+          kind: 'detail',
+        },
+        secondaryAction: {
+          actionId: `imp-${slug}-confirm`,
+          label: '케이스 확인 완료',
+          state: 'ready',
+          requiresApproval: false,
+          kind: 'confirm',
+        },
+        preparedBy: 'rule',
+      };
+    });
+}

@@ -76,6 +76,16 @@ export const DRAFTS: Record<string, DraftFixture> = {
   },
 };
 
+// caseId → 초안 조회 단일 출처(코드리뷰 D/E 교정: 4개 화면이 각자 Object.values(DRAFTS).find를
+// 복제·매 렌더 재스캔하던 것을 여기 인덱스로 통합).
+const DRAFTS_BY_CASE: Record<string, DraftFixture> = Object.fromEntries(
+  Object.values(DRAFTS).map((draft) => [draft.caseId, draft]),
+);
+
+export function draftForCase(caseId: string | undefined): DraftFixture | undefined {
+  return caseId ? DRAFTS_BY_CASE[caseId] : undefined;
+}
+
 export const DRAFT_SCENARIOS: Record<string, DraftScenario[]> = {
   nguyen: [
     scenario('긍정 응답', '서류 수신 후 검토 자료에 반영'),
