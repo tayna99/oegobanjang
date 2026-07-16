@@ -1,8 +1,10 @@
+import { act } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routeConfig } from '@/router';
 import { useCaseStore } from '@/stores/caseStore';
+import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useRoleStore } from '@/stores/roleStore';
 
 // jsdom에는 matchMedia가 없다 — useIsDesktop 분기 덕에 기존 모바일 테스트는
@@ -22,6 +24,7 @@ function mockViewport(desktop: boolean) {
 
 function renderAt(path: string) {
   useCaseStore.getState().reset();
+  useEvidenceStore.getState().reset();
   const router = createMemoryRouter(routeConfig, { initialEntries: [path] });
   render(<RouterProvider router={router} />);
   return router;
@@ -122,6 +125,37 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
     expect(within(timeline).getByText('서류요청 준비 · D-30 감지로 자동 실행 — 초안 생성 후 승인 대기')).toBeInTheDocument();
     // nextWake 조건 문구.
     expect(within(timeline).getByText('다음: 발송 후 2일간 응답 없으면 리마인드 여부를 판단합니다')).toBeInTheDocument();
+  });
+
+  // NEXT_ROADMAP D-3 회귀: CASE_SHEETS 정적 activity만 읽던 케이스 타임라인이 이제
+  // evidenceStore(행정사 회신·해석 확인)를 실시간으로 병합해 보여준다.
+  it('행정사 회신(package_reply) evidence가 케이스 타임라인에 정적 이력보다 먼저 실시간으로 나타난다', async () => {
+    renderAt('/case/batbayar');
+    await screen.findByRole('region', { name: '케이스 상세' });
+    const timeline = screen.getByRole('region', { name: '케이스 타임라인' });
+
+    // 진입 시점: 정적 activity(위험 감지)만 있고 행정사 회신은 없다.
+    expect(within(timeline).queryByText(/행정사 회신/)).not.toBeInTheDocument();
+    expect(within(timeline).getByText(/위험 감지 · CRITICAL/)).toBeInTheDocument();
+
+    act(() => {
+      useEvidenceStore.getState().append({
+        id: 'batbayar-package-reply-1',
+        type: 'package_reply',
+        at: new Date().toISOString(),
+        caseId: 'batbayar',
+        summary: '김앤리 행정사무소 회신 · 보완 요청 · 재직증명서 원본이 추가로 필요합니다',
+        actor: '김앤리 행정사무소',
+      });
+    });
+
+    // 리렌더 없이도(zustand 구독) 즉시 타임라인 최상단에 반영된다 — 정적 activity(위험 감지)
+    // 앞에 붙는다(D-6 미해결이라 실시각 비교는 하지 않고, 항상 최신 취급).
+    const entries = within(timeline).getAllByRole('listitem');
+    expect(entries[0]).toHaveTextContent(
+      '행정사 회신 · 김앤리 행정사무소 회신 · 보완 요청 · 재직증명서 원본이 추가로 필요합니다',
+    );
+    expect(entries[1]).toHaveTextContent('위험 감지 · CRITICAL');
   });
 
   it('타임라인의 판단 기록 #을 누르면 재생 런(/run/:id)으로 진입한다', async () => {

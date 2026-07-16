@@ -4,9 +4,9 @@ import { cn } from '@/lib/cn';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 
 // 행정사 구조화된 회신(PC 4e 확장) — 무인증 링크 뷰(ExpertLinkPage)와 화이트라벨 패키지
-// 뷰(ExpertPackagePage)가 공유한다. 회신은 evidence(package_reply)로 기록되고, "담당자
-// 케이스에 할일로 등록"은 M8 전역 판단 기록에서 확인 가능한 수준까지만(케이스 타임라인
-// 실시간 반영은 후속 — CaseTimeline이 CASE_SHEETS 정적 데이터만 읽는 구조).
+// 뷰(ExpertPackagePage)가 공유한다. 회신은 evidence(package_reply)로 기록되고, M8 전역
+// 판단 기록(GlobalEvidencePage)과 케이스 상세 타임라인(CaseWorkbench.CaseTimeline,
+// R0.5) 양쪽에서 확인할 수 있다.
 type ReplyType = 'supplement' | 'review_done' | 'question';
 
 const REPLY_TYPE_LABEL: Record<ReplyType, string> = {

@@ -6,7 +6,7 @@ import { IconDoc, IconLock } from '@/components/icons';
 import { Skeleton } from '@/components/Skeleton';
 import { ACTOR_NAME } from '@/lib/approval';
 import { cn } from '@/lib/cn';
-import { rowsToCards, SAMPLE_CSV_ROWS, validateRows } from '@/lib/csvUpload';
+import { downloadCsvTemplate, rowsToCards, SAMPLE_CSV_ROWS, validateRows } from '@/lib/csvUpload';
 import type { RowStatus, ValidatedCsvRow } from '@/lib/csvUpload';
 import { ROLE_LABEL } from '@/lib/role';
 import { useCaseStore } from '@/stores/caseStore';
@@ -264,7 +264,7 @@ export function CsvUploadWorkbench() {
               </li>
             ))}
           </ul>
-          <Button variant="outline" size="sm">템플릿 다운로드</Button>
+          <Button variant="outline" size="sm" onClick={downloadCsvTemplate}>템플릿 다운로드</Button>
         </section>
 
         <section className="flex flex-col gap-2">

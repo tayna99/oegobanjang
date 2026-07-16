@@ -23,7 +23,7 @@
 
 ## 1. 엔진 (PostgreSQL 단일화, 2026-07-13 확정)
 
-서비스 DB는 **PostgreSQL 16+**로 확정됐다. SQLite는 은퇴했다(설계 킷도 PG). 이 PR은 **감사된 DDL 계약**(설계 킷 + 문서)에 한정되며 실행 backend는 없다 — backend(SQLAlchemy/Alembic·API)는 별도 PR 범위다.
+서비스 DB는 **PostgreSQL 16+**로 확정됐다. SQLite는 은퇴했다(설계 킷도 PG). 실행 backend(SQLAlchemy/Alembic·API)는 루트 `backend/`에 이미 구현돼 있다 — Alembic 0001이 `db/schema.sql`을 그대로 적용하고, OTP 인증·승인 결정 API가 CI에서 검증된다(`backend/README.md`). 다만 프론트(`src/`)는 아직 이 backend를 호출하지 않는다(배선은 `plans/ROADMAP.md` R2).
 
 | 항목 | 규약 |
 |---|---|
@@ -36,7 +36,7 @@
 - 실행 가능한 설계 정본은 `db/schema.sql`(PostgreSQL DDL)이고, 이 문서의 타입은 논리 타입이다. DDL이 물리 정본이다.
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
 - **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 178항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(178)를 다시 통과시킨다.
-- **backend 범위:** 이 PR에는 backend API·ORM·Alembic migration이 없다. 후속 backend PR은 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지하고, 인증된 principal·서버 측 PIN/biometric 검증·유효한 delegation 검증을 먼저 갖추기 전까지 approve/reject endpoint를 노출하지 않는다.
+- **backend 범위:** 루트 `backend/`가 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다(`tests/test_ddl_parity.py`가 보증). 인증(OTP·세션)·승인 결정(approve/reject) endpoint는 이미 구현돼 있다 — 단, 승인 "요청" 생성 이후 흐름 중 delegation 유효성 검증은 아직 미결(§13-10). 케이스/브리핑/스레드 등 나머지 read API와 프론트 배선은 `plans/ROADMAP.md` R2 범위다.
 
 ## 2. 공통 규약
 

@@ -1,4 +1,4 @@
-import { Badge } from '@/components/Badge';
+import { Chip } from '@/components/Chip';
 import { threadBadge } from '@/lib/threads';
 import type { MessageThread } from '@/types';
 
@@ -41,7 +41,7 @@ export function ThreadListItem({ thread, onOpen, interactive = true }: ThreadLis
         ) : (
           <time className="text-xs text-faint">{thread.timeLabel}</time>
         )}
-        <Badge tone={badge.tone}>{badge.label}</Badge>
+        <Chip tone={badge.tone}>{badge.label}</Chip>
       </span>
     </>
   );

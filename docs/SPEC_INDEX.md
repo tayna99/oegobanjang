@@ -30,5 +30,5 @@
 | `APPROVE` 승인 런 설정 | `src/mocks/runs.ts` (RunConfig[]) |
 | `DRAFT` 초안 3종 (KR/VN/EN + revised) | `src/mocks/drafts.ts` |
 | `EV` 이벤트 + 카테고리 | `src/mocks/evidence.ts` |
-| `renderRun()` 각본 재생 로직 | `src/features/runs/runEngine.ts` (스텝 스트리밍 훅) |
+| `renderRun()` 각본 재생 로직 | `src/lib/runEngine.ts`(순수 함수 `executeRun`) + `src/lib/useRunEngine.ts`(스텝 스트리밍 훅) |
 | 모션 값 (430ms 스텝 간격, push-in 등) | tokens.css `--motion-*` + 컴포넌트 |

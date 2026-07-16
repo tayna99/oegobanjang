@@ -3,13 +3,10 @@ import { Card } from '@/components/Card';
 import { Chip } from '@/components/Chip';
 import { IconLock } from '@/components/icons';
 import { dDayLabel } from '@/lib/dday';
-import { severityTone } from '@/lib/chipTone';
+import { severityLabel, severityTone } from '@/lib/chipTone';
 import { StepTimeline } from '@/features/run/StepTimeline';
 import { CASE_CARDS } from '@/mocks/fixtures';
 import type { RunStep } from '@/mocks/runs';
-import type { Severity } from '@/types';
-
-const SEVERITY_LABEL: Record<Severity, string> = { CRITICAL: '긴급', HIGH: '높음', MEDIUM: '중간', LOW: '낮음' };
 
 // O5 — 첫 브리핑 동기 생성(Aha). 로딩은 각본 기반 3스텝(RunEngine 각본 철학과 동일, 실제
 // LLM 연결 없음) — StepTimeline(런 재생 화면과 동일 컴포넌트)을 그대로 재사용해 새 진행률
@@ -89,7 +86,7 @@ export function StepBriefingDone() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             <Chip tone={severityTone(previewCard.severity)}>
-              {SEVERITY_LABEL[previewCard.severity]} · {dDayLabel(previewCard.dDay ?? 0)}
+              {severityLabel(previewCard.severity)} · {dDayLabel(previewCard.dDay ?? 0)}
             </Chip>
             {previewCard.approvalRequired && <Chip tone="approval">승인 필요</Chip>}
           </div>

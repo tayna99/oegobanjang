@@ -2,9 +2,10 @@
 
 - 
 
-## 관련 Mission
+## 관련 태스크
 
-- missions/active/
+- [ ] `plans/ROADMAP.md` 태스크: (예: R0.2)
+- [ ] (legacy 백엔드/Agent Runtime 작업인 경우) `legacy/missions/active/`: 
 
 ## 변경 파일
 
@@ -12,10 +13,10 @@
 
 ## 검증 결과
 
-- [ ] Backend test 통과
-- [ ] Agent Runtime test 통과
-- [ ] Frontend lint/build/test 통과
-- [ ] Eval case 추가 또는 확인
+- [ ] `npm run verify` 통과 (typecheck → lint → test → build)
+- [ ] (`backend/` 변경 시) `cd backend && uv run pytest` 통과
+- [ ] (`db/` 변경 시) `db/validate.py` 통과
+- [ ] (legacy `backend/`/Agent Runtime 변경 시) `legacy/scripts/verify_all.sh` 등 legacy 검증 통과 + eval case 추가/확인
 - [ ] Evidence Log 생성 확인
 
 ## 안전성 체크
@@ -32,10 +33,10 @@
 
 ## 문서 영향
 
-- [ ] API 변경 시 `docs/API_CONTRACT.md` 수정
-- [ ] DB 변경 시 `docs/DB_SCHEMA.md` 수정
-- [ ] Agent/Tool 변경 시 `docs/AI_OS_DESIGN.md` 또는 `docs/TOOL_CONTRACT.md` 수정
-- [ ] RAG 변경 시 `docs/RAG_STRATEGY.md` 수정
+- [ ] `db/schema.sql` 변경 시 `docs/DB_SCHEMA.md` 동기화
+- [ ] `backend/app/api/` 변경 시 `backend/README.md` 수정
+- [ ] 화면/스펙 변경 시 `docs/SPEC_INDEX.md`·`docs/ARCHITECTURE.md` 갱신
+- [ ] (legacy Agent Runtime/RAG 변경 시) `legacy/docs/AI_OS_DESIGN.md`·`TOOL_CONTRACT.md`·`RAG_STRATEGY.md` 수정
 
 ## 남은 리스크
 
