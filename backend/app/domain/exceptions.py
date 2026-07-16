@@ -47,6 +47,27 @@ class ApprovalIdentityRequiredError(ApprovalError):
         super().__init__("승인 본인확인(PIN 또는 생체인증)이 필요합니다")
 
 
+class ApprovalPinNotRegisteredError(ApprovalError):
+    """identity_method='pin'인데 users.pin_hash 미등록 — 422. POST /auth/pin으로 먼저 등록(§13-12)."""
+
+    def __init__(self) -> None:
+        super().__init__("승인 PIN이 등록되지 않았습니다. 먼저 PIN을 등록해주세요")
+
+
+class ApprovalIdentityVerificationFailedError(ApprovalError):
+    """본인확인 실패(PIN 불일치) — 403(§13-12). 어떤 값이 틀렸는지는 노출하지 않는다."""
+
+    def __init__(self) -> None:
+        super().__init__("본인확인에 실패했습니다")
+
+
+class ApprovalBiometricNotRegisteredError(ApprovalError):
+    """identity_method='biometric'인데 users.biometric_registered=false — 422(§13-12)."""
+
+    def __init__(self) -> None:
+        super().__init__("생체 인증이 등록되지 않았습니다")
+
+
 class ApprovalReasonRequiredError(ApprovalError):
     def __init__(self) -> None:
         super().__init__("반려 시 사유가 필요합니다")

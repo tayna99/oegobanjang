@@ -32,3 +32,9 @@ class OtpVerifyResponse(BaseModel):
     session_token: str
     expires_at: dt.datetime
     user: SessionUserOut
+
+
+class PinSetRequest(BaseModel):
+    """POST /auth/pin — 승인 본인확인 PIN 등록/변경. 6자리 숫자(docs/DB_SCHEMA.md §13-12)."""
+
+    pin: str = Field(pattern=r"^\d{6}$")

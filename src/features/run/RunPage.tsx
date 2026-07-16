@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useNav } from '@/lib/nav';
 import { canTransition, useCaseStore } from '@/stores/caseStore';
@@ -8,6 +8,7 @@ import { useRunEngine } from '@/lib/useRunEngine';
 import { CASE_CARDS } from '@/mocks/fixtures';
 import { RUN_CONFIGS } from '@/mocks/runs';
 import type { RunConfig } from '@/mocks/runs';
+import { apiEnabled, decideApproval } from '@/lib/api';
 import { RunScreen } from './RunScreen';
 import type { RunViewState } from './RunScreen';
 
@@ -37,6 +38,8 @@ function RunPageContent({ config }: { config: RunConfig }) {
   const requestApproval = useApprovalStore((s) => s.requestApproval);
   const decide = useApprovalStore((s) => s.decide);
   const appendEvidence = useEvidenceStore((s) => s.append);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorText, setErrorText] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (Object.keys(useCaseStore.getState().cases).length === 0) {
@@ -46,19 +49,11 @@ function RunPageContent({ config }: { config: RunConfig }) {
 
   const card = config.caseId ? cases[config.caseId] : undefined;
 
-  const approve = () => {
-    if (!card || !config.caseId) {
-      nav.toDone({ state: { evidenceRef: config.evidenceRef } });
-      return;
-    }
-
-    const actionId = card.primaryAction.actionId;
+  const applyLocalApproval = (actionId: string, key: string) => {
     if (!approvals[actionId]) requestApproval(actionId);
-
-    const key = `${actionId}:${config.evidenceRef}:approved`;
     decide(actionId, 'approved', key);
 
-    if (canTransition(card.state, 'human_approved')) {
+    if (card && config.caseId && canTransition(card.state, 'human_approved')) {
       transition(config.caseId, 'human_approved');
     }
 
@@ -73,7 +68,34 @@ function RunPageContent({ config }: { config: RunConfig }) {
       actor: '담당자',
     });
 
-    nav.toDone({ state: { caseTitle: card.title, evidenceRef: config.evidenceRef } });
+    nav.toDone({ state: { caseTitle: card?.title, evidenceRef: config.evidenceRef } });
+  };
+
+  const approve = async () => {
+    if (!card || !config.caseId) {
+      nav.toDone({ state: { evidenceRef: config.evidenceRef } });
+      return;
+    }
+
+    const actionId = card.primaryAction.actionId;
+    const key = `${actionId}:${config.evidenceRef}:approved`;
+
+    // 승인만 예외적으로 "서버 확정 후 반영" — 성공 응답을 받은 뒤에만 로컬 체인을 실행한다
+    // (docs/ARCHITECTURE.md §4). 플래그 미설정 시 현행과 동일하게 로컬만 반영한다.
+    if (apiEnabled) {
+      setErrorText(undefined);
+      setSubmitting(true);
+      try {
+        await decideApproval({ caseCode: card.caseCode, decision: 'approved', idempotencyKey: key });
+      } catch (err) {
+        setErrorText(err instanceof Error ? err.message : '승인 처리 중 오류가 발생했습니다');
+        setSubmitting(false);
+        return;
+      }
+      setSubmitting(false);
+    }
+
+    applyLocalApproval(actionId, key);
   };
 
   const state: RunViewState = {
@@ -85,6 +107,8 @@ function RunPageContent({ config }: { config: RunConfig }) {
     steps: engine.steps,
     engineStatus: engine.status,
     readOnly: config.readOnly,
+    submitting,
+    errorText,
   };
 
   return <RunScreen state={state} onApprove={approve} onAlt={() => nav.toHome()} />;

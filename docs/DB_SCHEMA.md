@@ -767,6 +767,15 @@ CREATE TRIGGER evidence_events_no_delete BEFORE DELETE ON evidence_events
 
 ## 8. 프론트 계약 매핑 (`src/types.ts` ↔ 스키마)
 
+**계약 동기화 방식 — 결정: 수동(이 표가 정본) + 프론트 어댑터 매핑, OpenAPI codegen 미도입.**
+백엔드 API는 snake_case(`idempotency_key`)를 그대로 응답하고, `src/lib/api.ts` 어댑터가
+camelCase(`idempotencyKey`)로 변환한다(alias_generator는 백엔드에 두지 않음 — Pydantic
+스키마는 snake_case 단일 표현 유지). 엔드포인트가 ~10개 수준인 지금은 코드젠 도입 비용이
+이득보다 크다고 판단했다 — 엔드포인트가 두 자릿수 중반을 넘거나 이 표 유지가 실제로 부담이
+되면 OpenAPI→TS 생성 도구 도입을 재검토한다. ID 상관관계는 `caseCode`만 프론트-백엔드 양쪽에
+공유되는 안정 리터럴이다(프론트 픽스처 id·시드 id는 전부 슬러그라 서로 다름) — 어댑터가
+`caseCode`로 케이스를 찾고, 그 케이스의 pending 승인을 조회해 approval id를 해석한다.
+
 | 프론트 | 원천 | 비고 |
 |---|---|---|
 | `CaseCard.caseId` | cases.id | 목업 슬러그는 데모 한정 |
@@ -871,3 +880,6 @@ P1 안에서도 프론트가 아직 안 읽는 컬럼(checklist 등)은 nullable
 9. **manager 승인 조건의 '위험도' 근사 — 결정: MVP는 `case.severity='LOW'`로 근사(정식 액션 위험도 모델 이연).** 7단계 권한 매트릭스는 manager가 '저위험' 승인만 가능하다고 규정하나, '저위험'의 정본은 액션 단위 위험도다. MVP 백엔드(`app/services/approvals.py`)는 이를 케이스 `severity='LOW'` + `companies.approval_policy='manager_allowed'`로 근사한다. 실제 액션 위험도 컬럼/모델은 파일럿에서 필요가 확인되면 도입한다 — 근사가 과승인을 만들지 않는다(LOW가 아닌 케이스는 owner 전용으로 남으므로 보수적).
 10. **대리 승인(`on_behalf_of_user_id`) 위임 유효성 — 결정: MVP는 '활성 멤버'까지만 검증, 위임 관계는 이연.** 현재 트리거·서비스는 대리인이 같은 회사의 active 멤버인지까지만 확인한다. 실제 위임 관계(위임자→대리인·유효 기간·범위)의 유효성 검증은 `delegations` 테이블(§4.1, P3)이 화면·엔드포인트와 함께 배선되는 시점으로 미룬다. 그때까지 대리 승인은 감사 기록(`actor_display='… (대리 승인)'`)만 남기고 관계 검증은 하지 않는다.
 11. **OTP·세션 TTL, 재시도 한도 — 결정(엔지니어링 재량, 파일럿 피드백으로 조정 가능).** `login_otps` 코드 유효기간 5분·최대 검증 시도 5회(초과 시 재발급 필요), `sessions` 유효기간 30일. 값은 스키마가 아니라 서비스 상수로 관리한다(컬럼 제약이 아님 — TTL은 `expires_at` 계산 입력일 뿐). OTP 발송은 이 시점에 실제 SMS 연동이 없으므로 `notifications`와 동일하게 mock(§13-7 선례)이며, `login_otps.phone`은 발급 시점에 계정 존재 여부를 노출하지 않는다(계정 유무와 무관하게 항상 발급 성공).
+12. **승인 PIN 정책·checklist 동반 제출 — 결정(엔지니어링 재량).** PIN은 6자리 숫자(`^\d{6}$`) — 어떤 스펙 문서에도 길이·형식이 명시돼 있지 않아 확정했다. 원문은 저장하지 않고 `users.pin_hash`에 `hash_secret`(HMAC-SHA256, §13-11과 동일 pepper)만 남긴다. `POST /api/v1/auth/pin`으로 세션만으로 등록·변경 가능(재설정 전 기존 PIN 재확인 같은 강화는 실 로그인 화면(M4)과 함께 후속 검토). `identity_method='biometric'`은 서버가 `users.biometric_registered`(등록 여부)까지만 확인한다 — 실제 생체 검증은 기기 몫이라는 신뢰 경계를 그대로 반영한다(7단계 §4 "생체 인증 재확인 (등록자)"). checklist는 전용 PATCH 엔드포인트를 두지 않는다 — `trg_approvals_update_guard`가 pending 승인의 모든 UPDATE에 status 전이(approved/rejected)를 요구하므로, checklist 갱신은 decide 요청에 동반 제출해 결정 UPDATE와 같은 트랜잭션에서 key 병합 처리한다.
+13. **읽기 API 테넌트 해석 — 결정(엔지니어링 재량, MVP 한계 — 후속 조정).** `GET /cases`·`GET /approvals`는 세션 사용자의 active membership이 정확히 1개면 그 회사로 스코프한다. 0개(소속 없음)는 403, 2개 이상(멀티 회사)은 400 — 회사 선택 UI가 아직 없어 다중 소속을 지원하지 못한다(멀티 회사 사용자가 생기면 재검토). 승인 decide/request와 달리 모든 active 역할(viewer 포함)이 읽기를 통과한다 — 읽기는 승인 게이트가 아니다.
+14. **기준일(dDay 기준) 주입 규약 — 결정(§6 공식의 구현 확정).** `GET /cases?base_date=YYYY-MM-DD`(선택, 미지정 시 회사 timezone의 오늘)로 dDay 계산 기준을 명시적으로 주입한다 — 프론트 `calcDday(target, base)`(§6, `src/lib/dday.ts`)의 서버 짝이다. `d_day`는 서비스 계층에서 `(due_date - base_date).days`로 계산하며, `v_case_derived` 뷰(`CURRENT_DATE` 고정)는 이 계약에 쓰지 않는다 — 뷰는 DBeaver 조회 편의용으로만 남긴다(파라미터화된 DB 함수로 승격하는 건 실제 필요가 확인되면 재검토).

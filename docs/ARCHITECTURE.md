@@ -49,7 +49,9 @@ mocks/fixtures, mocks/threads ──▶ stores (zustand)
 ```
 
 - 규칙: 화면은 store를 직접 mutate하지 않는다 — store의 액션 함수만 호출
-- 승인만 예외적으로 "서버 확정 후 반영" 패턴 (MVP에선 mockApi.approve()가 서버 역할)
+- 승인만 예외적으로 "서버 확정 후 반영" 패턴 — `src/lib/api.ts`(env 플래그 `VITE_API_BASE_URL`)가
+  성공 응답을 받은 뒤에만 로컬 스토어 체인(decide→transition→append)을 실행한다. 플래그
+  미설정 시 mockApi 그대로(기존 테스트 무영향) — 실 서버 연동은 `backend/`의 승인 decide API
 
 ## 5. 런 시스템 (에이전틱 코어)
 

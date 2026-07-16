@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-from app.api.deps import _bearer_scheme
+from app.api.deps import _bearer_scheme, get_current_user_id
 from app.config import get_settings
 from app.db.session import get_db
 from app.domain.auth_exceptions import (
@@ -23,9 +23,10 @@ from app.schemas.auth import (
     OtpRequestResponse,
     OtpVerifyRequest,
     OtpVerifyResponse,
+    PinSetRequest,
     SessionUserOut,
 )
-from app.services.auth import request_otp, revoke_session, verify_otp
+from app.services.auth import request_otp, revoke_session, set_pin, verify_otp
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -60,6 +61,19 @@ def verify_otp_endpoint(payload: OtpVerifyRequest, db: Session = Depends(get_db)
         expires_at=expires_at,
         user=SessionUserOut.model_validate(user),
     )
+
+
+@router.post("/pin", status_code=status.HTTP_204_NO_CONTENT)
+def set_pin_endpoint(
+    payload: PinSetRequest,
+    current_user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+) -> None:
+    """승인 본인확인 PIN 등록/변경(6자리 숫자, §13-12).
+
+    decide의 identity_method='pin'이 여기 등록된 해시와 대조된다 — 세션만으로 승인 불가
+    (7단계 §4)의 서버측 짝."""
+    set_pin(db, current_user_id, payload.pin)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

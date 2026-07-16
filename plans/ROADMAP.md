@@ -80,9 +80,14 @@
 | 4.3 | 승인 본인확인 목업(PIN) + 대리 승인 배지 | L2 | 7단계 §3·4 | 승인 이벤트에 결정자·본인/대리 기록 |
 | 4.4 | CSV 일괄 업로드(PC) — 근로자 대량 등록, 4.1 온보딩과 동일 데이터 계약 공유 | L2 | 통합설계 D4·D6, 8단계 E4 | 잘못된 행(헤더 누락·중복 사번) 검증 실패 테스트, 성공 시 근로자 N명 스토어 반영 테스트 |
 
-## 백엔드 접속점 (이후 — 별도 계획)
+## 백엔드 접속점 (진행 중)
 
-- mockApi → 별도 승인된 backend 이식으로 교체. `db/schema.sql`의 복합 FK·CHECK·trigger 계약과 `src/types.ts`를 함께 이식하며, 인증 principal·본인확인·delegation 검증 전에는 승인 결정 endpoint를 만들지 않는다.
+- **완료**: 인증 principal(phone+OTP 세션)·본인확인 실검증(PIN 해시 대조·biometric 등록 확인)·
+  delegation(활성 멤버까지, 관계 유효성은 §13-10 이연) — 승인 decide/요청 생성 endpoint가 이
+  세 가드를 갖추고 배선됐다(`backend/`). `src/lib/api.ts` 어댑터가 env 플래그(`VITE_API_BASE_URL`)
+  뒤에서 승인 decide 루프만 mockApi 대신 실 API를 호출한다 — 플래그 미설정 시 기존 mockApi
+  동작과 완전히 동일(회귀 없음). 나머지 화면(케이스 목록/상세·브리핑·메시지 등)의 mockApi 교체는
+  각 화면이 백엔드에 붙는 순서대로 이어간다.
 - runEngine 각본 → LangGraph createAgent 스트리밍으로 교체 (RunConfig 인터페이스 유지)
 - 발송 어댑터·알림톡은 계속 범위 밖 (승인 기반 어댑터, PRD Sprint 6)¹
 

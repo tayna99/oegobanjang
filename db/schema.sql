@@ -1528,6 +1528,9 @@ FROM case_citations cc
 GROUP BY cc.company_id, cc.citation_id;
 
 -- 케이스 파생값: dDay(조회 시점 기준) · 누락 서류 수 · 사용 가능 근거 수
+-- 주의(§13-14): d_day는 CURRENT_DATE 고정이라 DBeaver 조회 편의용일 뿐이다. API 응답의
+-- dDay는 기준일 주입 규약(§6, GET /cases?base_date=)에 따라 백엔드 서비스 계층에서
+-- (due_date - base_date)로 별도 계산한다 — 이 뷰를 그 계약에 쓰지 않는다.
 CREATE VIEW v_case_derived AS
 SELECT
   cs.id AS case_id,

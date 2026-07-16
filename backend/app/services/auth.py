@@ -118,6 +118,17 @@ def resolve_session_user_id(db: Session, raw_token: str) -> str:
     return session.user_id
 
 
+def set_pin(db: Session, user_id: str, pin: str) -> None:
+    """승인 본인확인 PIN 등록/변경(§13-12). 원문은 저장하지 않는다 — hash_secret(HMAC pepper)만.
+
+    세션만으로 재설정을 허용한다(형식 검증은 스키마 몫). 재설정 전 기존 PIN 재확인 같은
+    강화는 실 로그인 화면(M4)과 함께 후속 — §13-12에 주석으로 남김.
+    """
+    user = db.get(User, user_id)
+    user.pin_hash = hash_secret(pin)
+    db.commit()
+
+
 def revoke_session(db: Session, raw_token: str) -> None:
     """로그아웃 — 세션을 폐기한다(어드버서리얼 보안 리뷰: 30일 TTL 토큰을 즉시 무효화할 수단이
     없다는 지적, F1/High). 이미 없거나 이미 폐기된 토큰은 조용히 무시한다(로그아웃은 멱등)."""
