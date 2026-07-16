@@ -5,6 +5,7 @@ import { BottomSheet } from '@/components/BottomSheet';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { useNav } from '@/lib/nav';
+import { useRoleStore } from '@/stores/roleStore';
 import { DRAFTS } from '@/mocks/drafts';
 import type { DraftLangCode } from '@/mocks/drafts';
 
@@ -15,6 +16,7 @@ function findDraft(caseId: string | undefined) {
 export function DraftPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const nav = useNav();
+  const role = useRoleStore((s) => s.role);
   const draft = findDraft(caseId);
   const [lang, setLang] = useState<DraftLangCode>('ko');
   const [revised, setRevised] = useState(false);
@@ -70,14 +72,21 @@ export function DraftPage() {
         승인 전에는 외부 발송이 차단됩니다.
       </p>
 
-      <div className="mt-4 flex gap-2.5">
-        <Button variant="outline" className="flex-1" onClick={() => setRevisionOpen(true)}>
-          수정 요청
-        </Button>
-        <Button variant="primary" className="flex-1" onClick={() => nav.toApprove(caseId)}>
-          승인 검토로 이동
-        </Button>
-      </div>
+      {/* M3 편집 게이트(7단계 §6) — viewer는 읽기 전용, 수정 요청·승인 이동 모두 불가. */}
+      {role === 'viewer' ? (
+        <p className="mt-4 rounded-in bg-surface px-3.5 py-3 text-body2 text-muted">
+          열람자 권한으로는 초안을 읽기만 할 수 있습니다.
+        </p>
+      ) : (
+        <div className="mt-4 flex gap-2.5">
+          <Button variant="outline" className="flex-1" onClick={() => setRevisionOpen(true)}>
+            수정 요청
+          </Button>
+          <Button variant="primary" className="flex-1" onClick={() => nav.toApprove(caseId)}>
+            승인 검토로 이동
+          </Button>
+        </div>
+      )}
 
       <BottomSheet
         open={revisionOpen}

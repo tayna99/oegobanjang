@@ -1,100 +1,55 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ApprovalCard } from './ApprovalCard';
 import type { CaseCard } from '@/types';
 
-const NGUYEN: CaseCard = {
+const CARD: CaseCard = {
   caseId: 'nguyen',
   caseCode: 'case_002',
-  title: 'Nguyen V. 체류기간 연장 서류 요청',
+  title: '체류기간 연장 서류 요청',
+  workerRef: { displayName: 'Nguyen Van A', nationality: '베트남', team: '제조1팀', maskLevel: 'masked' },
   severity: 'HIGH',
   dDay: 30,
   missingDocCount: 2,
   state: 'approval_pending',
   approvalRequired: true,
-  primaryAction: { actionId: 'nguyen-approve', label: '승인하기', state: 'ready', requiresApproval: true, kind: 'approve' },
-  secondaryAction: { actionId: 'nguyen-draft', label: '초안 보기', state: 'ready', requiresApproval: false, kind: 'draft' },
+  primaryAction: { actionId: 'a', label: '승인하기', state: 'ready', requiresApproval: true, kind: 'approve' },
+  secondaryAction: { actionId: 'b', label: '초안 보기', state: 'ready', requiresApproval: false, kind: 'draft' },
   preparedBy: 'agent',
   preparedRunRef: '#4788',
 };
 
-function renderCard(overrides: Partial<CaseCard> = {}, layout: 'hero' | 'compact' = 'hero') {
-  const onOpen = vi.fn();
-  render(
-    <MemoryRouter>
-      <ApprovalCard data={{ ...NGUYEN, ...overrides }} layout={layout} onOpen={onOpen} recommendReason={layout === 'hero' ? 'D-30이고 누락 서류 2건이 있어 오늘 요청이 필요합니다' : undefined} />
-    </MemoryRouter>,
-  );
-  return { onOpen };
-}
-
-describe('ApprovalCard', () => {
-  it('제목과 배지(D-day, 누락 N건, 승인 필요, severity)를 렌더한다', () => {
-    renderCard();
-    expect(screen.getByText('Nguyen V. 체류기간 연장 서류 요청')).toBeInTheDocument();
-    expect(screen.getByText('D-30')).toBeInTheDocument();
+// M2.6.1 승인 큐 카드 계약(Mobile §2a): CTA는 "검토" 1개뿐 — 승인은 체크리스트(2c)에서만.
+describe('ApprovalCard (승인 큐 카드)', () => {
+  it('제목·근로자·심각도 칩·누락 칩을 렌더한다', () => {
+    render(<ApprovalCard data={CARD} onReview={vi.fn()} />);
+    expect(screen.getByText('체류기간 연장 서류 요청')).toBeInTheDocument();
+    expect(screen.getByText('Nguyen Van A · 제조1팀')).toBeInTheDocument();
+    expect(screen.getByText('높음 · D-30')).toBeInTheDocument();
     expect(screen.getByText('누락 2건')).toBeInTheDocument();
-    expect(screen.getByText('승인 필요')).toBeInTheDocument();
   });
 
-  it('CTA는 정확히 2개다', () => {
-    renderCard();
-    expect(screen.getAllByRole('button').filter((b) => ['승인하기', '초안 보기'].includes(b.textContent ?? ''))).toHaveLength(2);
+  it('CTA는 "검토" 하나뿐이다 — 승인하기 버튼이 없다', () => {
+    render(<ApprovalCard data={CARD} onReview={vi.fn()} />);
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: '검토' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '승인하기' })).not.toBeInTheDocument();
   });
 
-  it('hero 레이아웃에서만 추천 이유를 보여준다', () => {
-    renderCard({}, 'hero');
-    expect(screen.getByText(/D-30이고 누락 서류 2건이 있어/)).toBeInTheDocument();
+  it('검토 클릭 시 onReview가 호출된다', () => {
+    const onReview = vi.fn();
+    render(<ApprovalCard data={CARD} onReview={onReview} />);
+    screen.getByRole('button', { name: '검토' }).click();
+    expect(onReview).toHaveBeenCalledTimes(1);
   });
 
-  it('compact 레이아웃에서는 추천 이유를 보여주지 않는다', () => {
-    renderCard({}, 'compact');
-    expect(screen.queryByText(/D-30이고 누락 서류 2건이 있어/)).not.toBeInTheDocument();
+  it('offlineDisabled면 검토 버튼이 비활성화된다', () => {
+    render(<ApprovalCard data={CARD} onReview={vi.fn()} offlineDisabled />);
+    expect(screen.getByRole('button', { name: '검토' })).toBeDisabled();
   });
 
-  it('compact 레이아웃에서는 primary CTA도 secondary(비파랑) 색으로 렌더한다(화면당 파랑 CTA 1개)', () => {
-    renderCard({}, 'compact');
-    const primaryBtn = screen.getByText('승인하기');
-    expect(primaryBtn).not.toHaveClass('bg-primary');
-    expect(primaryBtn).toHaveClass('bg-surface');
-  });
-
-  it('preparedBy가 agent면 프로액티브 행을 보여준다', () => {
-    renderCard({ preparedBy: 'agent', preparedRunRef: '#4788' });
-    expect(screen.getByText(/AI가 준비를 마쳤습니다/)).toBeInTheDocument();
-  });
-
-  it('preparedBy가 rule이면 프로액티브 행을 보여주지 않는다', () => {
-    renderCard({ preparedBy: 'rule', preparedRunRef: undefined });
-    expect(screen.queryByText(/AI가 준비를 마쳤습니다/)).not.toBeInTheDocument();
-  });
-
-  it('카드 본문을 탭하면 onOpen이 실행된다(CTA 영역 제외)', () => {
-    const { onOpen } = renderCard();
-    fireEvent.click(screen.getByText('Nguyen V. 체류기간 연장 서류 요청'));
-    expect(onOpen).toHaveBeenCalledOnce();
-  });
-
-  it('CTA를 탭해도 onOpen은 실행되지 않는다(stopPropagation)', () => {
-    const { onOpen } = renderCard();
-    fireEvent.click(screen.getByText('초안 보기'));
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it('프로액티브 행을 탭하면 preparedRunRef의 재생 화면으로 이동한다(# 제거 후 이동)', () => {
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route
-            path="/"
-            element={<ApprovalCard data={NGUYEN} layout="hero" onOpen={vi.fn()} />}
-          />
-          <Route path="/run/:runId" element={<div>런 재생 화면</div>} />
-        </Routes>
-      </MemoryRouter>,
-    );
-    fireEvent.click(screen.getByText(/AI가 준비를 마쳤습니다/));
-    expect(screen.getByText('런 재생 화면')).toBeInTheDocument();
+  it('returned 상태면 반려 보완 칩을 보여준다', () => {
+    render(<ApprovalCard data={{ ...CARD, state: 'returned' }} onReview={vi.fn()} />);
+    expect(screen.getByText('반려됨 · 보완 필요')).toBeInTheDocument();
   });
 });
