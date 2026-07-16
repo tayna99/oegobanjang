@@ -112,15 +112,17 @@ Human Approval = 발송·제출·전달 전 최종 승인 지점
 
 ---
 
-## 후속 backend 이식
+## 루트 backend/ — 이미 존재하고 동작함
 
-backend API·ORM·migration은 별도 승인 PR에서 이 DDL과 동등하게 구현합니다. 인증된 principal, 서버 측 PIN/biometric 검증, 유효한 delegation 검증이 준비되기 전에는 approve/reject endpoint를 노출하지 않습니다.
+루트 `backend/`는 `db/schema.sql`을 Alembic 0001로 그대로 적용하는 FastAPI 서비스입니다 — OTP 전화 인증(요청/검증/세션/로그아웃), 승인 요청 생성 + approve/reject(케이스 단위 단건만, 일괄 승인 없음) 엔드포인트가 구현돼 있고 pytest 스위트가 CI(`​.github/workflows/ci.yml`)에서 돕니다. 세팅·API 목록은 [backend/README.md](backend/README.md) 참조.
+
+**단, 프론트(`src/`)는 아직 이 backend를 한 줄도 호출하지 않습니다**(fetch 0건 — mock 데이터로만 동작). 프론트 배선(API 클라이언트 계층, 케이스/브리핑/스레드 read API, 인증 배선)은 `plans/ROADMAP.md` R2 범위이며, 이 배선이 끝나기 전까지는 위 "실행 방법"의 `npm run dev`만으로 전체 기능이 데모됩니다.
 
 ---
 
-## 레거시 백엔드 — `legacy/` 이관됨
+## 레거시 백엔드 — `legacy/` 보관
 
-루트에는 현재 실행 가능한 backend API나 DB migration이 없습니다. 이전 단계의 FastAPI 백엔드(일반 API + LangGraph/RAG/Agent Runtime + Evidence Log), 데이터 파이프라인, eval 하네스, mission 문서, 설계 문서(PROJECT_BRIEF, AI_OS_DESIGN, RAG_STRATEGY, TOOL_CONTRACT, SECURITY_GUARDRAILS, EVAL_HARNESS 등)는 전부 `legacy/`에 보관되어 있습니다.
+`legacy/`에는 루트 `backend/`보다 이전 단계의 FastAPI 백엔드(일반 API + LangGraph/RAG/Agent Runtime + Evidence Log), 데이터 파이프라인, eval 하네스, mission 문서, 설계 문서(PROJECT_BRIEF, AI_OS_DESIGN, RAG_STRATEGY, TOOL_CONTRACT, SECURITY_GUARDRAILS, EVAL_HARNESS 등)가 보관되어 있습니다.
 
 - 구조·실행 방법 상세: `legacy/FOLDER_STRUCTURE.md`와 `legacy/docs/`
-- `legacy/`(하위 `legacy/backend/` 포함)는 보존용이며 새 프론트 MVP의 production import 대상이 아니고, 복구/이관 mission이 명시된 경우에만 수정합니다(`AGENTS.md` §3 참조).
+- `legacy/`(하위 `legacy/backend/` 포함)는 보존용이며 새 프론트 MVP나 루트 `backend/`의 production import 대상이 아니고, 복구/이관 mission이 명시된 경우에만 수정합니다(`AGENTS.md` §3 참조). Agent Runtime·RAG·다국어 템플릿 등 legacy 자산의 이관 계획은 `plans/NEXT_ROADMAP_2026-07-16.md` R4·부록 A 참조.

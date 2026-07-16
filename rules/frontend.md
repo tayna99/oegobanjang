@@ -5,7 +5,7 @@
 - 함수형 + 명시적 Props 인터페이스. `export function ApprovalCard(props: ApprovalCardProps)`
 - 파일 1개 = 컴포넌트 1개. 200줄 넘으면 분리 신호
 - 공용(components/)은 도메인 타입 import 금지 — 프리미티브 props만
-- 변형은 variant prop: `<Badge tone="pending">`. 새 tone이 필요하면 tokens와 1단계 §0.2 표에 먼저 추가
+- 변형은 variant prop: `<Chip tone="approval">`. 새 tone이 필요하면 tokens와 rules/design.md §5 표에 먼저 추가
 - 조건부 클래스는 `cn()` 유틸 (기존 코드 승계)
 
 ## 상태

@@ -8,7 +8,7 @@
 AGENTS.md
 ```
 
-현행 운영 대상은 루트의 모바일 우선 Vite + React MVP이며, 작업은 주로 `src/`, `docs/`, `plans/`, `rules/`에서 이루어집니다. 이전 FastAPI 백엔드·데이터 파이프라인·Agent Runtime은 `legacy/`에 보관되어 있습니다.
+현행 운영 대상은 루트의 모바일 우선 Vite + React MVP이며, 작업은 주로 `src/`, `docs/`, `plans/`, `rules/`에서 이루어집니다. 루트 `backend/`는 `db/schema.sql` 기반 FastAPI 서비스(OTP 인증·승인 API)로 이미 존재하고 CI에서 검증되지만, 프론트는 아직 이를 호출하지 않습니다(배선은 `plans/ROADMAP.md` R2). 이전(구) FastAPI 백엔드·데이터 파이프라인·Agent Runtime은 `legacy/`에 보관되어 있습니다.
 
 작업 전 반드시 아래 문서를 확인합니다.
 

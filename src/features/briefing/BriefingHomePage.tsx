@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { visibleCardsForRole, sortCards } from '@/lib/briefing';
+import { visibleCardsForRole } from '@/lib/briefing';
+import { sortCaseList } from '@/lib/cases';
 import { countArrivedResponses } from '@/lib/threads';
 import { useNav } from '@/lib/nav';
 import { CASE_CARDS } from '@/mocks/fixtures';
@@ -32,7 +33,7 @@ export function BriefingHomePage() {
     }
   }, [upsertThread]);
 
-  const visible = sortCards(visibleCardsForRole(Object.values(cases), role));
+  const visible = sortCaseList(visibleCardsForRole(Object.values(cases), role));
   const arrivedResponseCount = countArrivedResponses(Object.values(threads));
 
   return (

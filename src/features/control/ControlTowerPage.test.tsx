@@ -44,12 +44,12 @@ describe('ControlTowerPage (PC §3a, 2.5.6 DoD)', () => {
     expect(within(tower).getByText(/승인 전에는 외부 발송이 차단됩니다/)).toBeInTheDocument();
   });
 
-  it('우선 처리 큐가 위험도×D-day로 정렬된다 — 첫 행 = 긴급 batbayar', () => {
+  it('우선 처리 큐가 위험도×D-day로 정렬된다 — 첫 행 = 즉시 확인 batbayar', () => {
     renderAt('/');
     const queue = screen.getByLabelText('우선 처리 케이스');
     const rows = within(queue).getAllByRole('listitem');
     expect(within(rows[0]).getByText('Batbayar E.')).toBeInTheDocument();
-    expect(within(rows[0]).getByText('긴급')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('즉시 확인')).toBeInTheDocument();
   });
 
   it('고위험 batbayar 행 액션은 "승인"이 아니라 "검토"다 (C10)', () => {

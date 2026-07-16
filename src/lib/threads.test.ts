@@ -18,18 +18,18 @@ function thread(overrides: Partial<MessageThread>): MessageThread {
 }
 
 describe('threadBadge', () => {
-  it('응답 도착(pending_review)이면 최우선으로 info 배지를 반환한다', () => {
+  it('응답 도착(pending_review)이면 최우선으로 approval 배지를 반환한다', () => {
     const t = thread({
       interpretationStatus: 'pending_review',
       draftCaseId: 'x',
       messages: [],
     });
-    expect(threadBadge(t)).toEqual({ label: '응답 도착', tone: 'info' });
+    expect(threadBadge(t)).toEqual({ label: '응답 도착', tone: 'approval' });
   });
 
-  it('draftCaseId가 있고 아직 메시지가 없으면 승인 대기(pending)를 반환한다', () => {
+  it('draftCaseId가 있고 아직 메시지가 없으면 승인 대기(approval)를 반환한다', () => {
     const t = thread({ draftCaseId: 'nguyen', messages: [] });
-    expect(threadBadge(t)).toEqual({ label: '승인 대기', tone: 'pending' });
+    expect(threadBadge(t)).toEqual({ label: '승인 대기', tone: 'approval' });
   });
 
   it('interpretationStatus가 confirmed면 확인 완료(neutral)를 반환한다', () => {
@@ -37,7 +37,7 @@ describe('threadBadge', () => {
     expect(threadBadge(t)).toEqual({ label: '확인 완료', tone: 'neutral' });
   });
 
-  it('마지막 out 메시지가 sent면 발송됨(success)을 반환한다', () => {
+  it('마지막 out 메시지가 sent면 발송됨(positive)을 반환한다', () => {
     const t = thread({
       messages: [
         {
@@ -52,7 +52,7 @@ describe('threadBadge', () => {
         },
       ],
     });
-    expect(threadBadge(t)).toEqual({ label: '발송됨', tone: 'success' });
+    expect(threadBadge(t)).toEqual({ label: '발송됨', tone: 'positive' });
   });
 
   it('그 외에는 초안(neutral)을 반환한다', () => {
@@ -97,7 +97,7 @@ describe('threadBadge', () => {
         },
       ],
     });
-    expect(threadBadge(t)).toEqual({ label: '발송됨', tone: 'success' });
+    expect(threadBadge(t)).toEqual({ label: '발송됨', tone: 'positive' });
   });
 });
 

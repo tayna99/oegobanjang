@@ -18,6 +18,88 @@
 
 ---
 
+### [2026-07-17] R0 — 부채 청산·문서 정합화(0.1~0.6) — 완료
+
+- 한 일: 사용자 지시로 `plans/NEXT_ROADMAP_2026-07-16.md`의 R0 전체(0.1~0.6)를 이번 세션에서
+  구현(R1 이후는 별도 세션에서 순차 진행하기로 확인). `plans/ROADMAP.md`에 R0 절로 승격 후
+  태스크 순서대로 진행:
+  - **0.1 문서 정합화(DOC-1~8)**: `AGENTS.md`·`README.md`·`CLAUDE.md`·`docs/DB_SCHEMA.md`·
+    `db/README.md`·`backend/README.md`·`docs/ARCHITECTURE.md`의 "루트 backend 없음" 서술을
+    실제 `backend/`(OTP 인증+세션, 승인 요청 생성+approve/reject, `decided_by_user_id`는
+    세션에서 도출)에 맞게 갱신 — backend 코드(`app/api/v1/auth.py`·`approvals.py`)를 직접
+    읽어 근거로 삼음. 수치 정합(테이블 33개, 검증 178건 — 코드/DDL 대조로 확인). 로스터
+    오기(`docs/MESSAGING_CHANNELS.md`의 구 5인 로스터 인용) 수정, `docs/SPEC_INDEX.md` 런엔진
+    경로 오기(`src/features/runs/`→`src/lib/`) 수정, `.github/pull_request_template.md`를
+    루트 MVP 우선 체크리스트로 재작성(legacy 전용 항목은 조건부로), 루트 `DESIGN.md`(이 프로젝트와
+    무관한 Toss 참고자료)를 `reference/DESIGN_TOSS_INSPIRATION.md`로 이관+주석. GLOSSARY.md
+    "expert 없음" 노트가 이미 낡았음을 확인해 `plans/ROADMAP.md` M4.7 절도 함께 정정.
+  - **0.2 버그 수정(B-1~4)**: B-1 반려 evidence id에 같은 actionId 내 반려 순번을 붙여
+    동일 사유 재반려가 유실되지 않게 함(`lib/approval.ts`) + 회귀 테스트. B-2·B-3
+    `mocks/threads.ts`의 dangling `caseId:'bayar'`(6인 로스터 치환 후 실제 caseId는
+    `batbayar`)를 바로잡고 `threadIdForCase`에 `batbayar` 매핑 추가 + 회귀 테스트
+    (`actionNav.test.tsx`). B-4 CSV "템플릿 다운로드" 죽은 버튼에 `downloadCsvTemplate()`
+    (data URI 앵커, jsdom에 없는 `URL.createObjectURL` 회피)를 연결 + 테스트 2건.
+  - **0.3 메시지 도메인 단일화(D-1)**: `mocks/messages.ts`(PC `MessagesWorkbench` 전용 독립
+    mock) 완전 삭제, `MessagesWorkbench`를 `threadStore`/`mocks/threads.ts` 기반으로 재작성
+    — 모바일과 완전히 같은 M6 해석확인 오케스트레이션(`confirmInterpretation`→
+    `applyInterpretationUpdates`→evidence `interpretation_confirmed`)을 쓴다(이전 PC 전용
+    코드는 독자적으로 `risk_review→approval_pending` 전이까지 했었는데, 모바일과 어긋나는
+    로직이라 제거). **버그 발견·수정**: 초기 선택 스레드를 `sortThreads(...)[0]`으로 매번
+    재계산했더니, 지금 보던 스레드의 해석을 확인해 정렬 순서가 바뀌는 순간 화면이 다른
+    스레드로 조용히 튀는 버그가 생겨 — 초기 선택을 마운트 시 한 번만 고정하도록 수정.
+  - **0.4 Badge→Chip 마무리(D-2)**: `ThreadListItem`·`InterpretationCard`를 Chip으로 전환,
+    `src/components/Badge.tsx`·`src/lib/badgeTone.ts` 삭제. **버그 발견**: 삭제된 Badge의
+    `pending`/`info` 톤은 tailwind.config.js에 대응 클래스가 아예 없어(v1→v2 토큰 전환 때
+    빠짐) 실제로는 무색으로 렌더되고 있었다 — `lib/threads.ts`의 `threadBadge()`가 이제
+    `ChipTone`을 직접 반환(둘 다 `approval`로 통일, rules/design.md §5 "승인 필요(정보)"
+    표기가 같은 톤인 것과 정합).
+  - **0.5 케이스 타임라인 스토어 승격(D-3)**: `lib/audit.ts`에 `caseTimelineActivity()` 신설
+    — 행정사 회신(`package_reply`)·해석 확인(`interpretation_confirmed`) evidence를
+    `CaseActivityEntry` 모양으로 변환해 `CASE_SHEETS.activity` 정적 목록 앞에 붙인다(실벽시계
+    vs 데모 고정 시각은 형식이 달라 비교 정렬하지 않음 — D-6 미해결과 동일한 우회, "발생
+    순서만" 봄). `CaseWorkbench.CaseTimeline`에 배선 + 회귀 테스트, 브라우저 실검증으로
+    "방금 · #4791 · 해석 확인 · …"이 정적 이력 위에 실시간으로 뜨는 것 확인.
+  - **0.6 파생 로직 통합(D-4, D-5)**: 정렬 중복(`lib/briefing.ts`의 `sortCards` vs
+    `lib/cases.ts`의 `sortCaseList`) 제거 — `sortCards`는 GOTCHAS §4가 요구하는 "유형
+    우선순위" 타이브레이크가 빠진 불완전판이었다, `sortCaseList`로 통일. docUpdates 오버레이
+    중복(`CaseReviewPage`/`CaseWorkbench`에 동일 코드 2벌) → `lib/cases.ts`
+    `applyDocUpdatesOverlay()`로 통합. EVIDENCE_SEED 병합 중복 3벌(`audit.ts`의
+    `mergedAuditLog`·`isCaseEscalated`, `CaseHistoryPage.tsx`) → `mergedAuditLog()` 하나로
+    통일(`CaseHistoryPage`는 생애주기 순서상 결과를 뒤집어 씀). **SEVERITY_LABEL 4중 중복
+    발견·수정**: `ControlTowerPage`·`StepBriefingReady`·`ApprovalCard`가 "긴급/높음/중간/낮음"을,
+    `CaseListScreen`은 "즉시/우선/확인/참고"를 각자 썼는데, `1단계_화면상태스펙_M1-M9_v1.md`
+    §0.2(전 화면 공통 배지 규칙)의 정본 표기는 "즉시 확인/우선 확인/확인 필요/참고"다 — 넷 다
+    스펙과 달랐다. `lib/chipTone.ts`에 `severityLabel()`로 통일. 부수 발견: `CaseListScreen`의
+    로컬 `SEVERITY_TONE`이 MEDIUM을 neutral로 잘못 둬 medium(주황) 톤이 적용 안 되고 있었다
+    — `severityTone()` 공용 함수로 교체해 같이 고침. **D-5(명명 규칙)는 리네임 비용 대비
+    효과가 낮다고 판단해 이번엔 미적용**(NEXT_ROADMAP 자체가 "선택 적용"으로 명시).
+- 남은 일 / 중단 지점: 없음(R0 전 항목 완료). R1(목 세계 플로우 완결)부터는 각 태스크를
+  착수 시 `plans/ROADMAP.md`에 개별 승격해서 진행한다 — 다음 세션은 R1.1(회사 프로필 슬롯)부터.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. `MessagesWorkbench`가 이제 `threadStore`를 직접 구독하므로, 스레드 도메인을 바꾸는
+     후속 작업(R1 이후)은 모바일·PC 양쪽에 자동 반영된다 — 더 이상 두 곳을 따로 고칠 필요 없음.
+  2. `severityLabel()`/`severityTone()`(`lib/chipTone.ts`)이 위험도 배지의 유일한 출처다 —
+     새 화면에서 severity Chip을 렌더할 땐 이 함수를 쓰고 로컬 Record를 새로 만들지 않는다.
+  3. `caseTimelineActivity()`(`lib/audit.ts`)에 반영되는 이벤트 타입은 현재
+     `interpretation_confirmed`·`package_reply` 2종뿐이다 — 케이스 타임라인에 노출할 새
+     이벤트 타입이 생기면 `CASE_TIMELINE_EVENT_TYPES`에 추가한다.
+  4. `mocks/messages.ts`는 완전히 삭제됐다 — 되살릴 필요 없음(threadStore/mocks/threads.ts가
+     유일한 메시지 도메인 소스).
+- verify 상태: PASS — `tsc --noEmit` 클린, `npm run lint` 클린, `npx vitest run` **424/424
+  통과**(순수 추가 3 - 제거 4 + 기존 425 = 424, 커버리지 손실 없음 — sortCards 테스트는
+  sortCaseList 쪽으로 이관), `vite build` 클린. 브라우저 실검증(데스크톱 1280×720): 메시지
+  워크벤치 해석 확인→케이스 상세 타임라인에 "방금" 항목 실시간 반영→docUpdates 오버레이
+  정상 표시→CSV 템플릿 다운로드 버튼 정상 동작까지 클릭 스루 확인.
+- 지도/규칙 갱신: `plans/ROADMAP.md`(R0 절 신설+전 항목 ✅), `plans/NEXT_ROADMAP_2026-07-16.md`
+  (R0 절에 완료 표시 + ROADMAP.md로 승격 안내), `docs/ARCHITECTURE.md`(메시지 도메인 통합
+  서술, DB 수치 정정, backend 존재 반영), `docs/GOTCHAS.md`·`rules/frontend.md`(Chip 표기
+  통일), `docs/MESSAGING_CHANNELS.md`(로스터 인용 정정), `docs/SPEC_INDEX.md`(런엔진 경로
+  정정), `AGENTS.md`·`README.md`·`CLAUDE.md`·`docs/DB_SCHEMA.md`·`db/README.md`·
+  `backend/README.md`(backend 존재 반영), `.github/pull_request_template.md`(루트 MVP 우선
+  재작성), `reference/DESIGN_TOSS_INSPIRATION.md`(신규, 루트에서 이관).
+
+---
+
 ### [2026-07-16] PR #7 ↔ main 병합 재구성 — 완료 (사고 수습 포함)
 - **사고 경위**: 이 브랜치(PR #7)와 main이 각자 독립적으로 메시지/스레드 기능을 다시 구현해
   merge conflict가 발생했다. 병합 계획을 세우려 돌린 "읽기 전용" 분석 Workflow의 서브에이전트

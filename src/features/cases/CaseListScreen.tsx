@@ -9,7 +9,8 @@ import {
   type CaseGroup,
   type CaseGroupKey,
 } from '@/lib/cases';
-import type { CaseCard, Severity } from '@/types';
+import { severityLabel, severityTone } from '@/lib/chipTone';
+import type { CaseCard } from '@/types';
 
 interface CaseListScreenProps {
   companyName: string;
@@ -20,20 +21,6 @@ interface CaseListScreenProps {
   onClearFilter: () => void;
   onOpenCase: (caseId: string) => void;
 }
-
-const SEVERITY_LABEL: Record<Severity, string> = {
-  CRITICAL: '즉시',
-  HIGH: '우선',
-  MEDIUM: '확인',
-  LOW: '참고',
-};
-
-const SEVERITY_TONE: Record<Severity, 'critical' | 'high' | 'neutral'> = {
-  CRITICAL: 'critical',
-  HIGH: 'high',
-  MEDIUM: 'neutral',
-  LOW: 'neutral',
-};
 
 function dueLabel(card: CaseCard): string | undefined {
   if (card.dDay === undefined) return undefined;
@@ -68,7 +55,10 @@ function CaseListItem({ card, onOpenCase }: { card: CaseCard; onOpenCase: (caseI
           <span aria-hidden="true" className="mt-0.5 text-label1 font-semibold text-muted">›</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Chip tone={SEVERITY_TONE[card.severity]}>{SEVERITY_LABEL[card.severity]}</Chip>
+          {/* D-4(NEXT_ROADMAP): 이 화면만의 SEVERITY_LABEL/SEVERITY_TONE을 lib/chipTone.ts
+              공용 selector로 통합 — 로컬 톤 맵은 MEDIUM을 neutral로 잘못 둬 medium(주황)이
+              적용되지 않던 결함도 함께 있었다. */}
+          <Chip tone={severityTone(card.severity)}>{severityLabel(card.severity)}</Chip>
           {due ? <Chip tone={card.dDay !== undefined && card.dDay < 0 ? 'critical' : 'neutral'}>{due}</Chip> : null}
           {/* "승인 필요" 라벨은 그 의미와 일치하는 approval(블루) 톤을 쓴다 — v1은 neutral(회색)로
               텍스트와 색이 어긋나 있었다(2026-07-11 톤 재정비 중 발견, GOTCHAS 임의값 금지 연장선). */}

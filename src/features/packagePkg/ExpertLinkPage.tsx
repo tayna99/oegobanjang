@@ -4,10 +4,10 @@
 // 새 시각 요소가 아니다 — system-derived 태깅 대상 아님(콘텐츠 자체는 목업 있음).
 //
 // 구조화된 회신(PC 4e 확장, 2026-07-13) — reference/design-system/외고반장 PC_4a-4f(신규티어)
-// .dc.html §4e 이식. 회신은 evidence(package_reply)로 기록된다 — "담당자 케이스에 할일로
-// 등록"은 M8 전역 판단 기록(GlobalEvidencePage, evidenceStore를 병합해 보여줌)에서 확인
-// 가능한 수준까지만 구현한다(케이스 타임라인 자체는 CASE_SHEETS 정적 데이터라 런타임에
-// 새 항목을 추가하는 건 별도 리팩터 — 이번 스코프 밖, 후속 과제로 남긴다).
+// .dc.html §4e 이식. 회신은 evidence(package_reply)로 기록된다 — M8 전역 판단 기록
+// (GlobalEvidencePage)에서 항상 확인 가능하고, R0.5(2026-07-17)부터는 케이스 상세의
+// "케이스 타임라인"(CaseWorkbench.CaseTimeline, lib/audit.ts caseTimelineActivity)에도
+// 실시간으로 반영된다.
 import { useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { isLinkExpired } from '@/lib/packageLink';

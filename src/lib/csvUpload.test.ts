@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { rowsToCards, SAMPLE_CSV_ROWS, validateRows } from './csvUpload';
+import { describe, expect, it, vi } from 'vitest';
+import { CSV_TEMPLATE_HEADER, downloadCsvTemplate, rowsToCards, SAMPLE_CSV_ROWS, validateRows } from './csvUpload';
 import type { CsvRow } from './csvUpload';
 
 // 4.4 DoD ① — "잘못된 행(헤더 누락·중복 사번) 검증 실패 테스트".
@@ -61,5 +61,21 @@ describe('rowsToCards', () => {
     const cards = rowsToCards(validateRows(SAMPLE_CSV_ROWS));
     expect(cards.some((c) => c.caseId === 'nguyen')).toBe(false);
     expect(cards.some((c) => c.caseId === 'imp-nguyen-van-a')).toBe(true);
+  });
+});
+
+// NEXT_ROADMAP B-4 — "템플릿 다운로드" 죽은 버튼 수정(CsvUploadWorkbench.test.tsx의 클릭
+// 상호작용 테스트와 별개로, 여기선 다운로드 링크 자체의 내용을 검증한다).
+describe('downloadCsvTemplate', () => {
+  it('CSV 양식 컬럼을 담은 data URI로 앵커를 만들어 클릭한다', () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    downloadCsvTemplate();
+
+    expect(clickSpy).toHaveBeenCalledOnce();
+    const anchor = clickSpy.mock.instances[0] as HTMLAnchorElement;
+    expect(anchor.download).toBe('근로자_등록_템플릿.csv');
+    expect(decodeURIComponent(anchor.href)).toBe(`data:text/csv;charset=utf-8,${CSV_TEMPLATE_HEADER}\n`);
+
+    clickSpy.mockRestore();
   });
 });

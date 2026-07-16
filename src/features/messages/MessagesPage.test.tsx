@@ -22,7 +22,7 @@ describe('MessagesPage', () => {
     expect(screen.getByRole('heading', { name: '메시지' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tran T.H.' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Nguyen V.' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Bayar M.' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Batbayar E.' })).toBeInTheDocument();
   });
 
   it('배지 라벨과 하단 고정 캡션을 보여준다', () => {
