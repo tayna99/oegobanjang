@@ -1,6 +1,6 @@
 name: CI
 
-# 설계 킷(validate.py 160)·백엔드 pytest·프론트 verify를 PR과 main push에서 자동 검증한다.
+# 설계 킷(validate.py 178)·백엔드 pytest·프론트 verify를 PR과 main push에서 자동 검증한다.
 # (F10 — 이전엔 사람 손 실행에만 의존했다.)
 
 on:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   db-kit:
-    name: DB 설계 킷 검증 (validate.py 160)
+    name: DB 설계 킷 검증 (validate.py 178)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - name: validate.py (160 checks)
+      - name: validate.py (178 checks)
         env:
           DATABASE_URL: postgresql://oegobanjang:oegobanjang@localhost:5432/oegobanjang
         run: uv run --no-project --with "psycopg[binary]" python db/validate.py --reset
