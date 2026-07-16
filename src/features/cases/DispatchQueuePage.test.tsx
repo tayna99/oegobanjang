@@ -3,6 +3,7 @@ import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routeConfig } from '@/router';
 import { DISPATCH_QUEUE } from '@/mocks/dispatch';
+import { useApprovalStore } from '@/stores/approvalStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useRoleStore } from '@/stores/roleStore';
 
@@ -21,6 +22,7 @@ function mockViewport(desktop: boolean) {
 
 function renderAt(path: string) {
   useEvidenceStore.getState().reset();
+  useApprovalStore.getState().reset();
   const router = createMemoryRouter(routeConfig, { initialEntries: [path] });
   render(<RouterProvider router={router} />);
   return router;
@@ -51,6 +53,21 @@ describe('DispatchQueuePage (PC 4d)', () => {
       useEvidenceStore.getState().events.some((e) => e.type === 'dispatch_executed' && e.caseId === 'nguyen'),
     ).toBe(true);
     expect(screen.getByText(`실행 대기 ${DISPATCH_QUEUE.length - 1}건 · 오늘 실행 2건`)).toBeInTheDocument();
+  });
+
+  // 코드리뷰 P1: 실행이 approvalStore.dispatch()를 실제로 거치는지 — 승인 상태를 강제로
+  // 되돌려 가드레일이 evidence 기록 자체를 막는지 검증(정상 흐름에서는 도달하지 않는 경로).
+  it('승인되지 않은 항목은 실행해도 evidence가 남지 않는다(가드레일)', () => {
+    renderAt('/cases/dispatch');
+    const item = DISPATCH_QUEUE[0];
+    useApprovalStore.setState((s) => ({
+      approvals: { ...s.approvals, [item.actionId]: { ...s.approvals[item.actionId], status: 'pending' } },
+    }));
+
+    fireEvent.click(screen.getAllByRole('button', { name: '발송 실행 (mock)' })[0]);
+
+    expect(useEvidenceStore.getState().events.some((e) => e.type === 'dispatch_executed')).toBe(false);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 
   it('행정사 패키지 전달 항목은 "링크 발급" 버튼을 보여준다', () => {

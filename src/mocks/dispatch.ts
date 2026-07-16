@@ -15,6 +15,11 @@ export interface DispatchItem {
   approvedAt: string;
   approvedBy: string;
   actionKind: DispatchActionKind;
+  // approvalStore.approvals의 키 — 이 큐가 "승인된 것만 도착"을 실제로 강제하려면
+  // 화면이 approvalStore.dispatch(actionId)를 거쳐야 한다(코드리뷰 P1, GOTCHAS "승인 없이
+  // dispatch 불가"와 동일 가드레일). mock 시나리오상 항상 승인된 채로 시작하지만, 그 보장을
+  // approvalStore가 실제로 지키게 한다.
+  actionId: string;
 }
 
 export const DISPATCH_QUEUE: DispatchItem[] = [
@@ -28,6 +33,7 @@ export const DISPATCH_QUEUE: DispatchItem[] = [
     approvedAt: '07/10 09:32',
     approvedBy: '김담당 (본인)',
     actionKind: 'dispatch',
+    actionId: 'nguyen-dispatch-4789',
   },
   {
     id: 'evt-4791',
@@ -39,6 +45,7 @@ export const DISPATCH_QUEUE: DispatchItem[] = [
     approvedAt: '07/10 09:41',
     approvedBy: '김담당 (본인)',
     actionKind: 'dispatch',
+    actionId: 'siti-dispatch-4791',
   },
   {
     id: 'evt-4792',
@@ -50,6 +57,7 @@ export const DISPATCH_QUEUE: DispatchItem[] = [
     approvedAt: '07/10 09:45',
     approvedBy: '사장님 (owner)',
     actionKind: 'link_issue',
+    actionId: 'batbayar-link-4792',
   },
 ];
 
