@@ -1,0 +1,76 @@
+name: CI
+
+# 설계 킷(validate.py 178)·백엔드 pytest·프론트 verify를 PR과 main push에서 자동 검증한다.
+# (F10 — 이전엔 사람 손 실행에만 의존했다.)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  db-kit:
+    name: DB 설계 킷 검증 (validate.py 178)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: oegobanjang
+          POSTGRES_PASSWORD: oegobanjang
+          POSTGRES_DB: oegobanjang
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oegobanjang"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: validate.py (178 checks)
+        env:
+          DATABASE_URL: postgresql://oegobanjang:oegobanjang@localhost:5432/oegobanjang
+        run: uv run --no-project --with "psycopg[binary]" python db/validate.py --reset
+
+  backend:
+    name: 백엔드 pytest (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: oegobanjang
+          POSTGRES_PASSWORD: oegobanjang
+          POSTGRES_DB: oegobanjang
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oegobanjang"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: uv sync (Python 3.14 — uuid7)
+        working-directory: backend
+        run: uv sync --python 3.14
+      - name: pytest
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://oegobanjang:oegobanjang@localhost:5432/oegobanjang
+        run: uv run pytest
+
+  frontend:
+    name: 프론트 verify (typecheck·lint·test·build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run verify

@@ -32,6 +32,9 @@
 | 리마인드 | `reminder` | 미응답 시 재요청 **제안**. 자동 발송 아님 — scheduled 액션 |
 | 테넌트 | `companyId` | 회사 격리 범위. 모든 조회의 첫 필터 |
 | 역할 | `Role` | owner(대표)/manager(담당자)/viewer/expert(행정사, 링크 수신자) |
+| 채널 | `Channel` | 근로자 발신·수신 경로. `'sms' \| 'alimtalk' \| 'zalo' \| 'email'` — email은 근로자 채널이 아니라 행정사 패키지 전달 전용 (`docs/MESSAGING_CHANNELS.md` §1) |
+| 발송 대기열 | `Outbox` | 승인(human_approved) 이후 채널로 나가기 직전의 단일 지점. 발송 창·idempotency·리마인드 쿨다운을 여기서 한 번만 강제 (`docs/MESSAGING_CHANNELS.md` §2) |
+| 응답 링크 | response link | 발신 메시지에 심는 만료형 토큰 링크로 근로자 응답을 받는 인바운드 패턴. SMS에 수신 API가 없고 Zalo OA 심사 전에도 채널 무관하게 동작하기 위한 1차 실연동 방식 (`docs/MESSAGING_CHANNELS.md` §3) |
 
 ## 인물 fixture (2.5.4b — 디자인 세계관 6인 로스터)
 

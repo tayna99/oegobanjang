@@ -18,6 +18,7 @@ export type AgentStage = 'detected' | 'collecting' | 'drafted' | 'awaiting_appro
 
 export type Role = 'manager' /* 담당자 */ | 'owner' /* 대표 */;
 
+// 'locked'는 저장값이 아니라 근거 게이트 파생 표시(usableCitations 0건) — 서버 값이 아님.
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'locked';
 
 export type NextActionState = 'ready' | 'locked' | 'scheduled' | 'waiting';
@@ -41,7 +42,7 @@ export interface NextActionRef {
 export interface WorkerRef {
   displayName: string; // 디자인 표기 전체 이름 ("Nguyen Van A") — 블루프린트 §3
   nationality: string;
-  team: string; // "제조1팀" — 디자인 §2a/§3a/§3b 부제의 소속 (블루프린트 §3)
+  team?: string; // "제조1팀" — 디자인 §2a/§3a/§3b 부제의 소속 (블루프린트 §3)
   maskLevel: 'masked';
 }
 
@@ -84,7 +85,8 @@ export interface CitationRecord extends Citation {
 export interface Approval {
   actionId: string;
   status: ApprovalStatus;
-  idempotencyKey: string; // 중복 승인 차단 키 (GOTCHAS §2)
+  // pending 요청에는 결정 키가 아직 없고, decide()에서만 non-empty 키를 기록한다.
+  idempotencyKey: string | null; // 중복 승인 차단 키 (GOTCHAS §2)
   reason?: string; // 반려 사유 — "반려 시 사유가 판단 기록에 남고 요청이 되돌아갑니다" (Mobile §2c)
 }
 
@@ -100,7 +102,8 @@ export type EvidenceType =
   | 'review_started' // 사례 검토 진입 (Mobile §2d 타임라인, 블루프린트 §3)
   | 'checklist_completed' // 승인 체크리스트 완료 (Mobile §2d)
   | 'exported' // 패키지 내보내기 (PC §3c 감사 로그 '내보내기' — export_00NN)
-  | 'final_response_generated';
+  | 'final_response_generated'
+  | 'interpretation_confirmed';
 
 export interface EvidenceEvent {
   id: string;
@@ -113,4 +116,26 @@ export interface EvidenceEvent {
   summary?: string; // PII 마스킹된 한 줄 요약만. 원문 메시지 전문 금지
   actor?: string; // "시스템" | "김담당 (본인 확인 완료)" — 원문 개인정보 아님
   evidenceRef?: string; // "#4789" 표시용 판단 기록 번호 (id와 별개 — id는 내부 식별자)
+}
+
+export type Channel = 'sms' | 'alimtalk' | 'zalo' | 'email';
+export type MessageDirection = 'out' | 'in';
+export type MessageDeliveryStatus = 'draft' | 'pending_approval' | 'sent';
+export interface Message {
+  messageId: string; threadId: string; direction: MessageDirection; channel: Channel;
+  body: string; lang: string; at: string; deliveryStatus?: MessageDeliveryStatus;
+  evidenceRef?: string; caseId?: string; externalId?: string;
+}
+export interface InterpretationUpdate { updateId: string; field: string; from: string; to: string; badgeTone: string; }
+export interface Interpretation {
+  interpretationId: string; threadId: string; caseId: string; summaryKo: string;
+  confidence: 'high' | 'low'; updates: InterpretationUpdate[];
+  recommendedActions: { action: NextActionRef; reason: string }[]; isFinal: false;
+  confirmedSummary?: string; confirmedCardText?: string; evidenceRef?: string;
+}
+export interface MessageThread {
+  threadId: string; workerRef: WorkerRef; channel: Channel; channelLabel: string;
+  caseId?: string; draftCaseId?: string; messages: Message[]; interpretation?: Interpretation;
+  interpretationStatus: 'none' | 'pending_review' | 'confirmed'; preview: string;
+  timeLabel: string; reminderScheduledLabel?: string;
 }

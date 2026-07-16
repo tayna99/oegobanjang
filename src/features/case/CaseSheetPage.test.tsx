@@ -37,4 +37,23 @@ describe('CaseSheetPage', () => {
     // role/name 쿼리로는 시트 개폐를 구분할 수 없다 — CaseSheet 전용 블록 헤더로 구분한다.
     expect(screen.queryByText('AI가 확인한 내용')).not.toBeInTheDocument();
   });
+
+  it('caseStore.docUpdates(해석 확인 결과)를 문서 상태 라벨에 오버레이해 보여준다', () => {
+    // threadStore.confirmInterpretation → caseStore.applyInterpretationUpdates 오케스트레이션의
+    // 결과가 실제 M2 시트 UI에 반영되는지 검증한다(2.2 DoD — "해석 확인 시 상태 갱신").
+    useCaseStore.getState().applyInterpretationUpdates('tranCase', [
+      { updateId: 'tran-doc-contract', field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'pending' },
+      { updateId: 'tran-doc-passport', field: '여권 사본', from: '누락', to: '제출 예정 · 내일', badgeTone: 'pending' },
+    ]);
+    render(
+      <MemoryRouter initialEntries={['/case/tranCase']}>
+        <Routes>
+          <Route path="/case/:caseId" element={<CaseSheetPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('회사 확인 필요')).toBeInTheDocument();
+    expect(screen.getByText('제출 예정 · 내일')).toBeInTheDocument();
+    expect(screen.queryByText('누락')).not.toBeInTheDocument();
+  });
 });

@@ -56,10 +56,17 @@ describe('useNextAction', () => {
     expect(getLocation()?.pathname).toBe('/case/bayar');
   });
 
-  it('thread는 메시지 탭으로 이동한다', () => {
+  it('thread는 threadIdForCase 매핑이 있으면 해당 스레드(M6)로 이동한다', () => {
     const { wrapper, getLocation } = setup();
     const { result } = renderHook(() => useNextAction(), { wrapper });
     act(() => result.current('tranCase', action('thread')));
+    expect(getLocation()?.pathname).toBe('/thread/tran');
+  });
+
+  it('thread는 threadIdForCase 매핑이 없으면 메시지 탭으로 폴백한다', () => {
+    const { wrapper, getLocation } = setup();
+    const { result } = renderHook(() => useNextAction(), { wrapper });
+    act(() => result.current('bayar-no-thread-mapping', action('thread')));
     expect(getLocation()?.pathname).toBe('/messages');
   });
 

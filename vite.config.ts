@@ -14,5 +14,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Shared browser-like globals and cold transforms make parallel files flaky on this MVP suite.
+    fileParallelism: false,
   },
 });

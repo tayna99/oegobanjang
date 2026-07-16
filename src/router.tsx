@@ -3,9 +3,11 @@ import type { RouteObject } from 'react-router-dom';
 import { Shell } from '@/Shell';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
+import { MessagesPage } from '@/features/messages/MessagesPage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { RunPage } from '@/features/run/RunPage';
 import { DraftPage } from '@/features/draft/DraftPage';
+import { ThreadPage } from '@/features/thread/ThreadPage';
 import { DonePage } from '@/features/done/DonePage';
 import { PlaceholderScreen } from '@/screens/PlaceholderScreen';
 import { ROUTE_PATHS } from '@/lib/routes';
@@ -39,11 +41,11 @@ export const routeConfig: RouteObject[] = [
         loader: validateIdParam('runId'),
         element: <RunPage />,
       },
-      { path: ROUTE_PATHS.messages, element: <PlaceholderScreen name="메시지" /> },
+      { path: ROUTE_PATHS.messages, element: <MessagesPage /> },
       {
         path: ROUTE_PATHS.thread,
         loader: validateIdParam('threadId'),
-        element: <PlaceholderScreen name="M6 응답 해석" />,
+        element: <ThreadPage />,
       },
       { path: ROUTE_PATHS.evidence, element: <PlaceholderScreen name="M8 판단 기록" /> },
       {

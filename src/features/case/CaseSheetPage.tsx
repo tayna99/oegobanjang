@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { BriefingHomePage } from '@/features/briefing/BriefingHomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
@@ -7,6 +7,7 @@ import { useNav } from '@/lib/nav';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
+import type { CaseSheet as CaseSheetData } from '@/mocks/fixtures';
 import { CaseSheet } from './CaseSheet';
 
 interface CaseRouteState {
@@ -33,6 +34,7 @@ export function CaseSheetPage() {
   const isDesktop = useIsDesktop();
   const cases = useCaseStore((s) => s.cases);
   const upsert = useCaseStore((s) => s.upsert);
+  const docUpdates = useCaseStore((s) => (caseId ? s.docUpdates[caseId] : undefined));
   const routeState = location.state as CaseRouteState | null;
   const returnTo = safeCaseListReturnTo(routeState?.returnTo);
 
@@ -42,14 +44,28 @@ export function CaseSheetPage() {
     }
   }, [upsert]);
 
+  const card = caseId ? cases[caseId] : undefined;
+  const baseSheet = caseId ? CASE_SHEETS[caseId] : undefined;
+
+  // 해석 확인(caseStore.applyInterpretationUpdates)이 남긴 docUpdates를 화면 표시용
+  // statusLabel에 오버레이한다. CASE_SHEETS 원본과 CaseSheet 컴포넌트 계약은 건드리지 않는다.
+  const sheet: CaseSheetData | undefined = useMemo(() => {
+    if (!baseSheet) return undefined;
+    if (!docUpdates || !baseSheet.docs) return baseSheet;
+    return {
+      ...baseSheet,
+      docs: baseSheet.docs.map((doc) =>
+        docUpdates[doc.name] ? { ...doc, statusLabel: docUpdates[doc.name].to } : doc,
+      ),
+    };
+  }, [baseSheet, docUpdates]);
+
   // lg+ 에서는 바텀시트 대신 PC 워크벤치가 해당 케이스를 선택 상태로 렌더한다(M2.5.4).
   // returnTo에 실려 온 필터를 워크벤치 목록 레일에도 그대로 적용해 컨텍스트를 보존한다.
+  // Hook은 화면 크기와 무관하게 같은 순서로 호출해야 한다.
   if (isDesktop) {
     return <CaseWorkbenchPage selectedCaseId={caseId} filterOverride={filterFromReturnTo(returnTo)} />;
   }
-
-  const card = caseId ? cases[caseId] : undefined;
-  const sheet = caseId ? CASE_SHEETS[caseId] : undefined;
 
   return (
     <>
