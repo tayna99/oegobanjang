@@ -19,6 +19,7 @@ get_current_user_id, §13-11).
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from typing import Literal
 
 from sqlalchemy import func, select, update
@@ -189,7 +190,13 @@ def decide_approval(
     actor_display = f"{decider.name} (본인)" if payload.on_behalf_of_user_id is None else f"{decider.name} (대리 승인)"
 
     event_no = _next_event_no(db, approval.company_id)
-    summary = "승인 완료" if decision == "approved" else f"반려: {payload.reason}"
+    summary = "승인 완료" if decision == "approved" else "반려"
+    # PII 보안 리뷰: 코드 리뷰 지적(PR #10) — reason 원문을 summary에 넣으면 append-only
+    # evidence_events가 정규식(contains_pii)이 못 잡는 이름·이메일 등 자유형 PII까지 영구
+    # 저장하게 된다. evidence_events.summary DDL 주석 "PII 마스킹된 한 줄 요약만. 원문 전문
+    # 금지"를 지키기 위해 요약은 고정 문자열로 두고, 사유는 해시로만 남긴다(검증 가능하되
+    # 원문은 복원 불가) — 원문 자체는 approvals.reason(§4.3, evidence_events가 아님)에 남는다.
+    reason_hash = f"sha256:{hashlib.sha256(payload.reason.encode()).hexdigest()}" if payload.reason else None
     db.add(
         EvidenceEvent(
             id=new_id(),
@@ -204,6 +211,7 @@ def decide_approval(
             actor_user_id=decided_by_user_id,
             actor_display=actor_display,
             summary=summary,
+            output_hash=reason_hash,
         )
     )
 
