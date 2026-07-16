@@ -19,3 +19,15 @@ def contains_pii(value: str | None) -> bool:
     if not value:
         return False
     return any(pattern.search(value) for pattern in _PATTERNS)
+
+
+_PHONE_FORMAT = re.compile(r"^(01[016789])-?(\d{3,4})-?(\d{4})$")
+
+
+def mask_phone(phone: str) -> str:
+    """010-1234-5678 → 010-****-5678 (docs/DB_SCHEMA.md §7). 형식이 안 맞으면 원문 그대로 반환."""
+    match = _PHONE_FORMAT.match(phone)
+    if not match:
+        return phone
+    front, _mid, tail = match.groups()
+    return f"{front}-****-{tail}"

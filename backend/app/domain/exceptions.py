@@ -66,6 +66,21 @@ class ApprovalIdempotencyKeyReusedError(ApprovalError):
         super().__init__("idempotency_key가 다른 승인 요청에 이미 사용되었습니다")
 
 
+class ApprovalAlreadyPendingError(ApprovalError):
+    """대상 액션에 이미 pending 승인이 있음 — ux_approvals_one_pending 위반(§4.3), 409."""
+
+    def __init__(self, action_id: str) -> None:
+        super().__init__(f"이미 대기 중인 승인 요청이 있습니다: {action_id}")
+        self.action_id = action_id
+
+
+class ApprovalActionNotRequestableError(ApprovalError):
+    """대상 액션이 requires_approval=false이거나 state != 'ready' — 422."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+
+
 class CaseTransitionError(ApprovalError):
     """docs/DB_SCHEMA.md §5.1 화이트리스트 밖의 전이 — 버그로 취급, 409."""
 

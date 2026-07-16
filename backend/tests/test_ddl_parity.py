@@ -27,7 +27,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 import app.models as models
 
 EXPECTED_TABLES = {
-    "companies", "users", "memberships", "delegations", "workers", "citations",
+    "companies", "users", "login_otps", "sessions", "memberships", "delegations", "workers", "citations",
     "document_requirements", "worker_documents", "worker_intake_files", "cases", "runs",
     "run_steps", "next_actions", "approvals", "case_citations", "evidence_events", "threads",
     "drafts", "draft_variants", "thread_messages", "interpretations", "status_update_proposals",

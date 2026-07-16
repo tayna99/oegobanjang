@@ -1,13 +1,19 @@
-"""승인 결정 서비스 — docs/DB_SCHEMA.md §5.3 승인 게이트 불변식을 강제한다.
+"""승인 결정·요청 서비스 — docs/DB_SCHEMA.md §5.3 승인 게이트 불변식을 강제한다.
 
 상태 전이 + evidence append는 같은 트랜잭션(§0-4, 레거시 PRD Transaction rule 승계) —
-이 함수 안에서 커밋 하나로 묶는다. 실패하면 아무 것도 반영되지 않는다.
+각 함수 안에서 커밋 하나로 묶는다. 실패하면 아무 것도 반영되지 않는다.
 
-동시성(F1): 대상 approval 행을 `SELECT ... FOR UPDATE`로 잠근다(PostgreSQL 네이티브 행 잠금).
-두 요청이 같은 pending 승인을 동시에 결정하면 하나는 잠금을 얻고, 다른 하나는 그 뒤에
-직렬화되어 이미 결정된 승인을 보고 409로 떨어진다. `evidence_seq` 발급도 UPDATE ... RETURNING
-으로 원자화한다. DB 트리거(approvals_update_guard·cases_state_transition 등)가 최종 방어선이며,
-서비스 가드는 그 위반을 500이 아니라 친절한 4xx로 변환하는 계층이다.
+동시성(F1): decide_approval은 대상 approval 행을 `SELECT ... FOR UPDATE`로 잠근다(PostgreSQL
+네이티브 행 잠금). 두 요청이 같은 pending 승인을 동시에 결정하면 하나는 잠금을 얻고, 다른
+하나는 그 뒤에 직렬화되어 이미 결정된 승인을 보고 409로 떨어진다. `evidence_seq` 발급도
+UPDATE ... RETURNING으로 원자화한다. request_approval은 잠글 기존 행이 없으므로
+`ux_approvals_one_pending` 부분 유니크 인덱스가 동시성 방어선이다(동시 생성 시 하나만 성공).
+DB 트리거(approvals_update_guard·cases_state_transition 등)가 최종 방어선이며, 서비스
+가드는 그 위반을 500이 아니라 친절한 4xx로 변환하는 계층이다.
+
+결정자·요청자 신원(decided_by_user_id/requested_by_user_id)은 더 이상 요청 바디로 받지
+않는다 — 인증된 세션에서 도출한 값을 파라미터로 받는다(app/api/deps.py의
+get_current_user_id, §13-11).
 """
 
 from __future__ import annotations
@@ -22,7 +28,9 @@ from sqlalchemy.orm import Session
 from app.db.ids import new_id
 from app.domain.case_transitions import can_transition
 from app.domain.exceptions import (
+    ApprovalActionNotRequestableError,
     ApprovalAlreadyDecidedError,
+    ApprovalAlreadyPendingError,
     ApprovalBlockedByEvidenceError,
     ApprovalChecklistIncompleteError,
     ApprovalForbiddenError,
@@ -44,6 +52,7 @@ from app.models.user import User
 from app.schemas.approval import ApprovalDecisionRequest
 
 APPROVER_ROLES = ("owner", "manager")
+ALLOWED_REQUEST_ROLES = ("manager",)  # 7단계 권한 매트릭스: 케이스 진행(C/R/U)은 manager만(owner는 R)
 
 
 def _usable_citation_count(db: Session, company_id: str, case_id: str) -> int:
@@ -75,6 +84,7 @@ def decide_approval(
     approval_id: str,
     decision: Literal["approved", "rejected"],
     payload: ApprovalDecisionRequest,
+    decided_by_user_id: str,
 ) -> tuple[Approval, str]:
     """승인/반려 처리. 반환값은 (갱신된 Approval, 갱신된 case.state)."""
     # F1: 대상 행을 잠근다 — 동시 결정은 여기서 직렬화된다.
@@ -100,7 +110,7 @@ def decide_approval(
     membership = db.execute(
         select(Membership).where(
             Membership.company_id == approval.company_id,
-            Membership.user_id == payload.decided_by_user_id,
+            Membership.user_id == decided_by_user_id,
             Membership.status == "active",
         )
     ).scalar_one_or_none()
@@ -113,7 +123,7 @@ def decide_approval(
 
     if decision == "approved":
         # 결정자 권한 세분화: manager는 approval_policy='manager_allowed'이고
-        # 케이스 severity가 LOW일 때만(§5.3-6, docs/DB_SCHEMA.md §13-4).
+        # 케이스 severity가 LOW일 때만(§5.3-6, docs/DB_SCHEMA.md §13-9).
         # 주의: 'low risk'를 severity=LOW로 근사한 것 — 실제 액션 위험도 모델은 §13-9 미결.
         if membership.role == "manager":
             company = db.get(Company, approval.company_id)
@@ -142,7 +152,7 @@ def decide_approval(
     else:
         if not payload.reason:
             raise ApprovalReasonRequiredError()
-        # 반려도 사람 결정이므로 본인확인 필수(approve와 동일 — 스키마 approvals CHECK가 강제)
+        # 반려도 사람 결정이므로 본인확인 필수(approve와 동일 — 스키마 approvals CHECK도 강제)
         if payload.identity_method not in ("pin", "biometric"):
             raise ApprovalIdentityRequiredError()
 
@@ -161,7 +171,7 @@ def decide_approval(
 
     approval.status = decision
     approval.idempotency_key = payload.idempotency_key
-    approval.decided_by_user_id = payload.decided_by_user_id
+    approval.decided_by_user_id = decided_by_user_id
     approval.on_behalf_of_user_id = payload.on_behalf_of_user_id
     approval.identity_method = payload.identity_method
     approval.reason = payload.reason
@@ -175,7 +185,7 @@ def decide_approval(
         case.updated_at = now
         db.flush()
 
-    decider = db.get(User, payload.decided_by_user_id)
+    decider = db.get(User, decided_by_user_id)
     actor_display = f"{decider.name} (본인)" if payload.on_behalf_of_user_id is None else f"{decider.name} (대리 승인)"
 
     event_no = _next_event_no(db, approval.company_id)
@@ -191,7 +201,7 @@ def decide_approval(
             action_id=approval.action_id,
             approval_id=approval.id,
             actor_type="approver",
-            actor_user_id=payload.decided_by_user_id,
+            actor_user_id=decided_by_user_id,
             actor_display=actor_display,
             summary=summary,
         )
@@ -202,6 +212,85 @@ def decide_approval(
     except IntegrityError as exc:
         db.rollback()
         raise ApprovalIdempotencyKeyReusedError() from exc
+    db.refresh(approval)
+    db.refresh(case)
+    return approval, case.state
+
+
+def request_approval(db: Session, action_id: str, requested_by_user_id: str) -> tuple[Approval, str]:
+    """승인 요청 생성. `requested_by_actor='user'`만 다룬다 — agent/rule 트리거(프로액티브 런)는
+    별도 범위(9단계, backend/app/agent_runtime/ 이관 시점의 몫)."""
+    next_action = db.get(NextAction, action_id)
+    if next_action is None:
+        raise ApprovalNotFoundError(action_id)
+
+    membership = db.execute(
+        select(Membership).where(
+            Membership.company_id == next_action.company_id,
+            Membership.user_id == requested_by_user_id,
+            Membership.status == "active",
+        )
+    ).scalar_one_or_none()
+    if membership is None or membership.role not in ALLOWED_REQUEST_ROLES:
+        raise ApprovalForbiddenError("승인 요청 권한이 없습니다")
+
+    if not next_action.requires_approval:
+        raise ApprovalActionNotRequestableError("승인이 필요하지 않은 액션입니다")
+    if next_action.state != "ready":
+        raise ApprovalActionNotRequestableError(f"준비되지 않은 액션입니다 (state={next_action.state})")
+
+    existing = db.execute(
+        select(Approval).where(Approval.action_id == action_id, Approval.status == "pending")
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ApprovalAlreadyPendingError(action_id)
+
+    case = db.get(Case, next_action.case_id)
+    if not can_transition(case.state, "approval_pending"):
+        raise CaseTransitionError(case.state, "approval_pending")
+
+    now = dt.datetime.now(dt.timezone.utc)
+    approval = Approval(
+        id=new_id(),
+        company_id=next_action.company_id,
+        case_id=next_action.case_id,
+        action_id=action_id,
+        status="pending",
+        requested_by_actor="user",
+        requested_by_user_id=requested_by_user_id,
+        requested_at=now,
+    )
+    db.add(approval)
+    db.flush()
+
+    case.state = "approval_pending"
+    case.updated_at = now
+    db.flush()
+
+    event_no = _next_event_no(db, next_action.company_id)
+    requester = db.get(User, requested_by_user_id)
+    db.add(
+        EvidenceEvent(
+            id=new_id(),
+            company_id=next_action.company_id,
+            event_no=event_no,
+            type="approval_requested",
+            at=now,
+            case_id=next_action.case_id,
+            action_id=action_id,
+            approval_id=approval.id,
+            actor_type="user",
+            actor_user_id=requested_by_user_id,
+            actor_display=f"{requester.name} (본인)",
+            summary="승인 요청",
+        )
+    )
+
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise ApprovalAlreadyPendingError(action_id) from exc
     db.refresh(approval)
     db.refresh(case)
     return approval, case.state

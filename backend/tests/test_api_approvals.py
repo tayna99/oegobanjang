@@ -1,7 +1,7 @@
-"""POST /api/v1/approvals/{id}/approve|reject — 승인 결정 서비스의 게이트·동시성·멱등성 검증.
+"""POST /api/v1/approvals/{id}/approve|reject — 승인 결정 서비스의 게이트·동시성·멱등성·인증 검증.
 
-DB 레벨 가드레일(테넌트·상태머신 145건)은 db/validate.py가 담당한다. 이 테스트는 서비스 계층
-(HTTP 상태 매핑·게이트 판정·케이스 전이·evidence append)을 PG 실 인스턴스에서 검증한다.
+DB 레벨 가드레일(테넌트·상태머신)은 db/validate.py가 담당한다. 이 테스트는 서비스 계층
+(HTTP 상태 매핑·게이트 판정·케이스 전이·evidence append·세션 인증)을 PG 실 인스턴스에서 검증한다.
 일괄(batch) 엔드포인트는 존재하지 않는다(GOTCHAS §3) — 그런 테스트가 없는 것이 의도다.
 """
 
@@ -84,14 +84,31 @@ def client(seeded):
     app.dependency_overrides.clear()
 
 
+PHONE_BY_USER = {"u_owner": "010-0000-0001", "u_manager": "010-0000-0002"}
+
+
+def _login(client: TestClient, phone: str) -> str:
+    req = client.post("/api/v1/auth/otp/request", json={"phone": phone})
+    assert req.status_code == 200, req.text
+    code = req.json()["debug_code"]
+    assert code is not None  # 테스트 환경(environment=local)에서만 노출됨
+    verify = client.post("/api/v1/auth/otp/verify", json={"phone": phone, "code": code})
+    assert verify.status_code == 200, verify.text
+    return verify.json()["session_token"]
+
+
+def _auth_headers(client: TestClient, user: str = "u_owner") -> dict:
+    return {"Authorization": f"Bearer {_login(client, PHONE_BY_USER[user])}"}
+
+
 def _body(**overrides):
-    body = {"idempotency_key": str(uuid.uuid4()), "decided_by_user_id": "u_owner", "identity_method": "pin"}
+    body = {"idempotency_key": str(uuid.uuid4()), "identity_method": "pin"}
     body.update(overrides)
     return body
 
 
 def test_approve_success_by_owner(client, seeded):
-    resp = client.post("/api/v1/approvals/apv1/approve", json=_body())
+    resp = client.post("/api/v1/approvals/apv1/approve", json=_body(), headers=_auth_headers(client))
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["approval"]["status"] == "approved"
@@ -101,12 +118,21 @@ def test_approve_success_by_owner(client, seeded):
 
 
 def test_approve_requires_identity_method(client):
-    resp = client.post("/api/v1/approvals/apv1/approve", json=_body(identity_method=None))
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(identity_method=None), headers=_auth_headers(client)
+    )
     assert resp.status_code == 422, resp.text
 
 
+def test_approve_without_session_is_unauthorized(client):
+    resp = client.post("/api/v1/approvals/apv1/approve", json=_body())
+    assert resp.status_code == 401, resp.text
+
+
 def test_manager_cannot_approve_when_policy_owner_only(client):
-    resp = client.post("/api/v1/approvals/apv1/approve", json=_body(decided_by_user_id="u_manager"))
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(), headers=_auth_headers(client, user="u_manager")
+    )
     assert resp.status_code == 403, resp.text
 
 
@@ -114,14 +140,17 @@ def test_manager_can_approve_low_severity_when_policy_allows(client, seeded):
     seeded.execute(text("UPDATE companies SET approval_policy='manager_allowed' WHERE id='cmp1'"))
     seeded.execute(text("UPDATE cases SET severity='LOW' WHERE id='cs1'"))
     seeded.flush()
-    resp = client.post("/api/v1/approvals/apv1/approve", json=_body(decided_by_user_id="u_manager"))
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(), headers=_auth_headers(client, user="u_manager")
+    )
     assert resp.status_code == 200, resp.text
 
 
 def test_approve_idempotent_replay_returns_same_result(client, seeded):
     key = str(uuid.uuid4())
-    first = client.post("/api/v1/approvals/apv1/approve", json=_body(idempotency_key=key))
-    second = client.post("/api/v1/approvals/apv1/approve", json=_body(idempotency_key=key))
+    headers = _auth_headers(client)
+    first = client.post("/api/v1/approvals/apv1/approve", json=_body(idempotency_key=key), headers=headers)
+    second = client.post("/api/v1/approvals/apv1/approve", json=_body(idempotency_key=key), headers=headers)
     assert first.status_code == 200 and second.status_code == 200
     assert first.json()["approval"]["status"] == second.json()["approval"]["status"] == "approved"
     count = seeded.execute(text("SELECT count(*) FROM evidence_events WHERE approval_id='apv1'")).scalar_one()
@@ -130,32 +159,40 @@ def test_approve_idempotent_replay_returns_same_result(client, seeded):
 
 def test_replay_with_wrong_direction_is_conflict(client):
     key = str(uuid.uuid4())
-    first = client.post("/api/v1/approvals/apv1/approve", json=_body(idempotency_key=key))
+    headers = _auth_headers(client)
+    first = client.post("/api/v1/approvals/apv1/approve", json=_body(idempotency_key=key), headers=headers)
     assert first.status_code == 200
     # approve로 소진된 키로 reject 재호출 → 409(F2)
-    second = client.post("/api/v1/approvals/apv1/reject", json=_body(idempotency_key=key, reason="다시 봄"))
+    second = client.post(
+        "/api/v1/approvals/apv1/reject", json=_body(idempotency_key=key, reason="다시 봄"), headers=headers
+    )
     assert second.status_code == 409, second.text
 
 
 def test_approve_different_key_after_decided_is_conflict(client):
-    assert client.post("/api/v1/approvals/apv1/approve", json=_body()).status_code == 200
-    assert client.post("/api/v1/approvals/apv1/approve", json=_body()).status_code == 409
+    headers = _auth_headers(client)
+    assert client.post("/api/v1/approvals/apv1/approve", json=_body(), headers=headers).status_code == 200
+    assert client.post("/api/v1/approvals/apv1/approve", json=_body(), headers=headers).status_code == 409
 
 
 def test_approve_blocked_when_no_usable_citation(client, seeded):
     _seed_case_with_pending_approval(seeded, cid="cs2", aid="act2", apid="apv2", code="case_002",
                                      with_citation=False, due="2026-09-01")
-    resp = client.post("/api/v1/approvals/apv2/approve", json=_body())
+    resp = client.post("/api/v1/approvals/apv2/approve", json=_body(), headers=_auth_headers(client))
     assert resp.status_code == 422, resp.text
 
 
 def test_reject_requires_reason(client):
-    resp = client.post("/api/v1/approvals/apv1/reject", json=_body(reason=None))
+    resp = client.post(
+        "/api/v1/approvals/apv1/reject", json=_body(reason=None), headers=_auth_headers(client)
+    )
     assert resp.status_code == 422, resp.text
 
 
 def test_reject_success_transitions_case_to_returned(client):
-    resp = client.post("/api/v1/approvals/apv1/reject", json=_body(reason="근거 확인 필요"))
+    resp = client.post(
+        "/api/v1/approvals/apv1/reject", json=_body(reason="근거 확인 필요"), headers=_auth_headers(client)
+    )
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["approval"]["status"] == "rejected"
@@ -163,7 +200,11 @@ def test_reject_success_transitions_case_to_returned(client):
 
 
 def test_reject_reason_with_pii_is_blocked(client):
-    resp = client.post("/api/v1/approvals/apv1/reject", json=_body(reason="010-1234-5678로 연락해 확인"))
+    resp = client.post(
+        "/api/v1/approvals/apv1/reject",
+        json=_body(reason="010-1234-5678로 연락해 확인"),
+        headers=_auth_headers(client),
+    )
     assert resp.status_code == 422, resp.text
 
 
@@ -171,7 +212,7 @@ def test_high_risk_blocked_case_rejects_non_handoff_action(client, seeded):
     _seed_case_with_pending_approval(seeded, cid="cs3", aid="act3", apid="apv3", code="case_003",
                                      severity="CRITICAL", state="blocked", action_type="send_message",
                                      due="2026-07-08")
-    resp = client.post("/api/v1/approvals/apv3/approve", json=_body())
+    resp = client.post("/api/v1/approvals/apv3/approve", json=_body(), headers=_auth_headers(client))
     assert resp.status_code == 403, resp.text
 
 
@@ -180,7 +221,7 @@ def test_high_risk_blocked_case_handoff_approves_but_stays_blocked(client, seede
     _seed_case_with_pending_approval(seeded, cid="cs4", aid="act4", apid="apv4", code="case_004",
                                      severity="CRITICAL", state="blocked", action_type="create_handoff",
                                      due="2026-07-09")
-    resp = client.post("/api/v1/approvals/apv4/approve", json=_body())
+    resp = client.post("/api/v1/approvals/apv4/approve", json=_body(), headers=_auth_headers(client))
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["approval"]["status"] == "approved"
@@ -188,4 +229,5 @@ def test_high_risk_blocked_case_handoff_approves_but_stays_blocked(client, seede
 
 
 def test_approval_not_found_returns_404(client):
-    assert client.post("/api/v1/approvals/nope/approve", json=_body()).status_code == 404
+    resp = client.post("/api/v1/approvals/nope/approve", json=_body(), headers=_auth_headers(client))
+    assert resp.status_code == 404
