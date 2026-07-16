@@ -20,8 +20,5 @@ export default defineConfig({
     hookTimeout: 15000,
     // Shared browser-like globals and cold transforms make parallel files flaky on this MVP suite.
     fileParallelism: false,
-    // 저장소 루트 밖(.claude/worktrees, .codex/worktrees, .review-pr* 등 병렬 세션용 중첩
-    // 체크아웃)의 동일 이름 테스트 파일까지 vitest 기본 glob이 주워 담는 문제 방지(PR #8).
-    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
   },
 });

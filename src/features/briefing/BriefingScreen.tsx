@@ -21,7 +21,7 @@ const OWNER_COMMAND_SUGGESTIONS = ['오늘 승인 대기 요약해줘', '이번 
 // "에이전트 진행 중 N건" → SafetyNotice → CommandBar(스펙 트랙 존치, 블루프린트 §1).
 // 상태 5종 유니온은 유일한 진실 그대로 유지(1단계 §M1).
 export type BriefingViewState =
-  | { status: 'default'; cards: CaseCard[] }
+  | { status: 'default'; cards: CaseCard[]; arrivedResponseCount?: number }
   | { status: 'empty'; hasWorkers: true; nextScheduledHint?: string }
   | { status: 'empty'; hasWorkers: false }
   | { status: 'loading' }
@@ -34,6 +34,7 @@ export interface BriefingScreenProps {
   header: BriefingHeaderProps;
   onOpenCase: (caseId: string) => void;
   onSeeAllCases: () => void;
+  onOpenMessages?: () => void;
   role: Role;
 }
 
@@ -59,11 +60,15 @@ function QueueSection({
   onOpenCase,
   offline,
   role,
+  arrivedResponseCount,
+  onOpenMessages,
 }: {
   cards: CaseCard[];
   onOpenCase: (caseId: string) => void;
   offline?: boolean;
   role: Role;
+  arrivedResponseCount?: number;
+  onOpenMessages?: () => void;
 }) {
   const queue = approvalQueue(cards);
   const progress = agentProgress(cards);
@@ -71,8 +76,18 @@ function QueueSection({
   const events = useEvidenceStore((s) => s.events);
   return (
     <>
-      {/* owner: 통계 숨김(7단계 §6 "승인 카드만, 통계 숨김") */}
+      {/* owner: 통계 숨김(7단계 §6 "승인 카드만, 통계 숨김") — 응답 도착 진입점도 같은 규칙 */}
       {role !== 'owner' && <PipelineStatRow cards={cards} />}
+      {role !== 'owner' && arrivedResponseCount !== undefined && onOpenMessages && (
+        <button
+          type="button"
+          onClick={onOpenMessages}
+          className="mt-2 flex w-full items-center justify-between rounded-in border border-hairline bg-canvas px-3 py-2 text-left transition-shadow duration-btn ease-v2 active:bg-surface"
+        >
+          <span className="text-label1 font-semibold text-ink">응답 도착</span>
+          <span className="text-body2 font-bold tabular-nums text-ink">{arrivedResponseCount}</span>
+        </button>
+      )}
       <section className="mt-4" aria-label="승인 큐">
         <h2 className="mb-2 text-pc-sm font-semibold text-subtle">내가 처리할 승인 {queue.length}건</h2>
         {queue.map((card) => (
@@ -96,7 +111,14 @@ function QueueSection({
   );
 }
 
-export function BriefingScreen({ state, header, onOpenCase, onSeeAllCases, role }: BriefingScreenProps) {
+export function BriefingScreen({
+  state,
+  header,
+  onOpenCase,
+  onSeeAllCases,
+  onOpenMessages,
+  role,
+}: BriefingScreenProps) {
   return (
     <div className="p-5">
       {state.status === 'offline' && <OfflineBanner lastSyncedAt={state.lastSyncedAt} />}
@@ -115,7 +137,13 @@ export function BriefingScreen({ state, header, onOpenCase, onSeeAllCases, role 
 
       {state.status === 'default' && (
         <>
-          <QueueSection cards={state.cards} onOpenCase={onOpenCase} role={role} />
+          <QueueSection
+            cards={state.cards}
+            onOpenCase={onOpenCase}
+            role={role}
+            arrivedResponseCount={state.arrivedResponseCount}
+            onOpenMessages={onOpenMessages}
+          />
           <div className="mt-4">
             <SafetyNotice />
           </div>

@@ -109,7 +109,7 @@ export type EvidenceType =
   | 'checklist_completed' // 승인 체크리스트 완료 (Mobile §2d)
   | 'exported' // 패키지 내보내기 (PC §3c 감사 로그 '내보내기' — export_00NN)
   | 'final_response_generated'
-  | 'interpretation_confirmed' // M6 해석 확인 — 문서 상태 갱신 오케스트레이션 전용(main 이식, 병합)
+  | 'interpretation_confirmed' // M6 해석 확인(메시지 스레드) — threadStore.confirmInterpretation
   | 'role_granted' // 구성원 초대·역할 부여(7단계 §5)
   | 'role_changed' // 구성원 역할 변경
   | 'member_invited'
@@ -134,6 +134,30 @@ export interface EvidenceEvent {
   summary?: string; // PII 마스킹된 한 줄 요약만. 원문 메시지 전문 금지
   actor?: string; // "시스템" | "김담당 (본인 확인 완료)" — 원문 개인정보 아님
   evidenceRef?: string; // "#4789" 표시용 판단 기록 번호 (id와 별개 — id는 내부 식별자)
+}
+
+// --- 메시지 채널 · M6 해석 확인 (2.2) ---
+
+export type Channel = 'sms' | 'alimtalk' | 'zalo' | 'email';
+export type MessageDirection = 'out' | 'in';
+export type MessageDeliveryStatus = 'draft' | 'pending_approval' | 'sent';
+export interface Message {
+  messageId: string; threadId: string; direction: MessageDirection; channel: Channel;
+  body: string; lang: string; at: string; deliveryStatus?: MessageDeliveryStatus;
+  evidenceRef?: string; caseId?: string; externalId?: string;
+}
+export interface InterpretationUpdate { updateId: string; field: string; from: string; to: string; badgeTone: string; }
+export interface Interpretation {
+  interpretationId: string; threadId: string; caseId: string; summaryKo: string;
+  confidence: 'high' | 'low'; updates: InterpretationUpdate[];
+  recommendedActions: { action: NextActionRef; reason: string }[]; isFinal: false;
+  confirmedSummary?: string; confirmedCardText?: string; evidenceRef?: string;
+}
+export interface MessageThread {
+  threadId: string; workerRef: WorkerRef; channel: Channel; channelLabel: string;
+  caseId?: string; draftCaseId?: string; messages: Message[]; interpretation?: Interpretation;
+  interpretationStatus: 'none' | 'pending_review' | 'confirmed'; preview: string;
+  timeLabel: string; reminderScheduledLabel?: string;
 }
 
 // --- 7단계 권한모델 — 회사(tenant) 설정 계약 ---
@@ -180,10 +204,4 @@ export interface ExpertAccount {
 export interface ExpertMembership {
   expertId: string;
   tenantId: string;
-}
-
-// M6 해석 확인이 제안하는 서류 필드 갱신 — caseStore.applyInterpretationUpdates가 소비한다.
-export interface InterpretationUpdate {
-  field: string;
-  to: string;
 }

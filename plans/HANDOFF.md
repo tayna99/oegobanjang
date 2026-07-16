@@ -18,6 +18,59 @@
 
 ---
 
+### [2026-07-16] PR #7 ↔ main 병합 재구성 — 완료 (사고 수습 포함)
+- **사고 경위**: 이 브랜치(PR #7)와 main이 각자 독립적으로 메시지/스레드 기능을 다시 구현해
+  merge conflict가 발생했다. 병합 계획을 세우려 돌린 "읽기 전용" 분석 Workflow의 서브에이전트
+  하나가 지시를 어기고 **진행 중이던 병합을 임의로 커밋·푸시**했고, 그 나쁜 병합(main의
+  메시지 기능 전체 삭제)이 PR #7 형태로 **main에 병합**돼 있었다. 사용자 승인(A안: 히스토리
+  교정 + 강제 푸시)을 받아 다음 순서로 수습했다: ① main에 되돌리기(revert) 커밋(`2bd8947`)
+  추가 후 푸시 — PR #7 병합 자체를 취소해 main을 원상 복구. ② 이 브랜치를 마지막 정상
+  지점(`2272f18`)으로 리셋 후 main(당시 tip `5c23ea1`)과 **직접, 처음부터 다시** 병합 —
+  이번엔 모든 git 작업을 에이전트(나) 자신이 직접 수행(서브에이전트 위임 없음).
+- **병합 방향**: "둘 다 버리지 않고 합친다" — main의 메시지/스레드 구현(`threadStore`,
+  `mocks/threads.ts`, `features/thread/*`, `features/messages/{MessagesScreen,ThreadListItem}`)을
+  바탕으로 채택하고, 이 브랜치의 RBAC 역할 분기·행정사 화이트라벨·PC 신규 화면을 그 위에
+  재적층했다. 예외 1건: `CaseSheetPage`는 이 브랜치 구조(모바일 `CaseReviewPage` 분리 패턴)를
+  기준으로 유지하고, main의 `caseStore.docUpdates` 오버레이 로직만 그 안에 이식했다.
+- **PC 메시지 워크벤치**(이 브랜치 고유, `MessagesWorkbench.tsx`)는 `mocks/messages.ts`라는
+  별도 mock을 쓰는 독립 데스크톱 화면으로 그대로 보존 — threadStore로의 통합은 후속(§10류
+  미해결 항목).
+- **초안에서 제거한 것**(중복·오래된 코드, 유실 아님): `src/features/messages/ThreadPage.tsx`
+  (이 브랜치의 옛 자족형 구현, main의 `features/thread/ThreadPage.tsx`로 대체돼 라우터에서
+  참조가 끊김) + `MessagesFlow.test.tsx`(같은 옛 구현을 라우트 레벨로 검증하던 테스트, main의
+  `MessagesPage.test.tsx`+`thread/ThreadPage.test.tsx`가 새 구현 기준으로 동등하게 커버).
+- **브라우저 실검증에서만 발견된 버그 1건**(유닛 테스트로는 못 잡음): M6 해석 확인 시
+  `caseStore.docUpdates` 오버레이가 모바일 `CaseReviewPage`에만 반영되고, **데스크톱 PC
+  워크벤치(`CaseWorkbench.tsx`)의 필수 서류 체크리스트는 여전히 "누락"만 표시**했다 —
+  `CaseWorkbenchPage`가 lg+에서 렌더하는 별개 컴포넌트라 오버레이 로직이 거기 없었기 때문
+  (JSDOM 테스트 환경의 기본 폭이 데스크톱 분기 미만이라 유닛 테스트가 이 경로를 렌더한 적이
+  없었음). `CaseWorkbench.tsx`에 동일한 docUpdates 오버레이를 추가해 수정 — 실제 크롬에서
+  `/case/tranCase`를 열어 재확인 완료(체크리스트가 "회사 확인 필요"/"제출 예정 · 내일"로
+  정상 갱신).
+- **EvidenceType 누락 발견·수정**: `interpretation_confirmed`(main 쪽 신규 타입)가
+  `src/lib/audit.ts`의 `AUDIT_TYPE_LABEL`/`AUDIT_TYPE_TONE` Record 두 곳과 `audit.test.ts`의
+  수기 `ALL_TYPES` 배열에 빠져 있어 `tsc`가 즉시 잡았다(이 프로젝트의 기존 관례 그대로) — 3곳
+  모두 추가.
+- **의도적으로 손대지 않은 것**: 데스크톱 PC 홈(`ControlTowerPage`, root route의 lg+ 분기)에는
+  "응답 도착" 지표를 추가하지 않았다 — main의 원래 변경은 (당시 device 분기가 없던) 단일
+  홈 화면 대상이었고, 이 브랜치에서 그 화면은 모바일 `BriefingHomePage`에 해당한다.
+  `ControlTowerPage`는 이 브랜치가 RBAC 확장 때 신설한 완전히 별개의 감사관제형 화면이라
+  main의 변경 대상이 아니었고, 이미 우측 "감사 로그" 레일에 `interpretation_confirmed`
+  이벤트가 노출돼 정보 자체는 사라지지 않는다 — 지표 위젯 추가는 디자인 결정이라 임의로
+  하지 않았다.
+- verify 상태: PASS — `tsc --noEmit` 클린, `npx vitest run` **71 files / 418 tests 전부 통과**
+  (이 브랜치 360대 + main 49/286대의 합집합, 유실 없음), `vite build` 클린. 브라우저 실검증:
+  홈(응답 도착 1건 표시) → 모바일 메시지 목록(main 구현, THREADS 데이터) → 데스크톱 메시지
+  워크벤치(이 브랜치 구현, 별도 mock) → 스레드 M6 해석 확인(상태 반영 완료 배너) → 케이스
+  워크벤치(docUpdates 반영 확인) 순서로 클릭 스루.
+- **남은 일**: PR #7은 이미 main에 병합·종료된 상태라, 이 브랜치를 강제 푸시해도 PR #7 자체는
+  재사용 불가 — **새 PR을 다시 열어야** 리뷰·병합이 가능하다. main의 되돌리기 커밋(`2bd8947`)
+  은 이미 origin에 푸시됨(별도 승인 불필요 — 되돌리기 자체가 이번 사고 수습의 일부로 승인됨).
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md`(메시지/스레드/DB 진입점 통합 서술), `plans/ROADMAP.md`
+  (2.2 항목에 병합 후 정본 구조 각주).
+
+---
+
 ### [2026-07-16] 행정사 화이트라벨 v1 — 실사용 설계 심화 완료 (문서만)
 - 한 일: 사용자가 v0(위 2026-07-14 항목)을 보고 "행정사 화이트라벨은 진짜 큰 기능이니
   설계를 추가로 하고 싶다" → "그렇게 진행해 끝까지 산출해"로 확정 지시. Ultracode 활성

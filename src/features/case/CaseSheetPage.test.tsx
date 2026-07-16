@@ -45,11 +45,11 @@ describe('CaseSheetPage', () => {
   });
 
   it('caseStore.docUpdates(해석 확인 결과)를 문서 상태 라벨에 오버레이해 보여준다', () => {
-    // ThreadPage.onConfirm → caseStore.applyInterpretationUpdates 오케스트레이션의
-    // 결과가 실제 2b 검토 화면에 반영되는지 검증한다(2.2 DoD — "해석 확인 시 상태 갱신").
+    // threadStore.confirmInterpretation → caseStore.applyInterpretationUpdates 오케스트레이션의
+    // 결과가 실제 M2 시트 UI에 반영되는지 검증한다(2.2 DoD — "해석 확인 시 상태 갱신").
     useCaseStore.getState().applyInterpretationUpdates('tranCase', [
-      { field: '표준근로계약서', to: '회사 확인 필요' },
-      { field: '여권 사본', to: '제출 예정 · 내일' },
+      { updateId: 'tran-doc-contract', field: '표준근로계약서', from: '누락', to: '회사 확인 필요', badgeTone: 'pending' },
+      { updateId: 'tran-doc-passport', field: '여권 사본', from: '누락', to: '제출 예정 · 내일', badgeTone: 'pending' },
     ]);
     render(
       <MemoryRouter initialEntries={['/case/tranCase']}>

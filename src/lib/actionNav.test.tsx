@@ -56,17 +56,17 @@ describe('useNextAction', () => {
     expect(getLocation()?.pathname).toBe('/case/batbayar');
   });
 
-  it('thread는 해당 caseId에 스레드(M6)가 있으면 그 스레드로 이동한다', () => {
+  it('thread는 threadIdForCase 매핑이 있으면 해당 스레드(M6)로 이동한다', () => {
     const { wrapper, getLocation } = setup();
     const { result } = renderHook(() => useNextAction(), { wrapper });
     act(() => result.current('tranCase', action('thread')));
-    expect(getLocation()?.pathname).toBe('/thread/tranCase');
+    expect(getLocation()?.pathname).toBe('/thread/tran');
   });
 
-  it('thread는 해당 caseId에 스레드가 없으면 메시지 탭으로 폴백한다', () => {
+  it('thread는 threadIdForCase 매핑이 없으면 메시지 탭으로 폴백한다', () => {
     const { wrapper, getLocation } = setup();
     const { result } = renderHook(() => useNextAction(), { wrapper });
-    act(() => result.current('batbayar', action('thread')));
+    act(() => result.current('bayar-no-thread-mapping', action('thread')));
     expect(getLocation()?.pathname).toBe('/messages');
   });
 
