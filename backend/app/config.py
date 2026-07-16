@@ -14,10 +14,20 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://oegobanjang:oegobanjang@localhost:55432/oegobanjang"
     environment: str = "local"
     auth_pepper: str = INSECURE_DEFAULT_AUTH_PEPPER  # OTP/세션 토큰 해시 pepper — 배포 전 반드시 env로 교체
+    # 코드 리뷰 지적(PR #12): CORSMiddleware가 없어 프론트(다른 origin)의 첫 요청부터
+    # preflight가 막혔다. None이면 environment로 판단(local=아래 정규식, 그 외=CORS 전면
+    # 차단 — auth_pepper와 동일한 "non-local은 명시 설정 전까지 안전 기본값" 원칙).
+    cors_allow_origin_regex: str | None = None
 
     @property
     def is_local(self) -> bool:
         return self.environment == "local"
+
+    @property
+    def resolved_cors_allow_origin_regex(self) -> str | None:
+        if self.cors_allow_origin_regex is not None:
+            return self.cors_allow_origin_regex
+        return r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$" if self.is_local else None
 
     @model_validator(mode="after")
     def _forbid_insecure_pepper_outside_local(self) -> "Settings":

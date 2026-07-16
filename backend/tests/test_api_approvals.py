@@ -8,6 +8,7 @@ DB 레벨 가드레일(테넌트·상태머신)은 db/validate.py가 담당한�
 from __future__ import annotations
 
 import hashlib
+import json
 import uuid
 
 import pytest
@@ -15,7 +16,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db.session import get_db
+from app.domain.auth_tokens import hash_secret
 from app.main import app
+
+TEST_PIN = "000000"
 
 
 def _seed_base(db):
@@ -32,12 +36,14 @@ def _seed_base(db):
         INSERT INTO citations (id, grade, status, title, source, ingest_at) VALUES
           ('cit_a','A','official','출입국관리법 제25조','국가법령정보센터', now());
     """))
+    # identity_method='pin' 실검증(§13-12) — 시드 사용자 전원에 테스트 PIN 등록.
+    db.execute(text("UPDATE users SET pin_hash = :h"), {"h": hash_secret(TEST_PIN)})
     db.flush()
 
 
 def _seed_case_with_pending_approval(
     db, *, cid, aid, apid, code, severity="HIGH", state="approval_pending",
-    action_type="send_message", with_citation=True, due="2026-08-09",
+    action_type="send_message", with_citation=True, due="2026-08-09", checklist=None,
 ):
     db.execute(
         text(
@@ -60,10 +66,10 @@ def _seed_case_with_pending_approval(
         )
     db.execute(
         text(
-            "INSERT INTO approvals (id, company_id, case_id, action_id, status, requested_by_actor, requested_at) "
-            "VALUES (:apid,'cmp1',:cid,:aid,'pending','agent', now())"
+            "INSERT INTO approvals (id, company_id, case_id, action_id, status, requested_by_actor, checklist, requested_at) "
+            "VALUES (:apid,'cmp1',:cid,:aid,'pending','agent', CAST(:checklist AS jsonb), now())"
         ),
-        {"apid": apid, "cid": cid, "aid": aid},
+        {"apid": apid, "cid": cid, "aid": aid, "checklist": json.dumps(checklist) if checklist else None},
     )
     db.flush()
 
@@ -102,8 +108,19 @@ def _auth_headers(client: TestClient, user: str = "u_owner") -> dict:
     return {"Authorization": f"Bearer {_login(client, PHONE_BY_USER[user])}"}
 
 
+def _fresh_otp_code(client: TestClient, phone: str) -> str:
+    """로그인용 OTP는 verify 시점에 소비된다 — PIN 등록(코드 리뷰 P1-2)은 별도의 새 OTP를
+    요구하므로 로그인 후 다시 요청한다. 로그인 OTP가 이미 소비돼 미소비 행이 없으므로
+    쿨다운(30초) 없이 즉시 새 코드가 발급된다."""
+    resp = client.post("/api/v1/auth/otp/request", json={"phone": phone})
+    assert resp.status_code == 200, resp.text
+    code = resp.json()["debug_code"]
+    assert code is not None
+    return code
+
+
 def _body(**overrides):
-    body = {"idempotency_key": str(uuid.uuid4()), "identity_method": "pin"}
+    body = {"idempotency_key": str(uuid.uuid4()), "identity_method": "pin", "pin_code": TEST_PIN}
     body.update(overrides)
     return body
 
@@ -255,3 +272,115 @@ def test_high_risk_blocked_case_handoff_approves_but_stays_blocked(client, seede
 def test_approval_not_found_returns_404(client):
     resp = client.post("/api/v1/approvals/nope/approve", json=_body(), headers=_auth_headers(client))
     assert resp.status_code == 404
+
+
+# --- PIN 본인확인 실검증(§13-12) ---------------------------------------------------------
+
+
+def test_pin_set_endpoint_registers_new_pin(client, seeded):
+    phone = PHONE_BY_USER["u_owner"]
+    headers = {"Authorization": f"Bearer {_login(client, phone)}"}
+    new_pin = "135790"
+    otp_code = _fresh_otp_code(client, phone)
+    assert (
+        client.post("/api/v1/auth/pin", json={"pin": new_pin, "otp_code": otp_code}, headers=headers).status_code
+        == 204
+    )
+
+    resp = client.post("/api/v1/approvals/apv1/approve", json=_body(pin_code=new_pin), headers=headers)
+    assert resp.status_code == 200, resp.text
+
+
+def test_pin_set_without_fresh_otp_is_rejected(client):
+    """코드 리뷰 P1-2: 세션만으로는 PIN을 등록/변경할 수 없어야 한다 — 로그인 OTP는 verify
+    시점에 이미 소비돼 미소비 행이 없으므로, 새 OTP 없이는 404(OtpNotFoundError)로 거부돼야
+    세션 탈취자가 본인확인 게이트를 우회할 수 없다."""
+    headers = _auth_headers(client)
+    resp = client.post("/api/v1/auth/pin", json={"pin": "246810", "otp_code": "000000"}, headers=headers)
+    assert resp.status_code == 404, resp.text
+
+
+def test_pin_set_rejects_non_six_digit(client):
+    resp = client.post(
+        "/api/v1/auth/pin", json={"pin": "12", "otp_code": "000000"}, headers=_auth_headers(client)
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_approve_wrong_pin_is_forbidden(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(pin_code="999999"), headers=_auth_headers(client)
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_approve_pin_not_registered_is_unprocessable(client, seeded):
+    seeded.execute(text("UPDATE users SET pin_hash = NULL WHERE id='u_owner'"))
+    seeded.flush()
+    resp = client.post("/api/v1/approvals/apv1/approve", json=_body(), headers=_auth_headers(client))
+    assert resp.status_code == 422, resp.text
+
+
+def test_approve_biometric_is_always_rejected_when_not_registered(client):
+    """코드 리뷰 P1-3: biometric은 실서명 검증(WebAuthn 등)이 없어 승인 API가 아직 받지
+    않는다 — users.biometric_registered=false인 경우도 422."""
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(identity_method="biometric", pin_code=None),
+        headers=_auth_headers(client),
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_approve_biometric_is_always_rejected_even_when_registered(client, seeded):
+    """등록 여부는 실제 생체 서명 증명이 아니다 — biometric_registered=true여도 세션만으로
+    'biometric'이라고 주장하는 것만으로는 통과해선 안 된다(핵심 회귀 — 코드 리뷰 P1-3)."""
+    seeded.execute(text("UPDATE users SET biometric_registered = true WHERE id='u_owner'"))
+    seeded.flush()
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(identity_method="biometric", pin_code=None),
+        headers=_auth_headers(client),
+    )
+    assert resp.status_code == 422, resp.text
+    assert "지원하지 않습니다" in resp.json()["detail"]
+
+
+# --- checklist decide-동반 제출(§13-12) --------------------------------------------------
+
+_CHECKLIST = [
+    {"key": "target", "label": "대상자 확인", "checked": False},
+    {"key": "docs", "label": "서류·기한 확인", "checked": False},
+]
+
+
+def test_checklist_submission_merges_and_completes_approval(client, seeded):
+    _seed_case_with_pending_approval(
+        seeded, cid="cs5", aid="act5", apid="apv5", code="case_005", due="2026-09-05", checklist=_CHECKLIST
+    )
+    resp = client.post(
+        "/api/v1/approvals/apv5/approve",
+        json=_body(checklist=[{"key": "target", "checked": True}, {"key": "docs", "checked": True}]),
+        headers=_auth_headers(client),
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_checklist_not_submitted_stays_incomplete(client, seeded):
+    _seed_case_with_pending_approval(
+        seeded, cid="cs6", aid="act6", apid="apv6", code="case_006", due="2026-09-06", checklist=_CHECKLIST
+    )
+    resp = client.post("/api/v1/approvals/apv6/approve", json=_body(), headers=_auth_headers(client))
+    assert resp.status_code == 422, resp.text
+
+
+def test_checklist_partial_submission_stays_incomplete(client, seeded):
+    _seed_case_with_pending_approval(
+        seeded, cid="cs7", aid="act7", apid="apv7", code="case_007", due="2026-09-07", checklist=_CHECKLIST
+    )
+    resp = client.post(
+        "/api/v1/approvals/apv7/approve",
+        json=_body(checklist=[{"key": "target", "checked": True}]),
+        headers=_auth_headers(client),
+    )
+    assert resp.status_code == 422, resp.text

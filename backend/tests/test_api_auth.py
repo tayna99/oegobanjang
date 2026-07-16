@@ -148,3 +148,43 @@ def test_settings_rejects_default_pepper_outside_local():
 
     # local은 기본 pepper를 허용한다(개발 편의) — 회귀 방지.
     Settings(environment="local")
+
+
+# --- CORS(코드 리뷰 P1-1) ------------------------------------------------------------------
+# CORSMiddleware 없이는 프론트(다른 origin)의 첫 OTP 요청부터 브라우저 preflight가 막힌다.
+# TestClient는 실제 ASGI 미들웨어 스택을 통과하므로 이 회귀를 직접 잡을 수 있다.
+
+
+def test_cors_preflight_allows_local_dev_origin(client):
+    resp = client.options(
+        "/api/v1/auth/otp/request",
+        headers={
+            "Origin": "http://localhost:5174",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,authorization",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:5174"
+
+
+def test_cors_rejects_unrecognized_origin(client):
+    """local 정규식은 localhost/127.0.0.1만 허용한다 — 임의 외부 origin은 CORS 헤더를
+    못 받는다(와일드카드 허용이 아님을 확인)."""
+    resp = client.options(
+        "/api/v1/auth/otp/request",
+        headers={
+            "Origin": "https://evil.example.com",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert "access-control-allow-origin" not in {k.lower() for k in resp.headers.keys()}
+
+
+def test_cors_disabled_outside_local_by_default():
+    """auth_pepper와 동일한 fail-safe 원칙(§F2 선례) — non-local이고 명시 설정이 없으면
+    CORS는 아예 붙지 않는다(전면 차단)."""
+    from app.config import Settings
+
+    settings = Settings(environment="production", auth_pepper="x" * 32)
+    assert settings.resolved_cors_allow_origin_regex is None

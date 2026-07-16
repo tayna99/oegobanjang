@@ -27,17 +27,21 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.ids import new_id
+from app.domain.auth_tokens import secrets_match
 from app.domain.case_transitions import can_transition
 from app.domain.exceptions import (
     ApprovalActionNotRequestableError,
     ApprovalAlreadyDecidedError,
     ApprovalAlreadyPendingError,
+    ApprovalBiometricUnsupportedError,
     ApprovalBlockedByEvidenceError,
     ApprovalChecklistIncompleteError,
     ApprovalForbiddenError,
     ApprovalIdempotencyKeyReusedError,
     ApprovalIdentityRequiredError,
+    ApprovalIdentityVerificationFailedError,
     ApprovalNotFoundError,
+    ApprovalPinNotRegisteredError,
     ApprovalReasonContainsPiiError,
     ApprovalReasonRequiredError,
     CaseTransitionError,
@@ -78,6 +82,24 @@ def _next_event_no(db: Session, company_id: str) -> int:
         .values(evidence_seq=Company.evidence_seq + 1)
         .returning(Company.evidence_seq)
     ).scalar_one()
+
+
+def _verify_identity(db: Session, user_id: str, payload: ApprovalDecisionRequest) -> None:
+    """본인확인 실검증(§13-12) — identity_method 주장을 서버가 대조한다.
+
+    pin: users.pin_hash와 상수시간 비교(secrets_match). pin_code 원문은 저장·로그 금지.
+    biometric: 아직 받지 않는다(코드 리뷰 P1-3) — users.biometric_registered는 등록 여부일
+    뿐 실제 생체 서명 증명이 아니라서, 세션만 있으면 누구나 'biometric'이라고 주장해 통과할
+    수 있었다. WebAuthn 등 실서명 검증이 붙기 전까지는 pin만 유효한 수단이다.
+    """
+    user = db.get(User, user_id)
+    if payload.identity_method == "pin":
+        if not user.pin_hash:
+            raise ApprovalPinNotRegisteredError()
+        if not payload.pin_code or not secrets_match(payload.pin_code, user.pin_hash):
+            raise ApprovalIdentityVerificationFailedError()
+    elif payload.identity_method == "biometric":
+        raise ApprovalBiometricUnsupportedError()
 
 
 def decide_approval(
@@ -122,6 +144,19 @@ def decide_approval(
     if payload.reason and contains_pii(payload.reason):
         raise ApprovalReasonContainsPiiError()
 
+    # M2.6 체크 상태 동반 제출(§13-12): 저장된 checklist에 제출값을 key로 병합한 "예정" 값을
+    # 미리 계산해두되, approval.checklist에는 아직 대입하지 않는다 — 대입을 뒤(케이스 조회 등
+    # SELECT가 끝난 지점)로 미루지 않으면 SQLAlchemy autoflush가 checklist만 담긴 UPDATE를
+    # status 변경보다 먼저 내보내 approvals_update_guard 트리거("must transition ... to a
+    # decision")에 걸린다 — pending 승인의 모든 UPDATE는 반드시 status 전이를 동반해야 한다.
+    merged_checklist = approval.checklist
+    if approval.checklist is not None and payload.checklist:
+        submitted = {item.key: item.checked for item in payload.checklist}
+        stored = approval.checklist if isinstance(approval.checklist, list) else []
+        merged_checklist = [
+            {**item, "checked": submitted.get(item.get("key"), item.get("checked"))} for item in stored
+        ]
+
     if decision == "approved":
         # 결정자 권한 세분화: manager는 approval_policy='manager_allowed'이고
         # 케이스 severity가 LOW일 때만(§5.3-6, docs/DB_SCHEMA.md §13-9).
@@ -142,8 +177,8 @@ def decide_approval(
             raise ApprovalBlockedByEvidenceError()
 
         # M2.6 체크리스트: 값이 있으면(=화면이 제출했으면) 전 항목 checked여야 함(§5.3-5)
-        if approval.checklist is not None:
-            items = approval.checklist if isinstance(approval.checklist, list) else []
+        if merged_checklist is not None:
+            items = merged_checklist if isinstance(merged_checklist, list) else []
             if not items or not all(item.get("checked") for item in items):
                 raise ApprovalChecklistIncompleteError()
 
@@ -156,6 +191,10 @@ def decide_approval(
         # 반려도 사람 결정이므로 본인확인 필수(approve와 동일 — 스키마 approvals CHECK도 강제)
         if payload.identity_method not in ("pin", "biometric"):
             raise ApprovalIdentityRequiredError()
+
+    # 본인확인 실검증 — 수단 존재 확인 뒤 공통 지점에서 자격 자체를 대조한다(§13-12).
+    # db.get(User, ...)이 SELECT라 여기까지는 checklist 대입 전이라 autoflush가 안전하다.
+    _verify_identity(db, decided_by_user_id, payload)
 
     # 케이스 상태 전이는 approval_pending 케이스에서만 일어난다. 그 외(예: blocked 고위험
     # handoff 승인)는 승인/연계 패키지만 결정되고 케이스 상태는 유지된다 — blocked는 종착이며
@@ -177,6 +216,8 @@ def decide_approval(
     approval.identity_method = payload.identity_method
     approval.reason = payload.reason
     approval.decided_at = now
+    if merged_checklist is not None:
+        approval.checklist = merged_checklist
     # 승인 UPDATE를 먼저 DB에 반영한다 — cases_state_transition 트리거가 human_approved 전이 시
     # '승인된 케이스 액션 존재'를 검사하므로, 케이스 UPDATE보다 approval UPDATE가 앞서야 한다.
     db.flush()

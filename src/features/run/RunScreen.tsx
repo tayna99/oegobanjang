@@ -14,6 +14,10 @@ export type RunViewState =
       steps: RunStep[];
       engineStatus: 'streaming' | 'done';
       readOnly?: boolean;
+      /** 서버 확정 대기 중(§13 계약 동기화 결정 — API 연동 시에만 쓰임) — 버튼 비활성 + 라벨 전환. */
+      submitting?: boolean;
+      /** 서버 승인 호출 실패 사유 — 로컬 상태는 변경하지 않고 인라인 표시만 한다. */
+      errorText?: string;
     }
   | { status: 'error'; reason: 'out_of_scope' | 'blocked' | 'unknown'; message: string }
   | { status: 'offline'; lastSyncedAt: string };
@@ -66,13 +70,14 @@ export function RunScreen({ state, onApprove, onAlt }: RunScreenProps) {
             </Button>
             <Button
               variant="primary"
-              disabled={state.engineStatus !== 'done'}
+              disabled={state.engineStatus !== 'done' || state.submitting}
               onClick={onApprove}
               className="flex-1"
             >
-              승인
+              {state.submitting ? '처리 중…' : '승인'}
             </Button>
           </div>
+          {state.errorText && <p className="mt-2 text-body2 text-critical-text">{state.errorText}</p>}
         </>
       )}
     </div>
