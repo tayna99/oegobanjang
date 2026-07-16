@@ -56,6 +56,18 @@ export const EVIDENCE_SEED: EvidenceEvent[] = [
     hash: 'sha256:52d8…a94e',
   },
   {
+    // 자동 에스컬레이션(7단계 §3.2) — 케이스 상태는 그대로 approval_pending, evidence만 추가된다
+    // (활성 6케이스 로스터·기존 큐 카운트 테스트를 건드리지 않는 저위험 프리시드).
+    id: 'siti-approval-escalated',
+    type: 'approval_escalated',
+    at: '2026-07-09T20:00:00.000Z',
+    caseId: 'siti',
+    evidenceRef: '#4790',
+    summary: 'Siti R. · 신고서 초안 확인 요청 — 48h 미응답으로 재알림 발송(timeout_48h)',
+    actor: 'system',
+    hash: 'sha256:8b41…c0d5',
+  },
+  {
     id: 'pham-approval-decided',
     type: 'approval_decided',
     at: '2026-07-09T16:02:00.000Z',

@@ -26,6 +26,8 @@ export interface RunConfig {
   altLabel: string; // 대안 버튼 라벨(수정 요청/돌아가기 등)
   steps: RunStep[];
   readOnly?: boolean; // replay 전용 — 정적 재생, 승인/대안 버튼을 렌더하지 않는다
+  resultCaseIds?: string[]; // command 전용(M9/3.2) — 런이 정리한 대상 케이스, 결과 카드에서 케이스로 연결
+  writesData?: boolean; // 케이스/초안 등 쓰기 도구를 쓰는 command 런 — owner는 차단(4.2, 7단계 §2 각주3)
 }
 
 // approvalRun()의 고정 결과 문구 — 모든 승인 런 공통.
@@ -125,6 +127,40 @@ export const RUN_CONFIGS: RunConfig[] = [
       { kind: 'thinking', label: '이번 달 마감 케이스 판별', detail: 'D-day 30일 이내 · 승인 대기 상태 기준' },
       { kind: 'tool_call', label: '대상 케이스 3건 확인', detail: 'Nguyen(D-30) · Siti(신고 기한 D-3) · Batbayar(행정사 검토)' },
       { kind: 'tool_call', label: '케이스별 액션 초안 생성', detail: '메시지·신고서·검토 자료 3건' },
+      // 3.4 데모 4막(8단계 §2 line 83) — 발송 도구는 승인 대기만 반환. 가드레일 작동을 숨기지 않고 스텝으로 노출.
+      {
+        kind: 'guardrail',
+        label: '외부 발송 차단 · 승인 요청 전환',
+        detail: '발송은 승인 전 차단되어 승인 요청으로 전환했습니다 — 자율은 루프에, 경계는 도구에',
+      },
+    ],
+    // 3.2: 정리 결과 카드에서 곧바로 대상 케이스로 진입 — Batbayar는 기한 경과라 행정사 검토 게이트.
+    resultCaseIds: ['nguyen', 'siti', 'batbayar'],
+    // 4.2: 케이스별 액션 초안을 생성하는 쓰기 도구 — owner의 M9는 읽기성 요청만 허용(7단계 §2 각주3).
+    writesData: true,
+  },
+  {
+    // 케이스 타임라인 런 체이닝(3.3)의 1차 요청 기록 — CASE_SHEETS.nguyen.activity의
+    // "#4712 · 1차 서류 요청 — 여권 사본 요청 — 승인·발송 완료"에 대응하는 재생 런
+    // (코드리뷰 지적: 대응 config가 없어 클릭 시 무한 로딩이었다).
+    runKey: '4712',
+    caseId: 'nguyen',
+    mode: 'replay',
+    title: '1차 서류 요청 (재생)',
+    agent: 'Multilingual Contact Agent',
+    evidenceRef: '#4712',
+    autonomyLabel: '자율성 Medium (승인 필요)',
+    question: '여권 사본을 요청할까요?',
+    altLabel: '수정 요청',
+    readOnly: true,
+    steps: [
+      { kind: 'tool_call', label: '근로자 프로필 확인 완료', detail: 'Nguyen Van A · 베트남 · E-9 · Zalo' },
+      { kind: 'tool_call', label: '요청 메시지 초안 생성 완료', detail: '여권 사본 요청 · 베트남어 원문 + 한국어 번역' },
+      {
+        kind: 'guardrail',
+        label: '발송 전 정지 · 승인 요청 생성',
+        detail: '자율성 Medium — 근로자 컨택은 자동 발송하지 않고 담당자 승인 후 발송합니다',
+      },
     ],
   },
   {
@@ -142,6 +178,13 @@ export const RUN_CONFIGS: RunConfig[] = [
       { kind: 'tool_call', label: '근로자 프로필 확인 완료', detail: 'Nguyen Van A · 베트남 · E-9 · Zalo' },
       { kind: 'tool_call', label: '이전 대화 기록 확인 완료', detail: '3일 전 표준근로계약서 요청 이력 있음' },
       { kind: 'tool_call', label: '메시지 초안 생성 완료', detail: '베트남어 원문 + 한국어 번역' },
+      // 3.1: 프로액티브 런은 발송 직전 가드레일에서 멈춘다 — 자율 발송 없이 담당자 승인 요청을 생성.
+      // GOTCHAS "가드레일은 숨기지 않고 스텝으로 노출 — 신뢰 자산".
+      {
+        kind: 'guardrail',
+        label: '발송 전 정지 · 승인 요청 생성',
+        detail: '자율성 Medium — 근로자 컨택은 자동 발송하지 않고 담당자 승인 후 발송합니다',
+      },
     ],
   },
 ];

@@ -19,6 +19,10 @@ export default defineConfig({
     // 테스트가 여러 벌 동시 실행되던 문제를 근본 교정 — 진짜 테스트는 전부 src/ 아래.
     include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
     // 공유 브라우저 전역과 cold transform으로 인한 파일 간 간헐적 flaky를 방지한다.
+    // 기본 testTimeout(5000ms)이 전역 asyncUtilTimeout(15000, src/test/setup.ts)보다 낮아
+    // 병렬 부하 시 /case/:caseId loader 대기 중 테스트가 먼저 5000ms에 종료되던 플레이크를 막는다.
+    testTimeout: 15000,
+    hookTimeout: 15000,
     // Shared browser-like globals and cold transforms make parallel files flaky on this MVP suite.
     fileParallelism: false,
   },

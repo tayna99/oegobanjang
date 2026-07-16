@@ -137,6 +137,16 @@ export function IconMoon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+// 마스킹 안내 자물쇠 — 온보딩 O4·CSV 업로드 등 외국인등록번호 마스킹 고지에서 재사용.
+export function IconLock(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <rect x="5" y="10" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 export function IconWait(props: SVGProps<SVGSVGElement>) {
   return (
     <svg viewBox="0 0 24 24" fill="none" {...props}>

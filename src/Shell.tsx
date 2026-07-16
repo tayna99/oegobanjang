@@ -4,6 +4,9 @@ import { cn } from '@/lib/cn';
 import { IconBriefing, IconClock, IconFolder, IconMoon, IconMsg, IconSun } from '@/components/icons';
 import { ROUTES } from '@/lib/routes';
 import { useThemeStore } from '@/stores/themeStore';
+import { useRoleStore } from '@/stores/roleStore';
+import { ROLE_LABEL } from '@/lib/role';
+import type { Role } from '@/types';
 
 const TABS = [
   // 아이콘·색 — Montage 공용 컴포넌트.dc.html §1(2.5.4b): 브리핑=문서형, 케이스=폴더, 기록=시계.
@@ -58,6 +61,51 @@ function ThemeToggle({ className }: { className?: string }) {
   );
 }
 
+// 역할 전환 — 로그인/SSO 이전 데모 스위치(4.2, 운영급 확장). 담당자→대표→열람자 순환.
+const ROLE_NEXT: Record<Role, Role> = { manager: 'owner', owner: 'viewer', viewer: 'manager' };
+
+function RoleToggle({ className }: { className?: string }) {
+  const role = useRoleStore((s) => s.role);
+  const toggleRole = useRoleStore((s) => s.toggleRole);
+
+  return (
+    <button
+      type="button"
+      onClick={toggleRole}
+      aria-label={`${ROLE_LABEL[ROLE_NEXT[role]]}로 보기 전환`}
+      className={cn(
+        'flex h-9 shrink-0 items-center rounded-badge px-3 text-caption1 font-semibold text-muted shadow-outline transition-colors duration-btn ease-v2 active:bg-surface',
+        className,
+      )}
+    >
+      {ROLE_LABEL[role]}
+    </button>
+  );
+}
+
+// 설정 진입점(운영급 RBAC 확장) — PC 목업의 "설정" 네비 라벨은 순텍스트라(아이콘 없음),
+// 새 아이콘을 발명하지 않고 RoleToggle과 동일한 텍스트 필 버튼 관용구를 재사용한다.
+// viewer는 진입할 수 없어(7단계 §6) 링크 자체를 숨긴다.
+function SettingsLink({ className }: { className?: string }) {
+  const role = useRoleStore((s) => s.role);
+  if (role === 'viewer') return null;
+
+  return (
+    <NavLink
+      to={ROUTES.settings}
+      className={({ isActive }) =>
+        cn(
+          'flex h-9 shrink-0 items-center rounded-badge px-3 text-caption1 font-semibold shadow-outline transition-colors duration-btn ease-v2 active:bg-surface',
+          isActive ? 'text-primary' : 'text-muted',
+          className,
+        )
+      }
+    >
+      설정
+    </NavLink>
+  );
+}
+
 export function Shell() {
   useDeepLinkBackstack();
 
@@ -79,10 +127,14 @@ export function Shell() {
             </NavLink>
           ))}
         </nav>
+        <SettingsLink />
+        <RoleToggle />
         <ThemeToggle />
       </header>
 
-      <div className="fixed right-3 top-3 z-20 lg:hidden">
+      <div className="fixed right-3 top-3 z-20 flex gap-2 lg:hidden">
+        <SettingsLink className="bg-canvas shadow-outline" />
+        <RoleToggle className="bg-canvas shadow-outline" />
         <ThemeToggle className="bg-canvas shadow-outline" />
       </div>
 

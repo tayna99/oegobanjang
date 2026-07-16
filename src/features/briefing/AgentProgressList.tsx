@@ -1,0 +1,45 @@
+import { Chip } from '@/components/Chip';
+import { AGENT_STAGE_LABELS_SHORT } from '@/lib/caseStage';
+import { agentStageTone } from '@/lib/chipTone';
+import { dDayLabel, dDayTextClass } from '@/lib/dday';
+import { cn } from '@/lib/cn';
+import type { CaseCard } from '@/types';
+
+// 에이전트 진행 중 리스트 — reference/design-system/외고반장 Mobile.dc.html §2a(77~81행) 이식(M2.6.1).
+// 행 = 단계 칩 + "근로자 · 업무" + D-day. 행 탭 → 2b 검토 페이지(읽기용 컨텍스트).
+export interface AgentProgressListProps {
+  cards: CaseCard[];
+  onOpenCase: (caseId: string) => void;
+  /** 열람자(viewer)는 M1 CTA가 비활성(7단계 §6 "읽기 전용(버튼 비활성)"). */
+  readOnly?: boolean;
+}
+
+export function AgentProgressList({ cards, onOpenCase, readOnly }: AgentProgressListProps) {
+  if (cards.length === 0) return null;
+  return (
+    <div className="overflow-hidden rounded-in border border-hairline bg-canvas">
+      {cards.map((card) => {
+        const stage = card.agentStage ?? 'detected';
+        return (
+          <button
+            key={card.caseId}
+            type="button"
+            aria-label={card.title}
+            disabled={readOnly}
+            onClick={() => onOpenCase(card.caseId)}
+            className="flex min-h-12 w-full items-center gap-2.5 border-b border-hairline px-3.5 py-2.5 text-left last:border-none active:bg-surface disabled:opacity-50"
+          >
+            <Chip tone={agentStageTone(stage)}>{AGENT_STAGE_LABELS_SHORT[stage]}</Chip>
+            <span className="min-w-0 flex-1 truncate text-label1 text-ink">
+              {card.workerRef ? `${card.workerRef.displayName} · ` : ''}
+              {card.title}
+            </span>
+            <span className={cn('shrink-0 text-pc-xs font-bold tabular-nums', dDayTextClass(card.dDay))}>
+              {card.dDay !== undefined ? dDayLabel(card.dDay) : '—'}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

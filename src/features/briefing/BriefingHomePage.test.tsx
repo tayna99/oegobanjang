@@ -1,9 +1,10 @@
 import { act } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BriefingHomePage } from './BriefingHomePage';
 import { useCaseStore } from '@/stores/caseStore';
+import { useRoleStore } from '@/stores/roleStore';
 import { useThreadStore } from '@/stores/threadStore';
 import { CASE_CARDS } from '@/mocks/fixtures';
 
@@ -12,6 +13,7 @@ describe('BriefingHomePage', () => {
     useCaseStore.getState().reset();
     useThreadStore.getState().reset();
   });
+  afterEach(() => useRoleStore.getState().reset());
 
   it('caseStore가 비어 있으면 CASE_CARDS로 시드하고 렌더한다', () => {
     render(
@@ -31,6 +33,19 @@ describe('BriefingHomePage', () => {
       </MemoryRouter>,
     );
     expect(screen.queryByText('수정된 제목')).toBeInTheDocument();
+  });
+
+  // 4.2 역할 분기 — owner 홈은 승인 필요 카드만(visibleCardsForRole, lib/briefing.ts 기존 로직).
+  it('owner 역할이면 승인 필요 카드만 보인다', () => {
+    useRoleStore.getState().setRole('owner');
+    render(
+      <MemoryRouter>
+        <BriefingHomePage />
+      </MemoryRouter>,
+    );
+    // nguyen(approvalRequired: true)은 보이고, tranCase(approvalRequired: false)는 숨는다.
+    expect(screen.getByText('체류기간 연장 서류 요청')).toBeInTheDocument();
+    expect(screen.queryByText('계약-체류 만료일 불일치 검토')).not.toBeInTheDocument();
   });
 
   it('threadStore의 pending_review(응답 도착) 스레드 수가 통계에 실계산으로 반영된다', () => {
@@ -57,5 +72,15 @@ describe('BriefingHomePage', () => {
     });
     const stat = screen.getByRole('button', { name: /응답 도착/ });
     expect(within(stat).getByText('0')).toBeInTheDocument();
+  });
+
+  it('owner 역할이면 응답 도착 통계도 숨겨진다(통계 숨김 규칙과 동일)', () => {
+    useRoleStore.getState().setRole('owner');
+    render(
+      <MemoryRouter>
+        <BriefingHomePage />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('button', { name: /응답 도착/ })).not.toBeInTheDocument();
   });
 });
