@@ -12,9 +12,10 @@ import { useEvidenceStore } from '@/stores/evidenceStore';
 
 // 스레드 대화 뷰 + M6 응답 해석(2.2) — 원문은 여기(스레드 내부)에서만 노출.
 // M6: 근로자 회신 → 원문 + KR 요약 + 상태 업데이트 제안. isFinal:false면 "해석 확인" 후 반영
-// (담당자 확인 필요). 확인 시 evidence(final_response_generated) 기록 +, 합법적 전이라면
-// caseStore 상태도 함께 갱신한다(코드리뷰 지적: 버튼 라벨 "상태 반영"이 실제로는 evidence만
-// 남기고 케이스 상태는 그대로라 화면 간 모순이 있었다).
+// (담당자 확인 필요). 확인 시 evidence(interpretation_confirmed) 기록 + interp.updates가 있으면
+// caseStore.applyInterpretationUpdates로 문서 상태 갱신(main 이식) + 합법적 전이라면 케이스
+// 상태도 함께 갱신한다(코드리뷰 지적: 버튼 라벨 "상태 반영"이 실제로는 evidence만 남기고
+// 케이스 상태는 그대로라 화면 간 모순이 있었다).
 
 const LANG_LABEL: Record<string, string> = { vi: '베트남어', id: '인도네시아어', en: '영어', ko: '한국어' };
 
@@ -73,15 +74,19 @@ export function ThreadPage() {
   const interp = thread.interpretation;
 
   const onConfirm = () => {
-    // isFinal:false 해석을 담당자가 확인 → 상태 갱신 반영 + evidence(자동 변경 아님, 사람 확인).
+    // isFinal:false 해석을 담당자가 확인 → 문서 상태 갱신 + evidence(자동 변경 아님, 사람 확인).
     appendEvidence({
       id: `${thread.caseId}-interpretation-confirmed`,
-      type: 'final_response_generated',
+      type: 'interpretation_confirmed',
       at: new Date().toISOString(),
       caseId: thread.caseId,
       summary: `${thread.workerName} 응답 해석 확인 — 상태 업데이트 반영`,
       actor: '김담당',
     });
+    // 해석이 제안한 서류 필드 갱신을 케이스에 반영 — CaseState는 바꾸지 않는다(문서 갱신일 뿐).
+    if (interp?.updates && interp.updates.length > 0) {
+      useCaseStore.getState().applyInterpretationUpdates(thread.caseId, interp.updates);
+    }
     // 합법적 전이(risk_review→approval_pending)일 때만 실제로 케이스 상태를 반영한다 —
     // 상태 전이표(GOTCHAS §2) 밖 전이는 시도하지 않는다.
     const current = useCaseStore.getState().cases[thread.caseId];

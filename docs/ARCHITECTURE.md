@@ -13,11 +13,12 @@
 |---|---|
 | 라우팅·딥링크 | `src/router.tsx` — 딥링크 맵은 스펙 `2단계_알림카탈로그` §3과 1:1 |
 | 화면 셸(탭바/헤더) | `src/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
-| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseReviewPage`(2b 사례 검토, citation 0건 승인 잠금) + `CaseHistoryPage`(2d 승인 이력). `src/features/approve/ApprovePage.tsx`(2c, M2.6.3) — 체크리스트 4/4 + citation-lock + PIN 게이트, 결정은 `lib/approval.ts`의 `useApprovalActions`(approve/reject) 공유 유닛이 수행. `src/features/run/`(M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'\|'command'\|'replay') + `RunPage`(`/run/:runId` 전용 — RUN_CONFIGS를 runKey로 조회, mode 무관 단일 라우트. 케이스 최종 승인(`/case/:id/approve`)과는 별개 화면·별개 결정 경로다). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
+| 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseReviewPage`(2b 사례 검토, citation 0건 승인 잠금, 해석 확인 docUpdates 오버레이) + `CaseHistoryPage`(2d 승인 이력). `src/features/approve/ApprovePage.tsx`(2c, M2.6.3) — 체크리스트 4/4 + citation-lock + PIN 게이트, 결정은 `lib/approval.ts`의 `useApprovalActions`(approve/reject) 공유 유닛이 수행. `src/features/run/`(M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'\|'command'\|'replay') + `RunPage`(`/run/:runId` 전용 — RUN_CONFIGS를 runKey로 조회, mode 무관 단일 라우트. 케이스 최종 승인(`/case/:id/approve`)과는 별개 화면·별개 결정 경로다). `src/features/messages/`(2.2, 메시지 탭+M6) — `MessagesPage`(목록, threadId=caseId 1:1) + `ThreadPage`(대화+해석 확인 — 확인 시 evidence(interpretation_confirmed) + caseStore.applyInterpretationUpdates로 문서 상태 갱신). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
 | 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4) |
-| 상태 | `src/stores/` — caseStore, approvalStore, evidenceStore, citationStore, roleStore, companyStore |
+| DB 설계 계약 | `docs/DB_SCHEMA.md` — PostgreSQL 16+ 서비스 DB의 데이터 계약 정본. 실행 DDL·데모 시드·160개 회귀 검증은 `db/`(`db/schema.sql`, `db/seed_demo.sql`, `db/validate.py`)에 있으며, backend 이식은 별도 PR 범위 |
+| 상태 | `src/stores/` — caseStore(docUpdates — 해석 확인 문서 갱신 네임스페이스), approvalStore, evidenceStore, citationStore, roleStore, companyStore |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
-| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS, 6인 로스터: Batbayar·Nguyen·Siti·Tran·Rahmat·Oyunaa) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — command/replay 포함) · `evidence.ts`(EVIDENCE_SEED) · `messages.ts`(M6 스레드) · `packages.ts`(행정사 패키지, M2.4) |
+| mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS, 6인 로스터: Batbayar·Nguyen·Siti·Tran·Rahmat·Oyunaa) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — command/replay 포함) · `evidence.ts`(EVIDENCE_SEED) · `messages.ts`(M6 스레드 — `ResponseInterpretation.updates`로 문서 갱신 구조화) · `packages.ts`(행정사 패키지, M2.4) |
 
 ## 3. 화면 ↔ 라우트 ↔ 스펙
 
@@ -30,7 +31,7 @@
 | `/case/:id/approve` | 2c 최종 승인 체크리스트(필수 4/4 게이트 + 반려 사유) — M2.6.3에서 런 화면 대체, 에이전트 런은 /run/:runId 전용 | Mobile.dc.html §2c |
 | `/case/:id/history` | 2d 승인 이력(생애 타임라인, 사람 결정만 primary) — M2.6.4 신설 | Mobile.dc.html §2d, 탭별기획 §4.2 |
 | `/run/:id` | M9 런 / 재생 | 1단계 M9 (v1.2) |
-| `/messages` `/thread/:id` | 메시지·M6 응답 해석 | 1단계 M6, 탭별기획 §3 |
+| `/messages` `/thread/:id` | 메시지 탭(스레드 리스트) · M6 응답 해석(스레드 대화 뷰, 해석 카드 확인 시 문서 상태 갱신) — 구현 완료(2.2) | 1단계 M6, 탭별기획 §3 |
 | `/evidence` `?ref=` | M8 판단 기록 | 1단계 M8, 탭별기획 §4 |
 | `/package/:id` | 행정사 패키지 | 프로토타입 v3 pkg 화면 |
 | `/done` | M5 완료 (라우트보다 push 화면) | 1단계 M5 |
@@ -39,8 +40,8 @@
 ## 4. 데이터 흐름 (단방향)
 
 ```
-mocks/fixtures ──▶ stores (zustand)
-                     │ caseStore: 케이스·NextAction 상태 전이
+mocks/fixtures, mocks/messages ──▶ stores (zustand)
+                     │ caseStore: 케이스·NextAction 상태 전이, docUpdates(해석 확인 문서 갱신)
                      │ approvalStore: 승인 요청/결정 (idempotency key)
                      │ evidenceStore: append-only 이벤트 로그
                      ▼

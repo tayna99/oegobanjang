@@ -34,13 +34,16 @@ export const useApprovalStore = create<ApprovalStoreState>((set, get) => ({
     const approval: Approval = {
       actionId,
       status: 'pending',
-      idempotencyKey: '',
+      idempotencyKey: null,
     };
     set((s) => ({ approvals: { ...s.approvals, [actionId]: approval } }));
     return approval;
   },
 
   decide: (actionId, decision, idempotencyKey, reason) => {
+    if (idempotencyKey.trim().length === 0) {
+      throw new GuardrailError('승인 결정에는 비어 있지 않은 idempotencyKey가 필요합니다.');
+    }
     // 중복 승인 차단: 이미 처리한 키면 상태를 바꾸지 않고 현재값 반환(no-op).
     if (get().seenKeys.has(idempotencyKey)) {
       return get().approvals[actionId];

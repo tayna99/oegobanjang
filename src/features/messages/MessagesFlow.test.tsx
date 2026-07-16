@@ -54,8 +54,18 @@ describe('ThreadPage — M6 응답 해석', () => {
     expect(within(section).getByText('확인됨')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '케이스 열기' })).toBeInTheDocument();
 
-    const events = useEvidenceStore.getState().events.filter((e) => e.type === 'final_response_generated');
+    const events = useEvidenceStore.getState().events.filter((e) => e.type === 'interpretation_confirmed');
     expect(events.some((e) => e.caseId === 'tranCase' && e.summary?.includes('응답 해석 확인'))).toBe(true);
+  });
+
+  it('해석 확인 시 제안된 문서 상태 갱신이 caseStore.docUpdates에 반영된다(main 이식)', async () => {
+    renderAt('/thread/tranCase');
+    await screen.findByRole('heading', { name: 'Tran Thi H.' });
+    fireEvent.click(screen.getByRole('button', { name: '해석 확인 · 상태 반영' }));
+
+    const docUpdates = useCaseStore.getState().docUpdates['tranCase'];
+    expect(docUpdates?.['표준근로계약서']).toEqual({ to: '회사 확인 필요' });
+    expect(docUpdates?.['여권 사본']).toEqual({ to: '제출 예정 · 내일' });
   });
 
   it('해석 확인 시 케이스 상태도 승인 대기로 전환된다(버튼 라벨 "상태 반영"과 실제 동작 일치, 코드리뷰 지적 교정)', async () => {

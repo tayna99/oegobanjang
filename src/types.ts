@@ -20,6 +20,7 @@ export type AgentStage = 'detected' | 'collecting' | 'drafted' | 'awaiting_appro
 // 패키지 링크 토큰으로 접근하므로 이 유니온(roleStore의 "지금 보고 있는 페르소나")에 넣지 않는다.
 export type Role = 'manager' /* 담당자 */ | 'owner' /* 대표 */ | 'viewer' /* 열람자 */;
 
+// 'locked'는 저장값이 아니라 근거 게이트 파생 표시(usableCitations 0건) — 서버 값이 아님.
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'locked';
 
 export type NextActionState = 'ready' | 'locked' | 'scheduled' | 'waiting';
@@ -43,7 +44,7 @@ export interface NextActionRef {
 export interface WorkerRef {
   displayName: string; // 디자인 표기 전체 이름 ("Nguyen Van A") — 블루프린트 §3
   nationality: string;
-  team: string; // "제조1팀" — 디자인 §2a/§3a/§3b 부제의 소속 (블루프린트 §3)
+  team?: string; // "제조1팀" — 디자인 §2a/§3a/§3b 부제의 소속 (블루프린트 §3)
   maskLevel: 'masked';
 }
 
@@ -86,7 +87,8 @@ export interface CitationRecord extends Citation {
 export interface Approval {
   actionId: string;
   status: ApprovalStatus;
-  idempotencyKey: string; // 중복 승인 차단 키 (GOTCHAS §2)
+  // pending 요청에는 결정 키가 아직 없고, decide()에서만 non-empty 키를 기록한다.
+  idempotencyKey: string | null; // 중복 승인 차단 키 (GOTCHAS §2)
   reason?: string; // 반려 사유 — "반려 시 사유가 판단 기록에 남고 요청이 되돌아갑니다" (Mobile §2c)
 }
 
@@ -107,6 +109,7 @@ export type EvidenceType =
   | 'checklist_completed' // 승인 체크리스트 완료 (Mobile §2d)
   | 'exported' // 패키지 내보내기 (PC §3c 감사 로그 '내보내기' — export_00NN)
   | 'final_response_generated'
+  | 'interpretation_confirmed' // M6 해석 확인 — 문서 상태 갱신 오케스트레이션 전용(main 이식, 병합)
   | 'role_granted' // 구성원 초대·역할 부여(7단계 §5)
   | 'role_changed' // 구성원 역할 변경
   | 'member_invited'
@@ -177,4 +180,10 @@ export interface ExpertAccount {
 export interface ExpertMembership {
   expertId: string;
   tenantId: string;
+}
+
+// M6 해석 확인이 제안하는 서류 필드 갱신 — caseStore.applyInterpretationUpdates가 소비한다.
+export interface InterpretationUpdate {
+  field: string;
+  to: string;
 }

@@ -12,6 +12,12 @@ export interface ThreadMessage {
   at: string; // "오늘 10:12" 데모 고정값
 }
 
+// 해석 확인 시 caseStore.applyInterpretationUpdates로 넘어가는 구조화된 서류 상태 갱신.
+export interface InterpretationDocUpdate {
+  field: string; // CaseSheet.docs[].name과 일치해야 오버레이가 먹는다
+  to: string; // 갱신될 statusLabel
+}
+
 // M6 응답 해석 — 근로자 회신에 대한 에이전트 해석. isFinal:false면 담당자 확인 후 상태 반영.
 export interface ResponseInterpretation {
   originalLang: 'vi' | 'id' | 'en';
@@ -19,6 +25,7 @@ export interface ResponseInterpretation {
   koSummary: string; // 한국어 요약
   proposal: string; // 상태 업데이트 제안
   isFinal: boolean; // false = 담당자 확인 필요
+  updates?: InterpretationDocUpdate[]; // 확인 시 caseStore.docUpdates에 반영할 필드 (병합, main 이식)
 }
 
 export interface MessageThread {
@@ -63,6 +70,10 @@ export const MESSAGE_THREADS: Record<string, MessageThread> = {
       koSummary: '계약서는 회사가 보관 중이며, 여권 사본은 내일 제출하겠다는 응답입니다.',
       proposal: '여권 사본 상태를 "제출 예정(내일)"으로 갱신하고, 계약서는 회사 보관으로 확인 처리할까요?',
       isFinal: false,
+      updates: [
+        { field: '표준근로계약서', to: '회사 확인 필요' },
+        { field: '여권 사본', to: '제출 예정 · 내일' },
+      ],
     },
   },
   nguyen: {

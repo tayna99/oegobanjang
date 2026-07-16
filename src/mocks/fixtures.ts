@@ -319,9 +319,14 @@ export const CASE_SHEETS: Record<string, CaseSheet> = {
       { label: '체류만료일', value: '2026.09.15' },
       { label: '탐지 규칙', value: 'contract_visa_conflict' },
     ],
+    // 확인 전 상태 — 해석 카드(src/mocks/messages.ts MESSAGE_THREADS.tranCase.interpretation.updates)의
+    // "누락 → 회사 확인 필요" / "누락 → 제출 예정 · 내일" 전이가 성립하려면 확인 전 값은
+    // 반드시 '누락'이어야 한다. 담당자가 ThreadPage에서 해석을 확인하면
+    // caseStore.applyInterpretationUpdates → docUpdates에 쌓인 값이 CaseReviewPage에서
+    // statusLabel에 오버레이된다(status 열거값 자체는 이 화면에서 쓰이지 않으므로 바꾸지 않는다).
     docs: [
-      { name: '표준근로계약서', status: 'company_check', statusLabel: '회사 확인 필요' },
-      { name: '여권 사본', status: 'requested', statusLabel: '제출 예정 · 내일' },
+      { name: '표준근로계약서', status: 'missing', statusLabel: '누락' },
+      { name: '여권 사본', status: 'missing', statusLabel: '누락' },
     ],
     citations: [libCitation('cit_004')],
     activity: [

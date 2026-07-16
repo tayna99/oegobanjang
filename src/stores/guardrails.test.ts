@@ -114,6 +114,17 @@ describe('가드레일 2 — evidence append-only', () => {
 });
 
 describe('가드레일 3 — 중복 승인 차단', () => {
+  it('요청 단계에는 결정 idempotencyKey를 만들지 않는다', () => {
+    const approval = useApprovalStore.getState().requestApproval('a1');
+    expect(approval.idempotencyKey).toBeNull();
+  });
+
+  it('결정에는 비어 있지 않은 idempotencyKey가 필요하다', () => {
+    const store = useApprovalStore.getState();
+    store.requestApproval('a1');
+    expect(() => store.decide('a1', 'approved', '   ')).toThrow(GuardrailError);
+  });
+
   it('같은 idempotencyKey로 두 번 decide하면 두 번째는 no-op', () => {
     const store = useApprovalStore.getState();
     store.requestApproval('a1');
@@ -190,5 +201,35 @@ describe('가드레일 보강 — 반려 사유·케이스 단위 승인 (2.5.4b
     expect(store.decideAll).toBeUndefined();
     expect(store.approveAll).toBeUndefined();
     expect(store.batchDecide).toBeUndefined();
+  });
+});
+
+describe('가드레일 보강 — 해석 확인 문서 갱신(caseStore.applyInterpretationUpdates)', () => {
+  it('갱신은 CaseState를 바꾸지 않고 docUpdates 네임스페이스에만 쌓인다', () => {
+    seedCase('risk_review');
+    useCaseStore.getState().applyInterpretationUpdates('c1', [{ field: '표준근로계약서', to: '회사 확인 필요' }]);
+    expect(useCaseStore.getState().cases['c1'].state).toBe('risk_review');
+    expect(useCaseStore.getState().docUpdates['c1']?.['표준근로계약서']).toEqual({ to: '회사 확인 필요' });
+  });
+
+  it('같은 필드를 다시 갱신하면 최신값으로 덮어쓴다', () => {
+    seedCase('risk_review');
+    const store = useCaseStore.getState();
+    store.applyInterpretationUpdates('c1', [{ field: '여권 사본', to: '제출 예정 · 내일' }]);
+    store.applyInterpretationUpdates('c1', [{ field: '여권 사본', to: '확보' }]);
+    expect(useCaseStore.getState().docUpdates['c1']?.['여권 사본']).toEqual({ to: '확보' });
+  });
+});
+
+describe('가드레일 5 — 발송 함수 부재 (caseStore)', () => {
+  it('caseStore에 sendMessage/dispatch 계열 함수가 정의되어 있지 않다', () => {
+    const store = useCaseStore.getState() as unknown as Record<
+      string,
+      unknown
+    >;
+    expect(store.sendMessage).toBeUndefined();
+    expect(store.dispatchMessage).toBeUndefined();
+    expect(store.send).toBeUndefined();
+    expect(store.dispatch).toBeUndefined();
   });
 });
