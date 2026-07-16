@@ -63,8 +63,12 @@ def request_otp(db: Session, phone: str) -> tuple[str | None, int]:
     return code, int(OTP_TTL.total_seconds())
 
 
-def verify_otp(db: Session, phone: str, code: str) -> tuple[str, str, dt.datetime]:
-    """(원문 세션 토큰, user_id, 세션 만료시각)을 반환한다."""
+def _consume_otp(db: Session, phone: str, code: str) -> None:
+    """phone당 가장 최근 미소비 OTP를 code와 대조하고 소비 처리한다(공용 재확인 로직).
+
+    로그인(verify_otp)뿐 아니라 PIN 등록(set_pin)도 재사용한다 — "방금 이 전화번호로
+    받은 코드를 안다"는 것 자체가 재확인의 본질이라, 세션 발급이든 PIN 변경이든 같은
+    검증으로 충분하다(코드 리뷰 지적 P1-2 대응, §13-12)."""
     otp = db.execute(
         select(LoginOtp)
         .where(LoginOtp.phone == phone, LoginOtp.consumed_at.is_(None))
@@ -88,6 +92,12 @@ def verify_otp(db: Session, phone: str, code: str) -> tuple[str, str, dt.datetim
 
     otp.consumed_at = now
     db.flush()
+
+
+def verify_otp(db: Session, phone: str, code: str) -> tuple[str, str, dt.datetime]:
+    """(원문 세션 토큰, user_id, 세션 만료시각)을 반환한다."""
+    _consume_otp(db, phone, code)
+    now = dt.datetime.now(dt.timezone.utc)
 
     user = db.execute(select(User).where(User.phone == phone)).scalar_one_or_none()
     if user is None:
@@ -118,13 +128,16 @@ def resolve_session_user_id(db: Session, raw_token: str) -> str:
     return session.user_id
 
 
-def set_pin(db: Session, user_id: str, pin: str) -> None:
+def set_pin(db: Session, user_id: str, otp_code: str, pin: str) -> None:
     """승인 본인확인 PIN 등록/변경(§13-12). 원문은 저장하지 않는다 — hash_secret(HMAC pepper)만.
 
-    세션만으로 재설정을 허용한다(형식 검증은 스키마 몫). 재설정 전 기존 PIN 재확인 같은
-    강화는 실 로그인 화면(M4)과 함께 후속 — §13-12에 주석으로 남김.
+    세션만으로는 등록/변경할 수 없다 — 방금 발급받은 OTP로 전화 소지를 재확인해야 한다
+    (코드 리뷰 지적 P1-2: 세션 탈취자가 재확인 없이 PIN을 덮어써 본인확인 게이트 전체를
+    우회하는 경로를 막는다). phone은 클라이언트 입력이 아니라 세션 사용자 자신의 것만
+    쓴다 — 남의 전화번호로 받은 OTP를 대신 제출할 수 없다.
     """
     user = db.get(User, user_id)
+    _consume_otp(db, user.phone, otp_code)
     user.pin_hash = hash_secret(pin)
     db.commit()
 

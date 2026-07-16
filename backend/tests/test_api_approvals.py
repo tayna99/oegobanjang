@@ -108,6 +108,17 @@ def _auth_headers(client: TestClient, user: str = "u_owner") -> dict:
     return {"Authorization": f"Bearer {_login(client, PHONE_BY_USER[user])}"}
 
 
+def _fresh_otp_code(client: TestClient, phone: str) -> str:
+    """로그인용 OTP는 verify 시점에 소비된다 — PIN 등록(코드 리뷰 P1-2)은 별도의 새 OTP를
+    요구하므로 로그인 후 다시 요청한다. 로그인 OTP가 이미 소비돼 미소비 행이 없으므로
+    쿨다운(30초) 없이 즉시 새 코드가 발급된다."""
+    resp = client.post("/api/v1/auth/otp/request", json={"phone": phone})
+    assert resp.status_code == 200, resp.text
+    code = resp.json()["debug_code"]
+    assert code is not None
+    return code
+
+
 def _body(**overrides):
     body = {"idempotency_key": str(uuid.uuid4()), "identity_method": "pin", "pin_code": TEST_PIN}
     body.update(overrides)
@@ -267,16 +278,32 @@ def test_approval_not_found_returns_404(client):
 
 
 def test_pin_set_endpoint_registers_new_pin(client, seeded):
-    headers = _auth_headers(client)
+    phone = PHONE_BY_USER["u_owner"]
+    headers = {"Authorization": f"Bearer {_login(client, phone)}"}
     new_pin = "135790"
-    assert client.post("/api/v1/auth/pin", json={"pin": new_pin}, headers=headers).status_code == 204
+    otp_code = _fresh_otp_code(client, phone)
+    assert (
+        client.post("/api/v1/auth/pin", json={"pin": new_pin, "otp_code": otp_code}, headers=headers).status_code
+        == 204
+    )
 
     resp = client.post("/api/v1/approvals/apv1/approve", json=_body(pin_code=new_pin), headers=headers)
     assert resp.status_code == 200, resp.text
 
 
+def test_pin_set_without_fresh_otp_is_rejected(client):
+    """코드 리뷰 P1-2: 세션만으로는 PIN을 등록/변경할 수 없어야 한다 — 로그인 OTP는 verify
+    시점에 이미 소비돼 미소비 행이 없으므로, 새 OTP 없이는 404(OtpNotFoundError)로 거부돼야
+    세션 탈취자가 본인확인 게이트를 우회할 수 없다."""
+    headers = _auth_headers(client)
+    resp = client.post("/api/v1/auth/pin", json={"pin": "246810", "otp_code": "000000"}, headers=headers)
+    assert resp.status_code == 404, resp.text
+
+
 def test_pin_set_rejects_non_six_digit(client):
-    resp = client.post("/api/v1/auth/pin", json={"pin": "12"}, headers=_auth_headers(client))
+    resp = client.post(
+        "/api/v1/auth/pin", json={"pin": "12", "otp_code": "000000"}, headers=_auth_headers(client)
+    )
     assert resp.status_code == 422, resp.text
 
 
@@ -294,7 +321,9 @@ def test_approve_pin_not_registered_is_unprocessable(client, seeded):
     assert resp.status_code == 422, resp.text
 
 
-def test_approve_biometric_not_registered_is_unprocessable(client):
+def test_approve_biometric_is_always_rejected_when_not_registered(client):
+    """코드 리뷰 P1-3: biometric은 실서명 검증(WebAuthn 등)이 없어 승인 API가 아직 받지
+    않는다 — users.biometric_registered=false인 경우도 422."""
     resp = client.post(
         "/api/v1/approvals/apv1/approve",
         json=_body(identity_method="biometric", pin_code=None),
@@ -303,7 +332,9 @@ def test_approve_biometric_not_registered_is_unprocessable(client):
     assert resp.status_code == 422, resp.text
 
 
-def test_approve_biometric_registered_succeeds(client, seeded):
+def test_approve_biometric_is_always_rejected_even_when_registered(client, seeded):
+    """등록 여부는 실제 생체 서명 증명이 아니다 — biometric_registered=true여도 세션만으로
+    'biometric'이라고 주장하는 것만으로는 통과해선 안 된다(핵심 회귀 — 코드 리뷰 P1-3)."""
     seeded.execute(text("UPDATE users SET biometric_registered = true WHERE id='u_owner'"))
     seeded.flush()
     resp = client.post(
@@ -311,7 +342,8 @@ def test_approve_biometric_registered_succeeds(client, seeded):
         json=_body(identity_method="biometric", pin_code=None),
         headers=_auth_headers(client),
     )
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 422, resp.text
+    assert "지원하지 않습니다" in resp.json()["detail"]
 
 
 # --- checklist decide-동반 제출(§13-12) --------------------------------------------------

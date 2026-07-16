@@ -44,24 +44,35 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await resp.json()) as T;
 }
 
+async function requestDebugOtp(): Promise<string> {
+  const otpReq = await request<{ debug_code: string | null }>('/api/v1/auth/otp/request', {
+    method: 'POST',
+    body: JSON.stringify({ phone: DEV_LOGIN_PHONE }),
+  });
+  if (!otpReq.debug_code) {
+    throw new ApiError(500, 'dev 자동 로그인은 local 백엔드 환경(디버그 코드 노출)에서만 동작합니다');
+  }
+  return otpReq.debug_code;
+}
+
 function ensureSession(): Promise<void> {
   if (sessionToken) return Promise.resolve();
   if (!sessionReady) {
     sessionReady = (async () => {
-      const otpReq = await request<{ debug_code: string | null }>('/api/v1/auth/otp/request', {
-        method: 'POST',
-        body: JSON.stringify({ phone: DEV_LOGIN_PHONE }),
-      });
-      if (!otpReq.debug_code) {
-        sessionReady = null;
-        throw new ApiError(500, 'dev 자동 로그인은 local 백엔드 환경(디버그 코드 노출)에서만 동작합니다');
-      }
+      const loginCode = await requestDebugOtp();
       const verify = await request<{ session_token: string }>('/api/v1/auth/otp/verify', {
         method: 'POST',
-        body: JSON.stringify({ phone: DEV_LOGIN_PHONE, code: otpReq.debug_code }),
+        body: JSON.stringify({ phone: DEV_LOGIN_PHONE, code: loginCode }),
       });
       sessionToken = verify.session_token;
-      await request('/api/v1/auth/pin', { method: 'POST', body: JSON.stringify({ pin: DEV_PIN }) });
+
+      // 세션만으로는 PIN을 등록/변경할 수 없다(코드 리뷰 P1-2) — 로그인 OTP는 verify에서
+      // 이미 소비됐으므로, PIN 등록 전용으로 새 OTP를 한 번 더 받아야 한다.
+      const pinCode = await requestDebugOtp();
+      await request('/api/v1/auth/pin', {
+        method: 'POST',
+        body: JSON.stringify({ pin: DEV_PIN, otp_code: pinCode }),
+      });
     })().catch((err) => {
       sessionReady = null;
       throw err;

@@ -63,7 +63,7 @@ FastAPI 예외 핸들러가 아니라 `try/except IntegrityError: db.rollback()`
 |---|---|---|
 | POST | `/api/v1/auth/otp/request` | phone+OTP 로그인 1단계 — OTP 발급(mock 발송, local 환경만 응답에 코드 노출) |
 | POST | `/api/v1/auth/otp/verify` | phone+OTP 로그인 2단계 — 코드 검증, 세션 토큰 발급 |
-| POST | `/api/v1/auth/pin` | 승인 본인확인 PIN 등록/변경(6자리) |
+| POST | `/api/v1/auth/pin` | 승인 본인확인 PIN 등록/변경(6자리, 새 OTP 재확인 필요) |
 | POST | `/api/v1/auth/logout` | 세션 폐기(멱등) |
 | GET | `/api/v1/cases` | 케이스 목록 읽기 모델 v1 — `?base_date=` 기준일 주입, 세션 사용자 회사로 스코프 |
 | GET | `/api/v1/approvals` | 승인 목록 — `?status=`·`?case_id=` 필터, 세션 사용자 회사로 스코프 |
@@ -80,8 +80,11 @@ blocked로 유지된다(행정사 이관).
 
 인증된 세션(`Authorization: Bearer <session_token>`)에서 신원을 도출한다 —
 `decided_by_user_id`/`requested_by_user_id`는 더 이상 요청 바디로 받지 않는다. `identity_method`
-(pin/biometric)는 실검증된다: pin은 `users.pin_hash`와 HMAC 상수시간 비교, biometric은
-`users.biometric_registered` 등록 여부만 확인한다(실제 생체 검증은 기기 몫, §13-12).
+는 `pin`만 실검증된 상태로 받는다 — `users.pin_hash`와 HMAC 상수시간 비교(`secrets_match`).
+`biometric`은 아직 승인 API가 받지 않는다(422) — `users.biometric_registered`는 등록 여부일
+뿐 실제 생체 서명 증명이 아니라서, WebAuthn 등 실서명 검증이 붙기 전까지는 세션+`biometric`
+주장만으로 통과시키지 않는다(§13-12, 코드 리뷰 P1-3). PIN 등록/변경(`POST /auth/pin`)도
+세션만으로는 안 되고 방금 새로 발급받은 OTP로 전화 소지를 재확인해야 한다(코드 리뷰 P1-2).
 
 ## 구조
 

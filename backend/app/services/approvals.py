@@ -33,7 +33,7 @@ from app.domain.exceptions import (
     ApprovalActionNotRequestableError,
     ApprovalAlreadyDecidedError,
     ApprovalAlreadyPendingError,
-    ApprovalBiometricNotRegisteredError,
+    ApprovalBiometricUnsupportedError,
     ApprovalBlockedByEvidenceError,
     ApprovalChecklistIncompleteError,
     ApprovalForbiddenError,
@@ -88,8 +88,9 @@ def _verify_identity(db: Session, user_id: str, payload: ApprovalDecisionRequest
     """본인확인 실검증(§13-12) — identity_method 주장을 서버가 대조한다.
 
     pin: users.pin_hash와 상수시간 비교(secrets_match). pin_code 원문은 저장·로그 금지.
-    biometric: 실제 생체 검증은 기기 몫 — 서버가 확인 가능한 건 등록 여부까지(7단계 §4
-    '생체 인증 재확인 (등록자)'의 신뢰 경계).
+    biometric: 아직 받지 않는다(코드 리뷰 P1-3) — users.biometric_registered는 등록 여부일
+    뿐 실제 생체 서명 증명이 아니라서, 세션만 있으면 누구나 'biometric'이라고 주장해 통과할
+    수 있었다. WebAuthn 등 실서명 검증이 붙기 전까지는 pin만 유효한 수단이다.
     """
     user = db.get(User, user_id)
     if payload.identity_method == "pin":
@@ -98,8 +99,7 @@ def _verify_identity(db: Session, user_id: str, payload: ApprovalDecisionRequest
         if not payload.pin_code or not secrets_match(payload.pin_code, user.pin_hash):
             raise ApprovalIdentityVerificationFailedError()
     elif payload.identity_method == "biometric":
-        if not user.biometric_registered:
-            raise ApprovalBiometricNotRegisteredError()
+        raise ApprovalBiometricUnsupportedError()
 
 
 def decide_approval(

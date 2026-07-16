@@ -30,8 +30,9 @@ describe('api.decideApproval', () => {
   it('resolves case→approval via caseCode and posts the decision with the session token', async () => {
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
     fetchMock
-      .mockResolvedValueOnce(jsonResponse({ debug_code: '123456' })) // otp/request
+      .mockResolvedValueOnce(jsonResponse({ debug_code: '123456' })) // otp/request (login)
       .mockResolvedValueOnce(jsonResponse({ session_token: 'tok-abc' })) // otp/verify
+      .mockResolvedValueOnce(jsonResponse({ debug_code: '654321' })) // otp/request (PIN 등록용 재확인 — P1-2)
       .mockResolvedValueOnce(new Response(null, { status: 204 })) // auth/pin
       .mockResolvedValueOnce(jsonResponse({ cases: [{ id: 'cs_nguyen', case_code: 'case_002' }] })) // cases
       .mockResolvedValueOnce(jsonResponse({ approvals: [{ id: 'apv_nguyen', status: 'pending' }] })) // approvals
@@ -40,8 +41,14 @@ describe('api.decideApproval', () => {
     const api = await loadApi();
     await api.decideApproval({ caseCode: 'case_002', decision: 'approved', idempotencyKey: 'key-1' });
 
-    expect(fetchMock).toHaveBeenCalledTimes(6);
-    const decideCall = fetchMock.mock.calls[5];
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+
+    const pinCall = fetchMock.mock.calls[3];
+    expect(pinCall[0]).toBe('http://api.test/api/v1/auth/pin');
+    const pinBody = JSON.parse((pinCall[1] as RequestInit).body as string);
+    expect(pinBody).toMatchObject({ pin: '000000', otp_code: '654321' }); // 로그인 코드(123456)가 아니라 재확인용 새 코드
+
+    const decideCall = fetchMock.mock.calls[6];
     expect(decideCall[0]).toBe('http://api.test/api/v1/approvals/apv_nguyen/approve');
     const init = decideCall[1] as RequestInit;
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok-abc');
@@ -54,6 +61,7 @@ describe('api.decideApproval', () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ debug_code: '123456' }))
       .mockResolvedValueOnce(jsonResponse({ session_token: 'tok-abc' }))
+      .mockResolvedValueOnce(jsonResponse({ debug_code: '654321' }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(jsonResponse({ cases: [{ id: 'cs_x', case_code: 'case_009' }] }))
       .mockResolvedValueOnce(jsonResponse({ approvals: [] }));
@@ -69,6 +77,7 @@ describe('api.decideApproval', () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ debug_code: '123456' }))
       .mockResolvedValueOnce(jsonResponse({ session_token: 'tok-abc' }))
+      .mockResolvedValueOnce(jsonResponse({ debug_code: '654321' }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(jsonResponse({ cases: [{ id: 'cs_x', case_code: 'case_002' }] }))
       .mockResolvedValueOnce(jsonResponse({ approvals: [{ id: 'apv_1', status: 'pending' }] }))

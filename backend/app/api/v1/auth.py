@@ -72,8 +72,12 @@ def set_pin_endpoint(
     """승인 본인확인 PIN 등록/변경(6자리 숫자, §13-12).
 
     decide의 identity_method='pin'이 여기 등록된 해시와 대조된다 — 세션만으로 승인 불가
-    (7단계 §4)의 서버측 짝."""
-    set_pin(db, current_user_id, payload.pin)
+    (7단계 §4)의 서버측 짝. 등록/변경 자체도 세션만으로는 안 된다 — otp_code로 방금 이
+    전화번호를 다시 확인해야 한다(POST /otp/request 선행 필요, 코드 리뷰 P1-2)."""
+    try:
+        set_pin(db, current_user_id, payload.otp_code, payload.pin)
+    except AuthError as exc:
+        raise HTTPException(_ERROR_STATUS.get(type(exc), status.HTTP_400_BAD_REQUEST), str(exc)) from exc
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
