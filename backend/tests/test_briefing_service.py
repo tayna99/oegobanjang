@@ -155,6 +155,13 @@ def test_generate_records_risk_flagged_evidence_linked_to_cases(
     assert all("Nguyen" not in e.summary and "Batbayar" not in e.summary for e in risk_events)
 
 
+def _risk_flagged_events(db: Session, company_id: str) -> list[EvidenceEvent]:
+    events = db.execute(
+        select(EvidenceEvent).where(EvidenceEvent.company_id == company_id)
+    ).scalars().all()
+    return [e for e in events if e.type == "risk_flagged"]
+
+
 def test_generate_is_idempotent_on_rerun_same_day(db: Session, seeded_company: str) -> None:
     first = generate_daily_briefing(db, company_id=seeded_company, reference_date=REF)
     first_items = db.execute(
@@ -165,6 +172,7 @@ def test_generate_is_idempotent_on_rerun_same_day(db: Session, seeded_company: s
         case.id: case.case_code
         for case in db.execute(select(Case).where(Case.id.in_(first_case_ids))).scalars()
     }
+    first_risk_events = _risk_flagged_events(db, seeded_company)
 
     second = generate_daily_briefing(db, company_id=seeded_company, reference_date=REF)
 
@@ -186,6 +194,38 @@ def test_generate_is_idempotent_on_rerun_same_day(db: Session, seeded_company: s
         select(Briefing).where(Briefing.company_id == seeded_company)
     ).scalars().all()
     assert len(briefings) == 1  # UNIQUE(company_id, briefing_date) 위반 없이 upsert됨
+
+    # 같은 스냅샷(source_snapshot_hash 불변)에서 재실행 — risk_flagged evidence가 append-only로
+    # 계속 쌓이면 안 된다(PR #17 리뷰 지적). 이벤트 id·개수 모두 그대로여야 한다.
+    second_risk_events = _risk_flagged_events(db, seeded_company)
+    assert len(second_risk_events) == len(first_risk_events)
+    assert {e.id for e in second_risk_events} == {e.id for e in first_risk_events}
+
+
+def test_generate_records_new_risk_flagged_when_snapshot_changes(
+    db: Session, seeded_company: str
+) -> None:
+    """워커·서류 데이터가 실제로 바뀌면(=source_snapshot_hash 변경) 새 risk_flagged evidence가
+    정당하게 남아야 한다 — 멱등 가드가 진짜 새 판단 근거까지 가려서는 안 된다."""
+    first = generate_daily_briefing(db, company_id=seeded_company, reference_date=REF)
+    # 세션 identity map은 같은 PK(id)를 같은 Python 객체로 재사용한다 — db.refresh()가 second
+    # 시점에 이 객체를 새 값으로 덮어쓰므로, "이전" 값은 미리 원시값으로 복사해둬야 한다.
+    first_id = first.id
+    first_hash = first.source_snapshot_hash
+    first_risk_events = _risk_flagged_events(db, seeded_company)
+
+    missing_doc = db.get(WorkerDocument, "doc_missing")
+    missing_doc.status = "received"  # missing_document finding이 사라지도록 스냅샷 변경
+    db.flush()
+
+    second = generate_daily_briefing(db, company_id=seeded_company, reference_date=REF)
+
+    assert second.id == first_id
+    assert second.source_snapshot_hash != first_hash
+    second_risk_events = _risk_flagged_events(db, seeded_company)
+    # 기존 이벤트는 append-only로 보존되고, 바뀐 판단 근거에 대해 새 이벤트가 추가된다.
+    assert {e.id for e in first_risk_events} <= {e.id for e in second_risk_events}
+    assert len(second_risk_events) > len(first_risk_events)
 
 
 def test_generate_with_no_workers_yields_empty_briefing(db: Session) -> None:
