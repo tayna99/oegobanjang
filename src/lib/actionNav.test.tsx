@@ -63,6 +63,14 @@ describe('useNextAction', () => {
     expect(getLocation()?.pathname).toBe('/thread/tran');
   });
 
+  // NEXT_ROADMAP B-3 회귀: batbayar도 케이스 id(batbayar)와 스레드 id(bayar)가 달라 매핑이 필요하다.
+  it('batbayar도 threadIdForCase 매핑으로 해당 스레드(bayar)로 이동한다', () => {
+    const { wrapper, getLocation } = setup();
+    const { result } = renderHook(() => useNextAction(), { wrapper });
+    act(() => result.current('batbayar', action('thread')));
+    expect(getLocation()?.pathname).toBe('/thread/bayar');
+  });
+
   it('thread는 threadIdForCase 매핑이 없으면 메시지 탭으로 폴백한다', () => {
     const { wrapper, getLocation } = setup();
     const { result } = renderHook(() => useNextAction(), { wrapper });

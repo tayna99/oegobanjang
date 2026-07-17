@@ -81,6 +81,17 @@ describe('CsvUploadWorkbench (PC, 4.4 DoD)', () => {
     expect(screen.queryByText('Nguyen Van A')).not.toBeInTheDocument();
   });
 
+  // NEXT_ROADMAP B-4 회귀: "템플릿 다운로드"는 onClick이 없던 죽은 버튼이었다.
+  it('템플릿 다운로드 버튼을 누르면 CSV 다운로드가 실행된다', () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    renderAt('/cases/import');
+
+    fireEvent.click(screen.getByRole('button', { name: '템플릿 다운로드' }));
+
+    expect(clickSpy).toHaveBeenCalledOnce();
+    clickSpy.mockRestore();
+  });
+
   it('열람자·대표 권한으로는 등록 화면 대신 안내 문구만 보인다', () => {
     useRoleStore.getState().setRole('viewer');
     renderAt('/cases/import');

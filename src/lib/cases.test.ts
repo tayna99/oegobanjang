@@ -78,6 +78,30 @@ describe('case list selectors', () => {
     expect(sorted.map((item) => item.caseId)).toEqual(['a-approve', 'b-draft', 'z-detail']);
   });
 
+  // D-4(NEXT_ROADMAP): briefing.ts의 중복 sortCards에 있던 개별 엣지케이스를 이관.
+  it('severity 순서(CRITICAL > HIGH > MEDIUM > LOW)로 정렬한다', () => {
+    const sorted = sortCaseList([
+      card({ caseId: 'low', severity: 'LOW' }),
+      card({ caseId: 'crit', severity: 'CRITICAL' }),
+      card({ caseId: 'high', severity: 'HIGH' }),
+    ]);
+    expect(sorted.map((c) => c.caseId)).toEqual(['crit', 'high', 'low']);
+  });
+
+  it('severity가 같으면 dDay 오름차순(더 급한 것 먼저)으로 정렬한다', () => {
+    const sorted = sortCaseList([
+      card({ caseId: 'a', severity: 'HIGH', dDay: 30 }),
+      card({ caseId: 'b', severity: 'HIGH', dDay: -3 }),
+      card({ caseId: 'c', severity: 'HIGH', dDay: 5 }),
+    ]);
+    expect(sorted.map((c) => c.caseId)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('dDay가 없는 카드는 있는 카드보다 뒤로 간다', () => {
+    const sorted = sortCaseList([card({ caseId: 'nodday', dDay: undefined }), card({ caseId: 'hasday', dDay: 10 })]);
+    expect(sorted.map((c) => c.caseId)).toEqual(['hasday', 'nodday']);
+  });
+
   it('exposes chip labels for supported presets', () => {
     expect(CASE_FILTERS.map((filter) => filter.key)).toEqual(['all', 'crit', 'warn', 'info', 'approval']);
     expect(caseFilterLabel('warn')).toBe('우선 확인');

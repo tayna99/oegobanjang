@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { greetingText, recommendReason, sortCards, visibleCardsForRole } from './briefing';
+import { greetingText, recommendReason, visibleCardsForRole } from './briefing';
 import type { CaseCard } from '@/types';
 
 function card(overrides: Partial<CaseCard>): CaseCard {
@@ -31,31 +31,9 @@ describe('greetingText', () => {
   });
 });
 
-describe('sortCards — deterministic severity → dDay → id', () => {
-  it('severity 순서(CRITICAL > HIGH > MEDIUM > LOW)로 정렬한다', () => {
-    const cards = [card({ caseId: 'low', severity: 'LOW' }), card({ caseId: 'crit', severity: 'CRITICAL' }), card({ caseId: 'high', severity: 'HIGH' })];
-    expect(sortCards(cards).map((c) => c.caseId)).toEqual(['crit', 'high', 'low']);
-  });
-
-  it('severity가 같으면 dDay 오름차순(더 급한 것 먼저)으로 정렬한다', () => {
-    const cards = [
-      card({ caseId: 'a', severity: 'HIGH', dDay: 30 }),
-      card({ caseId: 'b', severity: 'HIGH', dDay: -3 }),
-      card({ caseId: 'c', severity: 'HIGH', dDay: 5 }),
-    ];
-    expect(sortCards(cards).map((c) => c.caseId)).toEqual(['b', 'c', 'a']);
-  });
-
-  it('severity·dDay가 같으면 caseId 알파벳 순으로 정렬한다(deterministic tie-break)', () => {
-    const cards = [card({ caseId: 'zeta', severity: 'LOW' }), card({ caseId: 'alpha', severity: 'LOW' })];
-    expect(sortCards(cards).map((c) => c.caseId)).toEqual(['alpha', 'zeta']);
-  });
-
-  it('dDay가 없는 카드는 있는 카드보다 뒤로 간다', () => {
-    const cards = [card({ caseId: 'nodday' }), card({ caseId: 'hasday', dDay: 10 })];
-    expect(sortCards(cards).map((c) => c.caseId)).toEqual(['hasday', 'nodday']);
-  });
-});
+// 정렬(severity→dDay→유형→id)은 lib/cases.ts의 sortCaseList 테스트로 통합됐다(D-4,
+// NEXT_ROADMAP — 이 파일에 있던 sortCards는 유형 우선순위 타이브레이크가 빠진 중복 구현이었다).
+// BriefingHomePage는 이제 sortCaseList를 직접 쓴다.
 
 describe('visibleCardsForRole', () => {
   const cards = [

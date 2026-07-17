@@ -1,5 +1,5 @@
-import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
+import { Chip } from '@/components/Chip';
 import { IconSpark } from '@/components/icons';
 import { useNextAction } from '@/lib/actionNav';
 import type { Interpretation } from '@/types';
@@ -25,7 +25,7 @@ export function InterpretationCard({ interpretation, onConfirm, confirmDisabled 
           AI 해석
         </span>
         {/* isFinal:false — 담당자 확인 전 확정 금지(GLOSSARY.md). 배지 필수(1단계 §M6). */}
-        <Badge tone="pending">담당자 확인 필요</Badge>
+        <Chip tone="approval">담당자 확인 필요</Chip>
       </div>
 
       <p className="mb-3 text-sm leading-relaxed text-ink">{interpretation.summaryKo}</p>

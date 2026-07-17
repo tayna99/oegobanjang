@@ -2,7 +2,7 @@ import { Chip } from '@/components/Chip';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { dDayLabel } from '@/lib/dday';
-import { severityTone } from '@/lib/chipTone';
+import { severityLabel, severityTone } from '@/lib/chipTone';
 import type { CaseCard } from '@/types';
 
 // 승인 큐 카드 — reference/design-system/외고반장 Mobile.dc.html §2a(52~75행) 이식(M2.6.1).
@@ -21,20 +21,13 @@ export interface ApprovalCardProps {
   escalated?: boolean;
 }
 
-const SEVERITY_LABEL: Record<CaseCard['severity'], string> = {
-  CRITICAL: '긴급',
-  HIGH: '높음',
-  MEDIUM: '중간',
-  LOW: '낮음',
-};
-
 export function ApprovalCard({ data, onReview, offlineDisabled, readOnly, escalated }: ApprovalCardProps) {
   return (
     <Card data-case-id={data.caseId} className="mb-3 flex items-center gap-3 p-4">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex flex-wrap gap-1.5">
           <Chip tone={severityTone(data.severity)}>
-            {SEVERITY_LABEL[data.severity]}
+            {severityLabel(data.severity)}
             {data.dDay !== undefined ? ` · ${dDayLabel(data.dDay)}` : ''}
           </Chip>
           {data.missingDocCount !== undefined && data.missingDocCount > 0 && (

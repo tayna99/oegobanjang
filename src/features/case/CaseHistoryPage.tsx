@@ -3,9 +3,9 @@ import { useParams } from 'react-router-dom';
 import { BackHeader } from '@/components/BackHeader';
 import { Button } from '@/components/Button';
 import { useNav } from '@/lib/nav';
+import { mergedAuditLog } from '@/lib/audit';
 import { cn } from '@/lib/cn';
 import { CASE_CARDS } from '@/mocks/fixtures';
-import { EVIDENCE_SEED } from '@/mocks/evidence';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import type { EvidenceEvent } from '@/types';
@@ -39,10 +39,11 @@ export function CaseHistoryPage() {
   const card = caseId ? cases[caseId] : undefined;
 
   const nodes = useMemo(() => {
-    // 표시용 병합: 오늘 아침 시드(앱 열기 전 기록, 예: 승인 요청 생성 #4789) + 런타임 이벤트.
-    // 스토어 자체는 비어 시작한다 — 시드 상주는 M8 전역 판단 기록(2.3)의 몫.
-    const seedIds = new Set(events.map((event) => event.id));
-    const combined = [...EVIDENCE_SEED.filter((event) => !seedIds.has(event.id)), ...events];
+    // 표시용 병합은 lib/audit.ts의 mergedAuditLog 하나로 통일했다(D-4, NEXT_ROADMAP —
+    // 이 병합 로직이 audit.ts의 isCaseEscalated와 함께 3곳에 중복돼 있었다). mergedAuditLog는
+    // 감사 로그용 최신순(내림차순)이라, 이 타임라인이 원하는 생애주기 순(오래된 것 먼저)으로
+    // 뒤집어 쓴다.
+    const combined = [...mergedAuditLog(events)].reverse();
     const lifecycle = combined
       .filter((event) => event.caseId === caseId && NODE_LABEL[event.type])
       .map((event) => ({

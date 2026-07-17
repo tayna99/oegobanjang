@@ -116,9 +116,14 @@ export function useApprovalActions(): ApprovalActions {
       ensurePending(actionId);
       // 키에 사유를 포함 — 사유가 바뀐 재반려가 no-op으로 유실되지 않게(코드리뷰 A6).
       decide(actionId, 'rejected', `${actionId}:rejected:${reason ?? ''}`, reason || undefined);
+      // 같은 사유로 반려→보완→재반려하면 사유만으로는 id가 같아 evidenceStore의 id 중복
+      // 방지에 걸려 두 번째 반려 기록이 조용히 유실된다(NEXT_ROADMAP B-1) — 같은 actionId의
+      // 기존 반려 건수를 순번으로 붙여 매 반려마다 고유한 id를 보장한다.
+      const rejectionSeq = useEvidenceStore
+        .getState()
+        .events.filter((e) => e.type === 'approval_rejected' && e.actionId === actionId).length;
       appendEvidence({
-        // 사유별로 다른 id — 재반려가 append no-op으로 삼켜지지 않게.
-        id: `${actionId}-rejected:${reason ?? ''}`,
+        id: `${actionId}-rejected:${reason ?? ''}:${rejectionSeq}`,
         type: 'approval_rejected', // 승인과 구분(감사 타임라인이 '반려'로 표기, 코드리뷰 A3)
         at: new Date().toISOString(),
         caseId: card.caseId,

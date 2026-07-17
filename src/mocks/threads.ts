@@ -95,10 +95,13 @@ export const THREADS: MessageThread[] = [
   },
   {
     threadId: 'bayar',
-    workerRef: { displayName: 'Bayar M.', nationality: '몽골', maskLevel: 'masked' },
+    // NEXT_ROADMAP B-2: 이 스레드는 원래 caseId:'bayar'를 참조했지만 CASE_CARDS엔 그런 케이스가
+    // 없었다(댕글링 참조) — 6인 로스터 치환 후 실제 caseId는 'batbayar'(Batbayar E.)다.
+    // threadId 자체는 바꾸지 않는다(threads.test.ts의 sortThreads 순서 검증과 무관한 내부 키).
+    workerRef: { displayName: 'Batbayar E.', nationality: '몽골', maskLevel: 'masked' },
     channel: 'sms',
     channelLabel: 'SMS',
-    caseId: 'bayar',
+    caseId: 'batbayar',
     messages: [
       {
         messageId: 'bayar-msg-out-1',
@@ -111,7 +114,7 @@ export const THREADS: MessageThread[] = [
         at: '2026-07-03T15:40:00.000Z', // v3 924행 "어제" · 926행 "15:40"
         deliveryStatus: 'sent',
         evidenceRef: '#4720', // v3 926행 "판단 기록 #4720"
-        caseId: 'bayar',
+        caseId: 'batbayar',
       },
     ],
     interpretationStatus: 'none',
@@ -123,11 +126,13 @@ export const THREADS: MessageThread[] = [
 
 // caseId → threadId 매핑. Tran은 케이스(tranCase)와 스레드(tran) 식별자가 달라 매핑이 꼭 필요하고,
 // Nguyen은 케이스가 이미 있지만 스레드는 draftCaseId로만 연결돼 있어(위 THREADS 참고) 같은
-// 함수로 찾을 수 있도록 포함한다. Bayar는 caseId와 threadId가 둘 다 'bayar'이지만, 우연히 같은
-// 값일 뿐 이 함수가 보장하는 계약은 아니므로 필요해지면 표에 추가한다.
+// 함수로 찾을 수 있도록 포함한다. batbayar도 케이스(batbayar)와 스레드(bayar) 식별자가 달라
+// 매핑이 필요하다(NEXT_ROADMAP B-3 — 매핑 누락 시 thread 액션이 의도한 스레드 대신 메시지
+// 탭으로 폴백한다).
 const CASE_ID_TO_THREAD_ID: Record<string, string> = {
   tranCase: 'tran',
   nguyen: 'nguyen',
+  batbayar: 'bayar',
 };
 
 export function threadIdForCase(caseId: string): string | undefined {

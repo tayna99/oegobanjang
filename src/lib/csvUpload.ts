@@ -68,6 +68,20 @@ export function validateRows(rows: CsvRow[]): ValidatedCsvRow[] {
   });
 }
 
+// CSV 양식 안내(CsvUploadWorkbench aside)와 동일한 5개 컬럼 — 헤더만 담은 빈 템플릿.
+export const CSV_TEMPLATE_HEADER = '이름,국적,팀,체류만료일 (YYYY-MM-DD),외국인등록번호';
+const CSV_TEMPLATE_FILENAME = '근로자_등록_템플릿.csv';
+
+// NEXT_ROADMAP B-4: "템플릿 다운로드" 버튼에 onClick이 없어 죽은 버튼이었다 — 실제 파일
+// 업로드 백엔드가 없는 것과 별개로, 헤더만 담은 정적 CSV는 클라이언트에서 바로 만들 수 있다.
+// data: URI를 쓰는 이유는 jsdom에 미구현인 URL.createObjectURL 없이도 동작하기 때문이다.
+export function downloadCsvTemplate(): void {
+  const link = document.createElement('a');
+  link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(`${CSV_TEMPLATE_HEADER}\n`)}`;
+  link.download = CSV_TEMPLATE_FILENAME;
+  link.click();
+}
+
 function slugFor(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/^-+|-+$/g, '');
 }

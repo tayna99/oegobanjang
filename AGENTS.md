@@ -45,7 +45,7 @@ legacy/
 = 이전 FastAPI 백엔드, 데이터 파이프라인, Agent Runtime, eval, 기존 문서 보관 영역
 ```
 
-루트에는 더 이상 운영 대상 `backend/` 디렉터리가 없다. `legacy/backend/`는 이전 백엔드와 Agent Runtime을 보존한 경로이며, 새 프론트 MVP 작업의 production import 대상이 아니다.
+루트 `backend/`는 `db/schema.sql`을 그대로 적용하는 FastAPI 서비스로 이미 존재하고 동작한다(OTP 인증·세션, 승인 요청 생성 + approve/reject, pytest 스위트가 CI에 편입). 다만 프론트(`src/`)는 아직 이 backend를 한 줄도 호출하지 않는다(fetch 0건) — 배선은 `plans/ROADMAP.md` R2 범위다. `legacy/backend/`는 이전 백엔드(Agent Runtime 포함)를 보존한 별개 경로이며, 새 프론트 MVP 작업의 production import 대상이 아니다.
 
 Agent Runtime 관련 코드는 legacy 영역에 남아 있다.
 
