@@ -2,6 +2,7 @@ import type { ChipTone } from '@/lib/chipTone';
 import type { EvidenceEvent, EvidenceType } from '@/types';
 import { EVIDENCE_SEED } from '@/mocks/evidence';
 import type { CaseActivityEntry } from '@/mocks/fixtures';
+import { RUN_CONFIGS } from '@/mocks/runs';
 
 // 감사 로그 셰이핑 — PC §3c 거버넌스(2.5.5) + 향후 M8 전역 판단 기록(2.3) 공용.
 // reference/design-system/외고반장 PC.dc.html §3c(586~599행): 필터 칩 + ref·타입 칩·시각·행위자·해시.
@@ -140,6 +141,20 @@ const CASE_TIMELINE_OUTCOME: Partial<Record<EvidenceType, CaseActivityEntry['out
   package_reply: 'question',
 };
 
+// 코드리뷰(PR #14) P1 교정: evidenceRef("#4791" 등)는 판단 기록 표시 번호일 뿐, 재생 런
+// RUN_CONFIGS.runKey와는 별개 채번이다 — 둘이 우연히 겹치지 않는 한(#4788/#4712처럼 정적
+// activity에 원래부터 실제 런이 있던 경우만) 일치하지 않는다. 그런데도 runRef를 evidenceRef로
+// 그대로 채우면 CaseTimeline이 존재하지 않는 /run/:id로 이동하는 버튼을 만들어, 클릭 시
+// RunPage가 config를 못 찾고 loading 화면에 멈춘다. 실제 재생 가능한 runKey가 있을 때만
+// 버튼을 만들도록, 여기서 미리 걸러 runRef를 undefined로 남긴다(CaseTimeline은 그대로 텍스트로
+// 렌더 — 이미 runRef가 optional인 기존 분기를 그대로 탄다).
+const REPLAYABLE_RUN_KEYS = new Set(RUN_CONFIGS.map((config) => config.runKey));
+
+function replayableRunRef(evidenceRef: string | undefined): string | undefined {
+  if (!evidenceRef) return undefined;
+  return REPLAYABLE_RUN_KEYS.has(evidenceRef.replace('#', '')) ? evidenceRef : undefined;
+}
+
 export function caseTimelineActivity(
   caseId: string,
   staticActivity: readonly CaseActivityEntry[],
@@ -149,7 +164,7 @@ export function caseTimelineActivity(
   const runtimeEntries: CaseActivityEntry[] = caseEvents
     .filter((event) => CASE_TIMELINE_EVENT_TYPES.has(event.type))
     .map((event) => ({
-      runRef: event.evidenceRef,
+      runRef: replayableRunRef(event.evidenceRef),
       label: AUDIT_TYPE_LABEL[event.type],
       detail: event.summary ?? '',
       at: '방금',
