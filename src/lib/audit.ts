@@ -90,12 +90,32 @@ export const AUDIT_FILTERS: AuditFilter[] = [
   { key: 'export', label: '내보내기', match: (t) => t === 'exported' },
 ];
 
+// 시드(앱 열기 전 기록)와 런타임 이벤트를 합치되 정렬은 하지 않는다 — 병합 자체는 항상
+// "시드 다음 런타임, 각자 자기 순서 유지"로 결정적이다. mergedAuditLog(최신순)와
+// mergedAuditLogAscending(오래된 순)이 이 위에서 서로 다른 정렬을 얹는다.
+function mergeSeedAndRuntime(events: readonly EvidenceEvent[]): EvidenceEvent[] {
+  const runtimeIds = new Set(events.map((event) => event.id));
+  return [...EVIDENCE_SEED.filter((event) => !runtimeIds.has(event.id)), ...events];
+}
+
 // 시드(앱 열기 전 기록) + 런타임 이벤트를 병합해 최신순 정렬. id 중복은 런타임 우선.
 // 스토어 자체는 비어 시작하므로(evidenceStore) 시드는 표시 시점에 합친다(블루프린트 §9-A, M8도 동일).
 export function mergedAuditLog(events: readonly EvidenceEvent[]): EvidenceEvent[] {
-  const runtimeIds = new Set(events.map((event) => event.id));
-  const combined = [...EVIDENCE_SEED.filter((event) => !runtimeIds.has(event.id)), ...events];
-  return combined.slice().sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  return mergeSeedAndRuntime(events)
+    .slice()
+    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+}
+
+// CaseHistoryPage 전용 — 생애주기 타임라인은 오래된 것부터 그려야 한다. mergedAuditLog를
+// 뒤집어 쓰지 않는다: Array#sort는 안정 정렬이라 동일 시각 이벤트의 상대 순서(시드 다음
+// 런타임, 각자 발생/append 순)를 보존하는데, 내림차순 결과를 통째로 reverse()하면 그 tie
+// 블록 내부 순서까지 뒤집혀 "체크리스트 완료"·"최종 승인"처럼 같은 밀리초에 연달아 append된
+// 이벤트의 표시 순서가 뒤바뀔 수 있었다(코드리뷰 지적). 오름차순을 직접 정렬해 안정 정렬의
+// tie 보존을 그대로 살린다.
+export function mergedAuditLogAscending(events: readonly EvidenceEvent[]): EvidenceEvent[] {
+  return mergeSeedAndRuntime(events)
+    .slice()
+    .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 }
 
 export function filterAudit(entries: EvidenceEvent[], key: AuditFilterKey): EvidenceEvent[] {
@@ -125,8 +145,9 @@ export function caseTimelineActivity(
   staticActivity: readonly CaseActivityEntry[],
   events: readonly EvidenceEvent[],
 ): CaseActivityEntry[] {
-  const runtimeEntries: CaseActivityEntry[] = events
-    .filter((event) => event.caseId === caseId && CASE_TIMELINE_EVENT_TYPES.has(event.type))
+  const caseEvents = events.filter((event) => event.caseId === caseId);
+  const runtimeEntries: CaseActivityEntry[] = caseEvents
+    .filter((event) => CASE_TIMELINE_EVENT_TYPES.has(event.type))
     .map((event) => ({
       runRef: event.evidenceRef,
       label: AUDIT_TYPE_LABEL[event.type],
@@ -134,7 +155,17 @@ export function caseTimelineActivity(
       at: '방금',
       outcome: CASE_TIMELINE_OUTCOME[event.type] ?? 'pending',
     }));
-  return [...runtimeEntries, ...staticActivity];
+
+  // 코드리뷰 지적: interpretation_confirmed 런타임 이벤트가 붙어도 CASE_SHEETS 정적
+  // activity의 "담당자 확인 대기"(outcome:'question') 항목이 그대로 남아 있어, "확인
+  // 완료"와 "확인 대기"가 동시에 표시되는 모순이 생겼다 — 정적 항목이 인코딩하는 의미
+  // 자체가 "해석 확인 대기 중"이므로, 확인이 실제로 끝나면 그 항목은 제거한다.
+  const hasConfirmedInterpretation = caseEvents.some((event) => event.type === 'interpretation_confirmed');
+  const filteredStatic = hasConfirmedInterpretation
+    ? staticActivity.filter((entry) => entry.outcome !== 'question')
+    : staticActivity;
+
+  return [...runtimeEntries, ...filteredStatic];
 }
 
 // 자동 에스컬레이션(7단계 §3.2) 표면화 — 큐 행의 "승인 지연" Chip이 참조하는 단일 출처.

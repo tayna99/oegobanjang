@@ -54,6 +54,34 @@ describe('apiFetch (R2.1 API 클라이언트 공용 래퍼)', () => {
     });
   });
 
+  // 코드리뷰 지적: backend(FastAPI)는 모든 에러를 {"detail": "..."} JSON으로 감싼다 —
+  // 원문 텍스트를 그대로 쓰면 사용자에게 깨진 JSON이 노출된다.
+  it('실패 응답이 FastAPI의 {"detail": ...} JSON이면 detail만 메시지로 뽑는다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ detail: '인증번호가 일치하지 않습니다' }), { status: 401 }),
+      ),
+    );
+
+    await expect(apiFetch('/api/v1/auth/otp/verify')).rejects.toMatchObject({
+      status: 401,
+      message: '인증번호가 일치하지 않습니다',
+    });
+  });
+
+  it('실패 응답이 detail 없는 JSON이면 원문 텍스트를 그대로 쓴다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'oops' }), { status: 500 })),
+    );
+
+    await expect(apiFetch('/api/v1/auth/me')).rejects.toMatchObject({
+      status: 500,
+      message: JSON.stringify({ error: 'oops' }),
+    });
+  });
+
   it('ApiError는 Error의 인스턴스다', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 500 })));
     try {

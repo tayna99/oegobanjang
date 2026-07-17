@@ -18,6 +18,76 @@
 
 ---
 
+### [2026-07-17] R2.1+2.2 코드 리뷰 수정(19건) — 완료 (중단 지점: R2.3부터)
+
+- 한 일: PR #15(R2.1+2.2) 위에서 사용자 지시로 xhigh 강도 다중 에이전트 코드 리뷰를 돌려
+  19건(정확성 다수 + 정리/재사용/효율 다수)을 확정(CONFIRMED/PLAUSIBLE)한 뒤, 전부 수정.
+  같은 브랜치(`r2-backend-wiring-auth`)에 추가 커밋으로 반영 — 별도 브랜치 분기 없음.
+  - **정확성 수정**:
+    1. `sessionStore.ts` 전면 재작성 — `verifyOtp` 동시 호출 재진입 가드(`activeRequestId`,
+       나중 호출만 상태를 반영하되 먼저 실패한 호출도 자기 자신에게는 정직하게 reject해야
+       해서 `throw err`는 무조건 유지하고 `set()` 상태 반영만 staleness로 게이트 — 처음엔
+       실패 케이스도 조용히 삼켰다가 회귀 테스트로 잡아 교정), `roleFromMemberships`가
+       `Object.hasOwn()`으로 prototype-pollution 안전 + 알 수 없는 role은 'viewer'로 폴백,
+       `restore()`가 `ApiError.status===401`(세션 만료 → anonymous 전환)과 네트워크 에러(→
+       기존 상태 유지, 재시도 여지)를 구분.
+    2. backend `auth.py`: `_load_user_with_memberships()` 헬퍼로 통합 — `GET /me`가 세션엔
+       연결됐지만 유저 행이 없는 경우 500이 아니라 401을 내도록 수정(FK가 이 경우를 직접
+       SQL로는 재현 못 해 `get_current_user_id` 의존성을 오버라이드해 테스트). `POST
+       /otp/verify` 응답에 `memberships`를 직접 포함시켜, 로그인 직후 프론트가 별도로
+       `GET /me`를 다시 부르지 않고도 role을 바로 파생하도록 라운드트립 1회 제거.
+    3. `client.ts`: FastAPI 에러 응답이 `{"detail": "..."}` JSON이어도 지금까지는 원문
+       그대로(`{"detail":"인증번호가...")` 식 raw JSON 문자열)를 사용자에게 노출하고
+       있었다 — `extractErrorMessage()`로 JSON을 파싱해 `detail` 필드만 뽑아 쓰도록 수정
+       (파싱 실패 시 원문 텍스트로 안전 폴백).
+    4. `StepPhoneAuth.tsx`: real 모드에서 인증번호를 요청한 뒤에도 전화번호 입력을 계속
+       바꿀 수 있었던 것(서버는 이미 그 번호로 코드를 보냈는데 입력만 바뀌는 불일치)을
+       `disabled={isReal && codeRequested}`로 잠금. 코드 요청 자체가 실패했을 때 에러가
+       `{codeRequested && ...}` 블록 안에 있어 렌더되지 않던 것도 밖으로 옮겨 수정.
+    5. 케이스 타임라인: 해석이 이미 확인된 뒤에도 "질문 있음" 정적 activity가 그대로 남아
+       "확인 완료"와 "질문 있음"이 동시에 뜨는 모순을 `caseTimelineActivity()`에서
+       `interpretation_confirmed` 이후 `outcome==='question'` 정적 항목을 필터링해 해소.
+       `CaseHistoryPage.tsx`의 `[...mergedAuditLog(events)].reverse()`가 동시각 타이브레이크를
+       뒤집어 순서를 흐트러뜨리던 것도 `mergedAuditLogAscending()`(새 함수, 애초에 오름차순
+       정렬) 사용으로 교정.
+  - **정리/효율 수정**: `useConfirmInterpretation()` 훅(`src/lib/interpretation.ts` 신규)으로
+    ThreadPage/MessagesWorkbench에 중복돼 있던 해석확인 오케스트레이션을 통합(후자는
+    210→194줄로 축소). `sessionStore`의 미사용 `memberships` 상태 필드 제거. CSV 템플릿
+    헤더 배열(`CSV_TEMPLATE_COLUMNS`)을 `csvUpload.ts`에 단일 소스로 옮겨
+    `CsvUploadWorkbench.tsx`의 인라인 중복 제거. `CaseWorkbench.tsx`의
+    `caseTimelineActivity()` 호출을 `useMemo`로 감싸 렌더마다 재계산되던 것 방지. backend
+    `test_api_auth.py`의 `_client_for(session)` 컨텍스트매니저로 테스트 클라이언트 생성
+    중복 제거 + `seeded_with_membership` 픽스처가 `seeded`에 제대로 의존하도록 수정.
+  - **버그 발견·수정(수정 과정에서)**: 실서버 검증용 `.env.local`이 vitest에도 새어 들어가는
+    문제(R2.1+2.2 항목에 기록)를 이번에 `config.ts`의 `import.meta.env.MODE !== 'test'`
+    가드로 근본 교정 — 이 가드 때문에 vitest 안에서는 `API_MODE`가 항상 mock으로 고정되는
+    부작용이 있어, real 모드 UI를 vitest로 검증하려던 `StepPhoneAuth.test.tsx` 신규 시도가
+    실패 — 그 테스트 파일은 삭제하고 `sessionStore.test.ts` 유닛 커버리지 + 브라우저
+    실검증으로 대체.
+  - **브라우저 실검증(real 모드, uvicorn 8000 + Vite 5173)**: 010-0000-0001로 O1 진행 →
+    코드 요청 후 전화번호 입력 `disabled` 확인(수정 4) → 오답 코드 입력 시
+    `POST /otp/verify → 401` 이후 화면에 원문 JSON이 아니라 "인증번호가 일치하지
+    않습니다"만 뜨는 것 확인(수정 3) → 정답 코드 입력 시 `POST /otp/verify → 200` 이후
+    **추가 `GET /me` 호출 없이** O2로 진행하며 "담당자"가 `aria-pressed=true`로 미리
+    선택된 것까지 네트워크 로그 + DOM으로 확인(수정 2 + 기존 O2 프리시드 로직의 라운드트립
+    없는 정상 동작 재확인).
+- 남은 일 / 중단 지점: R2.3(케이스/브리핑/스레드 read API)부터 — 결정할 것은 R2.1+2.2
+  항목에 이미 기록됨(바뀐 것 없음).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. `verifyOtp` 응답의 `memberships`가 role 파생의 유일한 소스다 — 앞으로 로그인 후 role을
+     다시 확인해야 하는 화면이 생겨도 별도 `GET /me`를 새로 부르지 말고 이미 있는
+     `verifyOtp`/`restore` 결과를 재사용한다(라운드트립 최소화가 이번 수정의 핵심 결정).
+  2. `config.ts`의 `MODE !== 'test'` 가드 때문에, real 모드 전용 UI 분기는 vitest로 직접
+     검증할 수 없다(항상 mock으로 렌더됨) — 이런 분기는 단위 테스트로 각 상태를 개별
+     검증하고, 통합 동작은 브라우저 실검증으로 확인하는 것이 이 프로젝트의 정착된 패턴이다.
+- verify 상태: PASS — backend `uv run pytest` 112/112, 프론트 `tsc --noEmit`/`npm run
+  lint`/`vite build` 전부 클린, `npx vitest run` 456/457(1건은 `CaseWorkbench.test.tsx`의
+  기존 문서화된 병렬부하 flake — 격리 재실행 12/12 통과로 회귀 아님 확인). 브라우저
+  실검증은 위 "한 일"에 기록.
+- 지도/규칙 갱신: 없음(이번 세션은 기존 R2.1+2.2 구현의 결함 수정만, 범위·설계 변경 없음).
+
+---
+
 ### [2026-07-17] R2.1+2.2 — API 클라이언트 계층 · 인증 배선 — 완료 (중단 지점: R2.3부터)
 
 - 한 일: R0 PR(#14) 생성·푸시 직후, 사용자 지시로 R1을 건너뛰고 R2(백엔드 배선)로 바로 진행.

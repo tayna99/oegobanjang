@@ -84,9 +84,13 @@ export function StepPhoneAuth({ onCodeConfirmedChange }: StepPhoneAuthProps) {
               inputMode="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
+              // 코드리뷰 지적: 인증번호를 요청한 뒤에도 번호를 계속 편집할 수 있으면, 검증 시점의
+              // 번호가 실제로 OTP를 요청한 번호와 달라져 "코드는 맞는데 번호가 달라 실패"하는
+              // 혼란스러운 상태가 된다 — 요청 이후엔 잠근다.
+              disabled={isReal && codeRequested}
               placeholder={DEMO_PHONE_HINT}
               aria-label="휴대폰 번호"
-              className="flex-1 bg-transparent text-label1 text-ink outline-none placeholder:text-faint"
+              className="flex-1 bg-transparent text-label1 text-ink outline-none placeholder:text-faint disabled:text-faint"
             />
           ) : (
             <span className="text-label1 text-ink">010 1234 5678</span>
@@ -102,6 +106,13 @@ export function StepPhoneAuth({ onCodeConfirmedChange }: StepPhoneAuthProps) {
             인증번호 받기
           </button>
         )}
+        {/* 코드리뷰 지적: 요청 단계 실패(잘못된 번호 형식·backend 다운·rate limit 등)는
+            codeRequested가 true로 안 바뀌어 아래 블록이 마운트조차 안 됐다 — 그 결과 버튼만
+            스피너가 멈추고 사용자는 왜 실패했는지 전혀 알 수 없었다. 요청 단계 에러는 여기,
+            블록 밖에서 항상 렌더한다. */}
+        {isReal && !codeRequested && sessionError && (
+          <p className="text-caption1 text-critical-text">{sessionError}</p>
+        )}
       </div>
 
       {codeRequested && (
@@ -116,8 +127,9 @@ export function StepPhoneAuth({ onCodeConfirmedChange }: StepPhoneAuthProps) {
             maxLength={6}
             value={code}
             onChange={(event) => handleCodeChange(event.target.value)}
+            disabled={isReal && sessionStatus === 'authenticating'}
             aria-label="인증번호 6자리"
-            className="h-14 rounded-in text-center text-heading2 font-semibold tracking-widest text-ink shadow-outline outline-none focus:shadow-rail-focus"
+            className="h-14 rounded-in text-center text-heading2 font-semibold tracking-widest text-ink shadow-outline outline-none focus:shadow-rail-focus disabled:text-faint"
           />
           {isReal && debugCode && (
             <p className="text-caption1 text-muted">개발용 인증번호(실 SMS 미연동): {debugCode}</p>

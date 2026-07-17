@@ -4,22 +4,23 @@ import { Chip } from '@/components/Chip';
 import { severityTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
 import { dDayLabel } from '@/lib/dday';
+import { useConfirmInterpretation } from '@/lib/interpretation';
 import { useNav } from '@/lib/nav';
 import { formatClockTime, sortThreads } from '@/lib/threads';
 import { CASE_CARDS } from '@/mocks/fixtures';
 import { THREADS } from '@/mocks/threads';
 import { useCaseStore } from '@/stores/caseStore';
-import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useThreadStore } from '@/stores/threadStore';
 import type { Message, MessageThread } from '@/types';
 
 // PC 메시지(4c) — reference/design-system/외고반장 PC_4a-4f(신규티어).dc.html §4c(240~349행)
 // 부분 구현. NEXT_ROADMAP D-1(2026-07-17)로 독립 mock(mocks/messages.ts)을 폐기하고
 // threadStore/mocks/threads.ts(모바일과 동일한 데이터 소스)로 재배선 — 모바일·PC가 이제
-// 같은 스레드를 본다. M6 해석확인 로직(evidence + 합법 전이만 상태 반영)은 ThreadPage(모바일)와
-// 완전히 같은 오케스트레이션(confirmInterpretation→applyInterpretationUpdates→evidence append)을
-// 이 화면에서 독립적으로 호출한다 — CaseWorkbench(PC)/CaseReviewPage(모바일) 관계와 동일하게
-// "공유 데이터층, 플랫폼별 별도 프레젠테이션" 원칙(JSX를 억지로 공유하지 않는다).
+// 같은 스레드를 본다. M6 해석확인 오케스트레이션(evidence + 합법 전이만 상태 반영)은
+// ThreadPage(모바일)와 lib/interpretation.ts의 useConfirmInterpretation 공유 훅을 함께
+// 쓴다(코드리뷰 reuse 지적으로 통합 — 이전엔 두 화면이 같은 로직을 각자 재구현했다).
+// 그래도 프레젠테이션(JSX)은 CaseWorkbench(PC)/CaseReviewPage(모바일) 관계와 동일하게
+// 플랫폼별로 분리 유지한다("공유 데이터층·오케스트레이션, 플랫폼별 프레젠테이션").
 const LANG_LABEL: Record<string, string> = { vi: '베트남어', id: '인도네시아어', en: '영어', ko: '한국어', mn: '몽골어' };
 
 function Bubble({ message }: { message: Message }) {
@@ -41,11 +42,9 @@ export function MessagesWorkbench() {
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
   const upsertCase = useCaseStore((s) => s.upsert);
-  const applyInterpretationUpdates = useCaseStore((s) => s.applyInterpretationUpdates);
   const threads = useThreadStore((s) => s.threads);
   const upsertThread = useThreadStore((s) => s.upsert);
-  const confirmInterpretation = useThreadStore((s) => s.confirmInterpretation);
-  const appendEvidence = useEvidenceStore((s) => s.append);
+  const confirmInterpretationFor = useConfirmInterpretation();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -71,23 +70,8 @@ export function MessagesWorkbench() {
   const confirmed = thread?.interpretationStatus === 'confirmed';
 
   const onConfirm = () => {
-    if (!thread?.interpretation) return;
-    // 이중 클릭 방지: 재호출 시점의 최신 상태를 다시 확인(ThreadPage.handleConfirm과 동일 관례).
-    const current = useThreadStore.getState().threads[thread.threadId];
-    if (!current || current.interpretationStatus !== 'pending_review') return;
-
-    const updateIds = thread.interpretation.updates.map((u) => u.updateId);
-    const interpretation = confirmInterpretation(thread.threadId, updateIds);
-    applyInterpretationUpdates(interpretation.caseId, interpretation.updates);
-    appendEvidence({
-      id: `${interpretation.interpretationId}-confirmed`,
-      type: 'interpretation_confirmed',
-      at: new Date().toISOString(),
-      caseId: interpretation.caseId,
-      evidenceRef: interpretation.evidenceRef,
-      // 근로자 원문을 절대 포함하지 않는 요약 문장만(types.ts 주석 계약과 동일).
-      summary: interpretation.confirmedSummary ?? interpretation.summaryKo,
-    });
+    if (!thread) return;
+    confirmInterpretationFor(thread.threadId);
   };
 
   return (

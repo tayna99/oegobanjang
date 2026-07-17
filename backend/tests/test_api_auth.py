@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db.session import get_db
 from app.main import app
+
+
+@contextmanager
+def _client_for(session):
+    """코드리뷰 재사용 지적: client/client_with_membership 두 픽스처와 테스트 하나가 각자
+    dependency_overrides 세팅→TestClient 생성→teardown을 그대로 복제하고 있었다 — 세션
+    하나만 받으면 되므로 이 컨텍스트매니저 하나로 통일한다."""
+
+    def _override():
+        yield session
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture()
@@ -22,12 +40,8 @@ def seeded(db):
 
 @pytest.fixture()
 def client(seeded):
-    def _override():
-        yield seeded
-
-    app.dependency_overrides[get_db] = _override
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+    with _client_for(seeded) as c:
+        yield c
 
 
 def test_request_otp_returns_debug_code_in_local_env(client):
@@ -138,30 +152,22 @@ def test_logout_without_session_is_a_noop(client):
 
 
 @pytest.fixture()
-def seeded_with_membership(db):
-    db.execute(text("""
-        INSERT INTO users (id, phone, name, terms_agreed_at) VALUES
-          ('u1', '010-1111-0001', '테스트유저', now());
-    """))
-    db.execute(text("""
-        INSERT INTO companies (id, name) VALUES ('cmp_test', '테스트 회사');
-    """))
-    db.execute(text("""
+def seeded_with_membership(seeded):
+    # `seeded`가 이미 u1(010-1111-0001)을 넣어 뒀다 — 그 위에 회사·멤버십만 얹는다
+    # (코드리뷰 재사용 지적: 이전엔 유저 INSERT를 이 픽스처가 통째로 다시 썼다).
+    seeded.execute(text("INSERT INTO companies (id, name) VALUES ('cmp_test', '테스트 회사')"))
+    seeded.execute(text("""
         INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
           ('mem_u1', 'cmp_test', 'u1', 'manager', 'active');
     """))
-    db.flush()
-    return db
+    seeded.flush()
+    return seeded
 
 
 @pytest.fixture()
 def client_with_membership(seeded_with_membership):
-    def _override():
-        yield seeded_with_membership
-
-    app.dependency_overrides[get_db] = _override
-    yield TestClient(app)
-    app.dependency_overrides.clear()
+    with _client_for(seeded_with_membership) as c:
+        yield c
 
 
 def _login(client, phone="010-1111-0001"):
@@ -192,16 +198,40 @@ def test_me_excludes_inactive_memberships(db):
     """))
     db.flush()
 
-    def _override():
-        yield db
-
-    app.dependency_overrides[get_db] = _override
-    client = TestClient(app)
-    try:
+    with _client_for(db) as client:
         token = _login(client, phone="010-1111-0002")
         resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200, resp.text
         assert resp.json()["memberships"] == []
+
+
+def test_verify_otp_includes_active_memberships(seeded_with_membership):
+    """코드리뷰 효율 지적: verify 응답에 멤버십을 실어 프론트가 로그인 직후 /me를 또
+    부르지 않아도 되게 한다."""
+    with _client_for(seeded_with_membership) as client:
+        req = client.post("/api/v1/auth/otp/request", json={"phone": "010-1111-0001"})
+        code = req.json()["debug_code"]
+        verify = client.post("/api/v1/auth/otp/verify", json={"phone": "010-1111-0001", "code": code})
+        assert verify.status_code == 200, verify.text
+        assert verify.json()["memberships"] == [{"company_id": "cmp_test", "role": "manager"}]
+
+
+def test_me_with_resolved_identity_but_missing_user_row_is_unauthorized_not_500(db):
+    """코드리뷰 지적: get_current_user_id는 세션만 검증하고 users 테이블은 보지 않는다 —
+    세션이 가리키는 사용자 행이 없으면 이전엔 처리되지 않은 500이 났다.
+    _load_user_with_memberships가 이제 401로 걸러낸다.
+
+    `sessions.user_id`엔 실제로 `REFERENCES users(id)`(ON DELETE 미지정 — DB가 FK로 막음)가
+    있어 세션 테이블에 직접 고아 행을 넣을 수는 없다 — 그래서 get_current_user_id 의존성
+    자체를 오버라이드해 "세션 검증은 통과했지만 그 user_id가 users에 없는" 상태를 재현한다.
+    """
+    from app.api.deps import get_current_user_id
+
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user_id] = lambda: "no-such-user"
+    try:
+        resp = TestClient(app).get("/api/v1/auth/me")
+        assert resp.status_code == 401, resp.text
     finally:
         app.dependency_overrides.clear()
 

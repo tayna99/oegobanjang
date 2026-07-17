@@ -23,9 +23,14 @@ describe('lib/api/auth (R2.2 — backend/app/api/v1/auth.py 어댑터)', () => {
     expect(result).toEqual({ requested: true, expiresInSeconds: 300, debugCode: '123456' });
   });
 
-  it('verifyOtp는 세션 토큰·만료시각·사용자 정보를 그대로 옮긴다', async () => {
+  it('verifyOtp는 세션 토큰·만료시각·사용자·멤버십을 옮긴다(멤버십은 로그인 왕복 절감용)', async () => {
     const user = { id: 'u1', name: '김담당', phone: '010-0000-0001' };
-    mockedApiFetch.mockResolvedValue({ session_token: 'tok', expires_at: '2026-08-01T00:00:00Z', user });
+    mockedApiFetch.mockResolvedValue({
+      session_token: 'tok',
+      expires_at: '2026-08-01T00:00:00Z',
+      user,
+      memberships: [{ company_id: 'cmp_greenfood', role: 'manager' }],
+    });
 
     const result = await verifyOtp('010-0000-0001', '123456');
 
@@ -33,7 +38,12 @@ describe('lib/api/auth (R2.2 — backend/app/api/v1/auth.py 어댑터)', () => {
       method: 'POST',
       body: { phone: '010-0000-0001', code: '123456' },
     });
-    expect(result).toEqual({ sessionToken: 'tok', expiresAt: '2026-08-01T00:00:00Z', user });
+    expect(result).toEqual({
+      sessionToken: 'tok',
+      expiresAt: '2026-08-01T00:00:00Z',
+      user,
+      memberships: [{ companyId: 'cmp_greenfood', role: 'manager' }],
+    });
   });
 
   it('fetchMe는 memberships의 company_id를 companyId로 옮긴다', async () => {

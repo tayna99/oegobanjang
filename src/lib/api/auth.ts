@@ -23,6 +23,9 @@ export interface OtpVerifyResult {
   sessionToken: string;
   expiresAt: string;
   user: SessionUser;
+  // 코드리뷰 효율 지적: verify 응답에 이미 실려 오므로(backend R2 리뷰 반영) sessionStore가
+  // 로그인 직후 별도로 /me를 또 호출하지 않아도 된다.
+  memberships: Membership[];
 }
 
 export interface MeResult {
@@ -40,6 +43,7 @@ interface OtpVerifyResponseDto {
   session_token: string;
   expires_at: string;
   user: SessionUser;
+  memberships: MembershipDto[];
 }
 
 interface MembershipDto {
@@ -65,7 +69,12 @@ export async function verifyOtp(phone: string, code: string): Promise<OtpVerifyR
     method: 'POST',
     body: { phone, code },
   });
-  return { sessionToken: dto.session_token, expiresAt: dto.expires_at, user: dto.user };
+  return {
+    sessionToken: dto.session_token,
+    expiresAt: dto.expires_at,
+    user: dto.user,
+    memberships: dto.memberships.map((m) => ({ companyId: m.company_id, role: m.role })),
+  };
 }
 
 export async function fetchMe(token: string): Promise<MeResult> {

@@ -6,7 +6,7 @@ import { IconDoc, IconLock } from '@/components/icons';
 import { Skeleton } from '@/components/Skeleton';
 import { ACTOR_NAME } from '@/lib/approval';
 import { cn } from '@/lib/cn';
-import { downloadCsvTemplate, rowsToCards, SAMPLE_CSV_ROWS, validateRows } from '@/lib/csvUpload';
+import { CSV_TEMPLATE_COLUMNS, downloadCsvTemplate, rowsToCards, SAMPLE_CSV_ROWS, validateRows } from '@/lib/csvUpload';
 import type { RowStatus, ValidatedCsvRow } from '@/lib/csvUpload';
 import { ROLE_LABEL } from '@/lib/role';
 import { useCaseStore } from '@/stores/caseStore';
@@ -253,7 +253,7 @@ export function CsvUploadWorkbench() {
         <section className="flex flex-col gap-2">
           <span className="text-caption1 font-bold tracking-wide text-muted">CSV 형식 안내</span>
           <ul className="overflow-hidden rounded-in border border-hairline">
-            {['이름', '국적', '팀', '체류만료일 (YYYY-MM-DD)', '외국인등록번호'].map((col) => (
+            {CSV_TEMPLATE_COLUMNS.map((col) => (
               <li key={col} className="flex items-center gap-2 border-b border-hairline px-3 py-2 last:border-none">
                 <span className="flex size-3.5 shrink-0 items-center justify-center rounded bg-success">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none">

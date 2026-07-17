@@ -30,9 +30,26 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
   });
 
   if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new ApiError(response.status, text || response.statusText);
+    throw new ApiError(response.status, await extractErrorMessage(response));
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+// 코드리뷰 지적: FastAPI(backend/)는 모든 에러를 HTTPException 기본 핸들러가 감싼
+// `{"detail": "..."}` JSON으로 응답한다 — 원문 텍스트를 그대로 메시지로 쓰면 사용자에게
+// 깨진 JSON 문자열이 그대로 노출된다. detail 필드를 우선 추출하고, JSON이 아니거나
+// detail이 없으면 원문 텍스트로 폴백한다(테스트가 이 순서를 검증).
+async function extractErrorMessage(response: Response): Promise<string> {
+  const text = await response.text().catch(() => '');
+  if (!text) return response.statusText;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && 'detail' in parsed && typeof parsed.detail === 'string') {
+      return parsed.detail;
+    }
+  } catch {
+    // JSON이 아닌 원문 텍스트 — 아래에서 그대로 반환.
+  }
+  return text;
 }

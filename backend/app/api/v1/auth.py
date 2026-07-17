@@ -52,17 +52,41 @@ def request_otp_endpoint(payload: OtpRequestRequest, db: Session = Depends(get_d
     )
 
 
+def _load_user_with_memberships(db: Session, user_id: str) -> tuple[User, list[MembershipOut]]:
+    """세션에 연결된 사용자 + 활성 멤버십을 조인 1회로 가져온다(코드리뷰 효율 지적 — 이전엔
+    verify와 me가 각자 User 단건조회 + Membership 별도조회로 왕복을 2번씩 썼다).
+
+    세션 자체는 유효했지만(만료·폐기 아님) 사용자 행이 없는 경우(예: 관리자가 계정을 삭제했지만
+    세션은 아직 안 지운 경우) None 대신 401을 낸다 — get_current_user_id는 세션만 검증하고
+    users 테이블 존재 여부는 보지 않으므로, 여기서 걸러주지 않으면 SessionUserOut.model_validate(None)이
+    처리되지 않은 500으로 새는 것을 코드리뷰가 확인했다.
+    """
+    rows = db.execute(
+        select(User, Membership)
+        .outerjoin(Membership, (Membership.user_id == User.id) & (Membership.status == "active"))
+        .where(User.id == user_id)
+    ).all()
+    if not rows:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "세션에 연결된 사용자를 찾을 수 없습니다")
+    user = rows[0][0]
+    memberships = [MembershipOut.model_validate(m) for _, m in rows if m is not None]
+    return user, memberships
+
+
 @router.post("/otp/verify", response_model=OtpVerifyResponse)
 def verify_otp_endpoint(payload: OtpVerifyRequest, db: Session = Depends(get_db)) -> OtpVerifyResponse:
     try:
         raw_token, user_id, expires_at = verify_otp(db, payload.phone, payload.code)
     except AuthError as exc:
         raise HTTPException(_ERROR_STATUS.get(type(exc), status.HTTP_400_BAD_REQUEST), str(exc)) from exc
-    user = db.get(User, user_id)
+    user, memberships = _load_user_with_memberships(db, user_id)
     return OtpVerifyResponse(
         session_token=raw_token,
         expires_at=expires_at,
         user=SessionUserOut.model_validate(user),
+        # 코드리뷰 효율 지적: 프론트가 role 파생을 위해 verify 직후 별도로 /me를 또 부르고
+        # 있었다(로그인마다 왕복 2회) — verify 응답에 멤버십을 함께 실어 그 왕복을 없앤다.
+        memberships=memberships,
     )
 
 
@@ -73,17 +97,8 @@ def get_me(
 ) -> MeResponse:
     """세션에서 신원 + 회사별 역할을 되돌려준다 — roleStore가 새로고침 후에도 세션에서
     다시 파생할 수 있는 최소 read endpoint(R2.2)."""
-    user = db.get(User, current_user_id)
-    memberships = db.execute(
-        select(Membership).where(
-            Membership.user_id == current_user_id,
-            Membership.status == "active",
-        )
-    ).scalars().all()
-    return MeResponse(
-        user=SessionUserOut.model_validate(user),
-        memberships=[MembershipOut.model_validate(m) for m in memberships],
-    )
+    user, memberships = _load_user_with_memberships(db, current_user_id)
+    return MeResponse(user=SessionUserOut.model_validate(user), memberships=memberships)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

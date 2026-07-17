@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { ApiError } from '@/lib/api/client';
 import { fetchMe, logout as logoutRequest, requestOtp, verifyOtp } from '@/lib/api/auth';
 import type { Membership, SessionUser } from '@/lib/api/auth';
 import { useRoleStore } from './roleStore';
@@ -9,13 +10,22 @@ import type { Role } from '@/types';
 // localStorage 패턴(zustand persist 미들웨어를 새로 들이지 않는다, 기존 관례 유지).
 const STORAGE_KEY = 'oegobanjang-session-token';
 
-const MEMBERSHIP_ROLE_TO_ROLE: Record<string, Role> = { manager: 'manager', owner: 'owner', viewer: 'viewer' };
+const MEMBERSHIP_ROLE_TO_ROLE: Partial<Record<string, Role>> = { manager: 'manager', owner: 'owner', viewer: 'viewer' };
 
 // memberships[0]을 쓴다 — MVP는 단일 회사 데모 세계관이라 여러 회사 소속 사용자의 "현재 회사"
 // 선택 UI는 아직 없다(멀티테넌트 전환 시 후속 과제).
+//
+// 코드리뷰 지적 2건 반영: (1) `in` 연산자는 프로토타입 체인까지 매칭해 role 문자열이
+// 'toString'/'constructor' 같은 값이면 통과해버린다 — `Object.hasOwn`으로 교정. (2) 멤버십이
+// 없거나(예: status='removed'만 남은 사용자) 인식 못 할 role(백엔드는 'expert'도 허용하지만
+// 프론트 Role엔 없음)이면 가장 큰 권한인 'manager'가 아니라 가장 작은 권한인 'viewer'로
+// fail-closed한다.
 function roleFromMemberships(memberships: Membership[]): Role {
   const role = memberships[0]?.role;
-  return role && role in MEMBERSHIP_ROLE_TO_ROLE ? MEMBERSHIP_ROLE_TO_ROLE[role] : 'manager';
+  if (role && Object.hasOwn(MEMBERSHIP_ROLE_TO_ROLE, role)) {
+    return MEMBERSHIP_ROLE_TO_ROLE[role] as Role;
+  }
+  return 'viewer';
 }
 
 function readStoredToken(): string | null {
@@ -35,7 +45,6 @@ interface SessionStoreState {
   status: SessionStatus;
   token: string | null;
   user: SessionUser | null;
-  memberships: Membership[];
   error: string | null;
   /** O1 "인증번호 받기" — 성공 시 로컬 환경이면 debugCode를 돌려준다(실 SMS 미연동, backend와 동일 관례). */
   requestOtp: (phone: string) => Promise<{ debugCode: string | null }>;
@@ -52,9 +61,14 @@ const initialState = {
   status: 'anonymous' as SessionStatus,
   token: null as string | null,
   user: null as SessionUser | null,
-  memberships: [] as Membership[],
   error: null as string | null,
 };
+
+// 코드리뷰 지적: verifyOtp/restore에 재진입 가드가 없어, 겹쳐 들어온 두 요청 중 나중에
+// "시작"한 쪽이 아니라 나중에 "응답"한 쪽이 최종 상태를 결정했다(오타 수정 후 재입력 등으로
+// 실제 재현 가능). 호출마다 순번을 매기고, set() 직전에 "아직 최신 호출인지"를 확인해
+// 스테일 응답이 최신 상태를 덮어쓰지 못하게 한다.
+let activeRequestId = 0;
 
 export const useSessionStore = create<SessionStoreState>((set, get) => ({
   ...initialState,
@@ -71,15 +85,27 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   },
 
   verifyOtp: async (phone, code) => {
+    const requestId = ++activeRequestId;
     set({ status: 'authenticating', error: null });
     try {
+      // 코드리뷰 지적: verify 응답에 이미 memberships가 실려 온다(backend R2 리뷰 반영) —
+      // 이전엔 여기서 별도로 fetchMe()를 또 불러 로그인마다 왕복이 2회였고, 그 fetchMe가
+      // 네트워크 문제로 실패하면 "코드는 맞았는데 방금 발급된 유효 토큰을 통째로 버리고
+      // '인증번호가 올바르지 않습니다'라고 오해시키는" 버그가 있었다 — 별도 호출 자체를
+      // 없애 그 실패 모드를 구조적으로 제거한다.
       const verified = await verifyOtp(phone, code);
-      const me = await fetchMe(verified.sessionToken);
-      persistToken(verified.sessionToken);
-      set({ status: 'authenticated', token: verified.sessionToken, user: me.user, memberships: me.memberships, error: null });
-      useRoleStore.getState().setRole(roleFromMemberships(me.memberships));
+      // 재진입 가드는 "공유 상태를 건드릴 자격"만 막는다 — 이 호출 자체의 성공/실패는
+      // 항상 정직하게 호출자에게 돌려준다(그래야 StepPhoneAuth의 개별 try/catch가 자기
+      // 요청의 진짜 결과를 안다). 스테일 성공은 조용히 무시하고 최신 상태를 건드리지 않는다.
+      if (requestId === activeRequestId) {
+        persistToken(verified.sessionToken);
+        set({ status: 'authenticated', token: verified.sessionToken, user: verified.user, error: null });
+        useRoleStore.getState().setRole(roleFromMemberships(verified.memberships));
+      }
     } catch (err) {
-      set({ status: 'anonymous', error: err instanceof Error ? err.message : '인증번호가 올바르지 않습니다' });
+      if (requestId === activeRequestId) {
+        set({ status: 'anonymous', error: err instanceof Error ? err.message : '인증번호가 올바르지 않습니다' });
+      }
       throw err;
     }
   },
@@ -87,19 +113,30 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   restore: async () => {
     const token = readStoredToken();
     if (!token) return;
+    const requestId = ++activeRequestId;
     try {
       const me = await fetchMe(token);
-      set({ status: 'authenticated', token, user: me.user, memberships: me.memberships, error: null });
+      if (requestId !== activeRequestId) return;
+      set({ status: 'authenticated', token, user: me.user, error: null });
       useRoleStore.getState().setRole(roleFromMemberships(me.memberships));
-    } catch {
-      // 만료·폐기된 토큰 — 조용히 anonymous로 남는다(로그인 화면이 다시 뜬다).
-      persistToken(null);
-      set({ ...initialState });
+    } catch (err) {
+      if (requestId !== activeRequestId) return;
+      // 코드리뷰 지적: 세션이 "서버가 확인한 무효"(401)인지 "확인 자체가 안 됨"(네트워크
+      // 일시 장애·backend 재기동 등)인지 구분하지 않고 전부 토큰을 지워버렸다 — 후자는
+      // 아직 유효한 토큰을 영구 삭제해 불필요한 재로그인을 강제한다. 서버가 명시적으로
+      // 거부한 경우에만 지운다.
+      if (err instanceof ApiError && err.status === 401) {
+        persistToken(null);
+        set({ ...initialState });
+      }
+      // 그 외(네트워크 오류 등)에는 토큰을 그대로 두고 anonymous로만 남는다 — 다음 새로고침이나
+      // 재시도가 성공하면 정상 로그인된다.
     }
   },
 
   logout: async () => {
     const { token } = get();
+    activeRequestId += 1; // 진행 중이던 verify/restore 응답을 전부 무효화한다.
     persistToken(null);
     set({ ...initialState });
     useRoleStore.getState().reset();
@@ -107,6 +144,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   },
 
   reset: () => {
+    activeRequestId += 1;
     persistToken(null);
     set({ ...initialState });
   },
