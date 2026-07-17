@@ -3,12 +3,11 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { severityTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
+import { useSeedCases, useSeedThreadDetail, useSeedThreads } from '@/lib/dataSeed';
 import { dDayLabel } from '@/lib/dday';
 import { useConfirmInterpretation } from '@/lib/interpretation';
 import { useNav } from '@/lib/nav';
 import { formatClockTime, sortThreads } from '@/lib/threads';
-import { CASE_CARDS } from '@/mocks/fixtures';
-import { THREADS } from '@/mocks/threads';
 import { useCaseStore } from '@/stores/caseStore';
 import { useThreadStore } from '@/stores/threadStore';
 import type { Message, MessageThread } from '@/types';
@@ -41,27 +40,25 @@ function Bubble({ message }: { message: Message }) {
 export function MessagesWorkbench() {
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsertCase = useCaseStore((s) => s.upsert);
   const threads = useThreadStore((s) => s.threads);
-  const upsertThread = useThreadStore((s) => s.upsert);
   const confirmInterpretationFor = useConfirmInterpretation();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
 
+  useSeedCases();
+  useSeedThreads();
+
   useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsertCase);
-    }
-    if (Object.keys(useThreadStore.getState().threads).length === 0) {
-      THREADS.forEach(upsertThread);
-    }
     // 초기 선택은 딱 한 번만 정한다 — sorted[0]을 매 렌더 폴백으로 쓰면, 지금 보고 있는
     // 스레드의 해석을 확인해 pending_review에서 빠지는 순간 정렬이 바뀌어 화면이 다른
     // 스레드로 조용히 튀어버린다(확인 직후 아직 열려 있어야 할 대화가 사라지는 버그).
     setSelectedId((prev) => prev ?? sortThreads(Object.values(useThreadStore.getState().threads))[0]?.threadId);
-  }, [upsertCase, upsertThread]);
+  }, []);
 
   const sorted = sortThreads(Object.values(threads));
   const activeId = selectedId ?? sorted[0]?.threadId;
+
+  useSeedThreadDetail(activeId);
+
   const thread: MessageThread | undefined = activeId ? threads[activeId] : undefined;
   // 아직 발송 전(draftCaseId만 있는) 스레드도 "연결 케이스"는 보여준다 — 발송 여부와
   // 무관하게 이 대화가 어떤 케이스에 속하는지는 항상 의미가 있다.

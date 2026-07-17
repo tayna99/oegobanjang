@@ -1,10 +1,9 @@
-import { useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/Button';
+import { useSeedThreadDetail, useSeedThreads } from '@/lib/dataSeed';
 import { useConfirmInterpretation } from '@/lib/interpretation';
 import { useNav } from '@/lib/nav';
 import { ROUTES } from '@/lib/routes';
-import { THREADS } from '@/mocks/threads';
 import { useThreadStore } from '@/stores/threadStore';
 import type { MessageThread } from '@/types';
 import { ThreadScreen } from './ThreadScreen';
@@ -19,14 +18,10 @@ export function ThreadPage() {
   const { threadId } = useParams<{ threadId: string }>();
   const nav = useNav();
   const threads = useThreadStore((s) => s.threads);
-  const upsert = useThreadStore((s) => s.upsert);
   const confirmInterpretationFor = useConfirmInterpretation();
 
-  useEffect(() => {
-    if (Object.keys(useThreadStore.getState().threads).length === 0) {
-      THREADS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedThreads();
+  useSeedThreadDetail(threadId);
 
   const thread = threadId ? threads[threadId] : undefined;
 

@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
 import { Button } from '@/components/Button';
 import { IconDoc } from '@/components/icons';
+import { useSeedCases } from '@/lib/dataSeed';
 import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
-import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
+import { CASE_SHEETS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
 import { useRoleStore } from '@/stores/roleStore';
 
@@ -16,13 +16,8 @@ export function WorkerDataWorkbench() {
   const role = useRoleStore((s) => s.role);
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   if (role !== 'manager') {
     return (

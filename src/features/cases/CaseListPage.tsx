@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { CASE_CARDS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
 import { useCompanyStore } from '@/stores/companyStore';
 import { buildCaseGroups, normalizeCaseFilter } from '@/lib/cases';
+import { useSeedCases } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { CaseListScreen } from './CaseListScreen';
@@ -19,14 +18,9 @@ export function CaseListPage({ filterOverride }: CaseListPageProps = {}) {
   const [searchParams] = useSearchParams();
   const isDesktop = useIsDesktop();
   const cases = useCaseStore((state) => state.cases);
-  const upsert = useCaseStore((state) => state.upsert);
   const companyName = useCompanyStore((s) => s.profile.name);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   // lg+ 에서는 M2.5.4 PC 워크벤치(3열)로 분기 — 모바일 트리는 마운트하지 않는다.
   if (isDesktop) {
