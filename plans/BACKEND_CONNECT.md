@@ -58,6 +58,13 @@ rag는 인증 개념이 없는 내부 부품이기 때문이다.
 - `GET /api/v1/citations` — 프론트 `CitationRecord` 형태(`{id, grade, title, source, updatedAt, status}`)로 서빙. `status`는 파생(A·B→official, E→internal, retrieved_at 오래됨→stale)
 - DoD: backend pytest에 rag_client 목킹 테스트 + citations API 계약 테스트(스키마가 src/types.ts와 일치)
 
+**완료(2026-07-17)**. 구현 시 확정한 것(계획서와 다른 지점):
+- **evidence_events.type 명명 드리프트 발견**: rag `EventType.APPROVAL_COMPLETED`="approval_completed"↔DB CHECK는 "approval_decided", rag `HANDOFF_PACKAGE_DRAFT_CREATED`↔DB는 "handoff_generated". `evidence_ingest.map_event_type()`이 흡수 — 어느 쪽 계약도 변경하지 않는다(양쪽 다 각자 정본 소스에서 이식됨). 회귀 가드: `test_ingest_event_satisfies_db_check_constraint_for_all_rag_event_types`가 9종 전체를 실제 PG에 flush해 CHECK 통과를 검증.
+- **citation 스코프 규칙**: `CHECK(company_id IS NOT NULL OR status<>'internal')` 때문에 E등급(내부 템플릿)은 **회사 스코프 필수** — A/B등급만 전역(company_id=NULL, status=official). 계획서의 "status는 파생(retrieved_at 오래됨→stale)"은 미구현(현재 rag citation에 retrieved_at이 없음 — 후속).
+- **citation_ids는 evidence_events 컬럼이 아니다** — payload_ref(JSON)에 보존만 하고, case_citations 연결은 case_id가 생기는 B3'/이후로 미룸.
+- **CitationOut은 snake_case**(camelCase 변환 없음) — 기존 스키마 관례(ApprovalOut 등)를 그대로 따름. 프론트 계약은 B4에서 확정.
+- backend pytest: `test_rag_client.py`(7, respx 목킹) + `test_evidence_ingest.py`(10, PG 실기록) + `test_api_citations.py`(5, 테넌트 인가) = 140 passed(기존 118 무회귀).
+
 ### B3 — backend runs API + SSE 프록시 · L3
 - `POST /api/v1/runs` `{caseId, mode, query}` → run 레코드 생성(models/run.py), RunConfig JSON 반환
   (runKey·agent·evidenceRef·autonomyLabel·question·altLabel — steps는 비움)

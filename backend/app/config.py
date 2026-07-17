@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://oegobanjang:oegobanjang@localhost:55432/oegobanjang"
     environment: str = "local"
     auth_pepper: str = INSECURE_DEFAULT_AUTH_PEPPER  # OTP/세션 토큰 해시 pepper — 배포 전 반드시 env로 교체
+    rag_service_url: str = "http://localhost:8100"  # rag 서비스(내부 전용, plans/BACKEND_CONNECT.md 토폴로지)
+    rag_service_timeout_seconds: float = 30.0
 
     @property
     def is_local(self) -> bool:
