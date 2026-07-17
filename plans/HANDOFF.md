@@ -18,6 +18,79 @@
 
 ---
 
+### [2026-07-17] R1 — 목 세계 안에서 플로우 완결(1.1~1.8) — 완료
+
+- 한 일: 사용자 지시로 `plans/NEXT_ROADMAP_2026-07-16.md`의 R1 전체(1.1~1.8)를 이번 세션에서
+  구현. 착수 전 **사고 수습**: 이 브랜치(`claude/roadmap-r1-implementation-d95ccf`)의
+  `plans/ROADMAP.md`는 R0(0.1~0.6)를 이미 완료로 기록하고 있었지만 실제 코드는 반영돼 있지
+  않았다(`mocks/messages.ts`·`badgeTone.ts`가 여전히 존재, `CaseWorkbench.CaseTimeline`이
+  여전히 정적 데이터만 읽음). 원인은 R0 실구현이 다른 워크트리 브랜치
+  (`claude/next-roadmap-2026-07-16-ca88d8`, 커밋 `4de7ea6`)에서만 이뤄지고 이 브랜치와
+  합쳐지지 않은 것 — 사용자 확인 후 `git cherry-pick 4de7ea6`(충돌 없음, `git merge-tree`로
+  사전 확인)로 R0을 이 브랜치에 실제로 반영한 뒤 R1에 착수했다(`npm run verify` 424건 PASS
+  확인 후 진행).
+  - **1.1 회사 프로필 슬롯**: `types.ts`에 `CompanyProfile` 추가, `companyStore`에
+    `profile`/`setProfile` 신설(기본값은 기존 데모 세계관 "그린푸드 제조" 그대로). 온보딩
+    O3 완료 시 `lib/onboarding.ts`가 `setProfile`을 호출하도록 배선, `BriefingHomePage`·
+    `CaseListPage`의 하드코딩된 회사명을 `companyStore.profile.name` 구독으로 교체.
+  - **1.2 온보딩 근로자 → 실제 케이스 생성**: `lib/csvUpload.ts`에서 `rowsToCards`의 카드
+    변환 로직을 `workerToCard(worker, idPrefix)`로 추출(CSV는 `imp-` 접두, 온보딩은
+    `onboard-` 접두로 네임스페이스만 분리) — "CSV와 동일 데이터 계약 공유" 요건을 실제
+    공유 함수로 만족. `lib/onboarding.ts`의 `completeOnboarding`이 이제 6인 로스터 시딩에
+    더해 O4 입력으로 만든 카드도 upsert(비파괴 — 기존 데모 세계관 보존).
+  - **1.3 케이스 타임라인 런타임 이벤트 반영**: 검증만 — R0 cherry-pick으로 이미 확보된
+    `lib/audit.caseTimelineActivity()`(`CaseWorkbench.CaseTimeline`이 evidenceStore를
+    실시간 병합)가 요건을 그대로 충족해 신규 코드 없음.
+  - **1.4 승인 완료 → 발송 큐 자동 연동**: `mocks/dispatch.ts`의 `DISPATCH_QUEUE`(고정 각본 +
+    자체 발명 actionId)를 표시용 카탈로그 `DISPATCH_CATALOG`(실제 승인 파이프라인 actionId:
+    `nguyen-approve`/`siti-approve`/`batbayar-handoff-export`)로 교체하고, 신설
+    `lib/dispatch.deriveDispatchQueue(approvals, events)`가 approvalStore에서 실제
+    `approved` 상태인 것만, 아직 `dispatch_executed`가 없는 것만 큐에 올린다.
+    `DispatchQueueWorkbench`에서 "화면이 스스로 미리 승인해두던" `useEffect`를 제거 —
+    이제 진짜 승인 없이는 큐에 절대 나타나지 않는다(브라우저 실검증: 승인 전 0건 →
+    ApprovePage에서 실제 승인 → 큐에 자동 등장 → 실행 → 사라짐, 전 구간 확인).
+  - **1.5 CSV 실제 파일 파싱**: `lib/csvUpload.ts`에 `parseCsvText()` 신설(헤더 줄 스킵,
+    콤마 분리, 외국인등록번호는 파싱 즉시 `maskId()`로 마스킹 — 원문이 상태에 들어오는
+    경로 자체를 막음). `CsvUploadWorkbench`가 고정 샘플 버튼 대신 실제 `<input type=file>`
+    +드래그앤드롭으로 파일을 읽어 파싱한다. 브라우저 실검증: 실제 3행 CSV(정상/경고/오류
+    각 1) 업로드 → 마스킹된 등록번호만 표시 → 정상 1건만 등록 확인.
+  - **1.6 커맨드 바 최소 매핑**: `lib/commandBar.resolveCommandRunKey()` 신설 — 입력에
+    케이스 워커명(첫 단어, 대소문자 무관)이 포함되면 그 워커의 실제 승인 런으로, 없으면
+    기존 기본값(`#4797`)으로 폴백. 추천 칩 클릭이 입력만 채우던 것을 즉시 제출로 변경.
+    자연어 파싱(의도 분류)은 여전히 R4 몫 — 이번엔 키워드 매핑까지만.
+  - **1.7 초안 수정 요청 개선**: `DraftPage`의 고정 `revised` 불리언 토글을
+    `customText: string | null` + 편집 가능한 `<textarea>`로 교체. 시트를 열면 기존
+    `draft.revisedText`(부드러운 톤 제안)로 미리 채우되, 사용자가 직접 고쳐 "수정 반영"을
+    누르면 그 편집 결과가 그대로 표시된다. 언어 토글을 다시 누르면 편집이 해제된다(기존
+    동작 유지).
+  - **1.8 사장님 리포트 파생화**: `lib/ownerReport.deriveMonthlyReport(cards, events)`
+    신설 — 처리한 케이스(`caseGroupFor==='completed'`)·사전 감지(그 중 `preparedBy==='agent'`)·
+    비율·승인 없는 외부 발송(구조적으로 항상 0이어야 함을 evidence로 실제 확인)을 파생.
+    **평균 승인 소요만 의도적으로 mock 유지** — 시드 evidence의 고정 데모 시각과 런타임
+    evidence의 실벽시계를 직접 빼면 D-6(실벽시계 vs 데모 날짜 혼용, 아직 미해결)과 같은
+    왜곡값이 나와, 2.5.6이 파이프라인 델타·주간 추이를 같은 이유로 mock으로 남긴 것과
+    동일한 판단을 내렸다(`lib/ownerReport.ts` 주석에 근거 기록).
+- 남은 일 / 중단 지점: 없음. R1 전 항목 완료. 다음은 R2(백엔드 배선) — 별도 세션.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  - **이 브랜치는 이제 R0(cherry-pick) + R1을 모두 포함한다.** 향후 이 브랜치를 main에
+    합칠 때 `claude/next-roadmap-2026-07-16-ca88d8` 브랜치와의 관계(R0가 그쪽에도 남아있어
+    중복 병합 위험)를 먼저 확인할 것 — 과거 PR #7 사고(2026-07-16 HANDOFF 항목)와 같은
+    유형의 위험이므로 병합 전 반드시 두 브랜치의 diff를 대조.
+  - 1.4의 dispatch 카탈로그는 `batbayar-handoff-export`(패키지 내보내기 승인)를 포함하지만,
+    실제 UI에는 그 액션을 `decide()`까지 완료시키는 버튼이 없다(PackagePage는 "승인 요청"만
+    있고 승인 완료 UI가 없음 — 기존 갭, 이번 세션에서 만들지 않음). 따라서 실사용에서는
+    nguyen/siti 두 dispatch 항목만 실제로 큐에 도달할 수 있다.
+  - 온보딩 O4에서 기본값(Nguyen Van A)을 그대로 등록하면 `onboard-nguyen-van-a`라는 별도
+    caseId가 시드 `nguyen`과 나란히 생긴다(의도된 동작 — 비파괴 우선, 데모 6인 로스터 보존).
+- verify 상태: PASS — `tsc --noEmit`·`eslint .`·`vitest run`(72 파일·442 테스트)·`vite build`
+  전부 클린. 브라우저 실검증(Chrome 프리뷰): 온보딩(회사명·근로자 커스텀 입력 → 홈/케이스
+  헤더·카드 반영) → CSV 실파일 업로드(마스킹 확인) → 케이스 승인(PIN 포함) → 발송 큐 자동
+  등장·실행 → 커맨드 바 키워드 라우팅(Batbayar → 실제 승인 런) → 초안 수정 편집·반영 →
+  사장님 리포트 0건→승인 후 1건 갱신, 전 구간 클릭 스루 확인.
+- 지도/규칙 갱신: `plans/ROADMAP.md`에 R1 절 추가(R0 항목 바로 아래).
+
+---
+
 ### [2026-07-17] R0 — 부채 청산·문서 정합화(0.1~0.6) — 완료
 
 - 한 일: 사용자 지시로 `plans/NEXT_ROADMAP_2026-07-16.md`의 R0 전체(0.1~0.6)를 이번 세션에서
