@@ -18,6 +18,68 @@
 
 ---
 
+### [2026-07-17] PR #14·#15 추가 코드 리뷰 라운드 — role fail-closed + 재생 런 존재 확인 — 완료
+
+- 한 일: 두 PR에 대해 사용자가 별도로 받아온 리뷰 결과를 그대로 전달받아 수정. 두 리뷰가
+  같은 "evidenceRef를 replay runKey로 쓰는 문제"를 각각 지적했는데, PR #14(R0,
+  `claude/next-roadmap-2026-07-16-ca88d8`)와 PR #15(R2, `r2-backend-wiring-auth`, base=
+  PR #14 브랜치)가 별도 브랜치라 한쪽만 고쳐서는 다른 쪽에 반영되지 않는다는 점을 먼저
+  확인하고, PR #14에 먼저 고친 뒤 그 커밋을 PR #15로 병합(rebase/force-push 아닌 일반
+  merge — 이미 푸시된 두 브랜치 히스토리를 다시 쓰지 않기 위함)했다.
+  - **PR #14 리뷰(P1+P2)**: `caseTimelineActivity()`(`lib/audit.ts`)가 evidenceRef를 그대로
+    `RUN_CONFIGS.runKey`로 써서, `#4791`처럼 재생 설정이 없는 판단 기록 번호를 누르면
+    존재하지 않는 `/run/:id`로 이동해 `RunPage`가 config를 못 찾고 loading 화면에
+    멈췄다 — 실제 `RUN_CONFIGS`에 있는 runKey일 때만 `runRef`를 채우도록 교정(없으면
+    기존처럼 텍스트만 표시, CaseTimeline 쪽 변경 없음). `.github/pull_request_template.md`
+    trailing whitespace(`git diff --check` 실패 원인)도 제거. 커밋 `9d2f618` → PR #14에
+    푸시 → `git merge origin/claude/next-roadmap-2026-07-16-ca88d8`로 PR #15에 반영(병합
+    커밋 `f37ad9e`, `audit.ts`/`audit.test.ts` import 줄만 충돌 — 두 브랜치가 각자 추가한
+    항목을 합쳐서 해결).
+  - **PR #15 리뷰(P1 2건, 신규)**:
+    1. real 모드에서 세션이 없거나 복원이 실패해도 `roleStore` 기본값(manager, mock 데모용
+       초기값)에 그대로 남아 인증 전 UI 권한 게이트가 관리자 권한으로 열렸다 —
+       `sessionStore.restore()` 맨 앞에 `useRoleStore.getState().setRole('viewer')`를
+       무조건 먼저 실행하도록 추가(토큰 유무·성공/실패와 무관). async 함수는 첫
+       await(fetchMe) 전까지 동기 실행되므로, `main.tsx`가 `restore()`를 기다리지 않고
+       바로 렌더해도(`void restore()`) 이 fail-closed는 항상 렌더보다 먼저 끝난다 —
+       "복원 요청이 렌더와 병렬로 시작된다"는 지적 자체는 그대로지만, 병렬로 시작되는
+       기본값이 이제 안전한 쪽(viewer)이라 문제가 되지 않는다.
+    2. OTP 로그인 후 서버 멤버십으로 정해진 role을 온보딩 O2에서 사용자가 다시 골라
+       `roleStore`에 덮어쓸 수 있었다(`StepRole`의 `SELECTABLE_ROLES = ['owner',
+       'manager']`엔 viewer가 없어, viewer 사용자도 강제로 manager/owner 중 하나를 골라야
+       했다 — 사실상 자기 승급 경로) — `StepRole`에 `readOnly` prop을 추가해 real
+       모드에서는 O2를 선택 UI가 아니라 "확인된 역할" 읽기 전용 화면으로 바꿨다(viewer
+       포함 실제 role을 그대로 보여주고, 클릭해서 바꿀 방법 자체를 없앰).
+       `OnboardingFlow.tsx`의 기존 O2 프리시드 `useEffect`(viewer는 프리시드 대상에서
+       제외돼 있던 바로 그 코드)는 통째로 제거 — readOnly 화면이 `sessionRole`을 직접
+       보여주므로 로컬 `role` state 경유가 더 이상 필요 없다. `onCta`의 `setRole(role)`
+       커밋과 `completeOnboarding(role ?? 'manager')`도 mock 모드에서만 로컬 선택을 쓰고
+       real 모드에서는 `sessionRole`을 그대로 쓰도록 분기.
+  - **브라우저 실검증(real 모드)**: 010-0000-0001(manager)로 로그인 → O2가 "확인된
+    역할 / 담당자 manager / 로그인한 계정에 연결된 역할이며, 여기서 바꿀 수 없습니다"만
+    보여주고 선택 버튼이 전혀 없음을 확인 → "다음" 클릭 시 O3(사업장 정보)로 정상 진행
+    확인(읽기 전용 화면이 진행 자체를 막지 않음).
+- 남은 일 / 중단 지점: 없음(두 리뷰 모두 해결). R2.3(케이스/브리핑/스레드 read API)부터
+  이어간다 — 결정할 것은 이전 R2.1+2.2 항목에 이미 기록됨(바뀐 것 없음).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. PR #14→PR #15 스택 구조상, PR #14(base) 브랜치에 커밋이 추가되면 PR #15(head)
+     브랜치에 자동으로 반영되지 않는다(git이 아니라 GitHub PR의 diff 계산 방식 때문) —
+     PR #14를 고칠 일이 생기면 그 즉시 `git merge origin/<PR #14 브랜치>`로 PR #15에도
+     반영해야 두 리뷰가 같은 파일을 다시 지적하는 일이 없다.
+  2. `roleStore`의 `DEFAULT_ROLE`(mock 모드 데모 초기값)은 여전히 'manager'다 — 바꾸지
+     않았다. real 모드의 안전한 기본값은 `sessionStore.restore()`가 명시적으로 설정하는
+     'viewer'이지, `roleStore` 모듈 자체의 기본값이 아니다(logout()의 기존 "manager로
+     복귀" 동작을 건드리지 않기 위한 의도적 분리).
+  3. `StepRole`은 이제 `readOnly` prop을 받는다 — mock 모드(선택형)와 real 모드(확인형)가
+     완전히 다른 렌더 분기이니, 이 컴포넌트를 건드릴 땐 두 분기 모두 확인한다.
+- verify 상태: PASS — `tsc --noEmit`/`npm run lint`/`vite build` 클린,
+  `npx vitest run` 466/466(전 스위트 클린, 이전 세션에서 문서화된 CaseWorkbench 병렬부하
+  flake도 이번 실행엔 발생 안 함). PR #14 브랜치 별도 검증: `tsc`/`lint`/`vitest run`
+  427/427/`vite build` 전부 클린.
+- 지도/규칙 갱신: 없음(리뷰 지적 수정만, 범위·설계 변경 없음).
+
+---
+
 ### [2026-07-17] R2.1+2.2 코드 리뷰 수정(19건) — 완료 (중단 지점: R2.3부터)
 
 - 한 일: PR #15(R2.1+2.2) 위에서 사용자 지시로 xhigh 강도 다중 에이전트 코드 리뷰를 돌려
