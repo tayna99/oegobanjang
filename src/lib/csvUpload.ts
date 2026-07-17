@@ -1,10 +1,10 @@
+import { maskId } from '@/lib/mask';
 import type { CaseCard } from '@/types';
 
 // CSV 일괄 등록(4.4) — reference/design-system/외고반장 CSV 업로드.dc.html §1a 이식.
-// 실제 파일 파싱 백엔드가 없어 "업로드"는 고정 샘플 8행을 검증→등록하는 각본이다
-// (RunEngine 각본 철학과 동일). 외국인등록번호는 화면 어디에도 원문을 들일 경로를
-// 만들지 않는다는 온보딩 O4의 결정을 그대로 따라 — 이 fixture부터 이미 마스킹된
-// 문자열(`lib/mask.ts` 규칙과 동일 형식)로만 존재한다(GOTCHAS §1).
+// R1.5부터 실제 파일 업로드+파싱(parseCsvText)을 지원한다. 외국인등록번호는 화면 어디에도
+// 원문을 들일 경로를 만들지 않는다는 온보딩 O4의 결정을 그대로 따라 — 파싱 시점에 즉시
+// 마스킹하며, 그 이후 어떤 상태·화면도 원문을 보지 못한다(GOTCHAS §1).
 export type RowStatus = 'normal' | 'warn' | 'error';
 
 export interface CsvRow {
@@ -36,6 +36,28 @@ export const SAMPLE_CSV_ROWS: CsvRow[] = [
   { rowNo: 7, name: 'Pham Duc M.', nationality: '베트남', team: '제조2팀', stayExpiryDateRaw: '2026.8.9', externalRegNoMasked: '******-*******' },
   { rowNo: 8, name: 'Kyaw Zin', nationality: '미얀마', team: '포장팀', stayExpiryDateRaw: '', externalRegNoMasked: '******-*******' },
 ];
+
+// 실제 업로드 파일 파싱(R1.5, NEXT_ROADMAP 1.5) — 첫 줄은 헤더로 간주하고 건너뛴다.
+// 쉼표 안에 값이 들어있는 경우(따옴표 이스케이프)는 다루지 않는다 — 이름·국적·팀·날짜·
+// 등록번호 5개 필드 모두 쉼표를 포함하지 않는 값만 다루는 이 앱의 실제 데이터 범위에서는
+// 불필요한 복잡도다. 외국인등록번호는 파싱 즉시 maskId()로 마스킹해 원문이 상태에 들어오는
+// 경로 자체를 막는다(GOTCHAS §1) — 이미 마스킹된 값을 다시 마스킹해도 결과는 그대로다.
+export function parseCsvText(text: string): CsvRow[] {
+  const lines = text.split(/\r\n|\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+  return lines.slice(1).map((line, index) => {
+    const [name = '', nationality = '', team = '', stayExpiryDateRaw = '', externalRegNo = ''] = line
+      .split(',')
+      .map((cell) => cell.trim());
+    return {
+      rowNo: index + 1,
+      name,
+      nationality,
+      team,
+      stayExpiryDateRaw,
+      externalRegNoMasked: externalRegNo.length > 0 ? maskId(externalRegNo) : '',
+    };
+  });
+}
 
 // 필수 컬럼 누락(헤더 누락과 동치 — 값이 비어 있으면 그 컬럼이 없는 것과 같다)·중복 이름
 // (사번이 없는 데이터 모델이라 "이름"을 유일 식별자로 대체)·날짜 형식만 검증한다.
