@@ -9,6 +9,26 @@ describe('sessionStore', () => {
     expect(state.token).toBeNull();
     expect(state.user).toBeNull();
     expect(state.membership).toBeNull();
+    expect(state.delegatedBy).toEqual([]);
+  });
+
+  it('setSession에 delegatedBy를 생략하면 빈 배열로 채운다', () => {
+    useSessionStore.getState().setSession({
+      token: 'tok1',
+      user: { id: 'u1', name: '김담당', phone: '010-0000-0001' },
+      membership: null,
+    });
+    expect(useSessionStore.getState().delegatedBy).toEqual([]);
+  });
+
+  it('setSession으로 delegatedBy를 반영한다', () => {
+    useSessionStore.getState().setSession({
+      token: 'tok1',
+      user: { id: 'u1', name: '김담당', phone: '010-0000-0001' },
+      membership: null,
+      delegatedBy: [{ userId: 'u_owner', name: '김대표' }],
+    });
+    expect(useSessionStore.getState().delegatedBy).toEqual([{ userId: 'u_owner', name: '김대표' }]);
   });
 
   it('setSession으로 세션 전체를 반영한다', () => {

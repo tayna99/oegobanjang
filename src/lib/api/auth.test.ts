@@ -50,6 +50,31 @@ describe('lib/api/auth', () => {
     expect(result.membership).toEqual({ companyId: 'cmp1', role: 'manager' });
   });
 
+  it('fetchMe는 delegated_by를 delegatedBy(camelCase)로 변환한다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          user: { id: 'u1', name: '김담당', phone: '010-0000-0001' },
+          membership: null,
+          delegated_by: [{ user_id: 'u_owner', name: '김대표' }],
+        }),
+        { status: 200 },
+      ),
+    ) as unknown as typeof fetch;
+
+    const result = await fetchMe();
+    expect(result.delegatedBy).toEqual([{ userId: 'u_owner', name: '김대표' }]);
+  });
+
+  it('fetchMe는 delegated_by가 응답에 없으면 빈 배열로 취급한다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ user: { id: 'u1', name: '김담당', phone: '010-0000-0001' }, membership: null }), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    const result = await fetchMe();
+    expect(result.delegatedBy).toEqual([]);
+  });
+
   it('logout은 204 빈 응답을 정상 처리한다', async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 })) as unknown as typeof fetch;
     await expect(logout()).resolves.toBeUndefined();

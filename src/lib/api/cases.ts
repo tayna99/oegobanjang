@@ -16,6 +16,7 @@ export interface NextActionDto {
   state: string;
   requires_approval: boolean;
   kind: string;
+  pending_approval_id: string | null;
 }
 
 export interface CaseDto {
@@ -55,6 +56,7 @@ function toNextAction(
     state: dto.state as NextActionRef['state'],
     requiresApproval: dto.requires_approval,
     kind: dto.kind as NextActionRef['kind'],
+    pendingApprovalId: dto.pending_approval_id ?? undefined,
   };
 }
 

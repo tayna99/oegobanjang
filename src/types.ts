@@ -39,6 +39,9 @@ export interface NextActionRef {
   state: NextActionState;
   requiresApproval: boolean;
   kind: NextActionKind; // 탭 시 이동할 곳(M0.5엔 없었음, 1.3에서 추가 — rules/frontend.md "문자열 라벨로 분기 금지")
+  // 이 액션에 걸린 pending 승인의 실 id(R2.4, real API 모드 전용) — mock 모드는 항상 undefined
+  // (action_id와 approval_id를 구분하지 않는 목 세계관에는 해당 없음).
+  pendingApprovalId?: string;
 }
 
 export interface WorkerRef {

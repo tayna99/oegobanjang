@@ -37,7 +37,7 @@ export function useAuthActions(): AuthActions {
       // (lib/api/client.ts의 apiFetch가 sessionStore.getState().token을 읽는다).
       setSession({ token: verified.token, user: verified.user, membership: null });
       const me = await fetchMe();
-      setSession({ token: verified.token, user: verified.user, membership: me.membership });
+      setSession({ token: verified.token, user: verified.user, membership: me.membership, delegatedBy: me.delegatedBy });
       const role = me.membership ? toFrontendRole(me.membership.role) : null;
       if (role) setRole(role);
     },

@@ -21,8 +21,22 @@ describe('lib/api/cases', () => {
       prepared_by: 'agent',
       prepared_run_id: 'run_001',
       worker: { display_name: 'Nguyen Van A', nationality: 'VN', team: '제조1팀' },
-      primary_action: { action_id: 'act_1', label: '초안 보기', state: 'ready', requires_approval: false, kind: 'draft' },
-      secondary_action: { action_id: 'act_2', label: '보내기 승인', state: 'locked', requires_approval: true, kind: 'approve' },
+      primary_action: {
+        action_id: 'act_1',
+        label: '초안 보기',
+        state: 'ready',
+        requires_approval: false,
+        kind: 'draft',
+        pending_approval_id: null,
+      },
+      secondary_action: {
+        action_id: 'act_2',
+        label: '보내기 승인',
+        state: 'locked',
+        requires_approval: true,
+        kind: 'approve',
+        pending_approval_id: null,
+      },
       ...overrides,
     };
   }
@@ -44,6 +58,27 @@ describe('lib/api/cases', () => {
     expect(first.severity).toBe('HIGH');
     expect(first.state).toBe('risk_review');
     expect(second.workerRef).toBeUndefined();
+  });
+
+  it('toCaseCard: primary_action.pending_approval_id를 pendingApprovalId로 매핑한다(R2.4)', () => {
+    const card = toCaseCard(
+      makeCaseDto({
+        primary_action: {
+          action_id: 'act_1',
+          label: '초안 보기',
+          state: 'ready',
+          requires_approval: false,
+          kind: 'draft',
+          pending_approval_id: 'apv1',
+        },
+      }),
+    );
+    expect(card.primaryAction.pendingApprovalId).toBe('apv1');
+  });
+
+  it('toCaseCard: pending_approval_id가 null이면 pendingApprovalId는 undefined', () => {
+    const card = toCaseCard(makeCaseDto());
+    expect(card.primaryAction.pendingApprovalId).toBeUndefined();
   });
 
   it('toCaseCard: worker가 null이면 workerRef는 undefined', () => {

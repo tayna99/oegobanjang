@@ -27,9 +27,16 @@ export interface MembershipResult {
   role: MembershipRole;
 }
 
+// R2.4 — 로그인 사용자가 대리 승인할 수 있는 owner(들).
+export interface DelegatedByResult {
+  userId: string;
+  name: string;
+}
+
 export interface MeResult {
   user: AuthUser;
   membership: MembershipResult | null;
+  delegatedBy: DelegatedByResult[];
 }
 
 interface OtpRequestResponseDto {
@@ -47,6 +54,7 @@ interface OtpVerifyResponseDto {
 interface MeResponseDto {
   user: AuthUser;
   membership: { company_id: string; role: MembershipRole } | null;
+  delegated_by: { user_id: string; name: string }[];
 }
 
 export async function requestOtp(phone: string): Promise<OtpRequestResult> {
@@ -71,6 +79,7 @@ export async function fetchMe(): Promise<MeResult> {
   return {
     user: dto.user,
     membership: dto.membership ? { companyId: dto.membership.company_id, role: dto.membership.role } : null,
+    delegatedBy: (dto.delegated_by ?? []).map((d) => ({ userId: d.user_id, name: d.name })),
   };
 }
 

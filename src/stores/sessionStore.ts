@@ -17,11 +17,24 @@ export interface SessionMembership {
   role: MembershipRole;
 }
 
+// R2.4 — 로그인 사용자가 대리 승인할 수 있는 owner(들)(§13-10). ApprovePage의 "대리 승인"
+// 체크박스가 하드코딩된 OWNER_NAME 대신 이 값을 쓴다.
+export interface DelegatedBy {
+  userId: string;
+  name: string;
+}
+
 interface SessionStoreState {
   token: string | null;
   user: SessionUser | null;
   membership: SessionMembership | null;
-  setSession: (session: { token: string; user: SessionUser; membership: SessionMembership | null }) => void;
+  delegatedBy: DelegatedBy[];
+  setSession: (session: {
+    token: string;
+    user: SessionUser;
+    membership: SessionMembership | null;
+    delegatedBy?: DelegatedBy[];
+  }) => void;
   clear: () => void;
 }
 
@@ -36,8 +49,15 @@ export const useSessionStore = create<SessionStoreState>()(
       token: null,
       user: null,
       membership: null,
-      setSession: (session) => set({ token: session.token, user: session.user, membership: session.membership }),
-      clear: () => set({ token: null, user: null, membership: null }),
+      delegatedBy: [],
+      setSession: (session) =>
+        set({
+          token: session.token,
+          user: session.user,
+          membership: session.membership,
+          delegatedBy: session.delegatedBy ?? [],
+        }),
+      clear: () => set({ token: null, user: null, membership: null, delegatedBy: [] }),
     }),
     { name: 'ogb-session' },
   ),
