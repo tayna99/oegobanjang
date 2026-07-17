@@ -22,6 +22,7 @@ from app.domain.auth_exceptions import (
 )
 from app.domain.auth_tokens import generate_otp_code, generate_session_token, hash_secret, secrets_match
 from app.models.auth import LoginOtp, UserSession
+from app.models.membership import Membership
 from app.models.user import User
 
 OTP_TTL = dt.timedelta(minutes=5)
@@ -116,6 +117,17 @@ def resolve_session_user_id(db: Session, raw_token: str) -> str:
     if session is None or session.revoked_at is not None or session.expires_at < now:
         raise SessionInvalidError()
     return session.user_id
+
+
+def get_active_membership(db: Session, user_id: str) -> Membership | None:
+    """R2.3 — 읽기 API의 회사 스코프 근거(deps.get_current_membership). 현재 시드·프론트
+    모두 1인 1사 전제라 여러 건이어도 하나만 쓴다(멀티테넌트 분기는 후속)."""
+    return db.execute(
+        select(Membership)
+        .where(Membership.user_id == user_id, Membership.status == "active")
+        .order_by(Membership.created_at)
+        .limit(1)
+    ).scalar_one_or_none()
 
 
 def revoke_session(db: Session, raw_token: str) -> None:

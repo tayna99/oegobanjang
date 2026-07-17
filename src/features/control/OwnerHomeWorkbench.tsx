@@ -1,40 +1,34 @@
-import { useEffect } from 'react';
+import { useMemo } from 'react';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { useSeedCases } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
+import { deriveMonthlyReport } from '@/lib/ownerReport';
 import { ROLE_LABEL } from '@/lib/role';
-import { CASE_CARDS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
 import { useCompanyStore } from '@/stores/companyStore';
+import { useEvidenceStore } from '@/stores/evidenceStore';
 
 // 사장님(owner) PC 최소화면(4f) — reference/design-system/외고반장 PC_4a-4f(신규티어)
 // .dc.html §4f(556~625행) 이식. "의도적으로 최소화 — 월간 리포트 열람 + 구성원·위임 설정만 ·
 // 승인은 모바일에서"(7단계 §2 각주3의 owner=승인만, 실행 대리 아님 원칙과 일치). 담당자의
 // 풍부한 운영 화면(ControlTowerPage)은 owner에게 보여주지 않는다 — HomePage에서 role 분기.
-const MONTHLY_REPORT = {
-  processedCases: 9,
-  proactiveDetected: 8,
-  proactivePercent: 89,
-  avgApprovalHours: 1.8,
-  avgApprovalHoursLastMonth: 4.2,
-  unauthorizedSendCount: 0,
-};
+// R1.8부터 처리한 케이스·사전 감지·승인 없는 발송은 스토어 파생값이다(lib/ownerReport.ts).
+// 평균 승인 소요만 아직 mock — 이유는 그 파일 주석 참고(D-6, 2.5.6과 동일 판단).
+const MOCK_APPROVAL_DURATION = { avgApprovalHours: 1.8, avgApprovalHoursLastMonth: 4.2 };
 
 export function OwnerHomeWorkbench() {
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
+  const events = useEvidenceStore((s) => s.events);
   const members = useCompanyStore((s) => s.members);
   const delegation = useCompanyStore((s) => s.delegation);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const pendingCount = Object.values(cases).filter((c) => c.state === 'approval_pending').length;
   const delegate = delegation.active ? members.find((m) => m.id === delegation.delegateId) : undefined;
+  const report = useMemo(() => deriveMonthlyReport(Object.values(cases), events), [cases, events]);
 
   return (
     <section aria-label="사장님 홈" className="mx-auto flex h-[calc(100dvh-4rem)] max-w-screen-md flex-col gap-5 overflow-y-auto p-6">
@@ -56,22 +50,22 @@ export function OwnerHomeWorkbench() {
         <div className="grid grid-cols-3 gap-3">
           <div className="flex flex-col gap-1 rounded-card border border-hairline p-3.5">
             <span className="text-pc-2xs text-subtle">처리한 케이스</span>
-            <span className="text-heading2 font-bold tabular-nums text-ink">{MONTHLY_REPORT.processedCases}건</span>
+            <span className="text-heading2 font-bold tabular-nums text-ink">{report.processedCases}건</span>
           </div>
           <div className="flex flex-col gap-1 rounded-card border border-hairline p-3.5">
             <span className="text-pc-2xs text-subtle">사전 감지</span>
             <span className="text-heading2 font-bold tabular-nums text-ink">
-              {MONTHLY_REPORT.proactiveDetected}건 <span className="text-pc-xs font-semibold text-success">({MONTHLY_REPORT.proactivePercent}%)</span>
+              {report.proactiveDetected}건 <span className="text-pc-xs font-semibold text-success">({report.proactivePercent}%)</span>
             </span>
           </div>
           <div className="flex flex-col gap-1 rounded-card border border-hairline p-3.5">
             <span className="text-pc-2xs text-subtle">평균 승인 소요</span>
-            <span className="text-heading2 font-bold tabular-nums text-ink">{MONTHLY_REPORT.avgApprovalHours}시간</span>
-            <span className="text-pc-2xs text-faint">지난달 {MONTHLY_REPORT.avgApprovalHoursLastMonth}시간</span>
+            <span className="text-heading2 font-bold tabular-nums text-ink">{MOCK_APPROVAL_DURATION.avgApprovalHours}시간</span>
+            <span className="text-pc-2xs text-faint">지난달 {MOCK_APPROVAL_DURATION.avgApprovalHoursLastMonth}시간</span>
           </div>
         </div>
         <div className="rounded-in bg-surface px-3.5 py-2.5 text-caption1 text-ink">
-          승인 없는 외부 발송 {MONTHLY_REPORT.unauthorizedSendCount}건 · 전 기간 동일
+          승인 없는 외부 발송 {report.unauthorizedSendCount}건 · 전 기간 동일
         </div>
       </section>
 

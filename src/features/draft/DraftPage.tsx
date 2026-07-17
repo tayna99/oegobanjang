@@ -19,8 +19,11 @@ export function DraftPage() {
   const role = useRoleStore((s) => s.role);
   const draft = findDraft(caseId);
   const [lang, setLang] = useState<DraftLangCode>('ko');
-  const [revised, setRevised] = useState(false);
+  // R1.7 — 고정 revisedText 토글 대신 실제 편집 가능한 텍스트를 반영한다(실 재생성은 R4).
+  // null이면 미적용 상태(원문 표시), 문자열이면 사용자가 시트에서 편집·적용한 결과.
+  const [customText, setCustomText] = useState<string | null>(null);
   const [revisionOpen, setRevisionOpen] = useState(false);
+  const [revisionDraft, setRevisionDraft] = useState('');
 
   const activeLang = useMemo(() => {
     if (!draft) return undefined;
@@ -38,7 +41,8 @@ export function DraftPage() {
     );
   }
 
-  const text = revised ? draft.revisedText : activeLang.text;
+  const revised = customText !== null;
+  const text = customText ?? activeLang.text;
 
   return (
     <div className="p-5">
@@ -58,7 +62,7 @@ export function DraftPage() {
             variant={item.lang === activeLang.lang && !revised ? 'primary' : 'outline'}
             onClick={() => {
               setLang(item.lang);
-              setRevised(false);
+              setCustomText(null);
             }}
           >
             {item.label}
@@ -79,7 +83,16 @@ export function DraftPage() {
         </p>
       ) : (
         <div className="mt-4 flex gap-2.5">
-          <Button variant="outline" className="flex-1" onClick={() => setRevisionOpen(true)}>
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              // 시트를 열 때 부드러운 톤 제안(draft.revisedText)으로 미리 채워, 그대로 쓰거나
+              // 직접 고쳐 쓸 수 있게 한다 — "고정 토글"이 아니라 편집 가능한 출발점.
+              setRevisionDraft(customText ?? draft.revisedText);
+              setRevisionOpen(true);
+            }}
+          >
             수정 요청
           </Button>
           <Button variant="primary" className="flex-1" onClick={() => nav.toApprove(caseId)}>
@@ -95,23 +108,28 @@ export function DraftPage() {
           <Button
             variant="primary"
             className="w-full"
+            disabled={revisionDraft.trim().length === 0}
             onClick={() => {
-              setRevised(true);
+              setCustomText(revisionDraft.trim());
               setLang('ko');
               setRevisionOpen(false);
             }}
           >
-            부드럽게 다듬기
+            수정 반영
           </Button>
         }
       >
         <h3 className="mb-2 text-body1 font-semibold">수정 요청 시트</h3>
-        <p className="mb-4 text-body2 leading-relaxed text-muted">
-          근로자에게 더 부드럽게 들리도록 요청 문장을 다듬습니다. 실제 발송은 승인 이후에도 이 MVP에서 실행하지 않습니다.
+        <p className="mb-3 text-body2 leading-relaxed text-muted">
+          문구를 직접 고쳐 반영합니다. 실제 발송은 승인 이후에도 이 MVP에서 실행하지 않습니다.
         </p>
-        <div className="rounded-in bg-surface px-3.5 py-3 text-label1 leading-relaxed">
-          요청 톤: 정중하고 부담이 적은 문장
-        </div>
+        <textarea
+          value={revisionDraft}
+          onChange={(e) => setRevisionDraft(e.target.value)}
+          aria-label="수정 요청 문구"
+          rows={6}
+          className="w-full whitespace-pre-line rounded-in bg-surface px-3.5 py-3 text-label1 leading-relaxed text-ink outline-none focus:ring-2 focus:ring-primary"
+        />
       </BottomSheet>
     </div>
   );

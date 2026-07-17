@@ -162,6 +162,15 @@ export interface MessageThread {
 
 // --- 7단계 권한모델 — 회사(tenant) 설정 계약 ---
 
+// 회사 프로필(R1.1) — 온보딩 O3 입력이 저장되는 슬롯. 홈/케이스 목록 헤더의 회사명 표시가
+// 이 값을 단일 출처로 읽는다(companyStore.profile).
+export interface CompanyProfile {
+  name: string;
+  region: string;
+  industry: string;
+  workerCount: string;
+}
+
 // 앱에 로그인하는 구성원 — 행정사(expert)는 계정이 아니라 패키지 링크라 여기 없다(7단계 §1).
 export interface CompanyMember {
   id: string;

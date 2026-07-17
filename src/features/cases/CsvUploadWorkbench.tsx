@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import type { ChipTone } from '@/lib/chipTone';
@@ -6,8 +6,8 @@ import { IconDoc, IconLock } from '@/components/icons';
 import { Skeleton } from '@/components/Skeleton';
 import { ACTOR_NAME } from '@/lib/approval';
 import { cn } from '@/lib/cn';
-import { downloadCsvTemplate, rowsToCards, SAMPLE_CSV_ROWS, validateRows } from '@/lib/csvUpload';
-import type { RowStatus, ValidatedCsvRow } from '@/lib/csvUpload';
+import { CSV_TEMPLATE_COLUMNS, downloadCsvTemplate, parseCsvText, rowsToCards, validateRows } from '@/lib/csvUpload';
+import type { CsvRow, RowStatus, ValidatedCsvRow } from '@/lib/csvUpload';
 import { ROLE_LABEL } from '@/lib/role';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
@@ -15,8 +15,8 @@ import { useRoleStore } from '@/stores/roleStore';
 
 // CSV 일괄 등록(4.4) — reference/design-system/외고반장 CSV 업로드.dc.html §1a 이식.
 // PC 워크벤치 크롬(§3b와 동일 실제 Shell, 목업의 52px 나비는 재현하지 않음 — 2026-07-13
-// 델타 감사 §3 결정) 위에 4단계(대기→검증 중→결과→완료)를 얹는다. 실제 파일 파싱이
-// 없어 "파일 선택" 대신 고정 샘플을 불러오는 각본이다.
+// 델타 감사 §3 결정) 위에 4단계(대기→검증 중→결과→완료)를 얹는다. R1.5부터 실제 파일
+// 선택·드래그앤드롭으로 CSV를 읽어 파싱한다(lib/csvUpload.parseCsvText).
 type Stage = 'idle' | 'validating' | 'results' | 'done';
 type Filter = 'all' | RowStatus;
 
@@ -101,12 +101,28 @@ export function CsvUploadWorkbench() {
 
   const [stage, setStage] = useState<Stage>('idle');
   const [filter, setFilter] = useState<Filter>('all');
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [csvRows, setCsvRows] = useState<CsvRow[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (stage !== 'validating') return;
     const timer = setTimeout(() => setStage('results'), VALIDATING_DURATION_MS);
     return () => clearTimeout(timer);
   }, [stage]);
+
+  // R1.5 — 실제 파일 읽기+파싱(lib/csvUpload.parseCsvText). 파일 선택(input)·드래그앤드롭
+  // 둘 다 같은 경로로 들어온다.
+  const onFile = (file: File) => {
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      setCsvRows(parseCsvText(text));
+      setStage('validating');
+    };
+    reader.readAsText(file);
+  };
 
   if (role !== 'manager') {
     return (
@@ -116,7 +132,7 @@ export function CsvUploadWorkbench() {
     );
   }
 
-  const rows = validateRows(SAMPLE_CSV_ROWS);
+  const rows = validateRows(csvRows);
   const visibleRows = filter === 'all' ? rows : rows.filter((r) => r.status === filter);
   const normalRows = rows.filter((r) => r.status === 'normal');
   const counts = {
@@ -154,7 +170,15 @@ export function CsvUploadWorkbench() {
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
           {stage === 'idle' && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-card border border-dashed border-line bg-surface p-10">
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const file = e.dataTransfer.files?.[0];
+                if (file) onFile(file);
+              }}
+              className="flex flex-1 flex-col items-center justify-center gap-4 rounded-card border border-dashed border-line bg-surface p-10"
+            >
               <span className="flex size-14 items-center justify-center rounded-in bg-approvalbg">
                 <IconDoc width={26} height={26} className="text-primary" />
               </span>
@@ -162,8 +186,20 @@ export function CsvUploadWorkbench() {
                 <span className="text-label1 font-semibold text-ink">CSV 파일을 끌어다 놓거나 선택하세요</span>
                 <span className="text-caption1 text-muted">필수 컬럼: 이름·국적·팀·체류만료일·외국인등록번호 · UTF-8</span>
               </div>
-              <Button variant="primary" onClick={() => setStage('validating')}>
-                샘플 CSV 불러오기
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                aria-label="CSV 파일 선택"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) onFile(file);
+                  e.target.value = ''; // 같은 파일을 다시 선택해도 change가 발화하도록 초기화.
+                }}
+              />
+              <Button variant="primary" onClick={() => fileInputRef.current?.click()}>
+                파일 선택
               </Button>
             </div>
           )}
@@ -173,13 +209,13 @@ export function CsvUploadWorkbench() {
               <div className="flex w-full max-w-lg flex-col gap-2.5">
                 <div className="mb-1 flex items-center gap-2.5">
                   <span className="size-4 shrink-0 rounded-full bg-primary" />
-                  <span className="text-label1 font-semibold text-ink">근로자명단.csv 형식을 확인하는 중</span>
+                  <span className="text-label1 font-semibold text-ink">{fileName} 형식을 확인하는 중</span>
                 </div>
                 {['96%', '88%', '92%', '80%', '90%'].map((w, i) => (
                   <Skeleton key={i} className="h-3.5" style={{ width: w }} />
                 ))}
               </div>
-              <span className="text-caption1 text-muted">{SAMPLE_CSV_ROWS.length}행을 확인하고 있어요</span>
+              <span className="text-caption1 text-muted">{csvRows.length}행을 확인하고 있어요</span>
             </div>
           )}
 
@@ -224,7 +260,15 @@ export function CsvUploadWorkbench() {
                 <br />
                 보류·오류 건은 케이스 목록에서 다시 확인할 수 있습니다.
               </p>
-              <Button variant="outline" className="mt-1" onClick={() => setStage('idle')}>
+              <Button
+                variant="outline"
+                className="mt-1"
+                onClick={() => {
+                  setStage('idle');
+                  setFileName(null);
+                  setCsvRows([]);
+                }}
+              >
                 다시 업로드
               </Button>
             </div>
@@ -253,7 +297,7 @@ export function CsvUploadWorkbench() {
         <section className="flex flex-col gap-2">
           <span className="text-caption1 font-bold tracking-wide text-muted">CSV 형식 안내</span>
           <ul className="overflow-hidden rounded-in border border-hairline">
-            {['이름', '국적', '팀', '체류만료일 (YYYY-MM-DD)', '외국인등록번호'].map((col) => (
+            {CSV_TEMPLATE_COLUMNS.map((col) => (
               <li key={col} className="flex items-center gap-2 border-b border-hairline px-3 py-2 last:border-none">
                 <span className="flex size-3.5 shrink-0 items-center justify-center rounded bg-success">
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none">

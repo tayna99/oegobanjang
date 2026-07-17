@@ -246,8 +246,14 @@ function DraftPanel({ caseId }: { caseId: string }) {
 function CaseTimeline({ sheet, onOpenRun }: { sheet: CaseSheet; onOpenRun?: (runRef: string) => void }) {
   // D-3(NEXT_ROADMAP): sheet.activity는 CASE_SHEETS 정적 데이터라 행정사 회신·해석 확인
   // 같은 런타임 이벤트가 반영되지 않았다 — evidenceStore를 병합해 실시간으로 얹는다.
+  // 코드리뷰 효율 지적: caseTimelineActivity의 filter+map을 useMemo 없이 매 렌더 재계산하고
+  // 있었다 — CaseWorkbench의 검색어·선택 케이스 등 이 값과 무관한 상태가 바뀔 때도 다시
+  // 돌던 것을 막는다(evidenceStore 자체의 이벤트가 실제로 바뀌었을 때만 재계산).
   const events = useEvidenceStore((s) => s.events);
-  const activity = caseTimelineActivity(sheet.caseId, sheet.activity, events);
+  const activity = useMemo(
+    () => caseTimelineActivity(sheet.caseId, sheet.activity, events),
+    [sheet.caseId, sheet.activity, events],
+  );
   if (activity.length === 0 && !sheet.nextWake) return null;
   return (
     <section aria-label="케이스 타임라인" className="flex flex-col gap-2">

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CSV_TEMPLATE_HEADER, downloadCsvTemplate, rowsToCards, SAMPLE_CSV_ROWS, validateRows } from './csvUpload';
+import { CSV_TEMPLATE_HEADER, downloadCsvTemplate, parseCsvText, rowsToCards, SAMPLE_CSV_ROWS, validateRows } from './csvUpload';
 import type { CsvRow } from './csvUpload';
 
 // 4.4 DoD ① — "잘못된 행(헤더 누락·중복 사번) 검증 실패 테스트".
@@ -61,6 +61,36 @@ describe('rowsToCards', () => {
     const cards = rowsToCards(validateRows(SAMPLE_CSV_ROWS));
     expect(cards.some((c) => c.caseId === 'nguyen')).toBe(false);
     expect(cards.some((c) => c.caseId === 'imp-nguyen-van-a')).toBe(true);
+  });
+});
+
+// R1.5 DoD — "실제 파일 업로드+파서(검증 규칙 validateRows는 재사용)".
+describe('parseCsvText', () => {
+  it('헤더 줄을 건너뛰고 데이터 행만 CsvRow로 파싱한다', () => {
+    const text = `${CSV_TEMPLATE_HEADER}\nNguyen Van A,베트남,제조1팀,2026-08-09,900101-1234567`;
+    const rows = parseCsvText(text);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ rowNo: 1, name: 'Nguyen Van A', nationality: '베트남', team: '제조1팀', stayExpiryDateRaw: '2026-08-09' });
+  });
+
+  it('외국인등록번호는 파싱 즉시 마스킹되어 원문 숫자가 남지 않는다(GOTCHAS §1)', () => {
+    const text = `${CSV_TEMPLATE_HEADER}\nNguyen Van A,베트남,제조1팀,2026-08-09,900101-1234567`;
+    const rows = parseCsvText(text);
+    expect(rows[0].externalRegNoMasked).toBe('******-*******');
+    expect(rows[0].externalRegNoMasked).not.toMatch(/\d/);
+  });
+
+  it('빈 줄은 무시하고, 여러 행을 순서대로 rowNo 1부터 매긴다', () => {
+    const text = `${CSV_TEMPLATE_HEADER}\n\nNguyen Van A,베트남,제조1팀,2026-08-09,900101-1234567\n\nSiti R.,인도네시아,포장팀,2027-02-14,850505-2345678\n`;
+    const rows = parseCsvText(text);
+    expect(rows.map((r) => r.rowNo)).toEqual([1, 2]);
+    expect(rows[1].name).toBe('Siti R.');
+  });
+
+  it('컬럼이 비어 있으면(값 뒤 쉼표 누락) 빈 문자열로 남아 validateRows가 오류로 판정한다', () => {
+    const text = `${CSV_TEMPLATE_HEADER}\nKyaw Zin,미얀마,포장팀,,900101-1234567`;
+    const rows = parseCsvText(text);
+    expect(validateRows(rows)[0].status).toBe('error');
   });
 });
 
