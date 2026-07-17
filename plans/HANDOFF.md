@@ -18,6 +18,109 @@
 
 ---
 
+### [2026-07-18] R2.4(승인 결정 배선) — 완료 — R2 마일스톤 전체 완결
+
+- 한 일: 사용자 지시로 R2.5·R2.6(직전 항목) 다음 순서로 R2.4를 진행. 착수 전 3개 Explore
+  에이전트(프론트 승인 플로우/백엔드+DB/스펙 문서)를 병렬로 돌려 조사한 뒤 Plan 에이전트로
+  설계, 사용자에게 2가지(반려 PIN 통일 여부, 진입 퍼널 범위)를 확인받고 진행했다.
+  - **착수 전 발견한 구조적 공백 2건**: (A) real 모드 `ApprovePage`가 체크리스트·근거수·
+    가드노트를 읽던 mock `CASE_SHEETS`가 슬러그 키(`'nguyen'` 등)라 real caseId(DB id)와
+    매칭되지 않아 항상 "케이스를 찾을 수 없습니다"가 떴다. (B) 승인/반려 엔드포인트가
+    `approval_id`로 식별되는데 프론트가 이를 얻을 GET이 없었다. 신규
+    `GET /api/v1/cases/{case_id}`(`services/cases.py::get_case_detail_out`, 목록 조립
+    함수 `get_case_out` 재사용 + `usable_citation_count`·`guard_note`·
+    `pending_approval{id,action_id,checklist,requested_at}`)로 둘 다 해소.
+  - **DB — 위임 유효성 검증 구현(§13-10 해소)**: `trg_approvals_decider_role`에 세 번째
+    OR-arm 추가(owner 유효 위임 + delegate=결정자 + scope='approval' + 미철회 + 결정 시각이
+    유효기간 내 + delegator가 활성 owner). 서비스 계층 `_validate_delegation`이 같은 조건을
+    먼저 검사해 트리거의 500을 403(`ApprovalDelegationInvalidError`)으로 선변환. **버그
+    발견·수정**: 위임이 유효해도 기존 "manager는 owner_only+LOW만" 정책 게이트가 무조건
+    먼저 막고 있었다 — `on_behalf_of_user_id`가 있으면(=이미 위임 검증을 통과했으면) 그
+    게이트를 건너뛰도록 교정(신규 테스트
+    `test_manager_can_approve_on_behalf_of_owner_with_valid_delegation`으로 잡음, owner_only+
+    HIGH 케이스에서 재현).
+  - **마이그레이션**: `backend/migrations/versions/0003_r2_4_delegated_approval_decider.py`
+    (down_revision=0002, `CREATE OR REPLACE FUNCTION` + 트리거 재생성 ALTER). 0001은 실배포
+    동결 스냅샷, 0002는 R2.5/2.6이 점유 — **다음 스키마 변경은 0004+**.
+  - **PIN 서버 검증**: `ApprovalDecisionRequest`에 `pin`·`checklist` 필드 추가.
+    `identity_method='pin'`이면 결정자 `users.pin_hash`를 `secrets_match`(OTP·세션 토큰과
+    동일 HMAC-SHA256+pepper 원리, `app.domain.auth_tokens`)로 대조 — 미등록/불일치는
+    `ApprovalPinInvalidError`(422). `db/seed_demo.sql`의 김담당·박주임·김대표 3인에
+    `pin_hash`(데모 PIN '1234'의 해시 리터럴) 추가 — `.env`로 `AUTH_PEPPER`를 바꾸면 이 값도
+    다시 계산해야 한다(시드 주석에 재생성 커맨드 명시). 위임 시드 1건도 추가(김대표→김담당).
+  - **checklist 제출 반영**: `payload.checklist`가 오면 게이트 평가 전에 로컬 변수
+    `checklist_value`로 받아 completeness 체크에 쓰고, 다른 approval.* 필드들과 **한 번에**
+    `db.flush()` 직전에 ORM 속성으로 씀 — 처음엔 받자마자 바로 `approval.checklist = ...`로
+    썼다가, 그 뒤 `usable_citation_count` 등의 SELECT가 유발하는 SQLAlchemy autoflush가
+    `status` 변경 없이 `checklist`만 UPDATE하는 별도 문장을 내보내 `trg_approvals_update_guard`
+    ("pending에서 승인/반려로 전이하는 UPDATE만 허용")에 걸리는 버그를 발견·수정(에러 메시지가
+    `session.no_autoflush` 사용을 직접 제안해줬다).
+  - **reject의 evidence type 버그 발견·수정**: 이전엔 approve·reject 모두
+    `type="approval_decided"`를 기록하고 있었다(프론트 `CaseHistoryPage`는 `approval_rejected`를
+    '반려'로 표기하는데, 서버가 이걸 한 번도 안 냈다는 뜻 — real 모드였다면 반려도 감사
+    타임라인에서 '최종 승인'으로 오표기됐을 것). `approval_rejected`(R2.5에서 CHECK엔 이미
+    있었음)로 교정.
+  - **위임 조회**: 신규 `GET /api/v1/delegations/mine`(`services/delegations.py`) — 현재
+    세션 사용자가 delegate인 유효 위임 1건 또는 `null`(에러 아님).
+  - **프론트 — `useApprovalActions` async 전환**: `approve`/`reject`를 `Promise<boolean>`으로
+    바꾸되 **mock 분기는 기존 동기 변이를 그대로 유지**(사전에 `approvalFlow.test.tsx`/
+    `approvalDelegation.test.tsx`의 단언이 이미 `waitFor`/`findBy` 기반임을 확인해 안전하다고
+    판단, 실제로 무깨짐 확인됨). real 분기는 서버 확인 후에만 로컬 `approvalStore`/`caseStore`를
+    미러링(GOTCHAS §2 — 승인은 낙관적 갱신 금지). 결정 evidence는 서버가 자기 트랜잭션에서 이미
+    기록했으므로 로컬 재기록 없이 `fetchEvidence()+hydrate`로 재동기화(R2.5 패턴 재사용).
+    `canApproveCase`/`isCitationLocked`가 `CaseSheet` 대신 `usableCount: number`를 받도록
+    일반화(real 모드엔 sheet가 없음) — `approval.test.ts` 호출부도 함께 개정.
+  - **사용자 결정 2건 반영**:
+    1. **반려도 PIN 본인확인 통일** — mock 반려 플로우에도 PIN 시트 추가(DB 정본이 승인·반려
+       모두 요구, `approvals` CHECK). `ApprovePage`의 `pinOpen: boolean`을
+       `pendingDecision: 'approve'|'reject'|null`로 재구성해 승인·반려가 같은 시트를 공유.
+       **영향 범위는 `approvalFlow.test.tsx`의 반려 테스트 5건뿐**(확인 완료) — "반려하기"
+       클릭 후 PIN 입력 스텝(`passPinGate()` 헬퍼 재사용)을 추가했다. 그 중 1건은 async
+       핸들러 전환으로 `getByText`가 한 틱 빠르게 실행돼 flake가 났는데 `findByText`로 교정
+       (재현 원인: `onPinConfirm`이 async가 되며 `nav.toHome()`이 await 이후 마이크로태스크에서
+       실행 — `waitFor`로 router 상태는 잡히지만 곧바로 이어지는 동기 `getByText`가 그 다음
+       렌더 커밋을 못 기다림).
+    2. **진입 퍼널: 2c 완전 전환 + 2b 최소 폴백** — `CaseReviewPage`도 real 모드에서 mock
+       시트가 없으면 "케이스를 찾을 수 없습니다"가 떴다. 시트 없이도 카드 정보 + 서버
+       `guard_note`(가벼운 `fetchCaseDetail` 재사용)만으로 최소 렌더하고 "검토 계속" 버튼은
+       항상 동작하도록 최소 폴백만 추가(누락 서류·초안 미리보기 등 풍부한 mock 콘텐츠는
+       의도적으로 재현하지 않음 — 범위 밖으로 명시).
+  - **검증 중 발견한 인프라 이슈(코드 버그 아님, 다음 세션이 알아야 할 것)**: 이 워크트리와
+    같은 로컬 Postgres 컨테이너(`oegobanjang-pg:55432`)를 쓰는 형제 워크트리 세션이 backend
+    pytest 기본 테스트 DB 이름(`ogb_test`)에 동시 접근해, 일시적으로 이 브랜치에 없는
+    `handoff_packages.link_token` 컬럼이 관측되는 등 스키마 충돌이 발생했다 — `TEST_DB_NAME`
+    환경변수로 이름을 격리하면(예: `TEST_DB_NAME=ogb_test_r24_iso`) 재현되지 않음을 확인해
+    원인이 아님을 확정했다. **여러 세션이 동시에 backend pytest를 돌릴 가능성이 있으면
+    `TEST_DB_NAME`을 세션마다 다르게 지정할 것** — `conftest.py`가 이미 이 환경변수를
+    지원한다(코드 변경 불필요).
+- 남은 일 / 중단 지점: R2 마일스톤(2.1~2.6) 전체 완료. 다음은 R3(메시징 실연동) 또는
+  M4.7이 지목한 "법무 미확정" 항목(행정사 화이트라벨 v1) 등 별도 트랙 — `plans/ROADMAP.md`
+  "발송 어댑터·알림톡" 절 참조.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. 위임 **관리**(발급/철회 화면·엔드포인트)는 여전히 범위 밖(P3) — `GET /api/v1/delegations/mine`은
+     조회만 한다. 위임 레코드는 시드나 직접 INSERT로만 생긴다.
+  2. `services/approvals.py::usable_citation_count`는 원래 사설 함수였다가 `services/cases.py`도
+     쓰게 되며 공개 함수로 승격했다(R2.5의 `next_event_no` 공유 패턴과 동일) — 앞으로 이
+     로직이 필요한 새 서비스는 새로 구현하지 말고 이걸 import.
+  3. `ApprovePage`/`CaseReviewPage`의 `guardNote`/`usableCount`는 이제 mock(`sheet`)과
+     real(`detail`)을 화면 레벨에서 삼항으로 합성한다 — 두 화면을 고칠 땐 항상 두 분기 모두
+     확인할 것(evidenceStore/sessionStore와 같은 "분기점 하나로 유지" 원칙과 동일).
+  4. dev Postgres 컨테이너(`oegobanjang-pg:55432`)의 `alembic_version` 드리프트(직전 R2.5/2.6
+     항목에 기록된 미아 '0002')는 이번 세션에서 손대지 않았다 — 실서버 브라우저 검증을 하려면
+     여전히 그 상태를 먼저 확인해야 한다.
+- verify 상태: PASS — backend `uv run pytest` 171/171(`TEST_DB_NAME` 격리, 신규 55건:
+  approvals 10 + cases 5 + delegations 6 기존 대비 순증분 포함), `db/validate.py` 181/181(신규
+  3건: 위임 대리 결정 성공/만료/철회), 프론트 `tsc --noEmit`/`npm run lint`/`vite build` 클린,
+  `npx vitest run` 561/561(전 스위트, 신규 21건). 별도 실행에서 `CsvUploadWorkbench.test.tsx`
+  1건이 병렬부하 flake(격리 재실행 통과 확인 — 기존에 이미 문서화된 동일 flake, 이번 변경과
+  무관). 브라우저 실검증은 하지 않았다(위 dev 컨테이너 드리프트 때문 — R2.5/2.6과 동일 판단,
+  backend pytest가 TestClient로 실제 Postgres·트리거·FK를 그대로 거치는 것으로 등가 검증).
+- 지도/규칙 갱신: `plans/ROADMAP.md`(R2.4 ✅ + 상세 노트), `docs/DB_SCHEMA.md`(§13-10 "구현
+  완료"로 갱신), `backend/README.md`(API 표·구조·스코프 경계 갱신), `docs/ARCHITECTURE.md`
+  (API 클라이언트 항목에 approvals.ts/delegations.ts 추가).
+
+---
+
 ### [2026-07-17] R2.5(Evidence 서버 영속화) + R2.6(행정사 링크 서버 강제) — 완료
 
 - 한 일: 사용자 지시로 R2.4(승인 결정 배선)를 건너뛰고 2.5·2.6을 먼저 진행. 브랜치

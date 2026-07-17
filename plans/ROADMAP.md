@@ -242,7 +242,7 @@ R0 완료 직후 한때 "R1을 건너뛰고 R2로 바로 진행"하기로 했었
 | ✅ 2.1 | API 클라이언트 계층 | L2 | NEXT_ROADMAP R2.1 | `src/lib/api/`(config·client·auth) 신설, mock 기본값 유지, `apiFetch` 성공/실패/204 테스트 |
 | ✅ 2.2 | 인증 배선 | L2 | NEXT_ROADMAP R2.2, M-4·M-6 | 온보딩 O1이 real 모드에서 `POST /api/v1/auth/otp/*` 실호출, `sessionStore` 세션 영속화(localStorage, 부팅 시 복원), `roleStore`가 세션 멤버십에서 파생(새로고침 시 manager 복귀 문제 해소) — 백엔드 `GET /api/v1/auth/me` 신설 포함 |
 | ✅ 2.3 | 읽기 API 신설+배선 | **L3(2~3세션)** | NEXT_ROADMAP R2.3, M-6 | backend에 케이스/브리핑/스레드 read endpoint 신규 구현(`GET /api/v1/cases`·`/briefings/latest`·`/threads`·`/threads/{id}`, `get_current_membership`으로 company 스코프) + 프론트 `lib/api/{cases,briefings,threads}.ts` 어댑터·`lib/dataSeed.ts`(`useSeedCases`/`useSeedThreads`/`useSeedThreadDetail`) 신설, 13개 화면 배선. 여기서 M-6 영속성이 해소된다 |
-| 2.4 | 승인 결정 배선 | L2 | NEXT_ROADMAP R2.4, M-4 | ApprovePage → `POST /api/v1/approvals/{id}/approve\|reject`(real 모드). PIN 서버 측 검증 승격, 위임(delegation) 유효성 검증 구현(backend 잔여 갭, `docs/DB_SCHEMA.md` §13-10) — **사용자 지시로 2.5·2.6을 먼저 진행, 2.4는 후속 세션 몫으로 남는다** |
+| ✅ 2.4 | 승인 결정 배선 | L2 | NEXT_ROADMAP R2.4, M-4 | ApprovePage → `POST /api/v1/approvals/{id}/approve\|reject`(real 모드). PIN 서버 측 검증 승격(users.pin_hash 대조) + checklist 제출 반영, 위임(delegation) 유효성 검증 구현(트리거 OR-arm + 서비스 검증, `docs/DB_SCHEMA.md` §13-10 해소) — 신규 `GET /api/v1/cases/{id}`(체크리스트·근거수·guardNote·pending approval id)·`GET /api/v1/delegations/mine`. 반려도 PIN 게이트 통일(사용자 결정, DB 정본과 UX 일치) |
 | ✅ 2.5 | Evidence 서버 영속화 | L2 | NEXT_ROADMAP R2.5 | `POST/GET /api/v1/evidence` 신규(인증 필요, PII 패턴 차단, 테넌트 격리) + 프론트 `lib/api/evidence.ts`·`evidenceStore.append`가 real 모드에서 자동 서버 기록·`useSeedEvidence` 부팅 시 hydrate. 민감정보 원문 미저장 원칙 유지(요약만, 해시만) |
 | ✅ 2.6 | 행정사 링크 서버 강제 | L2 | NEXT_ROADMAP R2.6, M-11 | `POST/GET /api/v1/packages/{case_id}/link` 신규(발급/재발급은 manager·owner 인증, 열람은 무인증) — `/link/:packageId`가 real 모드에서 서버 만료 판정을 따른다(클라이언트 `isLinkExpired()` → 404 강제, 만료·미발급·대상없음 모두 동일 404로 존재 비노출). 패키지 문서 콘텐츠 자체는 여전히 프론트 mock(범위 밖, 문서화된 경계) |
 
@@ -296,6 +296,44 @@ R0 완료 직후 한때 "R1을 건너뛰고 R2로 바로 진행"하기로 했었
   "이미 최신"으로 오판될 위험이 있다. 다음에 그 컨테이너로 실서버 브라우저 검증을 하려면
   먼저 `alembic_version` 실제 내용과 스키마 상태(예: `evidence_events` CHECK 제약, `handoff_packages`
   컬럼)를 대조 확인할 것.
+
+**2.4 완료(2026-07-18).** R2 마일스톤 전체 완결. 상세 경위·설계 판단은 `plans/HANDOFF.md`
+최상단 항목 참조 — 요약:
+- 착수 전 발견한 두 구조적 공백을 함께 해소했다: (A) real 모드 ApprovePage가 참조하던
+  체크리스트·근거수·가드노트가 전부 mock `CASE_SHEETS`(슬러그 키)에 묶여 있어 real caseId와
+  매칭되지 않았고, (B) 승인/반려 엔드포인트가 `approval_id`로 식별되는데 프론트가 이를 얻을
+  방법이 없었다 — 신규 `GET /api/v1/cases/{case_id}`(usable_citation_count·guard_note·
+  pending_approval{id,checklist})로 둘 다 해소했다.
+- `trg_approvals_decider_role` 트리거에 위임 OR-arm을 추가 + 서비스 계층 `_validate_delegation`
+  선검증 — `backend/migrations/versions/0003_r2_4_delegated_approval_decider.py`(0002는 R2.5/2.6이
+  점유, ALTER 리비전). 위임 있는 대리 결정 시 **기존 manager 정책 게이트(owner_only+LOW 근사)를
+  건너뛰어야 한다**는 것을 테스트로 잡아 교정(안 그러면 위임이 있어도 owner_only+비LOW
+  케이스에서 여전히 403).
+- PIN을 `users.pin_hash` 서버 대조로 승격(`hash_secret`/`secrets_match` 재사용, OTP·세션
+  토큰과 동일 HMAC-SHA256+pepper 원리) — 시드 3인의 `pin_hash`를 데모 PIN '1234'로 채움
+  (`.env`로 pepper를 바꾸면 깨짐, 시드 주석에 재생성 커맨드 명시).
+- **사용자 결정 2건**: (1) 반려도 PIN 본인확인 통일(DB 정본이 승인·반려 모두 요구) — mock
+  모드 반려 플로우에도 PIN 시트를 추가, 기존 `approvalFlow.test.tsx`의 반려 테스트 5건에
+  PIN 스텝을 넣어 개정. (2) 진입 퍼널은 ApprovePage(2c) 완전 전환 + CaseReviewPage(2b) 최소
+  폴백(카드+guardNote만, 풍부한 mock 콘텐츠 재현은 범위 밖) — 2b도 real caseId에서 mock 시트가
+  없어 "케이스를 찾을 수 없습니다"가 뜨던 문제를 해소.
+- `useApprovalActions.approve/reject`를 `Promise<boolean>`으로 전환하되 **mock 분기는 기존
+  동기 변이를 그대로 유지**(신규 테스트로 확인) — real 분기만 서버 확인 후 로컬
+  approvalStore/caseStore를 미러링한다(GOTCHAS §2, 낙관적 갱신 금지). 결정 evidence
+  (`approval_decided`/`approval_rejected`)는 서버가 자기 트랜잭션에서 이미 기록하므로 로컬
+  재기록하지 않고 `fetchEvidence()+hydrate`로 재동기화한다.
+- reject의 evidence type이 approve와 동일하게 `approval_decided`로 오기록되던 버그를 발견·수정
+  (`approval_rejected`로 교정 — R2.5에서 CHECK엔 이미 있었으나 서비스가 안 썼다).
+- `db/validate.py` 178→181건(위임 대리 결정 성공/만료/철회 3건 추가, 기존 `cs_other` 케이스를
+  재사용하면 뒤쪽 전이 검증이 오염돼 전용 `cs_other_delegated` 케이스로 분리).
+- **검증 중 발견한 인프라 이슈(코드 버그 아님)**: 이 워크트리와 같은 Postgres 컨테이너를 쓰는
+  형제 워크트리 세션이 backend pytest의 기본 테스트 DB 이름(`ogb_test`)에 동시 접근해
+  일시적으로 스키마 충돌(`handoff_packages.link_token`이라는, 이 브랜치에 없는 컬럼이 관측됨)이
+  발생했다 — `TEST_DB_NAME` 환경변수로 격리된 이름을 쓰면 재현되지 않음을 확인, 실제 원인이
+  아님을 확인했다. 여러 세션이 동시에 backend pytest를 돌릴 때는 `TEST_DB_NAME`을 각자 다르게
+  지정할 것.
+- 검증: backend `uv run pytest` 171/171(격리 DB), `db/validate.py` 181/181, 프론트
+  `npm run verify`(typecheck→lint→test 561건→build) 전부 PASS.
 
 ## 발송 어댑터·알림톡 (R2 이후 — 별도 계획, PRD Sprint 6)
 

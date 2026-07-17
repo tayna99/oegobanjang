@@ -39,7 +39,7 @@ uv run pytest
 `create_all()`을 쓰지 않는다 — 세션 1회 전용 테스트 DB(`ogb_test`)에 `alembic upgrade head`로 스키마를
 구축하고(=db/schema.sql 적용), 테스트별로는 커넥션 외곽 트랜잭션 + savepoint 롤백으로 격리한다
 (`tests/conftest.py`). 서비스 코드의 `db.commit()`은 SAVEPOINT 릴리스로 흡수된다. DB 레벨 가드레일
-(테넌트 격리·승인 상태머신 등 178건)은 `db/validate.py`가 담당하며, 이 pytest는 서비스 계층에 집중한다.
+(테넌트 격리·승인 상태머신 등 181건)은 `db/validate.py`가 담당하며, 이 pytest는 서비스 계층에 집중한다.
 
 ## API
 
@@ -49,9 +49,12 @@ uv run pytest
 | POST | `/api/v1/auth/otp/verify` | OTP 검증 → 세션 토큰 발급 |
 | GET | `/api/v1/auth/me` | 세션 사용자 + 활성 멤버십(회사별 역할) 조회(R2.2 — 프론트 roleStore가 새로고침 후에도 세션에서 role을 다시 파생) |
 | POST | `/api/v1/auth/logout` | 세션 폐기(멱등 — 이미 무효한 토큰도 204) |
-| POST | `/api/v1/approvals` | 승인 요청 생성(`action_id` 기준) |
-| POST | `/api/v1/approvals/{approval_id}/approve` | 승인 결정 — 게이트 강제(citation-0 잠금·본인확인·high risk handoff 전용·manager 정책 등) |
-| POST | `/api/v1/approvals/{approval_id}/reject` | 반려 결정 — 사유·본인확인 필수 + PII 패턴 차단, 케이스 `returned` 전이 |
+| GET | `/api/v1/cases` | 케이스 목록(R2.3) — 회사 스코프 |
+| GET | `/api/v1/cases/{case_id}` | 케이스 상세(R2.4) — 목록 필드 + `usable_citation_count`·`guard_note`·`pending_approval`(id·action_id·checklist). ApprovePage가 real 모드에서 mock CASE_SHEETS 대신 쓴다 |
+| POST | `/api/v1/approvals` | 승인 요청 생성(`action_id` 기준, manager 세션 전용) |
+| POST | `/api/v1/approvals/{approval_id}/approve` | 승인 결정 — 게이트 강제(citation-0 잠금·**PIN 서버 검증**·checklist 제출 반영·**위임 유효성 검증**·high risk handoff 전용·manager 정책 등, R2.4) |
+| POST | `/api/v1/approvals/{approval_id}/reject` | 반려 결정 — 사유·PIN 본인확인 필수 + PII 패턴 차단, 케이스 `returned` 전이. evidence type은 `approval_rejected`(R2.4 — 이전엔 승인과 동일하게 `approval_decided`로 오기록됐다) |
+| GET | `/api/v1/delegations/mine` | 현재 세션 사용자가 delegate인 유효 위임(R2.4) — 없으면 200 + `null`(에러 아님) |
 | POST | `/api/v1/evidence` | 일반 판단 기록 기록(R2.5) — 인증 필요, PII 패턴 차단, `case_id` 제공 시 같은 회사 소속인지 검증. `action_id`/`approval_id`/`run_id`는 받지 않음(아래 §알려진 스코프 경계) |
 | GET | `/api/v1/evidence` | 판단 기록 목록(R2.5) — 인증 필요, 자기 회사만, `case_id` 쿼리로 필터 |
 | POST | `/api/v1/packages/{case_id}/link` | 행정사 패키지 열람 링크 발급/재발급(R2.6) — manager/owner 인증 필요, 7일 유효기간 갱신 |
@@ -62,6 +65,12 @@ uv run pytest
 동시 결정은 대상 행을 `SELECT ... FOR UPDATE`로 잠가 직렬화한다(F1). `idempotency_key` 재호출은 멱등
 replay(같은 결정 방향일 때만 같은 결과 재반환), 방향이 다르거나 다른 키로 이미 결정된 승인을 재호출하면
 409. blocked(고위험) 케이스의 handoff 승인은 승인만 확정되고 케이스는 blocked로 유지된다(행정사 이관).
+
+**PIN 검증(R2.4)**: `identity_method='pin'`이면 결정자의 `users.pin_hash`와 요청 바디 `pin`을
+`app.domain.auth_tokens.secrets_match`(HMAC-SHA256+pepper, OTP·세션 토큰과 동일 원리)로 대조한다.
+미등록·불일치는 422. **위임 검증(R2.4)**: `on_behalf_of_user_id`가 있으면 유효한 `delegations`
+행(scope='approval'·미철회·결정 시각이 기간 내·delegator가 활성 owner)이 있어야 하며, 없으면
+403 — DB 트리거(`trg_approvals_decider_role`)가 최종 방어선으로 동일 조건을 다시 검사한다.
 
 인증은 전화 OTP + Bearer 세션 토큰이다 — `approvals` 라우터는 `decided_by_user_id`를 요청 바디로 받지
 않고 `Authorization: Bearer <session_token>` → `get_current_user_id`(세션 조회)로만 도출한다.
@@ -82,49 +91,55 @@ app/
     auth_exceptions.py      인증 도메인 예외 — 라우터가 HTTP 상태로 변환
     exceptions.py            승인 도메인 예외 — 라우터가 HTTP 상태로 변환
     pii.py                 자유 텍스트 PII 패턴 차단(rules/safety.md)
-  schemas/approval.py, auth.py, evidence.py, package.py   요청/응답 Pydantic 모델
-  services/approvals.py    승인 요청·결정 트랜잭션 — 게이트·FOR UPDATE·전이·evidence append
+  schemas/approval.py, auth.py, evidence.py, package.py, delegation.py   요청/응답 Pydantic 모델
+  services/approvals.py    승인 요청·결정 트랜잭션 — 게이트(PIN·checklist·위임 포함, R2.4)·FOR UPDATE·전이·evidence append.
+    usable_citation_count는 services/cases.py도 재사용(get_case_detail_out)
   services/auth.py         OTP 발급/검증, 세션 발급/조회/폐기
+  services/cases.py        케이스 목록/상세 조립(R2.3·R2.4) — get_case_detail_out이 pending approval·근거수·guard_note를 얹는다
+  services/delegations.py  현재 세션 사용자의 유효 위임 조회(R2.4)
   services/evidence.py     일반 판단 기록 기록/조회(R2.5) + next_event_no(evidence_seq 원자 증가, approvals.py도 재사용)
   services/packages.py     행정사 패키지 링크 발급/재발급/열람(R2.6) — 문서 콘텐츠는 다루지 않음
   api/v1/approvals.py      라우터 — 도메인 예외 → HTTP 상태 매핑, batch 엔드포인트 없음
   api/v1/auth.py           라우터 — OTP 요청/검증/me/로그아웃
+  api/v1/cases.py          라우터 — GET 목록(R2.3)/상세(R2.4)
+  api/v1/delegations.py    라우터 — GET /api/v1/delegations/mine(R2.4)
   api/v1/evidence.py       라우터 — POST/GET /api/v1/evidence(R2.5, 인증 필요)
   api/v1/packages.py       라우터 — POST(인증)/GET(무인증) /api/v1/packages/{case_id}/link(R2.6)
   api/deps.py              get_current_user_id/get_current_membership — Bearer 세션 토큰에서 신원·소속 도출
 migrations/
   versions/0001_p1_core_schema.py   실배포(PR #10) 동결 스냅샷 — 더 이상 손대지 않는다
   versions/0002_r2_5_evidence_and_r2_6_package_links.py   evidence_events.type CHECK 확장 +
-    handoff_packages.link_issued_at/link_expires_at 추가(ALTER 리비전). 다음 스키마 변경은 0003+
+    handoff_packages.link_issued_at/link_expires_at 추가(ALTER 리비전)
+  versions/0003_r2_4_delegated_approval_decider.py   trg_approvals_decider_role에 위임 OR-arm 추가
+    (ALTER 리비전). 다음 스키마 변경은 0004+
 tests/
   conftest.py              전용 테스트 DB + savepoint 격리
   test_ddl_parity.py       모델 ↔ 마이그레이션된 DB 컬럼/타입/nullable 대조
-  test_api_approvals.py    승인 decide 엔드포인트 — 게이트·멱등성·high risk·PII 차단
+  test_api_approvals.py    승인 decide 엔드포인트 — 게이트(PIN·checklist·위임 포함)·멱등성·high risk·PII 차단
   test_api_approval_requests.py  승인 요청 생성 엔드포인트
   test_api_auth.py         OTP 요청/검증/세션/로그아웃
+  test_api_cases.py        케이스 목록(R2.3)/상세(R2.4) — 근거수·guard_note·pending_approval·테넌트 격리
+  test_api_delegations.py  위임 조회 — 유효·만료·철회·본인 소유 위임 제외(R2.4)
   test_api_evidence.py     일반 판단 기록 기록/조회 — 허용 타입·PII 차단·테넌트 격리(R2.5)
   test_api_packages.py     행정사 패키지 링크 발급/재발급/열람 — 권한·만료·404(R2.6)
 ```
 
 ## 알려진 스코프 경계 (의도적)
 
-- 인증·세션 관리(OTP + Bearer 세션 토큰 + 세션·멤버십 조회 `GET /me`)와 승인 "요청" 생성
-  엔드포인트(`POST /api/v1/approvals`)는 구현돼 있다 — `decided_by_user_id`는 요청 바디가
-  아니라 세션에서 도출된다.
-- `checklist`(M2.6 §2c)·delegation(위임) 흐름은 게이트/트리거는 있으나 그것을 채우는 화면/엔드포인트가
-  아직 없다 — **위임 유효성 검증은 아직 구현되지 않았다**(`docs/DB_SCHEMA.md` §13-10 미결, `plans/ROADMAP.md` R2.4).
-  **승인 결정(approve/reject) 자체도 프론트가 아직 이 backend를 호출하지 않는다**(R2.4, 사용자
-  지시로 2.5·2.6을 먼저 진행) — ApprovePage는 여전히 mock 승인 파이프라인만 쓴다.
+- 인증·세션 관리(OTP + Bearer 세션 토큰 + 세션·멤버십 조회 `GET /me`), 승인 요청 생성·결정
+  (PIN 서버 검증·checklist 제출·위임 유효성 검증 포함, R2.4), 케이스 읽기(목록+상세)·판단
+  기록·행정사 패키지 링크까지 구현돼 있다. `decided_by_user_id`는 요청 바디가 아니라 세션에서
+  도출된다.
 - `POST /api/v1/evidence`(R2.5)는 `action_id`/`approval_id`/`run_id`를 받지 않는다 —
   `evidence_events`의 DB 트리거(`trg_evidence_context_match`)가 그 값들이 실제 존재하는 행을
-  가리키길 요구하는데, 승인 결정(R2.4)·런(M3)이 아직 real 모드로 안 붙어 있어 프론트가 넘길
-  수 있는 값이 전부 mock 세계관 id다 — `case_id`만 받는다(R2.3부터 real 모드 caseId는 항상
-  진짜 DB 행이라 안전).
+  가리키길 요구하는데, 이 범용 엔드포인트를 쓰는 화면들은 여전히 그 참조 도메인(런 등, M3)이
+  real 모드로 안 붙어 있어 `case_id`만 받는다(R2.3부터 real 모드 caseId는 항상 진짜 DB 행이라
+  안전). 승인 결정 자체는 `services/approvals.py`가 자기 트랜잭션에서 직접 evidence를 남긴다.
+- 위임 **관리**(발급/철회 UI·엔드포인트)는 여전히 범위 밖(P3) — `GET /api/v1/delegations/mine`은
+  조회만 하고, 위임 레코드 자체는 시드나 직접 INSERT로만 생긴다.
 - `POST/GET /api/v1/packages/{case_id}/link`(R2.6)는 링크의 유효성(발급·만료·열람 로그)만
   다룬다 — 패키지 문서 콘텐츠(검토 요청서 본문·항목 토글)는 여전히 프론트 mock이며, 행정사
   화이트라벨 개인 계정(`/expert/:expertId/...`, M-11 나머지)도 이번 범위 밖이다.
-- API 라우터는 인증·승인·판단 기록·패키지 링크까지만 — 케이스 목록/상세·브리핑·메시지 등 read API는
-  화면이 백엔드에 붙는 순서대로 추가한다(`plans/ROADMAP.md` R2.3, R2.5, R2.6).
-- 프론트(`src/lib/api/`)는 R2.1~2.2(인증)까지 배선됐다 — `VITE_API_MODE=real`일 때만 이 backend를
-  호출한다(기본값 mock, `src/lib/api/config.ts`). 케이스/브리핑/스레드/승인/evidence 배선은
-  R2.3~2.6에서 순차 진행한다(`plans/ROADMAP.md`).
+- 프론트(`src/lib/api/`)는 R2.1~2.4까지 배선됐다 — `VITE_API_MODE=real`일 때만 이 backend를
+  호출한다(기본값 mock, `src/lib/api/config.ts`). 브리핑·메시지 배선은 R2.3 범위(이미 완료),
+  나머지 화면별 real 모드 배선은 화면이 필요해지는 순서대로 진행한다(`plans/ROADMAP.md`).

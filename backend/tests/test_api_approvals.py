@@ -15,15 +15,20 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db.session import get_db
+from app.domain.auth_tokens import hash_secret
 from app.main import app
 
 
 def _seed_base(db):
-    db.execute(text("""
+    # 멀티 스테이트먼트 raw SQL 블록에는 SQLAlchemy 바인드 파라미터(:name)를 쓸 수 없다
+    # (psycopg 드라이버가 문장당 1회 파싱을 전제) — f-string 삽입은 pin_hash가 로컬에서
+    # 계산한 16진 다이제스트뿐이라 인젝션 위험이 없다.
+    pin_hash = hash_secret("1234")
+    db.execute(text(f"""
         INSERT INTO companies (id, name, approval_policy) VALUES ('cmp1','테스트','owner_only');
-        INSERT INTO users (id, phone, name, terms_agreed_at) VALUES
-          ('u_owner','010-0000-0001','김대표', now()),
-          ('u_manager','010-0000-0002','박주임', now());
+        INSERT INTO users (id, phone, name, terms_agreed_at, pin_hash) VALUES
+          ('u_owner','010-0000-0001','김대표', now(), '{pin_hash}'),
+          ('u_manager','010-0000-0002','박주임', now(), '{pin_hash}');
         INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
           ('m_owner','cmp1','u_owner','owner','active'),
           ('m_manager','cmp1','u_manager','manager','active');
@@ -103,7 +108,7 @@ def _auth_headers(client: TestClient, user: str = "u_owner") -> dict:
 
 
 def _body(**overrides):
-    body = {"idempotency_key": str(uuid.uuid4()), "identity_method": "pin"}
+    body = {"idempotency_key": str(uuid.uuid4()), "identity_method": "pin", "pin": "1234"}
     body.update(overrides)
     return body
 
@@ -255,3 +260,108 @@ def test_high_risk_blocked_case_handoff_approves_but_stays_blocked(client, seede
 def test_approval_not_found_returns_404(client):
     resp = client.post("/api/v1/approvals/nope/approve", json=_body(), headers=_auth_headers(client))
     assert resp.status_code == 404
+
+
+def test_reject_evidence_is_recorded_as_approval_rejected(client, seeded):
+    resp = client.post(
+        "/api/v1/approvals/apv1/reject", json=_body(reason="근거 확인 필요"), headers=_auth_headers(client)
+    )
+    assert resp.status_code == 200, resp.text
+    evt_type = seeded.execute(text("SELECT type FROM evidence_events WHERE approval_id='apv1'")).scalar_one()
+    assert evt_type == "approval_rejected"
+
+
+def test_approve_mismatched_pin_is_rejected(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(pin="9999"), headers=_auth_headers(client)
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_approve_without_pin_value_is_rejected(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(pin=None), headers=_auth_headers(client)
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_approve_with_unregistered_pin_is_rejected(client, seeded):
+    seeded.execute(text("UPDATE users SET pin_hash=NULL WHERE id='u_owner'"))
+    seeded.flush()
+    resp = client.post("/api/v1/approvals/apv1/approve", json=_body(), headers=_auth_headers(client))
+    assert resp.status_code == 422, resp.text
+
+
+def test_approve_submits_checklist_and_persists_it(client, seeded):
+    checklist = [
+        {"key": "risk", "label": "위험도 검토", "checked": True},
+        {"key": "docs", "label": "근거 확인", "checked": True},
+    ]
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(checklist=checklist), headers=_auth_headers(client)
+    )
+    assert resp.status_code == 200, resp.text
+    stored = seeded.execute(text("SELECT checklist FROM approvals WHERE id='apv1'")).scalar_one()
+    assert stored == checklist
+
+
+def test_approve_rejected_when_submitted_checklist_incomplete(client):
+    checklist = [{"key": "risk", "label": "위험도 검토", "checked": False}]
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(checklist=checklist), headers=_auth_headers(client)
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def _seed_delegation(db, *, delegator="u_owner", delegate="u_manager", starts="2026-07-01T00:00:00Z",
+                      ends="2027-01-01T00:00:00Z", revoked_at=None):
+    db.execute(
+        text(
+            "INSERT INTO delegations (id, company_id, delegator_user_id, delegate_user_id, scope, "
+            "starts_at, ends_at, revoked_at) VALUES "
+            "('dlg1','cmp1',:delegator,:delegate,'approval',:starts,:ends,:revoked_at)"
+        ),
+        {"delegator": delegator, "delegate": delegate, "starts": starts, "ends": ends, "revoked_at": revoked_at},
+    )
+    db.flush()
+
+
+def test_manager_can_approve_on_behalf_of_owner_with_valid_delegation(client, seeded):
+    _seed_delegation(seeded)
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 200, resp.text
+    actor = seeded.execute(text("SELECT actor_display FROM evidence_events WHERE approval_id='apv1'")).scalar_one()
+    assert "대리 승인" in actor
+
+
+def test_manager_cannot_approve_on_behalf_without_delegation(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_manager_cannot_approve_on_behalf_with_expired_delegation(client, seeded):
+    _seed_delegation(seeded, starts="2020-01-01T00:00:00Z", ends="2020-02-01T00:00:00Z")
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_manager_cannot_approve_on_behalf_with_revoked_delegation(client, seeded):
+    _seed_delegation(seeded, revoked_at="2026-07-01T00:00:00Z")
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 403, resp.text
