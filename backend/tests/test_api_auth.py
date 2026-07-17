@@ -137,6 +137,43 @@ def test_logout_without_session_is_a_noop(client):
     assert resp.status_code == 204, resp.text
 
 
+# R2.2 — GET /api/v1/auth/me: 프론트 roleStore가 세션에서 역할을 파생시키는 근거 엔드포인트.
+def test_me_without_session_is_unauthorized(client):
+    resp = client.get("/api/v1/auth/me")
+    assert resp.status_code == 401, resp.text
+
+
+def test_me_returns_user_and_active_membership(client, seeded):
+    seeded.execute(text("""
+        INSERT INTO companies (id, name, approval_policy) VALUES ('cmp1','테스트','owner_only');
+        INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
+          ('m1','cmp1','u1','manager','active');
+    """))
+    seeded.flush()
+
+    req = client.post("/api/v1/auth/otp/request", json={"phone": "010-1111-0001"})
+    code = req.json()["debug_code"]
+    verify = client.post("/api/v1/auth/otp/verify", json={"phone": "010-1111-0001", "code": code})
+    token = verify.json()["session_token"]
+
+    resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["user"]["id"] == "u1"
+    assert data["membership"] == {"company_id": "cmp1", "role": "manager"}
+
+
+def test_me_without_membership_returns_null(client):
+    req = client.post("/api/v1/auth/otp/request", json={"phone": "010-1111-0001"})
+    code = req.json()["debug_code"]
+    verify = client.post("/api/v1/auth/otp/verify", json={"phone": "010-1111-0001", "code": code})
+    token = verify.json()["session_token"]
+
+    resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["membership"] is None
+
+
 def test_settings_rejects_default_pepper_outside_local():
     import pytest as _pytest
     from pydantic import ValidationError

@@ -22,6 +22,7 @@ from app.domain.auth_exceptions import (
 )
 from app.domain.auth_tokens import generate_otp_code, generate_session_token, hash_secret, secrets_match
 from app.models.auth import LoginOtp, UserSession
+from app.models.membership import Membership
 from app.models.user import User
 
 OTP_TTL = dt.timedelta(minutes=5)
@@ -116,6 +117,18 @@ def resolve_session_user_id(db: Session, raw_token: str) -> str:
     if session is None or session.revoked_at is not None or session.expires_at < now:
         raise SessionInvalidError()
     return session.user_id
+
+
+def get_active_membership(db: Session, user_id: str) -> Membership | None:
+    """R2.2 — 로그인 사용자의 활성 소속 1건(프론트 roleStore를 세션에서 파생시키는 근거).
+    현재 시드·프론트 모두 1인 1사 전제라 여러 건이어도 하나만 쓴다(멀티테넌트 분기는
+    후속 — 행정사 화이트라벨 v1 설계 문서의 몫)."""
+    return db.execute(
+        select(Membership)
+        .where(Membership.user_id == user_id, Membership.status == "active")
+        .order_by(Membership.created_at)
+        .limit(1)
+    ).scalar_one_or_none()
 
 
 def revoke_session(db: Session, raw_token: str) -> None:

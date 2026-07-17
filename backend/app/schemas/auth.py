@@ -32,3 +32,17 @@ class OtpVerifyResponse(BaseModel):
     session_token: str
     expires_at: dt.datetime
     user: SessionUserOut
+
+
+class MembershipOut(BaseModel):
+    """R2.2 — 프론트 roleStore를 세션에서 파생시키기 위한 최소 정보(company_id·role)만."""
+
+    company_id: str
+    role: str
+
+    model_config = {"from_attributes": True}
+
+
+class MeResponse(BaseModel):
+    user: SessionUserOut
+    membership: MembershipOut | None  # 활성 소속이 없으면 None(초대 대기 등)

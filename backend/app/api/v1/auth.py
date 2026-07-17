@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-from app.api.deps import _bearer_scheme
+from app.api.deps import _bearer_scheme, get_current_user_id
 from app.config import get_settings
 from app.db.session import get_db
 from app.domain.auth_exceptions import (
@@ -19,13 +19,15 @@ from app.domain.auth_exceptions import (
 )
 from app.models.user import User
 from app.schemas.auth import (
+    MembershipOut,
+    MeResponse,
     OtpRequestRequest,
     OtpRequestResponse,
     OtpVerifyRequest,
     OtpVerifyResponse,
     SessionUserOut,
 )
-from app.services.auth import request_otp, revoke_session, verify_otp
+from app.services.auth import get_active_membership, request_otp, revoke_session, verify_otp
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -59,6 +61,21 @@ def verify_otp_endpoint(payload: OtpVerifyRequest, db: Session = Depends(get_db)
         session_token=raw_token,
         expires_at=expires_at,
         user=SessionUserOut.model_validate(user),
+    )
+
+
+@router.get("/me", response_model=MeResponse)
+def get_me(
+    current_user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+) -> MeResponse:
+    """R2.2 — 로그인 사용자 + 활성 소속(company_id·role). 프론트 roleStore가 세션에서
+    실제 역할을 파생시키는 유일한 근거(NEXT_ROADMAP 2.2)."""
+    user = db.get(User, current_user_id)
+    membership = get_active_membership(db, current_user_id)
+    return MeResponse(
+        user=SessionUserOut.model_validate(user),
+        membership=MembershipOut.model_validate(membership) if membership else None,
     )
 
 
