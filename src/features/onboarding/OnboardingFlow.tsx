@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/Button';
+import { API_MODE } from '@/lib/api/config';
 import { useNav } from '@/lib/nav';
 import { useOnboardingActions } from '@/lib/onboarding';
 import { useRoleStore } from '@/stores/roleStore';
@@ -36,11 +37,21 @@ const DEFAULT_WORKER_FIELDS: WorkerFields = {
 export function OnboardingFlow() {
   const nav = useNav();
   const setRole = useRoleStore((s) => s.setRole);
+  const sessionRole = useRoleStore((s) => s.role);
   const { completeOnboarding } = useOnboardingActions();
 
   const [step, setStep] = useState<OnboardingStep>('o1');
   const [codeConfirmed, setCodeConfirmed] = useState(false);
   const [role, setRoleLocal] = useState<Role | null>(null);
+
+  // real 모드(R2.2)에서는 O1 인증 성공 시 sessionStore.verifyOtp가 이미 roleStore를 실제
+  // 멤버십 역할로 갱신해 둔다 — O2에 진입하면 그 값을 미리 선택해 둬 다시 추측해 고르지 않게
+  // 한다(그래도 확인/변경은 그대로 가능). mock 모드는 항상 null로 시작(기존 동작 그대로).
+  useEffect(() => {
+    if (API_MODE === 'real' && step === 'o2' && role === null && sessionRole !== 'viewer') {
+      setRoleLocal(sessionRole);
+    }
+  }, [step, role, sessionRole]);
   const [companyFields, setCompanyFields] = useState(DEFAULT_COMPANY_FIELDS);
   const [workerPath, setWorkerPath] = useState<WorkerPath>('direct');
   const [workerFields, setWorkerFields] = useState(DEFAULT_WORKER_FIELDS);

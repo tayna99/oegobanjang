@@ -18,6 +18,76 @@
 
 ---
 
+### [2026-07-17] R2.1+2.2 — API 클라이언트 계층 · 인증 배선 — 완료 (중단 지점: R2.3부터)
+
+- 한 일: R0 PR(#14) 생성·푸시 직후, 사용자 지시로 R1을 건너뛰고 R2(백엔드 배선)로 바로 진행.
+  `plans/ROADMAP.md`에 R2 절 승격 후 2.1·2.2 구현(별도 브랜치 `r2-backend-wiring-auth`,
+  R0 브랜치 위에 스택 — R0가 아직 안 머지된 상태라 PR도 R0 브랜치를 base로 별도 생성 예정).
+  - **환경 확인**: 이 워크트리에 이미 살아있는 PostgreSQL 컨테이너(`oegobanjang-pg`, 포트
+    55432)가 `db/schema.sql` 스키마 + `seed_demo.sql` 데이터(6인 로스터, 3명 유저: 김담당
+    010-0000-0001/manager · 박주임 010-0000-0002/manager · 김대표 010-0000-0003/owner,
+    회사 그린푸드 제조)를 그대로 갖고 있었다 — alembic이 아니라 직접 psql로 적용된 상태라
+    `alembic_version`이 없어 첫 `alembic upgrade head`가 `DuplicateTable`로 실패, 데이터가
+    이미 스키마와 일치함을 확인 후 `alembic stamp head`로 비파괴 정합(재생성 아님). backend
+    pytest 107건 이 시점에 전부 PASS 확인.
+  - **2.1 API 클라이언트 계층**: `src/lib/api/config.ts`(`API_MODE` mock/real 플래그, 기본
+    mock) · `client.ts`(`apiFetch` 공용 래퍼, `ApiError`) · `auth.ts`(backend
+    snake_case↔프론트 camelCase 경계). `.env.example` 신설(문서용, 기본 mock).
+  - **2.2 인증 배선**: backend에 `GET /api/v1/auth/me`(세션 사용자 + 활성 멤버십) 신설(테스트
+    3건 추가, `MeResponse`/`MembershipOut` 스키마) — 프론트 `roleStore`가 새로고침 후에도
+    세션에서 role을 다시 파생할 최소 read endpoint가 없었기 때문. backend에 CORS
+    미들웨어(`Settings.cors_allow_origins`, 로컬 Vite 5173만 기본 허용)도 추가 — 브라우저
+    fetch가 다른 origin(8000)을 부르려면 필수였다(이전엔 pytest만 썼으니 안 드러난 갭).
+    프론트: `stores/sessionStore.ts`(세션 토큰만 localStorage 영속화 — themeStore와 동일한
+    수동 localStorage 관례, zustand persist 미들웨어 새로 안 들임) 신설. `StepPhoneAuth.tsx`를
+    real 모드에서만 분기(mock 모드는 원본 그대로 — 고정 전화번호 표시 + 6자리 길이만 게이트).
+    `OnboardingFlow.tsx`의 O2(역할 선택)는 real 모드일 때 세션이 이미 파생해 둔 role을
+    미리 선택해 둔다(그래도 확인/변경은 가능 — 강제 스킵은 아님). `main.tsx`에서 real 모드일
+    때 부팅 시 1회 `sessionStore.restore()` 호출.
+  - **브라우저 실검증(실제 backend + DB, mock 아님)**: 이 워크트리 안 uvicorn(8000)·Vite
+    dev(5173, `.env.local`로 `VITE_API_MODE=real`) 둘 다 띄운 뒤, 시드 계정
+    010-0000-0001(김담당)로 O1 로그인 — `POST /otp/request`(debug_code 수신)→
+    `POST /otp/verify`→`GET /me` 세 호출 전부 200, roleStore가 정확히 'manager'로 갱신되고
+    O2에서 "담당자"가 미리 선택됨을 확인. `/`로 이동 후 새로고침 → `GET /me`가 다시 호출되며
+    (하드코딩 기본값이 아니라) 세션이 실제로 복원됨을 네트워크 로그로 확인 — M-6 "새로고침 시
+    manager 복귀" 문제가 real 모드에서 해소됨을 증명.
+  - **버그 발견·수정**: 위 브라우저 검증용으로 만든 `.env.local`(`VITE_API_MODE=real`)이
+    `npx vitest run`에도 새어 들어가 mock 모드를 전제하는 `OnboardingFlow.test.tsx`가 깨지는
+    것을 발견 — Vite 공식 문서는 "mode==='test'에서는 `.env.local` 제외"라고 하지만 이
+    저장소의 vitest 실행 경로에서는 그 예외가 실제로 적용되지 않았다. `API_MODE` 계산에
+    `import.meta.env.MODE !== 'test'` 명시 가드를 추가해 근본 교정(`src/lib/api/config.ts`) —
+    앞으로 누가 실서버 검증용 `.env.local`을 만들어 둬도 테스트는 항상 mock으로 남는다.
+- 남은 일 / 중단 지점: R2.3(케이스/브리핑/스레드 read API 신설 + 프론트 스토어 동기화)부터
+  이어간다 — NEXT_ROADMAP 자체가 "세션 2~3개 분량"으로 예고한 가장 큰 태스크다. 2.3 전에
+  결정할 것: (a) backend에 어떤 모양의 read endpoint를 새로 만들지(케이스 하나씩 vs 목록
+  일괄, DB `cases` 테이블 컬럼 ↔ 프론트 `CaseCard` 필드 매핑을 먼저 표로 정리할 것 — 예를 들어
+  DB의 `cs_nguyen` 같은 `cs_` 접두 id vs 프론트의 `nguyen` bare id, DB seed의 `human_approved`
+  vs 프론트 mock의 `approval_pending`처럼 이미 서로 다른 시점 상태를 갖고 있다), (b)
+  caseStore/threadStore를 real 모드에서 어떻게 시딩할지(현재는 컨테이너 마운트 시
+  `CASE_CARDS.forEach(upsert)` 각본 시딩 — real 모드에선 이 시딩 자체를 건너뛰고 API 호출로
+  대체해야 한다).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. `API_MODE`(`src/lib/api/config.ts`)가 mock/real의 유일한 분기점이다 — 새 화면을 실서버에
+     연결할 때 이 플래그를 참조하는 지점을 반드시 하나로 유지한다(스토어 액션 시그니처는
+     그대로 두고, 액션 내부 구현만 mock/real로 가른다 — 지금 sessionStore가 그 패턴이다).
+  2. `.env.local`은 실서버 검증 후 삭제했다(이 세션 마감 시점) — 기본 `npm run dev`는 다시
+     mock 모드다. 실서버로 다시 켜려면 `.env.example`을 `.env.local`로 복사하고
+     `VITE_API_MODE=real`로 바꾼 뒤 `cd backend && uv run uvicorn app.main:app --port 8000`.
+  3. 로컬 PostgreSQL 컨테이너 `oegobanjang-pg`(포트 55432)는 이 세션 종료 후에도 계속
+     떠 있다(중지하지 않았다) — 다음 세션이 backend 작업을 이어가면 바로 쓸 수 있다.
+  4. `backend/app/api/v1/auth.py`의 `GET /me`는 `memberships[0]`만 본다(다회사 소속 사용자의
+     "현재 회사 선택" UI는 아직 없음) — 지금 시드 데이터는 전원 단일 회사 소속이라 문제
+     없지만, 멀티테넌트 사용자가 생기면 이 가정을 먼저 깨야 한다.
+- verify 상태: PASS — 프론트 `tsc --noEmit`/`npm run lint`/`npx vitest run`(443/443, 신규 19건:
+  api/client 6 + api/auth 4 + sessionStore 9)/`vite build` 전부 클린. backend `uv run
+  pytest`(110/110, 신규 3건: `/me` 성공·비활성 멤버십 제외·무인증 401) 클린. 브라우저 실검증은
+  위 "한 일"에 기록.
+- 지도/규칙 갱신: `plans/ROADMAP.md`(R2 절 신설, 2.1·2.2 ✅), `docs/ARCHITECTURE.md`(API
+  클라이언트 진입점 추가), `backend/README.md`(`/me` 엔드포인트·CORS·스코프 경계 갱신),
+  `.env.example`(신규).
+
+---
+
 ### [2026-07-17] R0 — 부채 청산·문서 정합화(0.1~0.6) — 완료
 
 - 한 일: 사용자 지시로 `plans/NEXT_ROADMAP_2026-07-16.md`의 R0 전체(0.1~0.6)를 이번 세션에서

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import _bearer_scheme
+from app.api.deps import _bearer_scheme, get_current_user_id
 from app.config import get_settings
 from app.db.session import get_db
 from app.domain.auth_exceptions import (
@@ -17,8 +18,11 @@ from app.domain.auth_exceptions import (
     OtpNotFoundError,
     UserNotFoundError,
 )
+from app.models.membership import Membership
 from app.models.user import User
 from app.schemas.auth import (
+    MeResponse,
+    MembershipOut,
     OtpRequestRequest,
     OtpRequestResponse,
     OtpVerifyRequest,
@@ -59,6 +63,26 @@ def verify_otp_endpoint(payload: OtpVerifyRequest, db: Session = Depends(get_db)
         session_token=raw_token,
         expires_at=expires_at,
         user=SessionUserOut.model_validate(user),
+    )
+
+
+@router.get("/me", response_model=MeResponse)
+def get_me(
+    current_user_id: str = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+) -> MeResponse:
+    """세션에서 신원 + 회사별 역할을 되돌려준다 — roleStore가 새로고침 후에도 세션에서
+    다시 파생할 수 있는 최소 read endpoint(R2.2)."""
+    user = db.get(User, current_user_id)
+    memberships = db.execute(
+        select(Membership).where(
+            Membership.user_id == current_user_id,
+            Membership.status == "active",
+        )
+    ).scalars().all()
+    return MeResponse(
+        user=SessionUserOut.model_validate(user),
+        memberships=[MembershipOut.model_validate(m) for m in memberships],
     )
 
 

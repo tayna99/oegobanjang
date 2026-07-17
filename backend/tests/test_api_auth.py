@@ -137,6 +137,80 @@ def test_logout_without_session_is_a_noop(client):
     assert resp.status_code == 204, resp.text
 
 
+@pytest.fixture()
+def seeded_with_membership(db):
+    db.execute(text("""
+        INSERT INTO users (id, phone, name, terms_agreed_at) VALUES
+          ('u1', '010-1111-0001', '테스트유저', now());
+    """))
+    db.execute(text("""
+        INSERT INTO companies (id, name) VALUES ('cmp_test', '테스트 회사');
+    """))
+    db.execute(text("""
+        INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
+          ('mem_u1', 'cmp_test', 'u1', 'manager', 'active');
+    """))
+    db.flush()
+    return db
+
+
+@pytest.fixture()
+def client_with_membership(seeded_with_membership):
+    def _override():
+        yield seeded_with_membership
+
+    app.dependency_overrides[get_db] = _override
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+def _login(client, phone="010-1111-0001"):
+    req = client.post("/api/v1/auth/otp/request", json={"phone": phone})
+    code = req.json()["debug_code"]
+    verify = client.post("/api/v1/auth/otp/verify", json={"phone": phone, "code": code})
+    return verify.json()["session_token"]
+
+
+def test_me_returns_user_and_active_memberships(client_with_membership):
+    token = _login(client_with_membership)
+    resp = client_with_membership.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["user"]["id"] == "u1"
+    assert data["memberships"] == [{"company_id": "cmp_test", "role": "manager"}]
+
+
+def test_me_excludes_inactive_memberships(db):
+    db.execute(text("""
+        INSERT INTO users (id, phone, name, terms_agreed_at) VALUES
+          ('u2', '010-1111-0002', '테스트유저2', now());
+    """))
+    db.execute(text("INSERT INTO companies (id, name) VALUES ('cmp_test2', '테스트 회사2')"))
+    db.execute(text("""
+        INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
+          ('mem_u2_removed', 'cmp_test2', 'u2', 'manager', 'removed');
+    """))
+    db.flush()
+
+    def _override():
+        yield db
+
+    app.dependency_overrides[get_db] = _override
+    client = TestClient(app)
+    try:
+        token = _login(client, phone="010-1111-0002")
+        resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["memberships"] == []
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_me_without_session_is_unauthorized(client_with_membership):
+    resp = client_with_membership.get("/api/v1/auth/me")
+    assert resp.status_code == 401, resp.text
+
+
 def test_settings_rejects_default_pepper_outside_local():
     import pytest as _pytest
     from pydantic import ValidationError
