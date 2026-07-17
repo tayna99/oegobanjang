@@ -146,7 +146,11 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     activeRequestId += 1; // 진행 중이던 verify/restore 응답을 전부 무효화한다.
     persistToken(null);
     set({ ...initialState });
-    useRoleStore.getState().reset();
+    // 코드리뷰 지적(PR #19 P1): roleStore.reset()은 mock 데모 기본값(manager)으로 되돌아간다 —
+    // 로그아웃 직후에도 같은 SPA 세션 안에서 관리자 권한 UI가 다시 열리는 fail-open이었다.
+    // restore()가 세션 없음을 'viewer'로 fail-closed하는 것과 동일하게, 로그아웃도 최소
+    // 권한으로 떨어뜨린다.
+    useRoleStore.getState().setRole('viewer');
     if (token) await logoutRequest(token).catch(() => undefined);
   },
 
