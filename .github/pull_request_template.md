@@ -5,7 +5,7 @@
 ## 관련 태스크
 
 - [ ] `plans/ROADMAP.md` 태스크: (예: R0.2)
-- [ ] (legacy 백엔드/Agent Runtime 작업인 경우) `legacy/missions/active/`: 
+- [ ] (legacy 백엔드/Agent Runtime 작업인 경우) `legacy/missions/active/`:
 
 ## 변경 파일
 

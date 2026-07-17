@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUDIT_TYPE_LABEL, AUDIT_TYPE_TONE, filterAudit, mergedAuditLog } from './audit';
+import { AUDIT_TYPE_LABEL, AUDIT_TYPE_TONE, caseTimelineActivity, filterAudit, mergedAuditLog } from './audit';
 import { EVIDENCE_SEED } from '@/mocks/evidence';
 import type { EvidenceEvent, EvidenceType } from '@/types';
 
@@ -62,5 +62,45 @@ describe('filterAudit — §3c 필터 칩(전체/위험/승인/내보내기)', (
     const exports = filterAudit(merged, 'export');
     expect(exports.every((e) => e.type === 'exported')).toBe(true);
     expect(exports.some((e) => e.summary?.includes('export_0031'))).toBe(true);
+  });
+});
+
+describe('caseTimelineActivity — 재생 런 존재 확인(PR #14 리뷰 P1: 없는 runKey로 이동하는 버튼 방지)', () => {
+  it('RUN_CONFIGS에 없는 evidenceRef(#4791)는 runRef를 채우지 않는다', () => {
+    const event: EvidenceEvent = {
+      id: 'evt-1',
+      type: 'interpretation_confirmed',
+      at: new Date().toISOString(),
+      caseId: 'nguyen',
+      summary: '해석 확인됨',
+      evidenceRef: '#4791', // mocks/threads.ts 실제 시드값 — RUN_CONFIGS.runKey엔 없음
+    };
+    const activity = caseTimelineActivity('nguyen', [], [event]);
+    expect(activity[0].runRef).toBeUndefined();
+  });
+
+  it('RUN_CONFIGS에 실제로 있는 evidenceRef(#4788)는 runRef를 그대로 채운다', () => {
+    const event: EvidenceEvent = {
+      id: 'evt-2',
+      type: 'interpretation_confirmed',
+      at: new Date().toISOString(),
+      caseId: 'nguyen',
+      summary: '해석 확인됨',
+      evidenceRef: '#4788', // RUN_CONFIGS에 실제로 존재하는 runKey
+    };
+    const activity = caseTimelineActivity('nguyen', [], [event]);
+    expect(activity[0].runRef).toBe('#4788');
+  });
+
+  it('evidenceRef가 없는 이벤트는 runRef도 없다', () => {
+    const event: EvidenceEvent = {
+      id: 'evt-3',
+      type: 'package_reply',
+      at: new Date().toISOString(),
+      caseId: 'nguyen',
+      summary: '회신 도착',
+    };
+    const activity = caseTimelineActivity('nguyen', [], [event]);
+    expect(activity[0].runRef).toBeUndefined();
   });
 });
