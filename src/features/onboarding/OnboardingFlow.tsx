@@ -81,7 +81,7 @@ export function OnboardingFlow() {
     // 읽기 전용이라 role이 애초에 바뀌지 않으므로, mock 모드에서만 로컬 선택을 커밋한다.
     if (step === 'o2' && API_MODE !== 'real' && role) setRole(role);
     if (step === 'o4') {
-      completeOnboarding(API_MODE === 'real' ? sessionRole : (role ?? 'manager'), companyFields);
+      completeOnboarding(API_MODE === 'real' ? sessionRole : (role ?? 'manager'), companyFields, workerFields);
       goNext(); // o4 → o5load
       return;
     }

@@ -89,38 +89,45 @@ function slugFor(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+// 근로자 1명 입력 — CSV 일괄 등록과 온보딩 O4(R1.2)가 공유하는 데이터 계약
+// (NEXT_ROADMAP 1.2 "CSV와 동일한 데이터 계약 공유").
+export interface WorkerInput {
+  name: string;
+  nationality: string;
+  team: string;
+  stayExpiryDate: string;
+}
+
+// 근로자 1명 → CaseCard 변환 — 아직 특정 이슈가 없는 저단계 확인 케이스로 시작한다
+// (oyunaa 템플릿과 동일 모양). idPrefix로 진입점별 caseId 네임스페이스만 분리한다
+// (CSV는 'imp', 온보딩 O4는 'onboard' — 픽스처 caseId와 충돌하지 않는다).
+export function workerToCard(worker: WorkerInput, idPrefix: string): CaseCard {
+  const id = `${idPrefix}-${slugFor(worker.name)}`;
+  return {
+    caseId: id,
+    caseCode: `case_${id}`,
+    title: '근로자 등록 확인',
+    workerRef: { displayName: worker.name, nationality: worker.nationality, team: worker.team, maskLevel: 'masked' },
+    severity: 'LOW',
+    stayExpiryDate: worker.stayExpiryDate,
+    agentStage: 'detected',
+    state: 'draft',
+    approvalRequired: false,
+    primaryAction: { actionId: `${id}-detail`, label: '상세 보기', state: 'ready', requiresApproval: false, kind: 'detail' },
+    secondaryAction: { actionId: `${id}-confirm`, label: '케이스 확인 완료', state: 'ready', requiresApproval: false, kind: 'confirm' },
+    preparedBy: 'rule',
+  };
+}
+
 // 정상 판정 행만 CaseCard로 변환 — 경고·오류 행은 등록하지 않는다(브리프 가드레일).
-// 새로 등록된 근로자는 아직 특정 이슈가 없는 저단계 케이스로 시작한다(oyunaa 템플릿과 동일 모양).
 export function rowsToCards(rows: ValidatedCsvRow[]): CaseCard[] {
   return rows
     .filter((row): row is ValidatedCsvRow & { status: 'normal' } => row.status === 'normal')
-    .map((row) => {
-      const slug = slugFor(row.name);
-      return {
-        caseId: `imp-${slug}`,
-        caseCode: `case_imp_${row.rowNo}`,
-        title: '근로자 등록 확인',
-        workerRef: { displayName: row.name, nationality: row.nationality, team: row.team, maskLevel: 'masked' },
-        severity: 'LOW',
-        stayExpiryDate: row.stayExpiryDateRaw,
-        agentStage: 'detected',
-        state: 'draft',
-        approvalRequired: false,
-        primaryAction: {
-          actionId: `imp-${slug}-detail`,
-          label: '상세 보기',
-          state: 'ready',
-          requiresApproval: false,
-          kind: 'detail',
-        },
-        secondaryAction: {
-          actionId: `imp-${slug}-confirm`,
-          label: '케이스 확인 완료',
-          state: 'ready',
-          requiresApproval: false,
-          kind: 'confirm',
-        },
-        preparedBy: 'rule',
-      };
-    });
+    .map((row) => ({
+      ...workerToCard(
+        { name: row.name, nationality: row.nationality, team: row.team, stayExpiryDate: row.stayExpiryDateRaw },
+        'imp',
+      ),
+      caseCode: `case_imp_${row.rowNo}`, // 행 번호 기반 표기는 CSV 고유 관례라 그대로 유지.
+    }));
 }
