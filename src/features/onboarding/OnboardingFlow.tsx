@@ -72,7 +72,7 @@ export function OnboardingFlow() {
   const onCta = () => {
     if (step === 'o2' && role) setRole(role);
     if (step === 'o4') {
-      completeOnboarding(role ?? 'manager', companyFields);
+      completeOnboarding(role ?? 'manager', companyFields, workerFields);
       goNext(); // o4 → o5load
       return;
     }

@@ -64,8 +64,8 @@ describe('OnboardingFlow — O1~O5 E2E', () => {
     expect(router.state.location.pathname).toBe('/');
   });
 
-  // R1.1 — O3 입력이 더 이상 버려지지 않고 companyStore.profile에 실제로 반영된다.
-  it('O3 사업장명을 바꾸면 회사 프로필에 반영된다', () => {
+  // R1.1·R1.2 — O3/O4 입력이 더 이상 버려지지 않고 companyStore.profile·CaseCard에 실제로 반영된다.
+  it('O3 사업장명·O4 근로자 정보를 바꾸면 회사 프로필과 케이스에 반영된다', () => {
     const router = createMemoryRouter(routeConfig, { initialEntries: ['/onboarding'] });
     render(<RouterProvider router={router} />);
 
@@ -78,6 +78,8 @@ describe('OnboardingFlow — O1~O5 E2E', () => {
 
     fireEvent.change(screen.getByRole('textbox', { name: '사업장명' }), { target: { value: '테스트 물류' } });
     fireEvent.click(screen.getByRole('button', { name: '다음' }));
+
+    fireEvent.change(screen.getByRole('textbox', { name: '이름' }), { target: { value: 'Test Worker' } });
     fireEvent.click(screen.getByRole('button', { name: '등록하고 브리핑 만들기' }));
 
     act(() => {
@@ -85,6 +87,10 @@ describe('OnboardingFlow — O1~O5 E2E', () => {
     });
 
     expect(useCompanyStore.getState().profile.name).toBe('테스트 물류');
+    const created = useCaseStore.getState().cases['onboard-test-worker'];
+    expect(created?.workerRef?.displayName).toBe('Test Worker');
+    // 데모 세계관 6인 로스터는 그대로 유지 — 입력을 반영하되 기존 시드를 덮어쓰지 않는다.
+    expect(useCaseStore.getState().cases.nguyen).toBeDefined();
   });
 
   it('O2에서 대표를 선택하면 owner로 진행된다', () => {
