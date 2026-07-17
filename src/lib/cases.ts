@@ -1,3 +1,4 @@
+import type { CaseSheet } from '@/mocks/fixtures';
 import type { CaseCard, NextActionKind, Severity } from '@/types';
 
 export type CaseFilterPreset = 'all' | 'crit' | 'warn' | 'info' | 'approval';
@@ -107,4 +108,23 @@ export function buildCaseGroups(cards: CaseCard[], preset: CaseFilterPreset): Ca
     ...group,
     cases: sortCaseList(grouped.get(group.key) ?? []),
   }));
+}
+
+export type DocUpdatesForCase = Record<string, { to: string }> | undefined;
+
+// M6 해석 확인(caseStore.applyInterpretationUpdates)이 남긴 문서 상태 갱신을 CaseSheet.docs의
+// statusLabel에 오버레이한다. CaseReviewPage(모바일)·CaseWorkbench(PC)가 거의 동일한 로직을
+// 각자 구현했던 중복을 통합(D-4, NEXT_ROADMAP). CASE_SHEETS 원본은 건드리지 않는다.
+export function applyDocUpdatesOverlay(
+  baseSheet: CaseSheet | undefined,
+  docUpdates: DocUpdatesForCase,
+): CaseSheet | undefined {
+  if (!baseSheet) return undefined;
+  if (!docUpdates || !baseSheet.docs) return baseSheet;
+  return {
+    ...baseSheet,
+    docs: baseSheet.docs.map((doc) =>
+      docUpdates[doc.name] ? { ...doc, statusLabel: docUpdates[doc.name].to } : doc,
+    ),
+  };
 }

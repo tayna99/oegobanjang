@@ -1,9 +1,8 @@
-import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { normalizeCaseFilter } from '@/lib/cases';
+import { useSeedCases } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { ROUTES } from '@/lib/routes';
-import { CASE_CARDS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
 import { CaseWorkbench } from './CaseWorkbench';
 
@@ -19,13 +18,8 @@ export function CaseWorkbenchPage({ selectedCaseId, filterOverride }: CaseWorkbe
   const nav = useNav();
   const [searchParams] = useSearchParams();
   const cases = useCaseStore((state) => state.cases);
-  const upsert = useCaseStore((state) => state.upsert);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const preset = normalizeCaseFilter(filterOverride ?? searchParams.get('filter'));
   const returnTo = ROUTES.cases(preset === 'all' ? undefined : preset);

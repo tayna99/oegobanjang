@@ -6,7 +6,7 @@
 
 **발신과 수신은 다른 문제다.** 같은 `MessageThread` 안에 쌓이지만 파이프라인은 별개로 설계한다 — 발신은 `Approval → Outbox → ChannelAdapter`(§2), 수신은 `인바운드 → 정규화 → Interpretation`(§3)이며 둘은 서로를 호출하지 않는다.
 
-**근로자 채널 = SMS / 알림톡 / Zalo.** `docs/GLOSSARY.md`의 인물 fixture가 이미 채널을 배정하고 있다 — Nguyen V.·Tran T.H.는 Zalo, Bayar M.·Mohammad I.는 SMS. 이메일은 근로자 채널에 없다.
+**근로자 채널 = SMS / 알림톡 / Zalo.** `src/mocks/threads.ts`의 인물 fixture가 이미 채널을 배정하고 있다(6인 로스터는 `docs/GLOSSARY.md` §인물 fixture 참조) — Nguyen Van A·Tran Thi H.는 Zalo, Batbayar E.는 SMS. 이메일은 근로자 채널에 없다.
 
 **이메일은 행정사 패키지 전달 전용.** 통합설계_v1.md §2.6: "행정사는 앱 사용자가 아니라 **수신자**: 승인된 패키지를 링크/PDF로 받는다 (Handoff Preview)." 근로자에게 이메일 채널을 열지 않는다 — 행정사 패키지 어댑터는 §2의 근로자 채널 어댑터 4종과 분리한다.
 
@@ -106,7 +106,7 @@ export interface InterpretationUpdate {
   field: string; // 갱신 대상 필드명("표준근로계약서" 등)
   from: string; // 갱신 전 상태 라벨
   to: string; // 갱신 후 상태 라벨
-  badgeTone: string; // src/lib/badgeTone.ts BadgeTone 값 — Interpretation은 badgeTone 구현을 몰라야 하므로 string으로 느슨하게 연결
+  badgeTone: string; // 배지/칩 톤 값(예: src/lib/chipTone.ts ChipTone) — Interpretation은 그 구현을 몰라야 하므로 string으로 느슨하게 연결
 }
 
 export interface Interpretation {

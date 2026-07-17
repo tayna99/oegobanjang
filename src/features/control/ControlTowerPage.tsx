@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Chip } from '@/components/Chip';
 import { KpiTile } from '@/components/KpiTile';
 import { cn } from '@/lib/cn';
@@ -13,20 +13,20 @@ import {
   controlTowerKpis,
   rowAction,
 } from '@/lib/controlTower';
-import { agentStageTone, severityTone } from '@/lib/chipTone';
+import { agentStageTone, severityLabel, severityTone } from '@/lib/chipTone';
+import { useSeedCases } from '@/lib/dataSeed';
 import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
 import { pipelineStats } from '@/lib/pipeline';
-import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
+import { CASE_SHEETS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
-import type { CaseCard, Severity } from '@/types';
+import type { CaseCard } from '@/types';
 
 // PC 컨트롤 타워(§3a) — reference/design-system/외고반장 PC.dc.html §3a(29~232행) 이식(2.5.6).
 // 파이프라인 타일·KPI·활성 추이·우선 처리 큐 + 우측 활동/감사 레일. 데스크톱 전용.
 // KPI·큐는 스토어에서 파생(mock은 지난주 추이·오늘 델타뿐). C10: 고위험 행 액션은 "검토".
 
-const SEVERITY_LABEL: Record<Severity, string> = { CRITICAL: '긴급', HIGH: '높음', MEDIUM: '중간', LOW: '낮음' };
 const SECTION_TITLE = SECTION_TITLE_CLASS;
 
 function PipelineTile({
@@ -85,7 +85,7 @@ function PriorityRow({ card, onOpen }: { card: CaseCard; onOpen: (id: string) =>
   return (
     <li className="grid grid-cols-[64px_150px_1fr_60px_120px_100px_64px_72px] items-center gap-2 border-b border-hairline px-3 py-2.5 last:border-none">
       <span>
-        <Chip tone={severityTone(card.severity)}>{SEVERITY_LABEL[card.severity]}</Chip>
+        <Chip tone={severityTone(card.severity)}>{severityLabel(card.severity)}</Chip>
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="truncate text-pc-sm font-semibold text-ink">{card.workerRef?.displayName ?? card.title}</span>
@@ -177,13 +177,8 @@ function ActivityRail() {
 export function ControlTowerPage() {
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const cards = useMemo(() => Object.values(cases), [cases]);
   const counts = useMemo(() => pipelineStats(cards), [cards]);

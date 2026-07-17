@@ -25,7 +25,7 @@ describe('ApprovalCard (승인 큐 카드)', () => {
     render(<ApprovalCard data={CARD} onReview={vi.fn()} />);
     expect(screen.getByText('체류기간 연장 서류 요청')).toBeInTheDocument();
     expect(screen.getByText('Nguyen Van A · 제조1팀')).toBeInTheDocument();
-    expect(screen.getByText('높음 · D-30')).toBeInTheDocument();
+    expect(screen.getByText('우선 확인 · D-30')).toBeInTheDocument();
     expect(screen.getByText('누락 2건')).toBeInTheDocument();
   });
 

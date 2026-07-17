@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
+import { useSeedThreads } from '@/lib/dataSeed';
 import { useIsDesktop } from '@/lib/useIsDesktop';
-import { THREADS } from '@/mocks/threads';
 import { useThreadStore } from '@/stores/threadStore';
 import { sortThreads } from '@/lib/threads';
 import { useNav } from '@/lib/nav';
@@ -11,19 +10,15 @@ import { MessagesWorkbench } from './MessagesWorkbench';
 // 컨테이너 — 스토어 시딩·조회만. 화면 렌더는 MessagesScreen(모바일 프레젠테이션) 몫
 // (CaseListPage.tsx/BriefingHomePage.tsx와 동일한 컨테이너/프레젠테이션 분리 패턴).
 // lg+에서는 PC 메시지 워크벤치(4c)로 분기 — 다른 케이스 컨테이너와 동일 관례.
-// MessagesWorkbench는 별도 mock(mocks/messages.ts)을 쓰는 독립 데이터 소스다 — threadStore로
-// 통합하는 것은 후속(두 화면의 데이터 계약을 하나로 합치는 건 별도 리팩터 범위).
+// MessagesWorkbench도 이 파일과 같은 threadStore/mocks/threads.ts를 데이터 소스로 쓴다
+// (NEXT_ROADMAP D-1, 2026-07-17 — 이전엔 별도 mock(mocks/messages.ts)을 썼던 독립 데이터
+// 소스였으나 폐기 후 통합). 모바일·PC 프레젠테이션(MessagesScreen/MessagesWorkbench)만 분리.
 export function MessagesPage() {
   const nav = useNav();
   const isDesktop = useIsDesktop();
   const threads = useThreadStore((s) => s.threads);
-  const upsert = useThreadStore((s) => s.upsert);
 
-  useEffect(() => {
-    if (Object.keys(useThreadStore.getState().threads).length === 0) {
-      THREADS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedThreads();
 
   if (isDesktop) {
     return <MessagesWorkbench />;

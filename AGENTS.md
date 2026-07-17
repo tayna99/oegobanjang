@@ -51,7 +51,7 @@ legacy/
 = 이전 FastAPI 백엔드, 데이터 파이프라인, Agent Runtime, eval, 기존 문서 보관 영역
 ```
 
-루트 `backend/`·`db/`·`rag/`는 "백엔드 접속점"을 향한 신규 산출물이다. `legacy/backend/`는 이전 백엔드와 Agent Runtime을 보존한 경로이며, 새 작업의 production import 대상이 아니다 — `rag/`는 legacy RAG 자산을 복사·정제해 이식한 것이고 legacy 자체는 수정하지 않는다.
+루트 `backend/`는 `db/schema.sql`을 그대로 적용하는 FastAPI 서비스로 이미 존재하고 동작한다(OTP 인증·세션, 승인 요청 생성 + approve/reject, 오케스트레이션 런(SSE)·데일리 브리핑·케이스/스레드 읽기 엔드포인트, pytest 스위트가 CI에 편입). 다만 프론트(`src/`)는 아직 이 backend를 한 줄도 호출하지 않는다(fetch 0건) — 배선은 `plans/ROADMAP.md` R2 범위다. `rag/`는 legacy RAG 자산을 복사·정제해 이식한 별도 Python 3.13 uv 프로젝트로, backend가 내부망으로 호출한다. `legacy/backend/`는 이전 백엔드(Agent Runtime 포함)를 보존한 별개 경로이며, 새 프론트 MVP 작업이나 루트 `backend/`·`rag/`의 production import 대상이 아니다.
 
 Agent Runtime 관련 코드는 legacy 영역에 남아 있다.
 

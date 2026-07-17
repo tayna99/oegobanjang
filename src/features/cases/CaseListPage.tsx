@@ -1,15 +1,12 @@
-import { useEffect } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { CASE_CARDS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
+import { useCompanyStore } from '@/stores/companyStore';
 import { buildCaseGroups, normalizeCaseFilter } from '@/lib/cases';
+import { useSeedCases } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { useIsDesktop } from '@/lib/useIsDesktop';
 import { CaseListScreen } from './CaseListScreen';
 import { CaseWorkbenchPage } from './CaseWorkbenchPage';
-
-// 디자인 세계관 사업장명(2.5.4b) — §3a/§3b 상단 바 "그린푸드 제조".
-const COMPANY_NAME = '그린푸드 제조';
 
 interface CaseListPageProps {
   filterOverride?: string | null;
@@ -21,13 +18,9 @@ export function CaseListPage({ filterOverride }: CaseListPageProps = {}) {
   const [searchParams] = useSearchParams();
   const isDesktop = useIsDesktop();
   const cases = useCaseStore((state) => state.cases);
-  const upsert = useCaseStore((state) => state.upsert);
+  const companyName = useCompanyStore((s) => s.profile.name);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   // lg+ 에서는 M2.5.4 PC 워크벤치(3열)로 분기 — 모바일 트리는 마운트하지 않는다.
   if (isDesktop) {
@@ -41,7 +34,7 @@ export function CaseListPage({ filterOverride }: CaseListPageProps = {}) {
 
   return (
     <CaseListScreen
-      companyName={COMPANY_NAME}
+      companyName={companyName}
       totalCount={cards.length}
       preset={preset}
       groups={groups}

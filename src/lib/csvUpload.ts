@@ -1,10 +1,10 @@
+import { maskId } from '@/lib/mask';
 import type { CaseCard } from '@/types';
 
 // CSV 일괄 등록(4.4) — reference/design-system/외고반장 CSV 업로드.dc.html §1a 이식.
-// 실제 파일 파싱 백엔드가 없어 "업로드"는 고정 샘플 8행을 검증→등록하는 각본이다
-// (RunEngine 각본 철학과 동일). 외국인등록번호는 화면 어디에도 원문을 들일 경로를
-// 만들지 않는다는 온보딩 O4의 결정을 그대로 따라 — 이 fixture부터 이미 마스킹된
-// 문자열(`lib/mask.ts` 규칙과 동일 형식)로만 존재한다(GOTCHAS §1).
+// R1.5부터 실제 파일 업로드+파싱(parseCsvText)을 지원한다. 외국인등록번호는 화면 어디에도
+// 원문을 들일 경로를 만들지 않는다는 온보딩 O4의 결정을 그대로 따라 — 파싱 시점에 즉시
+// 마스킹하며, 그 이후 어떤 상태·화면도 원문을 보지 못한다(GOTCHAS §1).
 export type RowStatus = 'normal' | 'warn' | 'error';
 
 export interface CsvRow {
@@ -37,6 +37,28 @@ export const SAMPLE_CSV_ROWS: CsvRow[] = [
   { rowNo: 8, name: 'Kyaw Zin', nationality: '미얀마', team: '포장팀', stayExpiryDateRaw: '', externalRegNoMasked: '******-*******' },
 ];
 
+// 실제 업로드 파일 파싱(R1.5, NEXT_ROADMAP 1.5) — 첫 줄은 헤더로 간주하고 건너뛴다.
+// 쉼표 안에 값이 들어있는 경우(따옴표 이스케이프)는 다루지 않는다 — 이름·국적·팀·날짜·
+// 등록번호 5개 필드 모두 쉼표를 포함하지 않는 값만 다루는 이 앱의 실제 데이터 범위에서는
+// 불필요한 복잡도다. 외국인등록번호는 파싱 즉시 maskId()로 마스킹해 원문이 상태에 들어오는
+// 경로 자체를 막는다(GOTCHAS §1) — 이미 마스킹된 값을 다시 마스킹해도 결과는 그대로다.
+export function parseCsvText(text: string): CsvRow[] {
+  const lines = text.split(/\r\n|\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+  return lines.slice(1).map((line, index) => {
+    const [name = '', nationality = '', team = '', stayExpiryDateRaw = '', externalRegNo = ''] = line
+      .split(',')
+      .map((cell) => cell.trim());
+    return {
+      rowNo: index + 1,
+      name,
+      nationality,
+      team,
+      stayExpiryDateRaw,
+      externalRegNoMasked: externalRegNo.length > 0 ? maskId(externalRegNo) : '',
+    };
+  });
+}
+
 // 필수 컬럼 누락(헤더 누락과 동치 — 값이 비어 있으면 그 컬럼이 없는 것과 같다)·중복 이름
 // (사번이 없는 데이터 모델이라 "이름"을 유일 식별자로 대체)·날짜 형식만 검증한다.
 // 오류(error) > 경고(warn) 우선순위 — 둘 다 걸리면 오류로 표시.
@@ -68,42 +90,66 @@ export function validateRows(rows: CsvRow[]): ValidatedCsvRow[] {
   });
 }
 
+// CSV 양식 안내(CsvUploadWorkbench aside)와 다운로드 템플릿이 공유하는 단일 소스 — 코드리뷰
+// 지적: 이전엔 이 5개 컬럼을 화면(JSX 배열)과 여기(문자열) 두 곳에 각자 하드코딩해, 컬럼이
+// 추가·변경될 때 한쪽만 고치면 조용히 어긋날 수 있었다.
+export const CSV_TEMPLATE_COLUMNS = ['이름', '국적', '팀', '체류만료일 (YYYY-MM-DD)', '외국인등록번호'] as const;
+export const CSV_TEMPLATE_HEADER = CSV_TEMPLATE_COLUMNS.join(',');
+const CSV_TEMPLATE_FILENAME = '근로자_등록_템플릿.csv';
+
+// NEXT_ROADMAP B-4: "템플릿 다운로드" 버튼에 onClick이 없어 죽은 버튼이었다 — 실제 파일
+// 업로드 백엔드가 없는 것과 별개로, 헤더만 담은 정적 CSV는 클라이언트에서 바로 만들 수 있다.
+// data: URI를 쓰는 이유는 jsdom에 미구현인 URL.createObjectURL 없이도 동작하기 때문이다.
+export function downloadCsvTemplate(): void {
+  const link = document.createElement('a');
+  link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(`${CSV_TEMPLATE_HEADER}\n`)}`;
+  link.download = CSV_TEMPLATE_FILENAME;
+  link.click();
+}
+
 function slugFor(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9가-힣]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+// 근로자 1명 입력 — CSV 일괄 등록과 온보딩 O4(R1.2)가 공유하는 데이터 계약
+// (NEXT_ROADMAP 1.2 "CSV와 동일한 데이터 계약 공유").
+export interface WorkerInput {
+  name: string;
+  nationality: string;
+  team: string;
+  stayExpiryDate: string;
+}
+
+// 근로자 1명 → CaseCard 변환 — 아직 특정 이슈가 없는 저단계 확인 케이스로 시작한다
+// (oyunaa 템플릿과 동일 모양). idPrefix로 진입점별 caseId 네임스페이스만 분리한다
+// (CSV는 'imp', 온보딩 O4는 'onboard' — 픽스처 caseId와 충돌하지 않는다).
+export function workerToCard(worker: WorkerInput, idPrefix: string): CaseCard {
+  const id = `${idPrefix}-${slugFor(worker.name)}`;
+  return {
+    caseId: id,
+    caseCode: `case_${id}`,
+    title: '근로자 등록 확인',
+    workerRef: { displayName: worker.name, nationality: worker.nationality, team: worker.team, maskLevel: 'masked' },
+    severity: 'LOW',
+    stayExpiryDate: worker.stayExpiryDate,
+    agentStage: 'detected',
+    state: 'draft',
+    approvalRequired: false,
+    primaryAction: { actionId: `${id}-detail`, label: '상세 보기', state: 'ready', requiresApproval: false, kind: 'detail' },
+    secondaryAction: { actionId: `${id}-confirm`, label: '케이스 확인 완료', state: 'ready', requiresApproval: false, kind: 'confirm' },
+    preparedBy: 'rule',
+  };
+}
+
 // 정상 판정 행만 CaseCard로 변환 — 경고·오류 행은 등록하지 않는다(브리프 가드레일).
-// 새로 등록된 근로자는 아직 특정 이슈가 없는 저단계 케이스로 시작한다(oyunaa 템플릿과 동일 모양).
 export function rowsToCards(rows: ValidatedCsvRow[]): CaseCard[] {
   return rows
     .filter((row): row is ValidatedCsvRow & { status: 'normal' } => row.status === 'normal')
-    .map((row) => {
-      const slug = slugFor(row.name);
-      return {
-        caseId: `imp-${slug}`,
-        caseCode: `case_imp_${row.rowNo}`,
-        title: '근로자 등록 확인',
-        workerRef: { displayName: row.name, nationality: row.nationality, team: row.team, maskLevel: 'masked' },
-        severity: 'LOW',
-        stayExpiryDate: row.stayExpiryDateRaw,
-        agentStage: 'detected',
-        state: 'draft',
-        approvalRequired: false,
-        primaryAction: {
-          actionId: `imp-${slug}-detail`,
-          label: '상세 보기',
-          state: 'ready',
-          requiresApproval: false,
-          kind: 'detail',
-        },
-        secondaryAction: {
-          actionId: `imp-${slug}-confirm`,
-          label: '케이스 확인 완료',
-          state: 'ready',
-          requiresApproval: false,
-          kind: 'confirm',
-        },
-        preparedBy: 'rule',
-      };
-    });
+    .map((row) => ({
+      ...workerToCard(
+        { name: row.name, nationality: row.nationality, team: row.team, stayExpiryDate: row.stayExpiryDateRaw },
+        'imp',
+      ),
+      caseCode: `case_imp_${row.rowNo}`, // 행 번호 기반 표기는 CSV 고유 관례라 그대로 유지.
+    }));
 }

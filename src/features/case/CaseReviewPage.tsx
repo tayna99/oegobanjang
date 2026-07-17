@@ -5,10 +5,12 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { useNextAction } from '@/lib/actionNav';
 import { useApprovalActions } from '@/lib/approval';
+import { applyDocUpdatesOverlay } from '@/lib/cases';
+import { useSeedCases } from '@/lib/dataSeed';
 import { dDayLabel } from '@/lib/dday';
 import { severityTone } from '@/lib/chipTone';
 import { useNav } from '@/lib/nav';
-import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
+import { CASE_SHEETS } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
@@ -33,31 +35,17 @@ export function CaseReviewPage() {
   const { reopenForReview } = useApprovalActions();
   const role = useRoleStore((s) => s.role);
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
   const appendEvidence = useEvidenceStore((s) => s.append);
   const returnTo = (location.state as CaseRouteState | null)?.returnTo;
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const card = caseId ? cases[caseId] : undefined;
   const docUpdates = useCaseStore((s) => (caseId ? s.docUpdates[caseId] : undefined));
   const baseSheet = caseId ? CASE_SHEETS[caseId] : undefined;
   // 해석 확인(caseStore.applyInterpretationUpdates)이 남긴 docUpdates를 화면 표시용
-  // statusLabel에 오버레이한다. CASE_SHEETS 원본은 건드리지 않는다.
-  const sheet = useMemo(() => {
-    if (!baseSheet) return undefined;
-    if (!docUpdates || !baseSheet.docs) return baseSheet;
-    return {
-      ...baseSheet,
-      docs: baseSheet.docs.map((doc) =>
-        docUpdates[doc.name] ? { ...doc, statusLabel: docUpdates[doc.name].to } : doc,
-      ),
-    };
-  }, [baseSheet, docUpdates]);
+  // statusLabel에 오버레이한다(CaseWorkbench와 공유하는 selector, lib/cases.ts).
+  const sheet = useMemo(() => applyDocUpdatesOverlay(baseSheet, docUpdates), [baseSheet, docUpdates]);
   const draft = draftForCase(caseId);
   // 기본 언어는 근로자 언어(비한국어) — 디자인 §2b는 VN이 활성 상태로 열린다.
   const [lang, setLang] = useState(() => {

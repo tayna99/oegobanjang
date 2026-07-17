@@ -4,6 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { routeConfig } from '@/router';
 import { useCaseStore } from '@/stores/caseStore';
+import { useCompanyStore } from '@/stores/companyStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useRoleStore } from '@/stores/roleStore';
 
@@ -12,6 +13,7 @@ import { useRoleStore } from '@/stores/roleStore';
 describe('OnboardingFlow — O1~O5 E2E', () => {
   beforeEach(() => {
     useCaseStore.getState().reset();
+    useCompanyStore.getState().reset();
     useEvidenceStore.getState().reset();
     useRoleStore.getState().reset();
     vi.useFakeTimers();
@@ -60,6 +62,35 @@ describe('OnboardingFlow — O1~O5 E2E', () => {
     // 완료 CTA로 홈(브리핑)에 도달 — 승인 큐에 방금 등록된 근로자 케이스가 보인다.
     fireEvent.click(screen.getByRole('button', { name: '오늘 브리핑 보기' }));
     expect(router.state.location.pathname).toBe('/');
+  });
+
+  // R1.1·R1.2 — O3/O4 입력이 더 이상 버려지지 않고 companyStore.profile·CaseCard에 실제로 반영된다.
+  it('O3 사업장명·O4 근로자 정보를 바꾸면 회사 프로필과 케이스에 반영된다', () => {
+    const router = createMemoryRouter(routeConfig, { initialEntries: ['/onboarding'] });
+    render(<RouterProvider router={router} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '인증번호 받기' }));
+    fireEvent.change(screen.getByRole('textbox', { name: '인증번호 6자리' }), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+
+    fireEvent.click(screen.getByRole('button', { name: /^담당자/ }));
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+
+    fireEvent.change(screen.getByRole('textbox', { name: '사업장명' }), { target: { value: '테스트 물류' } });
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+
+    fireEvent.change(screen.getByRole('textbox', { name: '이름' }), { target: { value: 'Test Worker' } });
+    fireEvent.click(screen.getByRole('button', { name: '등록하고 브리핑 만들기' }));
+
+    act(() => {
+      vi.advanceTimersByTime(2700);
+    });
+
+    expect(useCompanyStore.getState().profile.name).toBe('테스트 물류');
+    const created = useCaseStore.getState().cases['onboard-test-worker'];
+    expect(created?.workerRef?.displayName).toBe('Test Worker');
+    // 데모 세계관 6인 로스터는 그대로 유지 — 입력을 반영하되 기존 시드를 덮어쓰지 않는다.
+    expect(useCaseStore.getState().cases.nguyen).toBeDefined();
   });
 
   it('O2에서 대표를 선택하면 owner로 진행된다', () => {

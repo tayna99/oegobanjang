@@ -58,6 +58,363 @@
 
 ---
 
+### [2026-07-17] PR #16 재구성 — R1(1.1~1.8) + R2.3(읽기 API) — 완료
+
+- 한 일: PR #16(`claude/roadmap-r1-implementation-d95ccf`)을 리뷰한 결과 병합 보류를 권고했다
+  — ①real API 스레드 목록이 `interpretationStatus`를 항상 `'none'`으로 반환(응답 도착
+  배지·정렬이 real 모드에서 항상 죽음), ②real 로그인 후에도 O2에서 역할을 임의 선택해
+  `roleStore`를 덮어쓸 수 있고 `fetchMe()` 실패·무소속 계정에서 fail-closed하지 않음,
+  ③Evidence 번호(`#4791`)를 replay run ID로 오인해 존재하지 않는 `/run/:id`로 이동,
+  ④PR 템플릿 trailing whitespace로 `git diff --check` 실패. 조사 결과 ③·④는 PR #14
+  리뷰에서 이미 고쳐졌던 버그의 재발이었다 — PR #16이 그 수정 커밋(`9d2f618`)을 포함하지
+  않는 지점에서 분기했기 때문. ②는 PR #15 리뷰에서 동일하게 지적되어 고쳐진 문제였다
+  (`sessionStore.restore()` fail-closed + O2 `readOnly`, 커밋 `a1aa6f4`).
+  - **추가 발견**: PR #15("API 클라이언트 계층 + 인증 배선")는 GitHub에서 `MERGED` 상태였지만
+    실제로는 `main`이 아니라 PR #14의 브랜치(`claude/next-roadmap-2026-07-16-ca88d8`)로
+    병합됐고, 그 병합이 PR #14→main 병합보다 14초 늦게 일어나 PR #15의 커밋들이 `main`에
+    한 번도 반영되지 못한 채 남아 있었다(`origin/main`은 PR #14까지만, PR #15 전체는
+    `origin/claude/next-roadmap-2026-07-16-ca88d8`에만 존재). 이 세션은 그 브랜치(커밋
+    `913c0dd`)를 새 베이스로 채택했다 — `main`과 콘텐츠상 완전히 동일한 지점(`9d2f618`)
+    위에 PR #15의 리뷰까지 마친 R2.1/R2.2가 그대로 얹혀 있어, 별도 병합 작업 없이 그대로
+    쓸 수 있었다. **이 브랜치(`claude/next-roadmap-2026-07-16-ca88d8`)를 main에 병합하는
+    작업이 아직 남아있다 — 다음 세션이 반드시 처리할 것.**
+  - **R1 재개 여부**: `plans/ROADMAP.md`엔 "R0 완료 직후 R1을 건너뛰고 R2로 바로 진행"하라는
+    2026-07-17 지시가 기록돼 있었다(PR #16과 무관한 별도 세션). 사용자에게 재확인한 결과
+    R1도 이번 재구성에 포함하기로 확정 — 그 스킵 결정은 이번 세션 기준으로 번복됐다.
+  - 새 워크트리 브랜치(`claude/branch-parser-impl-e30f2e`)를 `913c0dd`로 `--ff-only` 전진시킨
+    뒤, PR #16의 R1 커밋 8개(84a5646·f8326c0·0c6c648·845de93·e9ba025·cdf1d0c·167443e)를
+    순서대로 cherry-pick했다. `OnboardingFlow.tsx`가 R1.1(회사 프로필)·R1.2(온보딩→케이스)와
+    매번 충돌했는데, 원인은 PR #15의 real 모드 O2 `readOnly`/역할 fail-closed 로직과 PR #16의
+    `companyFields`/`workerFields` 인자 추가가 같은 `onCta()` 한 줄을 각자 고쳤기 때문 —
+    두 로직을 합성(`completeOnboarding(API_MODE === 'real' ? sessionRole : (role ?? 'manager'), companyFields, workerFields)`)해
+    해결했다. `CsvUploadWorkbench.tsx`는 R1.5(`parseCsvText`)와 기존 `CSV_TEMPLATE_COLUMNS`
+    import가 겹쳐 충돌 — 둘 다 필요해 병합만 했다.
+  - R2.3 커밋(`756bfee`)에서 R2.1/R2.2 재구현 부분(케이스/브리핑/스레드 API를 뺀 나머지)은
+    가져오지 않고, 신규 파일(백엔드 `cases.py`/`briefings.py`/`threads.py` 라우터·서비스·
+    스키마 + 프론트 `lib/api/{cases,briefings,threads}.ts`·`lib/dataSeed.ts`)만 이식한 뒤
+    PR #15가 확립한 실제 API 표면에 맞게 다시 배선했다: PR #16의 `USE_REAL_API`(boolean) →
+    `API_MODE === 'real'`, `apiFetch()`가 토큰을 전역 상태에서 암묵적으로 읽던 것 →
+    `useSessionStore.getState().token`을 각 어댑터가 명시적으로 전달(`client.ts`의
+    `apiFetch(path, {token})` 계약에 맞춤). 백엔드 `deps.get_current_membership`이 참조하는
+    `get_active_membership()`이 PR #15 기반엔 없어(R2.2 재구현판에만 있던 함수)
+    `backend/app/services/auth.py`에 새로 추가했다. `ThreadPage.tsx`/`MessagesWorkbench.tsx`는
+    PR #16의 원시 스토어 액션(`confirmInterpretation`+`applyInterpretationUpdates`+
+    `appendEvidence`)과 main에 이미 있던 공유 훅 `useConfirmInterpretation()`이 충돌 —
+    후자가 정확히 같은 일을 하므로 훅 쪽을 유지하고 원시 액션 3줄은 버렸다.
+  - **버그 수정(리뷰 지적 P1 반영)**: 백엔드 `ThreadOut`(목록 스키마)에
+    `latest_interpretation_status` 필드를 추가하고, `list_threads_out()`에 스레드별
+    "가장 최근 메시지에 달린 해석의 status"를 구하는 배치 쿼리
+    (`ThreadMessage`+`Interpretation` 조인 + `row_number() OVER(PARTITION BY thread_id
+    ORDER BY message.created_at DESC, interpretation.created_at DESC)`)를 추가했다 — 프론트
+    `toThreadDetail()`의 reverse-find 우선순위(가장 최근 메시지 기준, 동일 메시지 재해석은
+    최신 것)를 서버에서 그대로 재현. 프론트 `toThreadSummary()`가 더 이상 `interpretationStatus:
+    'none'`을 하드코딩하지 않고 이 필드를 `toInterpretationStatus()`로 매핑한다. 백엔드
+    회귀 테스트 2건(`test_api_threads.py`) + 프론트 회귀 테스트 2건(`threads.test.ts`) 추가.
+  - **role/Evidence-run-ID/PR템플릿 이슈는 별도 수정이 필요 없었다** — 새 베이스(PR #15
+    반영분)에 이미 고쳐진 채로 포함돼 있었다.
+- 남은 일 / 중단 지점: `claude/next-roadmap-2026-07-16-ca88d8`(PR #15의 실제 커밋들이 있는
+  브랜치)를 `main`에 병합하는 작업이 미해결로 남아 있다 — 이 세션의 새 브랜치를 main에
+  합칠 때 반드시 함께 처리하거나, 최소한 순서를 맞출 것(이 브랜치를 그냥 main 기준으로
+  다시 병합하면 PR #15 내용이 또 한 번 빠질 위험). PR #16(`claude/roadmap-r1-implementation-d95ccf`)은
+  이 재구성으로 대체됐으므로 close 대상.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  - R1은 더 이상 스킵 상태가 아니다 — `plans/ROADMAP.md`의 R1 절이 8개 태스크 전부 완료로
+    갱신됐다.
+  - R2는 2.1~2.3까지 완료. 2.4(승인 결정 배선)부터는 여전히 후속 세션 몫.
+- verify 상태: PASS — backend `uv run pytest` 128/128, 프론트 `npm run verify`
+  (typecheck→lint→test 515건→build) 전부 클린. 도중 첫 두 차례 전체 스위트 실행에서
+  `CsvUploadWorkbench.test.tsx`의 실시간 타이머 의존 테스트(파일 업로드→검증 완료 대기)가
+  병렬 부하로 간헐적 timeout을 보였으나(파일 자체 주석이 "FileReader 비동기는
+  vi.useFakeTimers로 제어 안 됨"을 명시한 환경 의존 지점), 파일 단독 재실행과 최종 전체
+  재실행(515/515) 모두 안정적으로 통과 — 로직 회귀 아님.
+- 지도/규칙 갱신: `plans/ROADMAP.md`에 R1 절 신설 + R2.3 완료 표시.
+
+---
+
+### [2026-07-17] PR #14·#15 추가 코드 리뷰 라운드 — role fail-closed + 재생 런 존재 확인 — 완료
+
+- 한 일: 두 PR에 대해 사용자가 별도로 받아온 리뷰 결과를 그대로 전달받아 수정. 두 리뷰가
+  같은 "evidenceRef를 replay runKey로 쓰는 문제"를 각각 지적했는데, PR #14(R0,
+  `claude/next-roadmap-2026-07-16-ca88d8`)와 PR #15(R2, `r2-backend-wiring-auth`, base=
+  PR #14 브랜치)가 별도 브랜치라 한쪽만 고쳐서는 다른 쪽에 반영되지 않는다는 점을 먼저
+  확인하고, PR #14에 먼저 고친 뒤 그 커밋을 PR #15로 병합(rebase/force-push 아닌 일반
+  merge — 이미 푸시된 두 브랜치 히스토리를 다시 쓰지 않기 위함)했다.
+  - **PR #14 리뷰(P1+P2)**: `caseTimelineActivity()`(`lib/audit.ts`)가 evidenceRef를 그대로
+    `RUN_CONFIGS.runKey`로 써서, `#4791`처럼 재생 설정이 없는 판단 기록 번호를 누르면
+    존재하지 않는 `/run/:id`로 이동해 `RunPage`가 config를 못 찾고 loading 화면에
+    멈췄다 — 실제 `RUN_CONFIGS`에 있는 runKey일 때만 `runRef`를 채우도록 교정(없으면
+    기존처럼 텍스트만 표시, CaseTimeline 쪽 변경 없음). `.github/pull_request_template.md`
+    trailing whitespace(`git diff --check` 실패 원인)도 제거. 커밋 `9d2f618` → PR #14에
+    푸시 → `git merge origin/claude/next-roadmap-2026-07-16-ca88d8`로 PR #15에 반영(병합
+    커밋 `f37ad9e`, `audit.ts`/`audit.test.ts` import 줄만 충돌 — 두 브랜치가 각자 추가한
+    항목을 합쳐서 해결).
+  - **PR #15 리뷰(P1 2건, 신규)**:
+    1. real 모드에서 세션이 없거나 복원이 실패해도 `roleStore` 기본값(manager, mock 데모용
+       초기값)에 그대로 남아 인증 전 UI 권한 게이트가 관리자 권한으로 열렸다 —
+       `sessionStore.restore()` 맨 앞에 `useRoleStore.getState().setRole('viewer')`를
+       무조건 먼저 실행하도록 추가(토큰 유무·성공/실패와 무관). async 함수는 첫
+       await(fetchMe) 전까지 동기 실행되므로, `main.tsx`가 `restore()`를 기다리지 않고
+       바로 렌더해도(`void restore()`) 이 fail-closed는 항상 렌더보다 먼저 끝난다 —
+       "복원 요청이 렌더와 병렬로 시작된다"는 지적 자체는 그대로지만, 병렬로 시작되는
+       기본값이 이제 안전한 쪽(viewer)이라 문제가 되지 않는다.
+    2. OTP 로그인 후 서버 멤버십으로 정해진 role을 온보딩 O2에서 사용자가 다시 골라
+       `roleStore`에 덮어쓸 수 있었다(`StepRole`의 `SELECTABLE_ROLES = ['owner',
+       'manager']`엔 viewer가 없어, viewer 사용자도 강제로 manager/owner 중 하나를 골라야
+       했다 — 사실상 자기 승급 경로) — `StepRole`에 `readOnly` prop을 추가해 real
+       모드에서는 O2를 선택 UI가 아니라 "확인된 역할" 읽기 전용 화면으로 바꿨다(viewer
+       포함 실제 role을 그대로 보여주고, 클릭해서 바꿀 방법 자체를 없앰).
+       `OnboardingFlow.tsx`의 기존 O2 프리시드 `useEffect`(viewer는 프리시드 대상에서
+       제외돼 있던 바로 그 코드)는 통째로 제거 — readOnly 화면이 `sessionRole`을 직접
+       보여주므로 로컬 `role` state 경유가 더 이상 필요 없다. `onCta`의 `setRole(role)`
+       커밋과 `completeOnboarding(role ?? 'manager')`도 mock 모드에서만 로컬 선택을 쓰고
+       real 모드에서는 `sessionRole`을 그대로 쓰도록 분기.
+  - **브라우저 실검증(real 모드)**: 010-0000-0001(manager)로 로그인 → O2가 "확인된
+    역할 / 담당자 manager / 로그인한 계정에 연결된 역할이며, 여기서 바꿀 수 없습니다"만
+    보여주고 선택 버튼이 전혀 없음을 확인 → "다음" 클릭 시 O3(사업장 정보)로 정상 진행
+    확인(읽기 전용 화면이 진행 자체를 막지 않음).
+- 남은 일 / 중단 지점: 없음(두 리뷰 모두 해결). R2.3(케이스/브리핑/스레드 read API)부터
+  이어간다 — 결정할 것은 이전 R2.1+2.2 항목에 이미 기록됨(바뀐 것 없음).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. PR #14→PR #15 스택 구조상, PR #14(base) 브랜치에 커밋이 추가되면 PR #15(head)
+     브랜치에 자동으로 반영되지 않는다(git이 아니라 GitHub PR의 diff 계산 방식 때문) —
+     PR #14를 고칠 일이 생기면 그 즉시 `git merge origin/<PR #14 브랜치>`로 PR #15에도
+     반영해야 두 리뷰가 같은 파일을 다시 지적하는 일이 없다.
+  2. `roleStore`의 `DEFAULT_ROLE`(mock 모드 데모 초기값)은 여전히 'manager'다 — 바꾸지
+     않았다. real 모드의 안전한 기본값은 `sessionStore.restore()`가 명시적으로 설정하는
+     'viewer'이지, `roleStore` 모듈 자체의 기본값이 아니다(logout()의 기존 "manager로
+     복귀" 동작을 건드리지 않기 위한 의도적 분리).
+  3. `StepRole`은 이제 `readOnly` prop을 받는다 — mock 모드(선택형)와 real 모드(확인형)가
+     완전히 다른 렌더 분기이니, 이 컴포넌트를 건드릴 땐 두 분기 모두 확인한다.
+- verify 상태: PASS — `tsc --noEmit`/`npm run lint`/`vite build` 클린,
+  `npx vitest run` 466/466(전 스위트 클린, 이전 세션에서 문서화된 CaseWorkbench 병렬부하
+  flake도 이번 실행엔 발생 안 함). PR #14 브랜치 별도 검증: `tsc`/`lint`/`vitest run`
+  427/427/`vite build` 전부 클린.
+- 지도/규칙 갱신: 없음(리뷰 지적 수정만, 범위·설계 변경 없음).
+
+---
+
+### [2026-07-17] R2.1+2.2 코드 리뷰 수정(19건) — 완료 (중단 지점: R2.3부터)
+
+- 한 일: PR #15(R2.1+2.2) 위에서 사용자 지시로 xhigh 강도 다중 에이전트 코드 리뷰를 돌려
+  19건(정확성 다수 + 정리/재사용/효율 다수)을 확정(CONFIRMED/PLAUSIBLE)한 뒤, 전부 수정.
+  같은 브랜치(`r2-backend-wiring-auth`)에 추가 커밋으로 반영 — 별도 브랜치 분기 없음.
+  - **정확성 수정**:
+    1. `sessionStore.ts` 전면 재작성 — `verifyOtp` 동시 호출 재진입 가드(`activeRequestId`,
+       나중 호출만 상태를 반영하되 먼저 실패한 호출도 자기 자신에게는 정직하게 reject해야
+       해서 `throw err`는 무조건 유지하고 `set()` 상태 반영만 staleness로 게이트 — 처음엔
+       실패 케이스도 조용히 삼켰다가 회귀 테스트로 잡아 교정), `roleFromMemberships`가
+       `Object.hasOwn()`으로 prototype-pollution 안전 + 알 수 없는 role은 'viewer'로 폴백,
+       `restore()`가 `ApiError.status===401`(세션 만료 → anonymous 전환)과 네트워크 에러(→
+       기존 상태 유지, 재시도 여지)를 구분.
+    2. backend `auth.py`: `_load_user_with_memberships()` 헬퍼로 통합 — `GET /me`가 세션엔
+       연결됐지만 유저 행이 없는 경우 500이 아니라 401을 내도록 수정(FK가 이 경우를 직접
+       SQL로는 재현 못 해 `get_current_user_id` 의존성을 오버라이드해 테스트). `POST
+       /otp/verify` 응답에 `memberships`를 직접 포함시켜, 로그인 직후 프론트가 별도로
+       `GET /me`를 다시 부르지 않고도 role을 바로 파생하도록 라운드트립 1회 제거.
+    3. `client.ts`: FastAPI 에러 응답이 `{"detail": "..."}` JSON이어도 지금까지는 원문
+       그대로(`{"detail":"인증번호가...")` 식 raw JSON 문자열)를 사용자에게 노출하고
+       있었다 — `extractErrorMessage()`로 JSON을 파싱해 `detail` 필드만 뽑아 쓰도록 수정
+       (파싱 실패 시 원문 텍스트로 안전 폴백).
+    4. `StepPhoneAuth.tsx`: real 모드에서 인증번호를 요청한 뒤에도 전화번호 입력을 계속
+       바꿀 수 있었던 것(서버는 이미 그 번호로 코드를 보냈는데 입력만 바뀌는 불일치)을
+       `disabled={isReal && codeRequested}`로 잠금. 코드 요청 자체가 실패했을 때 에러가
+       `{codeRequested && ...}` 블록 안에 있어 렌더되지 않던 것도 밖으로 옮겨 수정.
+    5. 케이스 타임라인: 해석이 이미 확인된 뒤에도 "질문 있음" 정적 activity가 그대로 남아
+       "확인 완료"와 "질문 있음"이 동시에 뜨는 모순을 `caseTimelineActivity()`에서
+       `interpretation_confirmed` 이후 `outcome==='question'` 정적 항목을 필터링해 해소.
+       `CaseHistoryPage.tsx`의 `[...mergedAuditLog(events)].reverse()`가 동시각 타이브레이크를
+       뒤집어 순서를 흐트러뜨리던 것도 `mergedAuditLogAscending()`(새 함수, 애초에 오름차순
+       정렬) 사용으로 교정.
+  - **정리/효율 수정**: `useConfirmInterpretation()` 훅(`src/lib/interpretation.ts` 신규)으로
+    ThreadPage/MessagesWorkbench에 중복돼 있던 해석확인 오케스트레이션을 통합(후자는
+    210→194줄로 축소). `sessionStore`의 미사용 `memberships` 상태 필드 제거. CSV 템플릿
+    헤더 배열(`CSV_TEMPLATE_COLUMNS`)을 `csvUpload.ts`에 단일 소스로 옮겨
+    `CsvUploadWorkbench.tsx`의 인라인 중복 제거. `CaseWorkbench.tsx`의
+    `caseTimelineActivity()` 호출을 `useMemo`로 감싸 렌더마다 재계산되던 것 방지. backend
+    `test_api_auth.py`의 `_client_for(session)` 컨텍스트매니저로 테스트 클라이언트 생성
+    중복 제거 + `seeded_with_membership` 픽스처가 `seeded`에 제대로 의존하도록 수정.
+  - **버그 발견·수정(수정 과정에서)**: 실서버 검증용 `.env.local`이 vitest에도 새어 들어가는
+    문제(R2.1+2.2 항목에 기록)를 이번에 `config.ts`의 `import.meta.env.MODE !== 'test'`
+    가드로 근본 교정 — 이 가드 때문에 vitest 안에서는 `API_MODE`가 항상 mock으로 고정되는
+    부작용이 있어, real 모드 UI를 vitest로 검증하려던 `StepPhoneAuth.test.tsx` 신규 시도가
+    실패 — 그 테스트 파일은 삭제하고 `sessionStore.test.ts` 유닛 커버리지 + 브라우저
+    실검증으로 대체.
+  - **브라우저 실검증(real 모드, uvicorn 8000 + Vite 5173)**: 010-0000-0001로 O1 진행 →
+    코드 요청 후 전화번호 입력 `disabled` 확인(수정 4) → 오답 코드 입력 시
+    `POST /otp/verify → 401` 이후 화면에 원문 JSON이 아니라 "인증번호가 일치하지
+    않습니다"만 뜨는 것 확인(수정 3) → 정답 코드 입력 시 `POST /otp/verify → 200` 이후
+    **추가 `GET /me` 호출 없이** O2로 진행하며 "담당자"가 `aria-pressed=true`로 미리
+    선택된 것까지 네트워크 로그 + DOM으로 확인(수정 2 + 기존 O2 프리시드 로직의 라운드트립
+    없는 정상 동작 재확인).
+- 남은 일 / 중단 지점: R2.3(케이스/브리핑/스레드 read API)부터 — 결정할 것은 R2.1+2.2
+  항목에 이미 기록됨(바뀐 것 없음).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. `verifyOtp` 응답의 `memberships`가 role 파생의 유일한 소스다 — 앞으로 로그인 후 role을
+     다시 확인해야 하는 화면이 생겨도 별도 `GET /me`를 새로 부르지 말고 이미 있는
+     `verifyOtp`/`restore` 결과를 재사용한다(라운드트립 최소화가 이번 수정의 핵심 결정).
+  2. `config.ts`의 `MODE !== 'test'` 가드 때문에, real 모드 전용 UI 분기는 vitest로 직접
+     검증할 수 없다(항상 mock으로 렌더됨) — 이런 분기는 단위 테스트로 각 상태를 개별
+     검증하고, 통합 동작은 브라우저 실검증으로 확인하는 것이 이 프로젝트의 정착된 패턴이다.
+- verify 상태: PASS — backend `uv run pytest` 112/112, 프론트 `tsc --noEmit`/`npm run
+  lint`/`vite build` 전부 클린, `npx vitest run` 456/457(1건은 `CaseWorkbench.test.tsx`의
+  기존 문서화된 병렬부하 flake — 격리 재실행 12/12 통과로 회귀 아님 확인). 브라우저
+  실검증은 위 "한 일"에 기록.
+- 지도/규칙 갱신: 없음(이번 세션은 기존 R2.1+2.2 구현의 결함 수정만, 범위·설계 변경 없음).
+
+---
+
+### [2026-07-17] R2.1+2.2 — API 클라이언트 계층 · 인증 배선 — 완료 (중단 지점: R2.3부터)
+
+- 한 일: R0 PR(#14) 생성·푸시 직후, 사용자 지시로 R1을 건너뛰고 R2(백엔드 배선)로 바로 진행.
+  `plans/ROADMAP.md`에 R2 절 승격 후 2.1·2.2 구현(별도 브랜치 `r2-backend-wiring-auth`,
+  R0 브랜치 위에 스택 — R0가 아직 안 머지된 상태라 PR도 R0 브랜치를 base로 별도 생성 예정).
+  - **환경 확인**: 이 워크트리에 이미 살아있는 PostgreSQL 컨테이너(`oegobanjang-pg`, 포트
+    55432)가 `db/schema.sql` 스키마 + `seed_demo.sql` 데이터(6인 로스터, 3명 유저: 김담당
+    010-0000-0001/manager · 박주임 010-0000-0002/manager · 김대표 010-0000-0003/owner,
+    회사 그린푸드 제조)를 그대로 갖고 있었다 — alembic이 아니라 직접 psql로 적용된 상태라
+    `alembic_version`이 없어 첫 `alembic upgrade head`가 `DuplicateTable`로 실패, 데이터가
+    이미 스키마와 일치함을 확인 후 `alembic stamp head`로 비파괴 정합(재생성 아님). backend
+    pytest 107건 이 시점에 전부 PASS 확인.
+  - **2.1 API 클라이언트 계층**: `src/lib/api/config.ts`(`API_MODE` mock/real 플래그, 기본
+    mock) · `client.ts`(`apiFetch` 공용 래퍼, `ApiError`) · `auth.ts`(backend
+    snake_case↔프론트 camelCase 경계). `.env.example` 신설(문서용, 기본 mock).
+  - **2.2 인증 배선**: backend에 `GET /api/v1/auth/me`(세션 사용자 + 활성 멤버십) 신설(테스트
+    3건 추가, `MeResponse`/`MembershipOut` 스키마) — 프론트 `roleStore`가 새로고침 후에도
+    세션에서 role을 다시 파생할 최소 read endpoint가 없었기 때문. backend에 CORS
+    미들웨어(`Settings.cors_allow_origins`, 로컬 Vite 5173만 기본 허용)도 추가 — 브라우저
+    fetch가 다른 origin(8000)을 부르려면 필수였다(이전엔 pytest만 썼으니 안 드러난 갭).
+    프론트: `stores/sessionStore.ts`(세션 토큰만 localStorage 영속화 — themeStore와 동일한
+    수동 localStorage 관례, zustand persist 미들웨어 새로 안 들임) 신설. `StepPhoneAuth.tsx`를
+    real 모드에서만 분기(mock 모드는 원본 그대로 — 고정 전화번호 표시 + 6자리 길이만 게이트).
+    `OnboardingFlow.tsx`의 O2(역할 선택)는 real 모드일 때 세션이 이미 파생해 둔 role을
+    미리 선택해 둔다(그래도 확인/변경은 가능 — 강제 스킵은 아님). `main.tsx`에서 real 모드일
+    때 부팅 시 1회 `sessionStore.restore()` 호출.
+  - **브라우저 실검증(실제 backend + DB, mock 아님)**: 이 워크트리 안 uvicorn(8000)·Vite
+    dev(5173, `.env.local`로 `VITE_API_MODE=real`) 둘 다 띄운 뒤, 시드 계정
+    010-0000-0001(김담당)로 O1 로그인 — `POST /otp/request`(debug_code 수신)→
+    `POST /otp/verify`→`GET /me` 세 호출 전부 200, roleStore가 정확히 'manager'로 갱신되고
+    O2에서 "담당자"가 미리 선택됨을 확인. `/`로 이동 후 새로고침 → `GET /me`가 다시 호출되며
+    (하드코딩 기본값이 아니라) 세션이 실제로 복원됨을 네트워크 로그로 확인 — M-6 "새로고침 시
+    manager 복귀" 문제가 real 모드에서 해소됨을 증명.
+  - **버그 발견·수정**: 위 브라우저 검증용으로 만든 `.env.local`(`VITE_API_MODE=real`)이
+    `npx vitest run`에도 새어 들어가 mock 모드를 전제하는 `OnboardingFlow.test.tsx`가 깨지는
+    것을 발견 — Vite 공식 문서는 "mode==='test'에서는 `.env.local` 제외"라고 하지만 이
+    저장소의 vitest 실행 경로에서는 그 예외가 실제로 적용되지 않았다. `API_MODE` 계산에
+    `import.meta.env.MODE !== 'test'` 명시 가드를 추가해 근본 교정(`src/lib/api/config.ts`) —
+    앞으로 누가 실서버 검증용 `.env.local`을 만들어 둬도 테스트는 항상 mock으로 남는다.
+- 남은 일 / 중단 지점: R2.3(케이스/브리핑/스레드 read API 신설 + 프론트 스토어 동기화)부터
+  이어간다 — NEXT_ROADMAP 자체가 "세션 2~3개 분량"으로 예고한 가장 큰 태스크다. 2.3 전에
+  결정할 것: (a) backend에 어떤 모양의 read endpoint를 새로 만들지(케이스 하나씩 vs 목록
+  일괄, DB `cases` 테이블 컬럼 ↔ 프론트 `CaseCard` 필드 매핑을 먼저 표로 정리할 것 — 예를 들어
+  DB의 `cs_nguyen` 같은 `cs_` 접두 id vs 프론트의 `nguyen` bare id, DB seed의 `human_approved`
+  vs 프론트 mock의 `approval_pending`처럼 이미 서로 다른 시점 상태를 갖고 있다), (b)
+  caseStore/threadStore를 real 모드에서 어떻게 시딩할지(현재는 컨테이너 마운트 시
+  `CASE_CARDS.forEach(upsert)` 각본 시딩 — real 모드에선 이 시딩 자체를 건너뛰고 API 호출로
+  대체해야 한다).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. `API_MODE`(`src/lib/api/config.ts`)가 mock/real의 유일한 분기점이다 — 새 화면을 실서버에
+     연결할 때 이 플래그를 참조하는 지점을 반드시 하나로 유지한다(스토어 액션 시그니처는
+     그대로 두고, 액션 내부 구현만 mock/real로 가른다 — 지금 sessionStore가 그 패턴이다).
+  2. `.env.local`은 실서버 검증 후 삭제했다(이 세션 마감 시점) — 기본 `npm run dev`는 다시
+     mock 모드다. 실서버로 다시 켜려면 `.env.example`을 `.env.local`로 복사하고
+     `VITE_API_MODE=real`로 바꾼 뒤 `cd backend && uv run uvicorn app.main:app --port 8000`.
+  3. 로컬 PostgreSQL 컨테이너 `oegobanjang-pg`(포트 55432)는 이 세션 종료 후에도 계속
+     떠 있다(중지하지 않았다) — 다음 세션이 backend 작업을 이어가면 바로 쓸 수 있다.
+  4. `backend/app/api/v1/auth.py`의 `GET /me`는 `memberships[0]`만 본다(다회사 소속 사용자의
+     "현재 회사 선택" UI는 아직 없음) — 지금 시드 데이터는 전원 단일 회사 소속이라 문제
+     없지만, 멀티테넌트 사용자가 생기면 이 가정을 먼저 깨야 한다.
+- verify 상태: PASS — 프론트 `tsc --noEmit`/`npm run lint`/`npx vitest run`(443/443, 신규 19건:
+  api/client 6 + api/auth 4 + sessionStore 9)/`vite build` 전부 클린. backend `uv run
+  pytest`(110/110, 신규 3건: `/me` 성공·비활성 멤버십 제외·무인증 401) 클린. 브라우저 실검증은
+  위 "한 일"에 기록.
+- 지도/규칙 갱신: `plans/ROADMAP.md`(R2 절 신설, 2.1·2.2 ✅), `docs/ARCHITECTURE.md`(API
+  클라이언트 진입점 추가), `backend/README.md`(`/me` 엔드포인트·CORS·스코프 경계 갱신),
+  `.env.example`(신규).
+
+---
+
+### [2026-07-17] R0 — 부채 청산·문서 정합화(0.1~0.6) — 완료
+
+- 한 일: 사용자 지시로 `plans/NEXT_ROADMAP_2026-07-16.md`의 R0 전체(0.1~0.6)를 이번 세션에서
+  구현(R1 이후는 별도 세션에서 순차 진행하기로 확인). `plans/ROADMAP.md`에 R0 절로 승격 후
+  태스크 순서대로 진행:
+  - **0.1 문서 정합화(DOC-1~8)**: `AGENTS.md`·`README.md`·`CLAUDE.md`·`docs/DB_SCHEMA.md`·
+    `db/README.md`·`backend/README.md`·`docs/ARCHITECTURE.md`의 "루트 backend 없음" 서술을
+    실제 `backend/`(OTP 인증+세션, 승인 요청 생성+approve/reject, `decided_by_user_id`는
+    세션에서 도출)에 맞게 갱신 — backend 코드(`app/api/v1/auth.py`·`approvals.py`)를 직접
+    읽어 근거로 삼음. 수치 정합(테이블 33개, 검증 178건 — 코드/DDL 대조로 확인). 로스터
+    오기(`docs/MESSAGING_CHANNELS.md`의 구 5인 로스터 인용) 수정, `docs/SPEC_INDEX.md` 런엔진
+    경로 오기(`src/features/runs/`→`src/lib/`) 수정, `.github/pull_request_template.md`를
+    루트 MVP 우선 체크리스트로 재작성(legacy 전용 항목은 조건부로), 루트 `DESIGN.md`(이 프로젝트와
+    무관한 Toss 참고자료)를 `reference/DESIGN_TOSS_INSPIRATION.md`로 이관+주석. GLOSSARY.md
+    "expert 없음" 노트가 이미 낡았음을 확인해 `plans/ROADMAP.md` M4.7 절도 함께 정정.
+  - **0.2 버그 수정(B-1~4)**: B-1 반려 evidence id에 같은 actionId 내 반려 순번을 붙여
+    동일 사유 재반려가 유실되지 않게 함(`lib/approval.ts`) + 회귀 테스트. B-2·B-3
+    `mocks/threads.ts`의 dangling `caseId:'bayar'`(6인 로스터 치환 후 실제 caseId는
+    `batbayar`)를 바로잡고 `threadIdForCase`에 `batbayar` 매핑 추가 + 회귀 테스트
+    (`actionNav.test.tsx`). B-4 CSV "템플릿 다운로드" 죽은 버튼에 `downloadCsvTemplate()`
+    (data URI 앵커, jsdom에 없는 `URL.createObjectURL` 회피)를 연결 + 테스트 2건.
+  - **0.3 메시지 도메인 단일화(D-1)**: `mocks/messages.ts`(PC `MessagesWorkbench` 전용 독립
+    mock) 완전 삭제, `MessagesWorkbench`를 `threadStore`/`mocks/threads.ts` 기반으로 재작성
+    — 모바일과 완전히 같은 M6 해석확인 오케스트레이션(`confirmInterpretation`→
+    `applyInterpretationUpdates`→evidence `interpretation_confirmed`)을 쓴다(이전 PC 전용
+    코드는 독자적으로 `risk_review→approval_pending` 전이까지 했었는데, 모바일과 어긋나는
+    로직이라 제거). **버그 발견·수정**: 초기 선택 스레드를 `sortThreads(...)[0]`으로 매번
+    재계산했더니, 지금 보던 스레드의 해석을 확인해 정렬 순서가 바뀌는 순간 화면이 다른
+    스레드로 조용히 튀는 버그가 생겨 — 초기 선택을 마운트 시 한 번만 고정하도록 수정.
+  - **0.4 Badge→Chip 마무리(D-2)**: `ThreadListItem`·`InterpretationCard`를 Chip으로 전환,
+    `src/components/Badge.tsx`·`src/lib/badgeTone.ts` 삭제. **버그 발견**: 삭제된 Badge의
+    `pending`/`info` 톤은 tailwind.config.js에 대응 클래스가 아예 없어(v1→v2 토큰 전환 때
+    빠짐) 실제로는 무색으로 렌더되고 있었다 — `lib/threads.ts`의 `threadBadge()`가 이제
+    `ChipTone`을 직접 반환(둘 다 `approval`로 통일, rules/design.md §5 "승인 필요(정보)"
+    표기가 같은 톤인 것과 정합).
+  - **0.5 케이스 타임라인 스토어 승격(D-3)**: `lib/audit.ts`에 `caseTimelineActivity()` 신설
+    — 행정사 회신(`package_reply`)·해석 확인(`interpretation_confirmed`) evidence를
+    `CaseActivityEntry` 모양으로 변환해 `CASE_SHEETS.activity` 정적 목록 앞에 붙인다(실벽시계
+    vs 데모 고정 시각은 형식이 달라 비교 정렬하지 않음 — D-6 미해결과 동일한 우회, "발생
+    순서만" 봄). `CaseWorkbench.CaseTimeline`에 배선 + 회귀 테스트, 브라우저 실검증으로
+    "방금 · #4791 · 해석 확인 · …"이 정적 이력 위에 실시간으로 뜨는 것 확인.
+  - **0.6 파생 로직 통합(D-4, D-5)**: 정렬 중복(`lib/briefing.ts`의 `sortCards` vs
+    `lib/cases.ts`의 `sortCaseList`) 제거 — `sortCards`는 GOTCHAS §4가 요구하는 "유형
+    우선순위" 타이브레이크가 빠진 불완전판이었다, `sortCaseList`로 통일. docUpdates 오버레이
+    중복(`CaseReviewPage`/`CaseWorkbench`에 동일 코드 2벌) → `lib/cases.ts`
+    `applyDocUpdatesOverlay()`로 통합. EVIDENCE_SEED 병합 중복 3벌(`audit.ts`의
+    `mergedAuditLog`·`isCaseEscalated`, `CaseHistoryPage.tsx`) → `mergedAuditLog()` 하나로
+    통일(`CaseHistoryPage`는 생애주기 순서상 결과를 뒤집어 씀). **SEVERITY_LABEL 4중 중복
+    발견·수정**: `ControlTowerPage`·`StepBriefingReady`·`ApprovalCard`가 "긴급/높음/중간/낮음"을,
+    `CaseListScreen`은 "즉시/우선/확인/참고"를 각자 썼는데, `1단계_화면상태스펙_M1-M9_v1.md`
+    §0.2(전 화면 공통 배지 규칙)의 정본 표기는 "즉시 확인/우선 확인/확인 필요/참고"다 — 넷 다
+    스펙과 달랐다. `lib/chipTone.ts`에 `severityLabel()`로 통일. 부수 발견: `CaseListScreen`의
+    로컬 `SEVERITY_TONE`이 MEDIUM을 neutral로 잘못 둬 medium(주황) 톤이 적용 안 되고 있었다
+    — `severityTone()` 공용 함수로 교체해 같이 고침. **D-5(명명 규칙)는 리네임 비용 대비
+    효과가 낮다고 판단해 이번엔 미적용**(NEXT_ROADMAP 자체가 "선택 적용"으로 명시).
+- 남은 일 / 중단 지점: 없음(R0 전 항목 완료). R1(목 세계 플로우 완결)부터는 각 태스크를
+  착수 시 `plans/ROADMAP.md`에 개별 승격해서 진행한다 — 다음 세션은 R1.1(회사 프로필 슬롯)부터.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. `MessagesWorkbench`가 이제 `threadStore`를 직접 구독하므로, 스레드 도메인을 바꾸는
+     후속 작업(R1 이후)은 모바일·PC 양쪽에 자동 반영된다 — 더 이상 두 곳을 따로 고칠 필요 없음.
+  2. `severityLabel()`/`severityTone()`(`lib/chipTone.ts`)이 위험도 배지의 유일한 출처다 —
+     새 화면에서 severity Chip을 렌더할 땐 이 함수를 쓰고 로컬 Record를 새로 만들지 않는다.
+  3. `caseTimelineActivity()`(`lib/audit.ts`)에 반영되는 이벤트 타입은 현재
+     `interpretation_confirmed`·`package_reply` 2종뿐이다 — 케이스 타임라인에 노출할 새
+     이벤트 타입이 생기면 `CASE_TIMELINE_EVENT_TYPES`에 추가한다.
+  4. `mocks/messages.ts`는 완전히 삭제됐다 — 되살릴 필요 없음(threadStore/mocks/threads.ts가
+     유일한 메시지 도메인 소스).
+- verify 상태: PASS — `tsc --noEmit` 클린, `npm run lint` 클린, `npx vitest run` **424/424
+  통과**(순수 추가 3 - 제거 4 + 기존 425 = 424, 커버리지 손실 없음 — sortCards 테스트는
+  sortCaseList 쪽으로 이관), `vite build` 클린. 브라우저 실검증(데스크톱 1280×720): 메시지
+  워크벤치 해석 확인→케이스 상세 타임라인에 "방금" 항목 실시간 반영→docUpdates 오버레이
+  정상 표시→CSV 템플릿 다운로드 버튼 정상 동작까지 클릭 스루 확인.
+- 지도/규칙 갱신: `plans/ROADMAP.md`(R0 절 신설+전 항목 ✅), `plans/NEXT_ROADMAP_2026-07-16.md`
+  (R0 절에 완료 표시 + ROADMAP.md로 승격 안내), `docs/ARCHITECTURE.md`(메시지 도메인 통합
+  서술, DB 수치 정정, backend 존재 반영), `docs/GOTCHAS.md`·`rules/frontend.md`(Chip 표기
+  통일), `docs/MESSAGING_CHANNELS.md`(로스터 인용 정정), `docs/SPEC_INDEX.md`(런엔진 경로
+  정정), `AGENTS.md`·`README.md`·`CLAUDE.md`·`docs/DB_SCHEMA.md`·`db/README.md`·
+  `backend/README.md`(backend 존재 반영), `.github/pull_request_template.md`(루트 MVP 우선
+  재작성), `reference/DESIGN_TOSS_INSPIRATION.md`(신규, 루트에서 이관).
+
+---
+
 ### [2026-07-16] PR #7 ↔ main 병합 재구성 — 완료 (사고 수습 포함)
 - **사고 경위**: 이 브랜치(PR #7)와 main이 각자 독립적으로 메시지/스레드 기능을 다시 구현해
   merge conflict가 발생했다. 병합 계획을 세우려 돌린 "읽기 전용" 분석 Workflow의 서브에이전트

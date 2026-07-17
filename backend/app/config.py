@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     auth_pepper: str = INSECURE_DEFAULT_AUTH_PEPPER  # OTP/세션 토큰 해시 pepper — 배포 전 반드시 env로 교체
     rag_service_url: str = "http://localhost:8100"  # rag 서비스(내부 전용, plans/BACKEND_CONNECT.md 토폴로지)
     rag_service_timeout_seconds: float = 30.0
+    # R2.1 — 프론트(src/lib/api/)가 실서버 모드(VITE_API_MODE=real)에서 이 origin으로 호출한다.
+    # 로컬 Vite 기본 포트(5173)만 기본 허용 — 배포 시 실제 프론트 origin으로 교체한다.
+    cors_allow_origins: list[str] = ["http://localhost:5173"]
 
     @property
     def is_local(self) -> bool:

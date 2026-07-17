@@ -1,8 +1,5 @@
-"""POST /api/v1/briefings/generate — 데일리 브리핑 수동 트리거 (G6, rule-only·LLM 0회).
-
-스케줄러 연동은 후속 작업(plans/ROADMAP.md) — 지금은 인증된 사업장 멤버가 수동으로
-생성을 요청한다(citations·runs API와 동일한 테넌트 인가 패턴).
-"""
+"""briefings 엔드포인트 — GET /latest(R2.3, 최신 브리핑 조회) + POST /generate(G6, rule-only
+수동 트리거·스케줄러 연동은 후속 작업). 둘 다 citations·runs API와 동일한 테넌트 인가 패턴."""
 
 from __future__ import annotations
 
@@ -10,23 +7,40 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user_id
+from app.api.deps import get_current_membership, get_current_user_id
 from app.db.session import get_db
 from app.models.briefing import BriefingItem
 from app.models.case import Case
 from app.models.membership import Membership
-from app.schemas.briefing import BriefingGenerateRequest, BriefingItemOut, BriefingOut
+from app.schemas.briefing import (
+    BriefingGenerateOut,
+    BriefingGenerateRequest,
+    BriefingItemOut,
+    BriefingOut,
+)
 from app.services.briefing_service import generate_daily_briefing
+from app.services.briefings import get_latest_briefing_out
 
 router = APIRouter(prefix="/api/v1/briefings", tags=["briefings"])
 
 
-@router.post("/generate", response_model=BriefingOut)
+@router.get("/latest", response_model=BriefingOut)
+def get_latest_briefing(
+    membership: Membership = Depends(get_current_membership),
+    db: Session = Depends(get_db),
+) -> BriefingOut:
+    briefing = get_latest_briefing_out(db, membership.company_id)
+    if briefing is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "브리핑이 없습니다")
+    return briefing
+
+
+@router.post("/generate", response_model=BriefingGenerateOut)
 def create_briefing(
     request: BriefingGenerateRequest,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db),
-) -> BriefingOut:
+) -> BriefingGenerateOut:
     membership = db.execute(
         select(Membership).where(
             Membership.company_id == request.company_id,
@@ -51,7 +65,7 @@ def create_briefing(
         .order_by(BriefingItem.rank)
     ).all()
 
-    return BriefingOut(
+    return BriefingGenerateOut(
         id=briefing.id,
         company_id=briefing.company_id,
         briefing_date=briefing.briefing_date,

@@ -60,6 +60,13 @@ tokens:
     card: { type: card, bg: "#ffffff", radius: 16, use: "White surface with standard shadow" }
 ---
 
+> **이 문서는 외고반장의 디자인 시스템이 아니다.** Toss(토스) 앱의 디자인 언어를 조사한 참고 자료이며,
+> 이 프로젝트의 실제 디자인 시스템 정본은 [`rules/design.md`](../rules/design.md)(Montage/Wanted v2)다.
+> 과거 `reference/specs/` 문서 일부가 인용하는 "DESIGN.md(SOCAR)"는 이 파일과 무관한, 이미 지나간
+> v1 단계의 참조였다 — 그 인용은 해당 스펙 문서 작성 시점의 역사 기록이므로 고치지 않는다.
+> 2026-07-17 루트에서 이 경로로 이동(`plans/NEXT_ROADMAP_2026-07-16.md` DOC-6 — 루트에 있으면
+> `rules/design.md`와 혼동을 유발한다는 지적).
+
 # Design System Inspiration of Toss (토스)
 
 ## 1. Visual Theme & Atmosphere

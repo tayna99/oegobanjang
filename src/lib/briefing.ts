@@ -1,5 +1,7 @@
 // M1 브리핑 홈 순수 로직 — 1단계 스펙 §M1 "역할 분기(D1)"·"상태 5종 default"·
-// 탭별기획 §1.4 마이크로카피. 정렬·필터는 여기 한 곳에만(rules/frontend.md
+// 탭별기획 §1.4 마이크로카피. 정렬은 lib/cases.ts의 sortCaseList 하나로 통일했다(D-4,
+// NEXT_ROADMAP — 이 파일에 거의 동일한 sortCards가 별도로 있었고 "유형 우선순위" 타이브레이크가
+// 빠져 GOTCHAS §4 규칙과 어긋났다). 필터는 여기 한 곳에만(rules/frontend.md
 // "파생값은 selector로 — 컴포넌트에서 정렬·필터 로직 재구현 금지").
 import type { CaseCard, Role } from '@/types';
 
@@ -12,25 +14,6 @@ const HONORIFIC: Record<Role, string> = {
 export function greetingText(role: Role, count: number): string {
   if (count === 0) return '오늘 승인할 업무가 없습니다.';
   return `${HONORIFIC[role]}, 오늘 확인이 필요한 업무가 ${count}건 있습니다.`;
-}
-
-const SEVERITY_RANK: Record<CaseCard['severity'], number> = {
-  CRITICAL: 0,
-  HIGH: 1,
-  MEDIUM: 2,
-  LOW: 3,
-};
-
-// GOTCHAS §4 "시간·정렬은 deterministic: severity → dDay → 유형 우선순위 → id".
-export function sortCards(cards: CaseCard[]): CaseCard[] {
-  return [...cards].sort((a, b) => {
-    const bySeverity = SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity];
-    if (bySeverity !== 0) return bySeverity;
-    const aDay = a.dDay ?? Number.POSITIVE_INFINITY;
-    const bDay = b.dDay ?? Number.POSITIVE_INFINITY;
-    if (aDay !== bDay) return aDay - bDay;
-    return a.caseId.localeCompare(b.caseId);
-  });
 }
 
 // 1단계 스펙 §M1 "역할 분기(D1)": owner는 승인 필요 카드만, manager는 전부.

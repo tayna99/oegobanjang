@@ -3,7 +3,8 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { SafetyNotice } from '@/components/SafetyNotice';
 import { useNextAction } from '@/lib/actionNav';
-import { CASE_FILTERS, buildCaseGroups, caseGroupFor, filterCases, type CaseFilterPreset } from '@/lib/cases';
+import { caseTimelineActivity } from '@/lib/audit';
+import { CASE_FILTERS, applyDocUpdatesOverlay, buildCaseGroups, caseGroupFor, filterCases, type CaseFilterPreset } from '@/lib/cases';
 import { CASE_STAGES, DELIVERY_STAGES, caseStageIndex, deliveryStageIndex } from '@/lib/caseStage';
 import { severityTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
@@ -13,6 +14,7 @@ import { CASE_SHEETS, type CaseSheet } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
 import { useCaseStore } from '@/stores/caseStore';
 import { usableCitations } from '@/stores/citationStore';
+import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useRoleStore } from '@/stores/roleStore';
 import type { CaseCard, Severity } from '@/types';
 
@@ -242,14 +244,24 @@ function DraftPanel({ caseId }: { caseId: string }) {
 }
 
 function CaseTimeline({ sheet, onOpenRun }: { sheet: CaseSheet; onOpenRun?: (runRef: string) => void }) {
-  if (sheet.activity.length === 0 && !sheet.nextWake) return null;
+  // D-3(NEXT_ROADMAP): sheet.activity는 CASE_SHEETS 정적 데이터라 행정사 회신·해석 확인
+  // 같은 런타임 이벤트가 반영되지 않았다 — evidenceStore를 병합해 실시간으로 얹는다.
+  // 코드리뷰 효율 지적: caseTimelineActivity의 filter+map을 useMemo 없이 매 렌더 재계산하고
+  // 있었다 — CaseWorkbench의 검색어·선택 케이스 등 이 값과 무관한 상태가 바뀔 때도 다시
+  // 돌던 것을 막는다(evidenceStore 자체의 이벤트가 실제로 바뀌었을 때만 재계산).
+  const events = useEvidenceStore((s) => s.events);
+  const activity = useMemo(
+    () => caseTimelineActivity(sheet.caseId, sheet.activity, events),
+    [sheet.caseId, sheet.activity, events],
+  );
+  if (activity.length === 0 && !sheet.nextWake) return null;
   return (
     <section aria-label="케이스 타임라인" className="flex flex-col gap-2">
       <span className={RAIL_SECTION_TITLE}>케이스 타임라인</span>
-      {sheet.activity.length > 0 && (
+      {activity.length > 0 && (
         <ul className="overflow-hidden rounded-in border border-hairline">
-          {sheet.activity.map((entry) => (
-            <li key={entry.label} className="flex items-center gap-2.5 border-b border-hairline px-3 py-2 last:border-none">
+          {activity.map((entry) => (
+            <li key={`${entry.runRef ?? entry.label}-${entry.at}-${entry.detail}`} className="flex items-center gap-2.5 border-b border-hairline px-3 py-2 last:border-none">
               <span className="w-20 shrink-0 text-pc-2xs text-faint tabular-nums">{entry.at}</span>
               {/* 3.3 런 체이닝 — runRef가 있으면 재생 런으로 진입하는 버튼, 없으면 정적 텍스트 */}
               {entry.runRef &&
@@ -418,17 +430,8 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
   const docUpdates = useCaseStore((s) => (selected ? s.docUpdates[selected.caseId] : undefined));
   const baseSheet = selected ? CASE_SHEETS[selected.caseId] : undefined;
   // 해석 확인(caseStore.applyInterpretationUpdates)이 남긴 docUpdates를 문서 상태 라벨에
-  // 오버레이한다 — CaseReviewPage(모바일)와 동일 규칙(§2.2).
-  const sheet = useMemo(() => {
-    if (!baseSheet) return undefined;
-    if (!docUpdates || !baseSheet.docs) return baseSheet;
-    return {
-      ...baseSheet,
-      docs: baseSheet.docs.map((doc) =>
-        docUpdates[doc.name] ? { ...doc, statusLabel: docUpdates[doc.name].to } : doc,
-      ),
-    };
-  }, [baseSheet, docUpdates]);
+  // 오버레이한다 — CaseReviewPage(모바일)와 공유하는 selector(lib/cases.ts, D-4).
+  const sheet = useMemo(() => applyDocUpdatesOverlay(baseSheet, docUpdates), [baseSheet, docUpdates]);
   // GOTCHAS §2 근거 품질 게이트 — CaseSheet와 동일한 잠금 규칙.
   // F등급(합성 데이터)은 근거로 세지 않는다(§3c 각주 비준, 2.5.4b).
   const citationLocked = sheet ? usableCitations(sheet.citations).length === 0 : true;

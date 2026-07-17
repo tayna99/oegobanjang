@@ -33,6 +33,22 @@ export function severityTone(severity: Severity): ChipTone {
   return SEVERITY_TONE[severity];
 }
 
+// D-4(NEXT_ROADMAP): 위험도 배지 표기가 화면 4곳(ControlTowerPage·StepBriefingReady·
+// ApprovalCard·CaseListScreen)에 각자 재정의돼 있었고 표기도 서로 달랐다("긴급"/"높음"/
+// "중간"/"낮음" vs "즉시"/"우선"/"확인"/"참고"). 1단계_화면상태스펙_M1-M9_v1.md §0.2
+// "배지 색 규칙(전 화면 공통)"의 위험도 배지 표기가 정본이다 — 그 문구 그대로 통일한다
+// (rules/design.md §8 "마이크로카피는 스펙 문장을 그대로 복사 — 창작 금지").
+const SEVERITY_LABEL: Record<Severity, string> = {
+  CRITICAL: '즉시 확인',
+  HIGH: '우선 확인',
+  MEDIUM: '확인 필요',
+  LOW: '참고',
+};
+
+export function severityLabel(severity: Severity): string {
+  return SEVERITY_LABEL[severity];
+}
+
 const APPROVAL_STATUS_TONE: Record<ApprovalStatus, ChipTone> = {
   pending: 'approval',
   approved: 'positive',

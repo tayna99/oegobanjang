@@ -1,11 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { BackHeader } from '@/components/BackHeader';
 import { Button } from '@/components/Button';
 import { useNav } from '@/lib/nav';
+import { mergedAuditLogAscending } from '@/lib/audit';
 import { cn } from '@/lib/cn';
-import { CASE_CARDS } from '@/mocks/fixtures';
-import { EVIDENCE_SEED } from '@/mocks/evidence';
+import { useSeedCases } from '@/lib/dataSeed';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import type { EvidenceEvent } from '@/types';
@@ -27,22 +27,18 @@ export function CaseHistoryPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
   const events = useEvidenceStore((s) => s.events);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const card = caseId ? cases[caseId] : undefined;
 
   const nodes = useMemo(() => {
-    // 표시용 병합: 오늘 아침 시드(앱 열기 전 기록, 예: 승인 요청 생성 #4789) + 런타임 이벤트.
-    // 스토어 자체는 비어 시작한다 — 시드 상주는 M8 전역 판단 기록(2.3)의 몫.
-    const seedIds = new Set(events.map((event) => event.id));
-    const combined = [...EVIDENCE_SEED.filter((event) => !seedIds.has(event.id)), ...events];
+    // 표시용 병합은 lib/audit.ts 하나로 통일했다(D-4, NEXT_ROADMAP — 이 병합 로직이 audit.ts의
+    // isCaseEscalated와 함께 3곳에 중복돼 있었다). 이 타임라인은 생애주기 순(오래된 것
+    // 먼저)이 필요해 mergedAuditLog(최신순)를 reverse()하지 않고 오름차순 변형을 바로
+    // 쓴다 — reverse()는 안정 정렬이 보존한 동시각 이벤트의 tie 순서까지 뒤집는다(코드리뷰 지적).
+    const combined = mergedAuditLogAscending(events);
     const lifecycle = combined
       .filter((event) => event.caseId === caseId && NODE_LABEL[event.type])
       .map((event) => ({

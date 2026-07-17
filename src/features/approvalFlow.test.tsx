@@ -140,6 +140,37 @@ describe('M2.6 approval funnel', () => {
     expect(useCaseStore.getState().cases.nguyen.state).toBe('human_approved');
   });
 
+  // NEXT_ROADMAP B-1 회귀: 같은 사유로 반려→재검토→재반려해도 두 번째 반려 기록이 유실되지 않는다.
+  it('같은 사유로 두 번 반려해도 반려 evidence가 각각 남는다', async () => {
+    const router = createMemoryRouter(routeConfig, { initialEntries: ['/case/nguyen/approve'] });
+    render(<RouterProvider router={router} />);
+    await screen.findByRole('heading', { name: '최종 승인' });
+    fireEvent.change(screen.getByRole('textbox', { name: '의견 / 반려 사유' }), {
+      target: { value: '초안 톤 수정 필요' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '반려하기' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
+    expect(
+      useEvidenceStore.getState().events.filter((e) => e.type === 'approval_rejected').length,
+    ).toBe(1);
+
+    // 재검토(returned→approval_pending) 후 같은 사유로 다시 반려.
+    router.navigate('/case/nguyen');
+    await screen.findByRole('heading', { name: '사례 검토' });
+    fireEvent.click(screen.getByRole('button', { name: '검토 계속' }));
+    await screen.findByRole('heading', { name: '최종 승인' });
+    fireEvent.change(screen.getByRole('textbox', { name: '의견 / 반려 사유' }), {
+      target: { value: '초안 톤 수정 필요' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '반려하기' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
+
+    expect(useCaseStore.getState().cases.nguyen.state).toBe('returned');
+    expect(
+      useEvidenceStore.getState().events.filter((e) => e.type === 'approval_rejected').length,
+    ).toBe(2); // 수정 전에는 id 충돌로 1건에서 멈췄다.
+  });
+
   // 코드리뷰 A2/B3/F3 회귀: 고위험 blocked 케이스는 앱에서 승인 불가(전달 전용).
   it('고위험(기한 경과) 케이스는 검토 계속 대신 행정사 전달 준비만, 승인 화면에서도 승인 불가', async () => {
     const router = createMemoryRouter(routeConfig, { initialEntries: ['/case/batbayar'] });
