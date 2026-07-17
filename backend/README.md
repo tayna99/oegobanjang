@@ -47,6 +47,7 @@ uv run pytest
 |---|---|---|
 | POST | `/api/v1/auth/otp/request` | 전화번호로 OTP 요청(로컬 환경에서만 `debug_code` 응답에 포함) |
 | POST | `/api/v1/auth/otp/verify` | OTP 검증 → 세션 토큰 발급 |
+| GET | `/api/v1/auth/me` | 세션 사용자 + 활성 멤버십(회사별 역할) 조회(R2.2 — 프론트 roleStore가 새로고침 후에도 세션에서 role을 다시 파생) |
 | POST | `/api/v1/auth/logout` | 세션 폐기(멱등 — 이미 무효한 토큰도 204) |
 | POST | `/api/v1/approvals` | 승인 요청 생성(`action_id` 기준) |
 | POST | `/api/v1/approvals/{approval_id}/approve` | 승인 결정 — 게이트 강제(citation-0 잠금·본인확인·high risk handoff 전용·manager 정책 등) |
@@ -81,7 +82,7 @@ app/
   services/approvals.py    승인 요청·결정 트랜잭션 — 게이트·FOR UPDATE·전이·evidence append
   services/auth.py         OTP 발급/검증, 세션 발급/조회/폐기
   api/v1/approvals.py      라우터 — 도메인 예외 → HTTP 상태 매핑, batch 엔드포인트 없음
-  api/v1/auth.py           라우터 — OTP 요청/검증/로그아웃
+  api/v1/auth.py           라우터 — OTP 요청/검증/me/로그아웃
   api/deps.py              get_current_user_id — Bearer 세션 토큰에서 신원 도출
 migrations/
   versions/0001_p1_core_schema.py   유일한 리비전 — db/schema.sql을 그대로 적용
@@ -95,10 +96,13 @@ tests/
 
 ## 알려진 스코프 경계 (의도적)
 
-- 인증·세션 관리(OTP + Bearer 세션 토큰)와 승인 "요청" 생성 엔드포인트(`POST /api/v1/approvals`)는
-  구현돼 있다 — `decided_by_user_id`는 요청 바디가 아니라 세션에서 도출된다.
+- 인증·세션 관리(OTP + Bearer 세션 토큰 + 세션·멤버십 조회 `GET /me`)와 승인 "요청" 생성
+  엔드포인트(`POST /api/v1/approvals`)는 구현돼 있다 — `decided_by_user_id`는 요청 바디가
+  아니라 세션에서 도출된다.
 - `checklist`(M2.6 §2c)·delegation(위임) 흐름은 게이트/트리거는 있으나 그것을 채우는 화면/엔드포인트가
   아직 없다 — **위임 유효성 검증은 아직 구현되지 않았다**(`docs/DB_SCHEMA.md` §13-10 미결, `plans/ROADMAP.md` R2.4).
 - API 라우터는 인증·승인까지만 — 케이스 목록/상세·브리핑·메시지 등 read API는 화면이 백엔드에 붙는
   순서대로 추가한다(`plans/ROADMAP.md` R2.3).
-- 프론트(`src/`)는 아직 이 backend를 호출하지 않는다(fetch 0건) — 프론트 배선은 별도 마일스톤이다.
+- 프론트(`src/lib/api/`)는 R2.1~2.2(인증)까지 배선됐다 — `VITE_API_MODE=real`일 때만 이 backend를
+  호출한다(기본값 mock, `src/lib/api/config.ts`). 케이스/브리핑/스레드/승인/evidence 배선은
+  R2.3~2.6에서 순차 진행한다(`plans/ROADMAP.md`).

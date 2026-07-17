@@ -1,27 +1,26 @@
 import { useEffect } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/Button';
+import { useConfirmInterpretation } from '@/lib/interpretation';
 import { useNav } from '@/lib/nav';
 import { ROUTES } from '@/lib/routes';
 import { THREADS } from '@/mocks/threads';
-import { useCaseStore } from '@/stores/caseStore';
-import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useThreadStore } from '@/stores/threadStore';
 import type { MessageThread } from '@/types';
 import { ThreadScreen } from './ThreadScreen';
 import type { ThreadViewState } from './ThreadScreen';
 
-// 컨테이너 — 스토어 시딩·조회 + onConfirm 오케스트레이션만. 화면 렌더는 ThreadScreen(프레젠테이션)
-// 몫(CaseListPage.tsx/MessagesPage.tsx와 동일한 컨테이너/프레젠테이션 분리 패턴).
+// 컨테이너 — 스토어 시딩·조회만. 화면 렌더는 ThreadScreen(프레젠테이션) 몫(CaseListPage.tsx/
+// MessagesPage.tsx와 동일한 컨테이너/프레젠테이션 분리 패턴). 해석 확인 오케스트레이션은
+// lib/interpretation.ts의 useConfirmInterpretation 공유 훅 몫(MessagesWorkbench와 공유,
+// 코드리뷰 reuse 지적으로 통합).
 // 탭별기획 §3.3 3분기: (1) 승인 대기 초안 → M3 직행 (2) 응답 도착 → M6 (3) 완료 → 타임라인.
 export function ThreadPage() {
   const { threadId } = useParams<{ threadId: string }>();
   const nav = useNav();
   const threads = useThreadStore((s) => s.threads);
   const upsert = useThreadStore((s) => s.upsert);
-  const confirmInterpretation = useThreadStore((s) => s.confirmInterpretation);
-  const applyInterpretationUpdates = useCaseStore((s) => s.applyInterpretationUpdates);
-  const appendEvidence = useEvidenceStore((s) => s.append);
+  const confirmInterpretationFor = useConfirmInterpretation();
 
   useEffect(() => {
     if (Object.keys(useThreadStore.getState().threads).length === 0) {
@@ -52,24 +51,10 @@ export function ThreadPage() {
   // 매번 undefined 가능성을 따지지 않게 한다(TS는 중첩 함수로는 좁힌 타입을 들고 가지 않는다).
   const activeThread: MessageThread = thread;
 
-  function handleConfirm(updateIds: string[]) {
-    // 이중 클릭 방지: 현재 스토어 상태를 다시 확인해 pending_review가 아니면 아무것도 하지 않는다
-    // (버튼이 timeline 모드 전환으로 사라지는 것과 별개로, 동일 틱 안의 재호출도 여기서 막는다).
-    const current = useThreadStore.getState().threads[activeThread.threadId];
-    if (!current || current.interpretationStatus !== 'pending_review') return;
-
-    const interpretation = confirmInterpretation(activeThread.threadId, updateIds);
-    applyInterpretationUpdates(interpretation.caseId, interpretation.updates);
-    appendEvidence({
-      id: `${interpretation.interpretationId}-confirmed`,
-      type: 'interpretation_confirmed',
-      at: new Date().toISOString(),
-      caseId: interpretation.caseId,
-      evidenceRef: interpretation.evidenceRef,
-      // 근로자 원문을 절대 포함하지 않는 요약 문장만 — confirmedSummary가 Evidence summary와
-      // 동일해야 한다는 계약(types.ts 주석)을 그대로 따른다.
-      summary: interpretation.confirmedSummary ?? interpretation.summaryKo,
-    });
+  // ThreadScreen(InterpretationCard)이 항상 "전체 updates"를 넘기므로 인자는 훅 내부에서
+  // 스토어 최신 상태로부터 다시 계산한다 — 시그니처는 ThreadScreen 계약 유지용으로 남긴다.
+  function handleConfirm() {
+    confirmInterpretationFor(activeThread.threadId);
   }
 
   let state: ThreadViewState;

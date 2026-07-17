@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://oegobanjang:oegobanjang@localhost:55432/oegobanjang"
     environment: str = "local"
     auth_pepper: str = INSECURE_DEFAULT_AUTH_PEPPER  # OTP/세션 토큰 해시 pepper — 배포 전 반드시 env로 교체
+    # R2.1 — 프론트(src/lib/api/)가 실서버 모드(VITE_API_MODE=real)에서 이 origin으로 호출한다.
+    # 로컬 Vite 기본 포트(5173)만 기본 허용 — 배포 시 실제 프론트 origin으로 교체한다.
+    cors_allow_origins: list[str] = ["http://localhost:5173"]
 
     @property
     def is_local(self) -> bool:

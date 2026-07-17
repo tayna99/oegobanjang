@@ -68,8 +68,11 @@ export function validateRows(rows: CsvRow[]): ValidatedCsvRow[] {
   });
 }
 
-// CSV 양식 안내(CsvUploadWorkbench aside)와 동일한 5개 컬럼 — 헤더만 담은 빈 템플릿.
-export const CSV_TEMPLATE_HEADER = '이름,국적,팀,체류만료일 (YYYY-MM-DD),외국인등록번호';
+// CSV 양식 안내(CsvUploadWorkbench aside)와 다운로드 템플릿이 공유하는 단일 소스 — 코드리뷰
+// 지적: 이전엔 이 5개 컬럼을 화면(JSX 배열)과 여기(문자열) 두 곳에 각자 하드코딩해, 컬럼이
+// 추가·변경될 때 한쪽만 고치면 조용히 어긋날 수 있었다.
+export const CSV_TEMPLATE_COLUMNS = ['이름', '국적', '팀', '체류만료일 (YYYY-MM-DD)', '외국인등록번호'] as const;
+export const CSV_TEMPLATE_HEADER = CSV_TEMPLATE_COLUMNS.join(',');
 const CSV_TEMPLATE_FILENAME = '근로자_등록_템플릿.csv';
 
 // NEXT_ROADMAP B-4: "템플릿 다운로드" 버튼에 onClick이 없어 죽은 버튼이었다 — 실제 파일

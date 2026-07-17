@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/Button';
+import { API_MODE } from '@/lib/api/config';
 import { useNav } from '@/lib/nav';
 import { useOnboardingActions } from '@/lib/onboarding';
 import { useRoleStore } from '@/stores/roleStore';
@@ -36,11 +37,13 @@ const DEFAULT_WORKER_FIELDS: WorkerFields = {
 export function OnboardingFlow() {
   const nav = useNav();
   const setRole = useRoleStore((s) => s.setRole);
+  const sessionRole = useRoleStore((s) => s.role);
   const { completeOnboarding } = useOnboardingActions();
 
   const [step, setStep] = useState<OnboardingStep>('o1');
   const [codeConfirmed, setCodeConfirmed] = useState(false);
   const [role, setRoleLocal] = useState<Role | null>(null);
+
   const [companyFields, setCompanyFields] = useState(DEFAULT_COMPANY_FIELDS);
   const [workerPath, setWorkerPath] = useState<WorkerPath>('direct');
   const [workerFields, setWorkerFields] = useState(DEFAULT_WORKER_FIELDS);
@@ -52,11 +55,13 @@ export function OnboardingFlow() {
   const showProgress = step !== 'o5load' && step !== 'o5done';
   const showCta = step !== 'o5load';
 
+  // real 모드에서는 O2가 읽기 전용 확인 화면이라(서버 멤버십이 이미 role을 정함) 고를 게
+  // 없다 — 항상 진행 가능. mock 모드는 기존대로 실제 선택 여부로 게이트한다.
   const canProceed =
     step === 'o1'
       ? codeConfirmed
       : step === 'o2'
-        ? role !== null
+        ? API_MODE === 'real' || role !== null
         : step === 'o3'
           ? Object.values(companyFields).every((v) => v.trim().length > 0)
           : step === 'o4'
@@ -70,9 +75,13 @@ export function OnboardingFlow() {
   const ctaLabel = step === 'o4' ? '등록하고 브리핑 만들기' : step === 'o5done' ? '오늘 브리핑 보기' : '다음';
 
   const onCta = () => {
-    if (step === 'o2' && role) setRole(role);
+    // 코드리뷰 지적(PR #15 P1): real 모드에서 이 화면이 선택 가능했을 때, 서버 멤버십으로
+    // 이미 확정된 role을 사용자가 O2에서 골라 roleStore에 그대로 덮어쓸 수 있었다(viewer는
+    // 선택지에도 없어 manager/owner로 자기 승급하는 경로였다) — real 모드에서는 이 화면이
+    // 읽기 전용이라 role이 애초에 바뀌지 않으므로, mock 모드에서만 로컬 선택을 커밋한다.
+    if (step === 'o2' && API_MODE !== 'real' && role) setRole(role);
     if (step === 'o4') {
-      completeOnboarding(role ?? 'manager');
+      completeOnboarding(API_MODE === 'real' ? sessionRole : (role ?? 'manager'));
       goNext(); // o4 → o5load
       return;
     }
@@ -104,7 +113,13 @@ export function OnboardingFlow() {
 
       <main className="flex flex-1 flex-col overflow-y-auto px-5 pt-2 pb-4">
         {step === 'o1' && <StepPhoneAuth onCodeConfirmedChange={setCodeConfirmed} />}
-        {step === 'o2' && <StepRole role={role} onRoleChange={setRoleLocal} />}
+        {step === 'o2' && (
+          <StepRole
+            role={API_MODE === 'real' ? sessionRole : role}
+            onRoleChange={setRoleLocal}
+            readOnly={API_MODE === 'real'}
+          />
+        )}
         {step === 'o3' && <StepCompany fields={companyFields} onFieldsChange={setCompanyFields} />}
         {step === 'o4' && (
           <StepFirstWorker
