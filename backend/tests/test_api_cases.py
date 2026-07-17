@@ -122,6 +122,46 @@ def test_list_cases_excludes_other_company_cases(client, seeded):
     assert "cs_other" not in ids
 
 
+def test_list_cases_exposes_pending_approval_id_when_one_exists(client, seeded):
+    seeded.execute(text("""
+        INSERT INTO cases
+          (id, company_id, case_code, worker_id, case_type, title, severity, state, due_date, prepared_by)
+        VALUES
+          ('cs1','cmp1','case_001','w1','visa_expiry','비자 만료 D-30','HIGH','approval_pending','2026-08-09','rule');
+        INSERT INTO next_actions
+          (id, company_id, case_id, kind, action_type, label, state, requires_approval, slot)
+        VALUES
+          ('act_p','cmp1','cs1','approve','send_message','메시지 승인 요청','ready',true,'primary');
+        INSERT INTO approvals (id, company_id, case_id, action_id, status, requested_by_actor, requested_at)
+        VALUES ('apv1','cmp1','cs1','act_p','pending','agent', now());
+    """))
+    seeded.flush()
+
+    resp = client.get("/api/v1/cases", headers=_auth_header(seeded))
+    assert resp.status_code == 200, resp.text
+    case = next(c for c in resp.json() if c["id"] == "cs1")
+    assert case["primary_action"]["pending_approval_id"] == "apv1"
+
+
+def test_list_cases_pending_approval_id_is_null_when_none_pending(client, seeded):
+    seeded.execute(text("""
+        INSERT INTO cases
+          (id, company_id, case_code, worker_id, case_type, title, severity, state, due_date, prepared_by)
+        VALUES
+          ('cs1','cmp1','case_001','w1','visa_expiry','비자 만료 D-30','HIGH','risk_review','2026-08-09','rule');
+        INSERT INTO next_actions
+          (id, company_id, case_id, kind, action_type, label, state, requires_approval, slot)
+        VALUES
+          ('act_p','cmp1','cs1','draft','request_document','서류 요청 초안','ready',false,'primary');
+    """))
+    seeded.flush()
+
+    resp = client.get("/api/v1/cases", headers=_auth_header(seeded))
+    assert resp.status_code == 200, resp.text
+    case = next(c for c in resp.json() if c["id"] == "cs1")
+    assert case["primary_action"]["pending_approval_id"] is None
+
+
 def test_list_cases_handles_case_without_worker_or_actions(client, seeded):
     seeded.execute(text("""
         INSERT INTO cases (id, company_id, case_code, case_type, title, severity, state, prepared_by)

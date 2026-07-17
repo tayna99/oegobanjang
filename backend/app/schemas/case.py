@@ -28,6 +28,9 @@ class NextActionOut(BaseModel):
     state: str
     requires_approval: bool
     kind: str
+    # 이 액션에 걸린 pending 승인의 id(R2.4) — 없으면 아직 승인 요청이 생성되지 않은 것.
+    # 프론트가 POST /approvals로 새로 만들지, 이미 있는 이 id로 바로 결정할지 판단하는 근거.
+    pending_approval_id: str | None = None
 
 
 class CaseOut(BaseModel):

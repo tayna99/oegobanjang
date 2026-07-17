@@ -19,6 +19,7 @@ from app.domain.auth_exceptions import (
 )
 from app.models.user import User
 from app.schemas.auth import (
+    DelegatedByOut,
     MembershipOut,
     MeResponse,
     OtpRequestRequest,
@@ -27,7 +28,7 @@ from app.schemas.auth import (
     OtpVerifyResponse,
     SessionUserOut,
 )
-from app.services.auth import get_active_membership, request_otp, revoke_session, verify_otp
+from app.services.auth import get_active_membership, get_delegated_by, request_otp, revoke_session, verify_otp
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -73,9 +74,13 @@ def get_me(
     실제 역할을 파생시키는 유일한 근거(NEXT_ROADMAP 2.2)."""
     user = db.get(User, current_user_id)
     membership = get_active_membership(db, current_user_id)
+    delegated_by = (
+        get_delegated_by(db, membership.company_id, current_user_id) if membership is not None else []
+    )
     return MeResponse(
         user=SessionUserOut.model_validate(user),
         membership=MembershipOut.model_validate(membership) if membership else None,
+        delegated_by=[DelegatedByOut(user_id=uid, name=name) for uid, name in delegated_by],
     )
 
 

@@ -161,6 +161,30 @@ def test_me_returns_user_and_active_membership(client, seeded):
     data = resp.json()
     assert data["user"]["id"] == "u1"
     assert data["membership"] == {"company_id": "cmp1", "role": "manager"}
+    assert data["delegated_by"] == []
+
+
+def test_me_exposes_active_delegations(client, seeded):
+    """R2.4 — 로그인 사용자(u1, manager)가 대리 승인할 수 있는 owner가 delegated_by에 나온다."""
+    seeded.execute(text("""
+        INSERT INTO companies (id, name, approval_policy) VALUES ('cmp1','테스트','owner_only');
+        INSERT INTO users (id, phone, name, terms_agreed_at) VALUES ('u_owner','010-2222-0001','김대표', now());
+        INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
+          ('m1','cmp1','u1','manager','active'),
+          ('m2','cmp1','u_owner','owner','active');
+        INSERT INTO delegations (id, company_id, delegator_user_id, delegate_user_id, scope, starts_at, ends_at)
+        VALUES ('del1','cmp1','u_owner','u1','approval', now() - interval '1 day', now() + interval '1 day');
+    """))
+    seeded.flush()
+
+    req = client.post("/api/v1/auth/otp/request", json={"phone": "010-1111-0001"})
+    code = req.json()["debug_code"]
+    verify = client.post("/api/v1/auth/otp/verify", json={"phone": "010-1111-0001", "code": code})
+    token = verify.json()["session_token"]
+
+    resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["delegated_by"] == [{"user_id": "u_owner", "name": "김대표"}]
 
 
 def test_me_without_membership_returns_null(client):

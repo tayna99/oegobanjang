@@ -11,6 +11,7 @@ import datetime as dt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.approval import Approval
 from app.models.case import Case, NextAction
 from app.models.worker import Worker
 from app.schemas.case import CaseOut, NextActionOut, WorkerRefOut
@@ -19,15 +20,26 @@ from app.schemas.case import CaseOut, NextActionOut, WorkerRefOut
 _SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 
 
-def _next_action_out(next_action: NextAction | None) -> NextActionOut | None:
+def _next_action_out(db: Session, company_id: str, next_action: NextAction | None) -> NextActionOut | None:
     if next_action is None:
         return None
+    # ux_approvals_one_pending 부분 유니크 인덱스를 그대로 타는 저비용 단건 조회(R2.4) —
+    # 프론트가 이 액션의 기존 pending 승인 id를 알아낼 방법이 없어 재차 생성 시도(409)로
+    # 막히던 것을 여기서 해소한다.
+    pending_approval_id = db.execute(
+        select(Approval.id).where(
+            Approval.company_id == company_id,
+            Approval.action_id == next_action.id,
+            Approval.status == "pending",
+        )
+    ).scalar_one_or_none()
     return NextActionOut(
         action_id=next_action.id,
         label=next_action.label,
         state=next_action.state,
         requires_approval=next_action.requires_approval,
         kind=next_action.kind,
+        pending_approval_id=pending_approval_id,
     )
 
 
@@ -70,8 +82,8 @@ def get_case_out(db: Session, company_id: str, case: Case) -> CaseOut:
         prepared_by=case.prepared_by,
         prepared_run_id=case.prepared_run_id,
         worker=WorkerRefOut.model_validate(worker) if worker is not None else None,
-        primary_action=_next_action_out(primary),
-        secondary_action=_next_action_out(secondary),
+        primary_action=_next_action_out(db, company_id, primary),
+        secondary_action=_next_action_out(db, company_id, secondary),
     )
 
 

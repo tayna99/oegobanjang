@@ -22,6 +22,7 @@ from app.domain.auth_exceptions import (
 )
 from app.domain.auth_tokens import generate_otp_code, generate_session_token, hash_secret, secrets_match
 from app.models.auth import LoginOtp, UserSession
+from app.models.delegation import Delegation
 from app.models.membership import Membership
 from app.models.user import User
 
@@ -129,6 +130,26 @@ def get_active_membership(db: Session, user_id: str) -> Membership | None:
         .order_by(Membership.created_at)
         .limit(1)
     ).scalar_one_or_none()
+
+
+def get_delegated_by(db: Session, company_id: str, user_id: str) -> list[tuple[str, str]]:
+    """R2.4 — user_id가 회사 내에서 대리 승인할 수 있는 owner들의 (id, name) 목록.
+    app.services.approvals.decide_approval이 검증하는 조건(scope='approval', 활성, 기간 내)과
+    동일 — 여기는 프론트가 UI에 보여줄 후보를 노출하는 용도(결정 시점 검증은 아니다)."""
+    now = dt.datetime.now(dt.timezone.utc)
+    rows = db.execute(
+        select(User.id, User.name)
+        .join(Delegation, Delegation.delegator_user_id == User.id)
+        .where(
+            Delegation.company_id == company_id,
+            Delegation.delegate_user_id == user_id,
+            Delegation.scope == "approval",
+            Delegation.revoked_at.is_(None),
+            Delegation.starts_at <= now,
+            Delegation.ends_at >= now,
+        )
+    ).all()
+    return [(row.id, row.name) for row in rows]
 
 
 def revoke_session(db: Session, raw_token: str) -> None:
