@@ -47,14 +47,14 @@ def test_happy_path_visa_intent_flows_to_final_response() -> None:
 
 
 def test_unregistered_mission_falls_back_to_rag_answer_with_explicit_flag() -> None:
-    # m1_workforce는 G5에서 등록 예정 — 그때까지 조용한 폴백 금지 계약 검증
-    state = _run("E-9 추가 채용 가능한지 확인")
+    # briefing 미션은 backend(G6, rule-only) 소관이라 그래프에 미등록 — 조용한 폴백 금지 계약 검증
+    state = _run("오늘 위험 브리핑 정리해")
 
-    assert state["route"]["mission"] == "m1_workforce"
+    assert state["route"]["mission"] == "briefing"
     result = state["mission_results"][0]
     assert result["mission"] == "rag_answer"
     assert "MISSION_NOT_IMPLEMENTED" in result["risk_flags"]
-    assert result["requested_mission"] == "m1_workforce"
+    assert result["requested_mission"] == "briefing"
 
 
 def test_forbidden_input_terms_short_circuit_before_any_retrieval() -> None:
