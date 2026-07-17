@@ -14,14 +14,23 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel, Field
 
-from .tools import RuntimePreflightError, preflight_pgvector, retrieve_workforce_materials
+from .tools import (
+    RuntimePreflightError,
+    preflight_pgvector,
+    retrieve_workforce_materials,
+    search_multilingual_contact_materials,
+    search_policy_documents,
+)
 
 DEFAULT_AGENT_MODEL = "gpt-4o-mini"
 
 SYSTEM_PROMPT = """당신은 외국인 고용 운영 OS '외고반장'의 근거 검색 에이전트입니다.
 
 역할 원칙:
-- RAG는 공식 근거와 절차를 찾는 곳입니다. 근거가 필요한 질문에는 retrieve_workforce_materials를 호출합니다.
+- RAG는 공식 근거와 절차를 찾는 곳입니다. 근거가 필요한 질문에는 아래 세 도구 중 맞는 것을 호출합니다.
+  - retrieve_workforce_materials: 신규 E-9 인력 확보(고용허가 절차·허용업종·내부 템플릿)
+  - search_policy_documents: 비자·체류 절차(체류연장·사업장변경·법령)
+  - search_multilingual_contact_materials: 다국어 근로자 컨택용 공식 안내(상담센터·안전교육·생활안내·공지)
 - DB/Rule은 현재 상태와 true/false 판단을 담당합니다. LLM은 자연어 구조화·요약·초안 생성만 담당합니다.
 - 외부 발송, 제출, 행정사 전달, 상태 완료 처리는 이 에이전트의 권한 밖입니다.
 
@@ -33,7 +42,7 @@ SYSTEM_PROMPT = """당신은 외국인 고용 운영 OS '외고반장'의 근거
 
 출력:
 - 반드시 RagAnswer structured output만 반환합니다.
-- citations에는 retrieve_workforce_materials 결과의 source_id만 사용합니다 (지어내지 않습니다).
+- citations에는 도구 검색 결과의 source_id만 사용합니다 (지어내지 않습니다).
 - evidence_grade가 D/F인 근거는 인용하지 않습니다.
 - 검색 결과가 비어 있으면(missing_evidence=true) 근거 없이 답하지 말고
   missing_evidence=true, risk_flags에 "MISSING_EVIDENCE"를 넣고 행정사 검토 필요로 안내합니다.
@@ -77,7 +86,11 @@ def create_workforce_rag_agent(
     """
     preflight_pgvector()
     selected_model: str | BaseChatModel = model or _default_model()
-    selected_tools = tools if tools is not None else [retrieve_workforce_materials]
+    selected_tools = (
+        tools
+        if tools is not None
+        else [retrieve_workforce_materials, search_policy_documents, search_multilingual_contact_materials]
+    )
     return create_agent(
         model=selected_model,
         tools=selected_tools,

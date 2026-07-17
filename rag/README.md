@@ -27,9 +27,21 @@ uv run python -m oe_rag.cli eval
 # 4) 오프라인 스모크 (FakeChatModel)
 uv run python -m oe_rag.cli chat --offline
 
+# 5) 다국어 컨택 컬렉션 인덱싱 (사전 빌드 청크 → HTML 정제 → pgvector)
+uv run python -m oe_rag.cli index-multilingual --embedding-provider deterministic --reset
+uv run python -m oe_rag.cli query-multilingual "상담센터 전화번호가 뭐예요?" --intent counseling
+
 # 테스트
 uv run pytest
 ```
+
+## 3개 검색 도메인
+
+| 도메인 | 컬렉션 | 도구(@tool) | 코퍼스 |
+|---|---|---|---|
+| 신규 인력 확보(워크포스) | `workforce_official`/`workforce_templates` | `retrieve_workforce_materials` | `data-pipeline/raw/**` (법령·EPS 절차·서식) |
+| 비자서류·체류 절차 | `workforce_official`(재사용) | `search_policy_documents` | 별도 코퍼스 없음 — 워크포스 컬렉션을 visa_type/evidence_grade로 재필터링(legacy 조사 결과 rag_hyunwook에 별도 원천 없음 확인) |
+| 다국어 컨택 | `multilingual_contact` | `search_multilingual_contact_materials` | `data-pipeline/processed/chunks/multilingual_contact/*.jsonl` (사전 빌드 스냅샷 — 원본 raw HTML은 legacy에서 이미 소실, `oe_rag/multilingual.py`가 로드 시 HTML 태그 잔재를 재정제) |
 
 ## 계약 (legacy/docs/RAG_STRATEGY.md 정본 유지)
 

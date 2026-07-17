@@ -206,6 +206,103 @@ def cmd_chat(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_index_multilingual(args: argparse.Namespace) -> int:
+    from .multilingual import (
+        MULTILINGUAL_COLLECTION,
+        build_multilingual_vector_records,
+        load_multilingual_contact_records,
+    )
+
+    provider = resolve_embedding_provider(args.embedding_provider)
+    model = _provider_model(provider)
+    dimensions = embedding_dimensions(provider)
+
+    records, quarantined = load_multilingual_contact_records(args.chunks_path)
+    vector_records = build_multilingual_vector_records(records)
+
+    if args.dry_run:
+        print(
+            json.dumps(
+                {
+                    "chunks_path": str(args.chunks_path),
+                    "accepted": len(vector_records),
+                    "quarantined": len(quarantined),
+                    "quarantine_reasons": _count_reasons(quarantined),
+                    "embedding_provider": provider,
+                    "dry_run": True,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return 0
+
+    index = PgVectorIndex(MULTILINGUAL_COLLECTION, provider=provider, model=model, dimensions=dimensions)
+    try:
+        index.ensure(reset=args.reset)
+        upserted = index.upsert(
+            [
+                VectorRecord(id=str(r["id"]), text=str(r["text"]), metadata=flatten_metadata(dict(r["metadata"])))
+                for r in vector_records
+            ]
+        )
+        report = {
+            "chunks_path": str(args.chunks_path),
+            "embedding_provider": provider,
+            "embedding_model": model,
+            "dimensions": dimensions,
+            "reset": args.reset,
+            "input_records": len(records),
+            "quarantined": len(quarantined),
+            "quarantine_reasons": _count_reasons(quarantined),
+            "upserted": upserted,
+            "indexed_records": index.count(),
+        }
+    finally:
+        index.close()
+
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _count_reasons(quarantined: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in quarantined:
+        reason = str(item.get("reason", "unknown"))
+        counts[reason] = counts.get(reason, 0) + 1
+    return counts
+
+
+def cmd_query_multilingual(args: argparse.Namespace) -> int:
+    from .multilingual import search_multilingual_contact_docs
+
+    results = search_multilingual_contact_docs(
+        args.query,
+        top_k=args.top_k,
+        language_code=args.language_code or None,
+        intent=args.intent or None,
+    )
+    print(
+        json.dumps(
+            [
+                {
+                    "id": r["id"],
+                    "score": r["score"],
+                    "matched_intent": r.get("matched_intent"),
+                    "matched_language": r.get("matched_language"),
+                    "title": r["metadata"].get("title"),
+                    "doc_type": r["metadata"].get("doc_type"),
+                    "text": r["text"][:200],
+                }
+                for r in results
+            ],
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    return 0
+
+
 def cmd_ingest(args: argparse.Namespace) -> int:
     return pipeline.run_ingest(
         strict=args.strict,
@@ -246,6 +343,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_query.add_argument("--top-k", type=int, default=5)
     p_query.add_argument("--embedding-provider", choices=["auto", "deterministic", "openai"], default="deterministic")
     p_query.set_defaults(func=cmd_query)
+
+    from .multilingual import DEFAULT_MULTILINGUAL_CHUNKS_PATH
+
+    p_index_ml = sub.add_parser(
+        "index-multilingual", help="다국어 컨택 청크(HTML 정제 후)를 pgvector에 적재"
+    )
+    p_index_ml.add_argument("--chunks-path", type=Path, default=DEFAULT_MULTILINGUAL_CHUNKS_PATH)
+    p_index_ml.add_argument("--reset", action="store_true")
+    p_index_ml.add_argument("--dry-run", action="store_true")
+    p_index_ml.add_argument(
+        "--embedding-provider", choices=["auto", "deterministic", "openai"], default="deterministic"
+    )
+    p_index_ml.set_defaults(func=cmd_index_multilingual)
+
+    p_query_ml = sub.add_parser("query-multilingual", help="다국어 컨택 검색 직접 질의 (디버깅용)")
+    p_query_ml.add_argument("query")
+    p_query_ml.add_argument("--intent", default="", choices=["", "counseling", "safety", "life", "notice"])
+    p_query_ml.add_argument("--language-code", default="", choices=["", "vi", "id"])
+    p_query_ml.add_argument("--top-k", type=int, default=5)
+    p_query_ml.set_defaults(func=cmd_query_multilingual)
 
     from . import evaluate_workforce as _ew
 
