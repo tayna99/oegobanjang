@@ -42,13 +42,19 @@ class MessageOut(BaseModel):
 
 
 class ThreadOut(BaseModel):
-    """목록용 — 가벼운 요약(메시지 전체를 싣지 않는다)."""
+    """목록용 — 가벼운 요약(메시지 전체를 싣지 않는다).
+
+    latest_interpretation_status: 가장 최근 메시지에 달린 해석의 status(interpretations.status,
+    §4.7) — 없으면 None. 목록 화면의 "응답 도착" 배지·정렬 근거(코드리뷰 지적: 이 필드가
+    없으면 프론트가 목록 단계에서 항상 'none'으로만 표시해야 했다).
+    """
 
     id: str
     worker: ThreadWorkerOut | None
     channel: str
     last_message_at: dt.datetime | None
     message_count: int
+    latest_interpretation_status: str | None
 
 
 class ThreadDetailOut(BaseModel):

@@ -117,6 +117,77 @@ def test_list_threads_returns_message_count_and_worker(client, seeded):
     assert data[0]["channel"] == "sms"
     assert data[0]["worker"]["display_name"] == "Nguyen Van A"
     assert data[0]["worker"]["team"] == "제조1팀"
+    # 코드리뷰 지적(PR #16 P1): 목록이 해석 상태를 안 내려주면 real 모드 목록 화면의 응답
+    # 도착 배지·정렬이 항상 죽는다 — _seed_thread_with_messages가 마지막 메시지에 심어둔
+    # proposed 해석이 목록 단계에서도 그대로 보여야 한다.
+    assert data[0]["latest_interpretation_status"] == "proposed"
+
+
+def test_list_threads_latest_interpretation_status_is_none_without_interpretation(client, seeded):
+    seeded.execute(
+        text(
+            "INSERT INTO threads (id, company_id, worker_id, channel, last_message_at) "
+            "VALUES ('th_no_interp','cmp1','w1','sms', now())"
+        )
+    )
+    seeded.flush()
+    _seed_session(seeded, token="raw-token-1")
+
+    resp = client.get("/api/v1/threads", headers=_auth_headers())
+    assert resp.status_code == 200, resp.text
+    assert resp.json()[0]["latest_interpretation_status"] is None
+
+
+def test_list_threads_latest_interpretation_status_follows_most_recent_message(client, seeded):
+    """가장 최근 메시지가 해석이 없어도, 해석이 달린 메시지 중 가장 최근 것을 기준으로 삼는다
+    (threads.ts toThreadDetail의 reverse-find와 동일한 우선순위를 서버에서 재현)."""
+    seeded.execute(
+        text(
+            "INSERT INTO threads (id, company_id, worker_id, channel, last_message_at) "
+            "VALUES ('th_order','cmp1','w1','sms', now())"
+        )
+    )
+    seeded.execute(
+        text(
+            "INSERT INTO thread_messages "
+            "(id, thread_id, company_id, direction, created_at) "
+            "VALUES ('th_order_m1','th_order','cmp1','inbound', now() - interval '2 hour')"
+        )
+    )
+    seeded.execute(
+        text(
+            "INSERT INTO thread_messages "
+            "(id, thread_id, company_id, direction, created_at) "
+            "VALUES ('th_order_m2','th_order','cmp1','inbound', now() - interval '1 hour')"
+        )
+    )
+    seeded.execute(
+        text(
+            "INSERT INTO thread_messages "
+            "(id, thread_id, company_id, direction, created_at) "
+            "VALUES ('th_order_m3','th_order','cmp1','inbound', now())"
+        )
+    )
+    seeded.execute(
+        text(
+            "INSERT INTO interpretations (id, company_id, thread_message_id, summary_ko, confidence, status) "
+            "VALUES ('th_order_i1','cmp1','th_order_m1','오래된 해석','high','confirmed')"
+        )
+    )
+    seeded.execute(
+        text(
+            "INSERT INTO interpretations (id, company_id, thread_message_id, summary_ko, confidence, status) "
+            "VALUES ('th_order_i2','cmp1','th_order_m2','최근 메시지의 해석','high','proposed')"
+        )
+    )
+    # th_order_m3(가장 최근 메시지)는 해석이 없다 — m2의 해석(proposed)이 반영돼야 한다.
+    seeded.flush()
+    _seed_session(seeded, token="raw-token-1")
+
+    resp = client.get("/api/v1/threads", headers=_auth_headers())
+    assert resp.status_code == 200, resp.text
+    by_id = {t["id"]: t for t in resp.json()}
+    assert by_id["th_order"]["latest_interpretation_status"] == "proposed"
 
 
 def test_get_thread_detail_returns_messages_in_order_with_interpretation(client, seeded):

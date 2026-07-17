@@ -4,11 +4,11 @@ import { THREADS } from '@/mocks/threads';
 import { useCaseStore } from '@/stores/caseStore';
 import { useThreadStore } from '@/stores/threadStore';
 import { fetchCases } from './api/cases';
-import { USE_REAL_API } from './api/config';
+import { API_MODE } from './api/config';
 import { fetchThreadDetail, fetchThreads } from './api/threads';
 
 // 13개 화면에 반복되던 "스토어가 비어있으면 픽스처로 시드" useEffect를 한 곳으로 모은다
-// (R2.3, NEXT_ROADMAP 2.3 — D-4류 중복 제거와 배선을 동시에 처리). USE_REAL_API가 꺼져 있으면
+// (R2.3, NEXT_ROADMAP 2.3 — D-4류 중복 제거와 배선을 동시에 처리). API_MODE가 'mock'이면
 // 지금까지와 동일하게 CASE_CARDS/THREADS를 동기 시드한다 — 켜져 있으면 백엔드에서 fetch해
 // 채운다. fetch는 비동기라 첫 렌더는 비어있다가 응답이 오면 이 훅을 구독 중인 컴포넌트가
 // 자동 재렌더된다(별도 로딩 상태 없이 기존 "empty" 화면이 잠깐 보였다 채워지는 정도 —
@@ -25,7 +25,7 @@ export function useSeedCases(): void {
   const upsert = useCaseStore((s) => s.upsert);
   useEffect(() => {
     if (Object.keys(useCaseStore.getState().cases).length > 0) return;
-    if (USE_REAL_API) {
+    if (API_MODE === 'real') {
       // 로그인 전(세션 토큰 없음)에는 401이 정상 — 콘솔에 처리되지 않은 프로미스 거부로
       // 새지 않게만 막는다. 스토어는 비어 있는 채로 남고, 로그인 후 재진입하면 다시 시도된다.
       fetchCases()
@@ -41,7 +41,7 @@ export function useSeedThreads(): void {
   const upsert = useThreadStore((s) => s.upsert);
   useEffect(() => {
     if (Object.keys(useThreadStore.getState().threads).length > 0) return;
-    if (USE_REAL_API) {
+    if (API_MODE === 'real') {
       fetchThreads()
         .then((threads) => threads.forEach(upsert))
         .catch((err: unknown) => console.error('[dataSeed] 스레드 조회 실패', err));
@@ -58,7 +58,7 @@ export function useSeedThreads(): void {
 export function useSeedThreadDetail(threadId: string | undefined): void {
   const upsert = useThreadStore((s) => s.upsert);
   useEffect(() => {
-    if (!USE_REAL_API || !threadId) return;
+    if (API_MODE !== 'real' || !threadId) return;
     fetchThreadDetail(threadId)
       .then(upsert)
       .catch((err: unknown) => console.error('[dataSeed] 스레드 상세 조회 실패', err));

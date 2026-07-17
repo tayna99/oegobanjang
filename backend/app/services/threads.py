@@ -48,6 +48,7 @@ def list_threads_out(db: Session, company_id: str) -> list[ThreadOut]:
             .group_by(ThreadMessage.thread_id)
         ).all()
     )
+    latest_status_by_thread_id = _latest_interpretation_status_by_thread_id(db, company_id, thread_ids)
 
     return [
         ThreadOut(
@@ -56,9 +57,40 @@ def list_threads_out(db: Session, company_id: str) -> list[ThreadOut]:
             channel=thread.channel,
             last_message_at=thread.last_message_at,
             message_count=counts_by_thread_id.get(thread.id, 0),
+            latest_interpretation_status=latest_status_by_thread_id.get(thread.id),
         )
         for thread in threads
     ]
+
+
+def _latest_interpretation_status_by_thread_id(
+    db: Session, company_id: str, thread_ids: list[str]
+) -> dict[str, str]:
+    """스레드별 "가장 최근 메시지에 달린 해석"의 status 1건 — 목록(ThreadOut)의 배지·정렬
+    근거(코드리뷰 지적: 목록이 interpretation_status를 안 내려 real 모드에서 응답 도착 배지·
+    정렬이 항상 죽어 있었다). get_thread_detail_out의 프론트 대응 로직(threads.ts
+    toThreadDetail — 메시지 역순 순회로 해석 있는 첫 메시지를 찾음)과 동일한 우선순위를
+    서버에서 재현한다: 메시지 최신순, 동일 메시지에 재해석이 여러 건이면 그중 최신 해석.
+    """
+    if not thread_ids:
+        return {}
+    ranked = (
+        select(
+            ThreadMessage.thread_id,
+            Interpretation.status,
+            func.row_number()
+            .over(
+                partition_by=ThreadMessage.thread_id,
+                order_by=(ThreadMessage.created_at.desc(), Interpretation.created_at.desc()),
+            )
+            .label("rn"),
+        )
+        .join(Interpretation, Interpretation.thread_message_id == ThreadMessage.id)
+        .where(ThreadMessage.company_id == company_id, ThreadMessage.thread_id.in_(thread_ids))
+        .subquery()
+    )
+    rows = db.execute(select(ranked.c.thread_id, ranked.c.status).where(ranked.c.rn == 1)).all()
+    return dict(rows)
 
 
 def get_thread_detail_out(db: Session, company_id: str, thread_id: str) -> ThreadDetailOut | None:

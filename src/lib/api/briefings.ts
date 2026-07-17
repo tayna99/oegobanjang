@@ -1,3 +1,4 @@
+import { useSessionStore } from '@/stores/sessionStore';
 import type { CaseCard } from '@/types';
 import { type CaseDto, toCaseCard } from './cases';
 import { ApiError, apiFetch } from './client';
@@ -32,7 +33,8 @@ function toBriefing(dto: BriefingDto): Briefing {
 // 변환해, 호출부가 "브리핑 없음"과 "요청 실패"를 구분해 처리하지 않아도 되게 한다(빈 상태 화면).
 export async function fetchLatestBriefing(): Promise<Briefing | null> {
   try {
-    return toBriefing(await apiFetch<BriefingDto>('/api/v1/briefings/latest'));
+    const token = useSessionStore.getState().token ?? undefined;
+    return toBriefing(await apiFetch<BriefingDto>('/api/v1/briefings/latest', { token }));
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) return null;
     throw err;

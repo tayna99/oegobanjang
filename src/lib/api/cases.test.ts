@@ -34,7 +34,10 @@ describe('lib/api/cases', () => {
 
     const result = await fetchCases();
 
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost:8000/api/v1/cases', expect.objectContaining({ headers: expect.any(Headers) }));
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:8000/api/v1/cases',
+      expect.objectContaining({ headers: expect.objectContaining({ 'Content-Type': 'application/json' }) }),
+    );
     expect(result).toHaveLength(2);
 
     const [first, second] = result;

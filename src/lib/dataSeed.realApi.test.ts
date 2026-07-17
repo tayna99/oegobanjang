@@ -1,9 +1,9 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// R2.3 DoD — USE_REAL_API를 모듈 목으로 켠다(vi.mock은 파일 전체에 호이스트되어 apiFetch를
+// R2.3 DoD — API_MODE를 모듈 목으로 'real'로 켠다(vi.mock은 파일 전체에 호이스트되어 apiFetch를
 // 경유하는 모든 import가 동일하게 관측한다 — StepPhoneAuth.realApi.test.tsx와 동일한 관례).
-vi.mock('./api/config', () => ({ API_BASE_URL: 'http://localhost:8000', USE_REAL_API: true }));
+vi.mock('./api/config', () => ({ API_BASE_URL: 'http://localhost:8000', API_MODE: 'real' }));
 
 import { useSeedCases, useSeedThreadDetail, useSeedThreads } from './dataSeed';
 import { useCaseStore } from '@/stores/caseStore';
@@ -35,6 +35,7 @@ const THREAD_DTO = {
   channel: 'zalo',
   last_message_at: '2026-07-10T02:00:00Z',
   message_count: 2,
+  latest_interpretation_status: null,
 };
 
 const THREAD_DETAIL_DTO = {

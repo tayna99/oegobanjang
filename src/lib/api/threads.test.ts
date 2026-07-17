@@ -13,7 +13,9 @@ describe('lib/api/threads', () => {
 
   describe('fetchThreads', () => {
     it('message_count가 0이면 preview가 "아직 응답이 없습니다"이다', async () => {
-      const dtos: ThreadDto[] = [{ id: 't1', worker, channel: 'sms', last_message_at: null, message_count: 0 }];
+      const dtos: ThreadDto[] = [
+        { id: 't1', worker, channel: 'sms', last_message_at: null, message_count: 0, latest_interpretation_status: null },
+      ];
       global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(dtos), { status: 200 })) as unknown as typeof fetch;
 
       const result = await fetchThreads();
@@ -25,8 +27,15 @@ describe('lib/api/threads', () => {
 
     it('message_count가 있으면 preview가 "메시지 N건"이다', async () => {
       const dtos: ThreadDto[] = [
-        { id: 't1', worker, channel: 'sms', last_message_at: '2026-07-17T09:20:00Z', message_count: 3 },
-        { id: 't2', worker, channel: 'zalo', last_message_at: null, message_count: 1 },
+        {
+          id: 't1',
+          worker,
+          channel: 'sms',
+          last_message_at: '2026-07-17T09:20:00Z',
+          message_count: 3,
+          latest_interpretation_status: null,
+        },
+        { id: 't2', worker, channel: 'zalo', last_message_at: null, message_count: 1, latest_interpretation_status: null },
       ];
       global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(dtos), { status: 200 })) as unknown as typeof fetch;
 
@@ -36,6 +45,45 @@ describe('lib/api/threads', () => {
       expect(result[0].interpretationStatus).toBe('none');
       expect(result[0].preview).toBe('메시지 3건');
       expect(result[1].preview).toBe('메시지 1건');
+    });
+
+    // 코드리뷰 지적(PR #16 P1 재발): 목록 DTO가 latest_interpretation_status를 안 내려주던
+    // 시절엔 toThreadSummary()가 무조건 'none'을 반환해, real API 모드에서 응답 도착 배지·
+    // 정렬이 항상 죽어 있었다 — 목록 단계에서도 서버가 내려준 상태를 그대로 반영해야 한다.
+    it('latest_interpretation_status가 proposed면 목록에서도 pending_review·응답 도착 문구다', async () => {
+      const dtos: ThreadDto[] = [
+        {
+          id: 't1',
+          worker,
+          channel: 'sms',
+          last_message_at: '2026-07-17T09:20:00Z',
+          message_count: 2,
+          latest_interpretation_status: 'proposed',
+        },
+      ];
+      global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(dtos), { status: 200 })) as unknown as typeof fetch;
+
+      const result = await fetchThreads();
+      expect(result[0].interpretationStatus).toBe('pending_review');
+      expect(result[0].preview).toBe('응답이 도착했습니다');
+    });
+
+    it('latest_interpretation_status가 confirmed면 목록에서도 confirmed·확인 완료 문구다', async () => {
+      const dtos: ThreadDto[] = [
+        {
+          id: 't1',
+          worker,
+          channel: 'sms',
+          last_message_at: '2026-07-17T09:20:00Z',
+          message_count: 2,
+          latest_interpretation_status: 'confirmed',
+        },
+      ];
+      global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(dtos), { status: 200 })) as unknown as typeof fetch;
+
+      const result = await fetchThreads();
+      expect(result[0].interpretationStatus).toBe('confirmed');
+      expect(result[0].preview).toBe('확인 완료');
     });
   });
 

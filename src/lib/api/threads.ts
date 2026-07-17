@@ -1,4 +1,5 @@
 import { formatClockTime } from '@/lib/threads';
+import { useSessionStore } from '@/stores/sessionStore';
 import type { Channel, Message, MessageDirection, MessageThread, WorkerRef } from '@/types';
 import { apiFetch } from './client';
 
@@ -36,6 +37,7 @@ export interface ThreadDto {
   channel: string;
   last_message_at: string | null;
   message_count: number;
+  latest_interpretation_status: string | null;
 }
 
 export interface ThreadDetailDto {
@@ -106,14 +108,15 @@ function summarizePreview(status: MessageThread['interpretationStatus'], message
 
 export function toThreadSummary(dto: ThreadDto): MessageThread {
   const { channel, label } = toChannel(dto.channel);
+  const interpretationStatus = toInterpretationStatus(dto.latest_interpretation_status ?? undefined);
   return {
     threadId: dto.id,
     workerRef: toWorkerRef(dto.worker),
     channel,
     channelLabel: label,
     messages: [],
-    interpretationStatus: 'none',
-    preview: summarizePreview('none', dto.message_count),
+    interpretationStatus,
+    preview: summarizePreview(interpretationStatus, dto.message_count),
     timeLabel: dto.last_message_at ? formatClockTime(dto.last_message_at) : '',
   };
 }
@@ -136,13 +139,16 @@ export function toThreadDetail(dto: ThreadDetailDto): MessageThread {
   };
 }
 
-// 목록(가벼운 요약) — 열람 시 fetchThreadDetail로 교체해야 배지·해석 상태가 정확해진다.
+// 목록(가벼운 요약) — 배지·정렬에 필요한 해석 상태는 latest_interpretation_status로 이미
+// 정확하다. 메시지 본문·전체 대화는 열람 시 fetchThreadDetail로 채운다.
 export async function fetchThreads(): Promise<MessageThread[]> {
-  const dtos = await apiFetch<ThreadDto[]>('/api/v1/threads');
+  const token = useSessionStore.getState().token ?? undefined;
+  const dtos = await apiFetch<ThreadDto[]>('/api/v1/threads', { token });
   return dtos.map(toThreadSummary);
 }
 
 export async function fetchThreadDetail(threadId: string): Promise<MessageThread> {
-  const dto = await apiFetch<ThreadDetailDto>(`/api/v1/threads/${threadId}`);
+  const token = useSessionStore.getState().token ?? undefined;
+  const dto = await apiFetch<ThreadDetailDto>(`/api/v1/threads/${threadId}`, { token });
   return toThreadDetail(dto);
 }

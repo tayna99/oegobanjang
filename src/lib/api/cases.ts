@@ -1,4 +1,5 @@
 import { calcDday } from '@/lib/dday';
+import { useSessionStore } from '@/stores/sessionStore';
 import type { AgentStage, CaseCard, NextActionRef, WorkerRef } from '@/types';
 import { apiFetch } from './client';
 
@@ -84,6 +85,7 @@ export function toCaseCard(dto: CaseDto): CaseCard {
 }
 
 export async function fetchCases(): Promise<CaseCard[]> {
-  const dtos = await apiFetch<CaseDto[]>('/api/v1/cases');
+  const token = useSessionStore.getState().token ?? undefined;
+  const dtos = await apiFetch<CaseDto[]>('/api/v1/cases', { token });
   return dtos.map(toCaseCard);
 }
