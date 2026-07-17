@@ -21,15 +21,15 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.db.counters import next_case_seq, next_event_no
 from app.db.ids import new_id
 from app.domain import rules
 from app.models.briefing import Briefing, BriefingItem
 from app.models.case import Case
-from app.models.company import Company
 from app.models.evidence import EvidenceEvent
 from app.services import context_service
 from app.services.context_service import ContextSnapshot, RuleFinding
@@ -151,7 +151,7 @@ def _upsert_case(
     case = Case(
         id=case_id,
         company_id=company_id,
-        case_code=f"case_{_next_case_seq(db, company_id):03d}",
+        case_code=f"case_{next_case_seq(db, company_id):03d}",
         worker_id=finding.worker_id,
         case_type=finding.risk_type,
         title=finding.display_label,
@@ -195,27 +195,6 @@ def _guard_note(severity: str) -> str | None:
     return None
 
 
-def _next_case_seq(db: Session, company_id: str) -> int:
-    """companies.case_seq를 원자적으로 증가시킨다 — app/services/approvals._next_event_no와
-    동일 계약(단문 UPDATE...RETURNING, §9 case_code 발급 카운터)."""
-    return db.execute(
-        update(Company)
-        .where(Company.id == company_id)
-        .values(case_seq=Company.case_seq + 1)
-        .returning(Company.case_seq)
-    ).scalar_one()
-
-
-def _next_event_no(db: Session, company_id: str) -> int:
-    """app/services/approvals.py·evidence_ingest.py의 _next_event_no와 동일 계약."""
-    return db.execute(
-        update(Company)
-        .where(Company.id == company_id)
-        .values(evidence_seq=Company.evidence_seq + 1)
-        .returning(Company.evidence_seq)
-    ).scalar_one()
-
-
 def _risk_flagged_case_ids(db: Session, *, company_id: str, trace_id: str) -> set[str]:
     """같은 스냅샷(trace_id=briefing.source_snapshot_hash)에서 이미 기록된 risk_flagged의
     case_id 집합 — evidence_events(append-only)에 동일 판단을 중복 적재하지 않기 위한 가드."""
@@ -242,7 +221,7 @@ def _record_risk_flagged(
         EvidenceEvent(
             id=new_id(),
             company_id=company_id,
-            event_no=_next_event_no(db, company_id),
+            event_no=next_event_no(db, company_id),
             type="risk_flagged",
             at=at,
             case_id=case_id,

@@ -23,9 +23,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from app.db.counters import next_event_no
 from app.db.ids import new_id
 from app.models.citation import Citation
-from app.models.company import Company
 from app.models.evidence import EvidenceEvent
 
 # rag(orchestration/contracts.EventType 값) → db CHECK 허용값. 매핑 없는 나머지는 그대로 통과.
@@ -39,18 +39,6 @@ _GRADE_TO_STATUS = {"A": "official", "B": "official", "E": "internal"}
 
 class UnmappableEventTypeError(ValueError):
     pass
-
-
-def _next_event_no(db: Session, company_id: str) -> int:
-    """app/services/approvals.py의 _next_event_no와 동일 계약(companies.evidence_seq 원자 증가)."""
-    from sqlalchemy import update
-
-    return db.execute(
-        update(Company)
-        .where(Company.id == company_id)
-        .values(evidence_seq=Company.evidence_seq + 1)
-        .returning(Company.evidence_seq)
-    ).scalar_one()
 
 
 def map_event_type(rag_event_type: str) -> str:
@@ -77,7 +65,7 @@ def ingest_rag_evidence_event(
 
     db_type = map_event_type(str(event.get("event_type", "")))
     at = _parse_at(event.get("created_at"))
-    event_no = _next_event_no(db, company_id)
+    event_no = next_event_no(db, company_id)
 
     row = EvidenceEvent(
         id=new_id(),

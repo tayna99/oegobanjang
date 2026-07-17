@@ -22,10 +22,11 @@ import datetime as dt
 import hashlib
 from typing import Literal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.db.counters import next_event_no
 from app.db.ids import new_id
 from app.domain.case_transitions import can_transition
 from app.domain.exceptions import (
@@ -67,16 +68,6 @@ def _usable_citation_count(db: Session, company_id: str, case_id: str) -> int:
             Citation.grade != "F",
             (Citation.company_id.is_(None)) | (Citation.company_id == company_id),
         )
-    ).scalar_one()
-
-
-def _next_event_no(db: Session, company_id: str) -> int:
-    """companies.evidence_seq를 원자적으로 증가시키고 새 값을 받는다(§9). 경합 안전(단문 UPDATE)."""
-    return db.execute(
-        update(Company)
-        .where(Company.id == company_id)
-        .values(evidence_seq=Company.evidence_seq + 1)
-        .returning(Company.evidence_seq)
     ).scalar_one()
 
 
@@ -189,7 +180,7 @@ def decide_approval(
     decider = db.get(User, decided_by_user_id)
     actor_display = f"{decider.name} (본인)" if payload.on_behalf_of_user_id is None else f"{decider.name} (대리 승인)"
 
-    event_no = _next_event_no(db, approval.company_id)
+    event_no = next_event_no(db, approval.company_id)
     summary = "승인 완료" if decision == "approved" else "반려"
     # PII 보안 리뷰: 코드 리뷰 지적(PR #10) — reason 원문을 summary에 넣으면 append-only
     # evidence_events가 정규식(contains_pii)이 못 잡는 이름·이메일 등 자유형 PII까지 영구
@@ -275,7 +266,7 @@ def request_approval(db: Session, action_id: str, requested_by_user_id: str) -> 
     case.updated_at = now
     db.flush()
 
-    event_no = _next_event_no(db, next_action.company_id)
+    event_no = next_event_no(db, next_action.company_id)
     requester = db.get(User, requested_by_user_id)
     db.add(
         EvidenceEvent(
