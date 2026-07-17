@@ -1,17 +1,23 @@
 import { useState } from 'react';
+import { resolveCommandRunKey } from '@/lib/commandBar';
 import { useNav } from '@/lib/nav';
 
 export interface CommandBarProps {
   suggestions?: string[];
 }
 
-// 1단계 스펙 §0.3 CommandBar — 제출 시 M9 에이전트 런을 시작한다. MVP는 자연어
-// 파싱이 없어 제출 내용과 무관하게 항상 command 데모 런(#4797, "이번 달 급한
-// 직원만 정리해줘")으로 진입한다 — 실 파싱은 백엔드 단계. (#4790은 디자인 §3c에서
-// Siti 승인 요청으로 확정되어 2.5.4b에서 재번호.)
+// 1단계 스펙 §0.3 CommandBar — 제출 시 M9 에이전트 런을 시작한다. R1.6부터 입력→런
+// 매핑(lib/commandBar.resolveCommandRunKey)이 케이스 워커명을 인식해 해당 승인 런으로
+// 연결하고, 매칭이 없으면 기존 기본값(#4797, "이번 달 급한 직원만 정리해줘")으로 폴백한다
+// — 실 자연어 파싱은 R4(LLM 기반 의도 분류) 몫. 추천 칩은 입력만 채우지 않고 즉시 제출한다.
 export function CommandBar({ suggestions }: CommandBarProps) {
   const [value, setValue] = useState('');
   const nav = useNav();
+
+  const submit = (text: string) => {
+    setValue('');
+    nav.toRun(resolveCommandRunKey(text));
+  };
 
   return (
     <div>
@@ -21,7 +27,7 @@ export function CommandBar({ suggestions }: CommandBarProps) {
             <button
               key={s}
               type="button"
-              onClick={() => setValue(s)}
+              onClick={() => submit(s)}
               className="whitespace-nowrap rounded-chip border border-hairline bg-canvas px-3.5 py-2 text-label1 text-muted"
             >
               {s}
@@ -32,8 +38,7 @@ export function CommandBar({ suggestions }: CommandBarProps) {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          setValue('');
-          nav.toRun('4797');
+          submit(value);
         }}
         className="flex gap-2"
       >
