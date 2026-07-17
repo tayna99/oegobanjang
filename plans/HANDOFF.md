@@ -18,6 +18,71 @@
 
 ---
 
+### [2026-07-17] R2 — 백엔드 배선: API 클라이언트+인증+읽기 API(2.1~2.3) — 완료
+
+- 한 일: 사용자 지시로 R1 다음 태스크(백엔드 배선)에 착수, 세션 범위를 2.1~2.3로 확정(2.4~2.6은
+  다음 세션).
+  - **2.1 API 클라이언트 계층**: `src/lib/api/config.ts`(`API_BASE_URL`·`USE_REAL_API` 플래그,
+    기본 false)·`client.ts`(`apiFetch<T>` — 세션 토큰 자동 Bearer 첨부, 비2xx `ApiError` throw)
+    신설. 순수 인프라라 기존 화면 변경 없음.
+  - **2.2 인증 배선**: 백엔드 `GET /api/v1/auth/me`(`get_active_membership`) + `CORSMiddleware`
+    (`:5173`) 추가. 프론트 `sessionStore`(zustand persist)·`lib/api/auth.ts`·`lib/auth.ts`
+    (`useAuthActions.verifyAndLogin`: verify→세션 토큰만 저장→`fetchMe`→세션 전체 갱신→
+    `roleStore.setRole` 반영) 신설. `StepPhoneAuth`가 `USE_REAL_API` 분기로 실 전화번호 입력+
+    OTP 왕복을 지원하되, 꺼져 있으면 기존 6자리 게이트 그대로.
+  - **2.3 읽기 API 신규 구현 + 프론트 배선**(가장 큰 덩어리, Workflow로 backend 3도메인
+    병렬 생성 후 직접 통합): 백엔드에 `GET /api/v1/cases`·`/briefings/latest`·`/threads`·
+    `/threads/{id}` 신규(파일 자체가 없었다 — 스텁 채우기 아님), `app/api/deps.py`에
+    `get_current_membership`(활성 소속 없으면 403) 추가해 전부 company 스코프. 각 도메인
+    테스트(happy path + 회사 스코프 격리) 포함, `main.py`에 3개 라우터 등록.
+    프론트는 `lib/api/{cases,briefings,threads}.ts`(DTO→도메인 타입 어댑터) + `lib/dataSeed.ts`
+    (13개 화면에 중복되던 "스토어 비어있으면 픽스처로 시드" `useEffect`를 `useSeedCases`/
+    `useSeedThreads`/`useSeedThreadDetail` 공용 훅으로 통합, 내부에서 `USE_REAL_API` 분기) —
+    13개 화면 전부 이 훅으로 재배선.
+- 설계 판단(다음 세션이 알아야 할 것):
+  - **`fetchLatestBriefing()`(브리핑 당일 랭크 서브셋)은 만들었지만 아직 어떤 화면에도 배선
+    안 함.** caseStore는 화면 진입 순서와 무관하게 항상 "전체 케이스"가 채워져 있다는 것을
+    모든 화면이 전제하는 단일 스토어라, 브리핑 화면이 먼저 떠 서브셋으로 시드돼버리면 다른
+    화면이 전체 목록을 다시 못 채우는 구조적 문제가 있다(공유 스토어 + 서로 다른 스코프의
+    fetch 소스 충돌). 브리핑 전용 서브셋을 실제로 쓰려면 별도 스토어 슬롯이 필요 — 후속.
+  - **스레드 목록(`GET /threads`)과 상세(`GET /threads/{id}`)는 정보량이 다르다** — 목록은
+    `message_count`만 주고 메시지·해석은 안 준다. `useSeedThreads()`는 이 가벼운 요약으로
+    목록을 채우고, 실제로 스레드를 여는 화면(`ThreadPage`/`MessagesWorkbench`)은
+    `useSeedThreadDetail(threadId)`로 상세를 추가 fetch해 덮어쓴다. mock 모드는
+    `useSeedThreads()`가 이미 완전한 데이터를 넣어두므로 이 훅이 즉시 no-op — 브라우저
+    실검증으로 목록 배지("응답이 도착했습니다")→상세 진입 시 실제 메시지 본문까지 확인.
+  - **해석 확인(`confirmInterpretation`) 카드는 real 모드에서 채우지 않는다** — 백엔드
+    `InterpretationOut`이 `summary_ko`/`confidence`/`status`만 주고, 카드가 필요로 하는
+    `updates`/`recommendedActions`/`caseId`는 아직 없다. 승인 결정과 같은 성격의 쓰기 동작이라
+    2.4류로 미뤘다(로컬 스토어 뮤테이션 경로는 그대로 유지) — 값을 지어내지 않았다.
+  - `thread_messages.direction`은 `'inbound'/'system'`이지 `'outbound'`가 아니다(`db/schema.sql`).
+    `inbound`(근로자→회사)→프론트 `'in'`, `system`(회사 자동 응답)→`'out'`. 이 매핑을 반대로
+    하면 타임라인의 좌우가 뒤집힌다 — threads.ts의 `toDirection()` 참고.
+  - `threads` 테이블엔 `case_id` 컬럼 자체가 없다(drafts를 거쳐야 연결). `MessageThread.caseId`/
+    `draftCaseId`는 real 모드에서 항상 `undefined` — 값을 지어내지 않고 명시적으로 비워뒀다.
+  - **버그 발견+즉시 수정**: `dataSeed.ts`의 `fetchCases()/fetchThreads()` 호출에 원래
+    `.catch()`가 없어, 로그인 전(세션 토큰 없음→ 401)에 처리되지 않은 프로미스 거부가 발생하는
+    것을 브라우저 실검증 중 네트워크 로그로 발견 — `.catch(console.error)`로 수정.
+  - **환경 함정**: 브라우저 실통합 검증을 위해 저장소 루트에 `.env.local`(`VITE_USE_REAL_API=
+    true`)을 임시로 뒀더니, Vite의 "`.env.local`은 test 모드에 안 실린다"는 통상 규칙과 달리
+    이 vitest 설정에서는 실제로 로드되어 `npx vitest run`이 `ThreadPage.test.tsx`/
+    `MessagesWorkbench.test.tsx`를 타임아웃시켰다(실 API 분기를 타 백엔드 호출을 기다림).
+    **다음에 real-API 브라우저 검증을 할 때는 `.env.local`을 vitest를 돌리는 동안 반드시
+    치우거나, 검증 직후 즉시 삭제할 것** — 이 세션은 검증 후 파일을 삭제하고 전체 스위트를
+    재확인해 확실히 정리했다(`.env.local`은 `.gitignore`로 커밋되지 않음).
+  - 이 세션 착수 전 사고 방지 차원에서 R0/R1처럼 별도 브랜치에 실구현이 갈라지는 사고는
+    없었다(전부 이 브랜치, `claude/roadmap-r1-implementation-d95ccf`, 안에서 순차 진행).
+- 남은 일 / 중단 지점: 없음. 2.1~2.3 전 항목 완료. 다음은 2.4(승인 결정 배선)·2.5(evidence
+  서버 영속화)·2.6(행정사 링크 서버 강제) — 별도 세션.
+- verify 상태: 백엔드 `uv run pytest` 124건 PASS. 프론트 `npm run verify`(typecheck→lint→
+  test 483건→build) PASS, `.env.local` 제거 후 전체 스위트 재확인 클린. 브라우저 실통합
+  (`VITE_USE_REAL_API=true`, 데모 전화번호 010-0000-0001) — OTP 로그인→케이스 목록(6건)·
+  컨트롤 타워 KPI·메시지 스레드(목록 요약→상세 진입 시 실제 메시지) 전부 실 DB 값으로 렌더
+  확인.
+- 지도/규칙 갱신: `plans/ROADMAP.md`에 R2(2.1~2.3) 절 추가.
+
+---
+
 ### [2026-07-17] R1 — 목 세계 안에서 플로우 완결(1.1~1.8) — 완료
 
 - 한 일: 사용자 지시로 `plans/NEXT_ROADMAP_2026-07-16.md`의 R1 전체(1.1~1.8)를 이번 세션에서
