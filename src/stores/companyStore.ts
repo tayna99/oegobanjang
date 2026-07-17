@@ -1,6 +1,14 @@
 import { create } from 'zustand';
-import type { ApprovalPolicy, CompanyMember, DelegationConfig } from '@/types';
+import type { ApprovalPolicy, CompanyMember, CompanyProfile, DelegationConfig } from '@/types';
 import { COMPANY_MEMBERS } from '@/mocks/members';
+
+// 데모 세계관 기본 회사 프로필(2.5.4b) — 온보딩 O3에서 입력을 바꾸기 전까지의 표시값.
+const DEFAULT_PROFILE: CompanyProfile = {
+  name: '그린푸드 제조',
+  region: '경기 화성',
+  industry: '식품 제조업',
+  workerCount: '6명',
+};
 
 const DEFAULT_DELEGATION: DelegationConfig = {
   active: false,
@@ -16,10 +24,12 @@ const DEFAULT_POLICY: ApprovalPolicy = 'manager_allowed';
 const DEFAULT_BRIEFING_TIME = '08:00';
 
 interface CompanyStoreState {
+  profile: CompanyProfile;
   members: CompanyMember[];
   delegation: DelegationConfig;
   approvalPolicy: ApprovalPolicy;
   briefingTime: string;
+  setProfile: (profile: CompanyProfile) => void;
   setMembers: (members: CompanyMember[]) => void;
   setDelegation: (delegation: DelegationConfig) => void;
   setApprovalPolicy: (policy: ApprovalPolicy) => void;
@@ -31,16 +41,19 @@ interface CompanyStoreState {
 // 책임이 아니다(lib/approval.ts가 승인/거절 evidence를 별도로 남기는 것과 동일한 분리 —
 // lib/company.ts의 useCompanyActions가 이 스토어 갱신 + evidence 기록을 함께 오케스트레이션한다).
 export const useCompanyStore = create<CompanyStoreState>((set) => ({
+  profile: DEFAULT_PROFILE,
   members: COMPANY_MEMBERS,
   delegation: DEFAULT_DELEGATION,
   approvalPolicy: DEFAULT_POLICY,
   briefingTime: DEFAULT_BRIEFING_TIME,
+  setProfile: (profile) => set({ profile }),
   setMembers: (members) => set({ members }),
   setDelegation: (delegation) => set({ delegation }),
   setApprovalPolicy: (approvalPolicy) => set({ approvalPolicy }),
   setBriefingTime: (briefingTime) => set({ briefingTime }),
   reset: () =>
     set({
+      profile: DEFAULT_PROFILE,
       members: COMPANY_MEMBERS,
       delegation: DEFAULT_DELEGATION,
       approvalPolicy: DEFAULT_POLICY,

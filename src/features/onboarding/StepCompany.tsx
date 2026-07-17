@@ -1,7 +1,5 @@
-// O3 — 사업장 정보 4필드. 시각적 목업(companyStore에 아직 회사 프로필 슬롯이 없고,
-// BriefingHomePage/CaseListPage가 이미 "그린푸드 제조"를 하드코딩된 헤더 문자열로 쓰고 있어
-// 여기 입력값을 영속화해도 그 표시에 반영되지 않는다 — 새 스토어 슬롯을 만드는 대신 이미
-// 확립된 데모 세계관 값을 기본값으로 채워 그대로 보여준다).
+// O3 — 사업장 정보 4필드. 완료 시 lib/onboarding.ts가 companyStore.profile에 반영해
+// 홈(BriefingHomePage)·케이스 목록(CaseListPage) 헤더의 회사명 표시가 이 입력을 따른다(R1.1).
 export interface CompanyFields {
   name: string;
   region: string;
