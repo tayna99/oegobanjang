@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=deadline_extension_request
+purpose=document_deadline_reply
+language_code=id
+incoming_message=Saya membutuhkan waktu tambahan untuk menyiapkan dokumen.
+korean_meaning=서류 준비에 시간이 더 필요하다는 의미의 합성 답변.
+expected_summary=근로자는 서류 준비를 위해 제출 기한 연장을 요청했다.
+expected_status_update=deadline_extension:requested_candidate
+next_action=연장 가능 여부를 확정하지 말고 담당자 검토가 필요한 후보 상태로 기록한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

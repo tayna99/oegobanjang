@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=document_already_sent
+purpose=document_status_reply
+language_code=id
+incoming_message=Saya sudah mengirim dokumen.
+korean_meaning=서류를 이미 보냈다는 의미의 합성 답변.
+expected_summary=근로자는 요청받은 서류를 이미 보냈다고 답했다.
+expected_status_update=document:sent_candidate
+next_action=실제 수신 여부를 담당자가 확인하도록 상태 업데이트 후보만 생성한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

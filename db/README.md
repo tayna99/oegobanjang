@@ -20,6 +20,11 @@ docker run -d --name oegobanjang-pg \
 
 접속 URL: `postgresql://oegobanjang:oegobanjang@localhost:55432/oegobanjang`
 
+> RAG 벡터 인덱스(`rag/`)는 이 서비스 DB와 분리된 전용 pgvector 컨테이너
+> (`pgvector/pgvector:pg16`, 포트 55433, 스키마 `rag`)를 사용한다 — `rag/README.md` 참조.
+> 인스턴스를 하나로 합치고 싶으면 위 이미지를 `pgvector/pgvector:pg16`으로 바꿔도
+> 기존 사용에는 영향이 없다(상위호환).
+
 ## DBeaver에서 열기
 
 1. PostgreSQL 연결을 만들고 Host `localhost` · Port `55432` · DB/User/PW `oegobanjang`를 입력한다.
