@@ -18,6 +18,79 @@
 
 ---
 
+### [2026-07-17] PR #16 재구성 — R1(1.1~1.8) + R2.3(읽기 API) — 완료
+
+- 한 일: PR #16(`claude/roadmap-r1-implementation-d95ccf`)을 리뷰한 결과 병합 보류를 권고했다
+  — ①real API 스레드 목록이 `interpretationStatus`를 항상 `'none'`으로 반환(응답 도착
+  배지·정렬이 real 모드에서 항상 죽음), ②real 로그인 후에도 O2에서 역할을 임의 선택해
+  `roleStore`를 덮어쓸 수 있고 `fetchMe()` 실패·무소속 계정에서 fail-closed하지 않음,
+  ③Evidence 번호(`#4791`)를 replay run ID로 오인해 존재하지 않는 `/run/:id`로 이동,
+  ④PR 템플릿 trailing whitespace로 `git diff --check` 실패. 조사 결과 ③·④는 PR #14
+  리뷰에서 이미 고쳐졌던 버그의 재발이었다 — PR #16이 그 수정 커밋(`9d2f618`)을 포함하지
+  않는 지점에서 분기했기 때문. ②는 PR #15 리뷰에서 동일하게 지적되어 고쳐진 문제였다
+  (`sessionStore.restore()` fail-closed + O2 `readOnly`, 커밋 `a1aa6f4`).
+  - **추가 발견**: PR #15("API 클라이언트 계층 + 인증 배선")는 GitHub에서 `MERGED` 상태였지만
+    실제로는 `main`이 아니라 PR #14의 브랜치(`claude/next-roadmap-2026-07-16-ca88d8`)로
+    병합됐고, 그 병합이 PR #14→main 병합보다 14초 늦게 일어나 PR #15의 커밋들이 `main`에
+    한 번도 반영되지 못한 채 남아 있었다(`origin/main`은 PR #14까지만, PR #15 전체는
+    `origin/claude/next-roadmap-2026-07-16-ca88d8`에만 존재). 이 세션은 그 브랜치(커밋
+    `913c0dd`)를 새 베이스로 채택했다 — `main`과 콘텐츠상 완전히 동일한 지점(`9d2f618`)
+    위에 PR #15의 리뷰까지 마친 R2.1/R2.2가 그대로 얹혀 있어, 별도 병합 작업 없이 그대로
+    쓸 수 있었다. **이 브랜치(`claude/next-roadmap-2026-07-16-ca88d8`)를 main에 병합하는
+    작업이 아직 남아있다 — 다음 세션이 반드시 처리할 것.**
+  - **R1 재개 여부**: `plans/ROADMAP.md`엔 "R0 완료 직후 R1을 건너뛰고 R2로 바로 진행"하라는
+    2026-07-17 지시가 기록돼 있었다(PR #16과 무관한 별도 세션). 사용자에게 재확인한 결과
+    R1도 이번 재구성에 포함하기로 확정 — 그 스킵 결정은 이번 세션 기준으로 번복됐다.
+  - 새 워크트리 브랜치(`claude/branch-parser-impl-e30f2e`)를 `913c0dd`로 `--ff-only` 전진시킨
+    뒤, PR #16의 R1 커밋 8개(84a5646·f8326c0·0c6c648·845de93·e9ba025·cdf1d0c·167443e)를
+    순서대로 cherry-pick했다. `OnboardingFlow.tsx`가 R1.1(회사 프로필)·R1.2(온보딩→케이스)와
+    매번 충돌했는데, 원인은 PR #15의 real 모드 O2 `readOnly`/역할 fail-closed 로직과 PR #16의
+    `companyFields`/`workerFields` 인자 추가가 같은 `onCta()` 한 줄을 각자 고쳤기 때문 —
+    두 로직을 합성(`completeOnboarding(API_MODE === 'real' ? sessionRole : (role ?? 'manager'), companyFields, workerFields)`)해
+    해결했다. `CsvUploadWorkbench.tsx`는 R1.5(`parseCsvText`)와 기존 `CSV_TEMPLATE_COLUMNS`
+    import가 겹쳐 충돌 — 둘 다 필요해 병합만 했다.
+  - R2.3 커밋(`756bfee`)에서 R2.1/R2.2 재구현 부분(케이스/브리핑/스레드 API를 뺀 나머지)은
+    가져오지 않고, 신규 파일(백엔드 `cases.py`/`briefings.py`/`threads.py` 라우터·서비스·
+    스키마 + 프론트 `lib/api/{cases,briefings,threads}.ts`·`lib/dataSeed.ts`)만 이식한 뒤
+    PR #15가 확립한 실제 API 표면에 맞게 다시 배선했다: PR #16의 `USE_REAL_API`(boolean) →
+    `API_MODE === 'real'`, `apiFetch()`가 토큰을 전역 상태에서 암묵적으로 읽던 것 →
+    `useSessionStore.getState().token`을 각 어댑터가 명시적으로 전달(`client.ts`의
+    `apiFetch(path, {token})` 계약에 맞춤). 백엔드 `deps.get_current_membership`이 참조하는
+    `get_active_membership()`이 PR #15 기반엔 없어(R2.2 재구현판에만 있던 함수)
+    `backend/app/services/auth.py`에 새로 추가했다. `ThreadPage.tsx`/`MessagesWorkbench.tsx`는
+    PR #16의 원시 스토어 액션(`confirmInterpretation`+`applyInterpretationUpdates`+
+    `appendEvidence`)과 main에 이미 있던 공유 훅 `useConfirmInterpretation()`이 충돌 —
+    후자가 정확히 같은 일을 하므로 훅 쪽을 유지하고 원시 액션 3줄은 버렸다.
+  - **버그 수정(리뷰 지적 P1 반영)**: 백엔드 `ThreadOut`(목록 스키마)에
+    `latest_interpretation_status` 필드를 추가하고, `list_threads_out()`에 스레드별
+    "가장 최근 메시지에 달린 해석의 status"를 구하는 배치 쿼리
+    (`ThreadMessage`+`Interpretation` 조인 + `row_number() OVER(PARTITION BY thread_id
+    ORDER BY message.created_at DESC, interpretation.created_at DESC)`)를 추가했다 — 프론트
+    `toThreadDetail()`의 reverse-find 우선순위(가장 최근 메시지 기준, 동일 메시지 재해석은
+    최신 것)를 서버에서 그대로 재현. 프론트 `toThreadSummary()`가 더 이상 `interpretationStatus:
+    'none'`을 하드코딩하지 않고 이 필드를 `toInterpretationStatus()`로 매핑한다. 백엔드
+    회귀 테스트 2건(`test_api_threads.py`) + 프론트 회귀 테스트 2건(`threads.test.ts`) 추가.
+  - **role/Evidence-run-ID/PR템플릿 이슈는 별도 수정이 필요 없었다** — 새 베이스(PR #15
+    반영분)에 이미 고쳐진 채로 포함돼 있었다.
+- 남은 일 / 중단 지점: `claude/next-roadmap-2026-07-16-ca88d8`(PR #15의 실제 커밋들이 있는
+  브랜치)를 `main`에 병합하는 작업이 미해결로 남아 있다 — 이 세션의 새 브랜치를 main에
+  합칠 때 반드시 함께 처리하거나, 최소한 순서를 맞출 것(이 브랜치를 그냥 main 기준으로
+  다시 병합하면 PR #15 내용이 또 한 번 빠질 위험). PR #16(`claude/roadmap-r1-implementation-d95ccf`)은
+  이 재구성으로 대체됐으므로 close 대상.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  - R1은 더 이상 스킵 상태가 아니다 — `plans/ROADMAP.md`의 R1 절이 8개 태스크 전부 완료로
+    갱신됐다.
+  - R2는 2.1~2.3까지 완료. 2.4(승인 결정 배선)부터는 여전히 후속 세션 몫.
+- verify 상태: PASS — backend `uv run pytest` 128/128, 프론트 `npm run verify`
+  (typecheck→lint→test 515건→build) 전부 클린. 도중 첫 두 차례 전체 스위트 실행에서
+  `CsvUploadWorkbench.test.tsx`의 실시간 타이머 의존 테스트(파일 업로드→검증 완료 대기)가
+  병렬 부하로 간헐적 timeout을 보였으나(파일 자체 주석이 "FileReader 비동기는
+  vi.useFakeTimers로 제어 안 됨"을 명시한 환경 의존 지점), 파일 단독 재실행과 최종 전체
+  재실행(515/515) 모두 안정적으로 통과 — 로직 회귀 아님.
+- 지도/규칙 갱신: `plans/ROADMAP.md`에 R1 절 신설 + R2.3 완료 표시.
+
+---
+
 ### [2026-07-17] PR #14·#15 추가 코드 리뷰 라운드 — role fail-closed + 재생 런 존재 확인 — 완료
 
 - 한 일: 두 PR에 대해 사용자가 별도로 받아온 리뷰 결과를 그대로 전달받아 수정. 두 리뷰가
