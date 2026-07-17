@@ -12,6 +12,7 @@ from typing import Any
 from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from pydantic import BaseModel, Field
 
 from .tools import (
@@ -64,6 +65,16 @@ class RagAnswer(BaseModel):
     risk_flags: list[str] = Field(default_factory=list)
 
 
+def _default_checkpointer() -> InMemorySaver:
+    # response_format(RagAnswer)이 체크포인트에 msgpack 직렬화되는데, LangGraph 기본
+    # 직렬화기(permissive 모드, allowed_msgpack_modules=True)는 등록되지 않은 커스텀
+    # 타입마다 "future version에서 차단 예정" 경고를 낸다. permissive(True)에서
+    # with_msgpack_allowlist()를 부르면 얼리리턴으로 무시되므로, 처음부터 명시적
+    # allowlist로 생성해야 경고가 사라진다.
+    serde = JsonPlusSerializer(allowed_msgpack_modules=[RagAnswer])
+    return InMemorySaver(serde=serde)
+
+
 def _default_model() -> BaseChatModel:
     from langchain_openai import ChatOpenAI
 
@@ -96,5 +107,5 @@ def create_workforce_rag_agent(
         tools=selected_tools,
         system_prompt=SYSTEM_PROMPT,
         response_format=RagAnswer,
-        checkpointer=checkpointer if checkpointer is not None else InMemorySaver(),
+        checkpointer=checkpointer if checkpointer is not None else _default_checkpointer(),
     )

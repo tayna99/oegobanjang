@@ -37,13 +37,19 @@ rag는 인증 개념이 없는 내부 부품이기 때문이다.
 
 ## 2. 단계 (태스크 1개 = 세션 1개)
 
-### B1 — rag 서비스화 (`rag/src/oe_rag/api.py`) · L2
+### B1 — rag 서비스화 (`rag/src/oe_rag/api.py`) · L2 · ✅ 완료 (2026-07-17)
 - FastAPI 앱 추가 (`uv run uvicorn oe_rag.api:app --port 8100`):
   - `GET /health` → `preflight_pgvector()` (컬렉션 존재·비어있지 않음)
   - `POST /retrieve` `{query, case_type, sub_agent, visa_type, top_k}` → 3버킷 결과 + `rag_retrieved` 페이로드(해시·source_ids·grades — 원문 없음). 로컬 JSONL 이벤트도 계속 남긴다
   - `POST /agent/run` `{query, case_type, thread_id}` → **SSE**: LangGraph 스트림(`stream_mode="updates"`)을 스텝 이벤트로 중계, 마지막에 `RagAnswer` structured 이벤트
 - 오프라인 테스트: `OfflineEchoChatModel`로 SSE 계약 스모크(키 불필요), CI rag 잡에 추가
 - DoD: `uv run pytest` 그린, `curl /health` OK, SSE 스모크에서 step→structured 순서 보장
+
+**구현 노트**:
+- `astream(stream_mode="updates")` 실측 확인 — 노드는 `model`(AIMessage, tool_calls 있으면 도구 호출 직전)과 `tools`(ToolMessage, 검색 결과)만 나온다. `model` 노드에서 tool_calls가 근거검색 도구(`retrieve_workforce_materials`/`search_policy_documents`/`search_multilingual_contact_materials`)면 `kind="thinking"`, `RagAnswer` 호출이면 step으로 안 보내고 최종 `structured` 이벤트로 처리. `tools` 노드는 `retrieved_count`로 `missing_evidence`면 `kind="guardrail"`, 아니면 `kind="tool_call"`로 매핑.
+- `POST /agent/run`의 `model` 의존성은 `Depends(get_chat_model)`로 주입 — 기본은 `None`(→ `ChatOpenAI` 폴백), 테스트는 `app.dependency_overrides[get_chat_model]`로 `OfflineEchoChatModel`을 꽂아 키 없이 SSE 계약을 검증한다(`tests/test_api.py`, pgvector 마커).
+- 부가 발견: `create_agent`의 기본 `InMemorySaver`가 커스텀 `response_format`(RagAnswer)을 msgpack 체크포인트에 저장할 때 "등록되지 않은 타입, 향후 버전에서 차단 예정" 경고를 냈다 — `JsonPlusSerializer(allowed_msgpack_modules=[RagAnswer])`로 명시 허용해 해결(`agent/factory.py:_default_checkpointer`). `with_msgpack_allowlist()`를 permissive 기본값에 체이닝하면 조기 반환(no-op)되는 라이브러리 함정이 있어 생성자에 직접 전달해야 한다.
+- CI `rag` 잡 마지막에 실제 `uvicorn` 기동 후 `curl /health`·`curl /retrieve` 스모크 추가(OPENAI_API_KEY 불필요 경로만 — `/agent/run`은 오프라인 dependency override가 pytest 쪽에만 있어 CI 라이브 서버 스모크에서는 검증하지 않음, 후속 B2에서 실제 통합 시 재검토).
 
 ### B2 — backend RAG 클라이언트 + 근거 영속화 (읽기 전용부터) · L2
 - `backend/app/services/rag_client.py`: httpx로 rag 서비스 호출(`RAG_SERVICE_URL` 설정, 기본 `http://localhost:8100`). rag 다운 시 503 명시(fallback 검색 금지 — RAG_STRATEGY 런타임 경계)

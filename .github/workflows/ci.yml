@@ -116,3 +116,14 @@ jobs:
       - name: 런타임 검색 품질 게이트 (Hit@1/3/5·MRR·safety/misuse=0)
         working-directory: rag
         run: uv run python -m oe_rag.cli eval
+      - name: rag 서비스 기동 스모크 (GET /health, POST /retrieve — OPENAI_API_KEY 불필요)
+        working-directory: rag
+        run: |
+          uv run uvicorn oe_rag.api:app --port 8100 &
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:8100/health && break; sleep 0.5; done
+          curl -sf http://127.0.0.1:8100/health | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -sf -X POST http://127.0.0.1:8100/retrieve \
+            -H "Content-Type: application/json" \
+            -d '{"query":"내국인 구인노력은 언제 확인해야 해?","case_type":"new_hiring"}' \
+            | tee /dev/stderr | grep -q '"retrieved_count"'
+          kill %1

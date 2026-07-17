@@ -31,9 +31,26 @@ uv run python -m oe_rag.cli chat --offline
 uv run python -m oe_rag.cli index-multilingual --embedding-provider deterministic --reset
 uv run python -m oe_rag.cli query-multilingual "상담센터 전화번호가 뭐예요?" --intent counseling
 
+# 6) 서비스 기동 (backend 전용 내부 API — plans/BACKEND_CONNECT.md B1)
+uv run uvicorn oe_rag.api:app --port 8100
+curl http://127.0.0.1:8100/health
+
 # 테스트
 uv run pytest
 ```
+
+## 서비스(rag/src/oe_rag/api.py) — backend 전용 내부 API
+
+프론트는 이 서비스를 직접 호출하지 않는다 — `plans/BACKEND_CONNECT.md`의 토폴로지대로
+backend(8000)가 유일한 프론트 접속점이고, rag 서비스(8100)는 backend가 호출하는 내부 부품이다.
+
+| 엔드포인트 | 설명 |
+|---|---|
+| `GET /health` | pgvector 컬렉션(workforce_official/templates) 존재·비어있지 않음 확인. 미충족 시 503 |
+| `POST /retrieve` | `{query, case_type, sub_agent, visa_type, top_k}` → 워크포스 3버킷 근거 검색 (동기, `rag_retrieved` 이벤트 포함) |
+| `POST /agent/run` | `{query, case_type, thread_id}` → SSE. `event: step`(RunStep kind: thinking/tool_call/guardrail) 0회 이상 → `event: structured`(RagAnswer) → `event: done` |
+
+`POST /agent/run`은 기본적으로 `ChatOpenAI`를 쓰므로 `OPENAI_API_KEY`가 필요하다(없으면 SSE `event: error`). 테스트는 FastAPI `dependency_overrides`로 `get_chat_model`을 `OfflineEchoChatModel`로 바꿔치기해 키 없이 SSE 계약(step→structured→done 순서, guardrail 매핑)을 검증한다(`tests/test_api.py`).
 
 ## 3개 검색 도메인
 
