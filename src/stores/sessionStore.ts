@@ -111,6 +111,13 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
   },
 
   restore: async () => {
+    // 코드리뷰 지적(PR #15 P1): 세션이 없거나 복원이 실패해도 roleStore가 이전 기본값
+    // (manager, mock 데모용 초기값)에 그대로 남아 인증 전 UI 권한 게이트가 관리자 권한으로
+    // 열렸다 — 복원을 시도하기 전에 먼저 최소 권한(viewer)으로 fail-closed하고, 실제로
+    // 유효한 세션이 확인됐을 때만 그 위에 진짜 role을 덮어쓴다. async 함수 본문은 첫
+    // await(fetchMe) 전까지 동기 실행되므로, main.tsx가 restore()를 기다리지 않고
+    // (`void restore()`) 곧바로 렌더해도 이 setRole은 렌더보다 항상 먼저 끝난다.
+    useRoleStore.getState().setRole('viewer');
     const token = readStoredToken();
     if (!token) return;
     const requestId = ++activeRequestId;
