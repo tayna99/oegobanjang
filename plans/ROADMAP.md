@@ -250,7 +250,33 @@ R1(목 세계 플로우 완결)까지는 프론트가 fetch 0건인 순수 mock 
 목록/컨트롤 타워/스레드가 시드 데이터(`db/seed_demo.sql`)로 실제 렌더) 완료. 검증 중 발견한
 버그 1건 즉시 수정: `dataSeed.ts`의 fetch 호출에 `.catch()`가 없어 로그인 전(401) 상황에서
 처리되지 않은 프로미스 거부가 발생 — 콘솔 경고로만 남기고 스토어는 비운 채 두도록 수정.
-2.4(승인 결정 배선)·2.5(evidence 서버 영속화)·2.6(행정사 링크 서버 강제)는 다음 세션.
+
+| # | 태스크 | 레벨 | 스펙 | DoD |
+|---|---|---|---|---|
+| ✅ 2.4 | 승인 결정 배선 | **L3** | NEXT_ROADMAP 2.4, M-4 | `ApprovePage` → 실 `POST /api/v1/approvals`(생성)·`/approve`·`/reject` 배선. 백엔드: `decide_approval()`에 위임(delegation) 유효성 검증 신설(§13-10 해소 — `delegations` 테이블 실조회, DB 트리거 `trg_approvals_decider_role`도 마이그레이션 0002로 위임 경로 추가) + PIN 서버 검증(`users.pin_hash`, 기존 `hash_secret`/`secrets_match` 재사용) + `NextActionOut.pending_approval_id`(action_id↔approval_id 브리징) + `GET /api/v1/auth/me`에 `delegated_by` 목록 추가. 프론트: `lib/api/approvals.ts` 신설, `ApprovePage`가 real 모드에서 PIN·대리 승인·idempotency_key를 실 API로 전송하고 응답의 `case_state`로 로컬 케이스를 갱신 |
+
+**R2.4 완료(2026-07-17).** 사전 조사에서 로드맵이 지목한 두 갭(위임 유효성·PIN 서버 검증) 외에
+구현 중 발견한 선행 버그 1건과 설계 갭 1건을 추가로 해소했다:
+- **선행 버그**: `ApprovePage.tsx`가 mock 픽스처 `CASE_SHEETS`(키 `'nguyen'` 등)를 조회하는데
+  실 DB 케이스 id는 `'cs_nguyen'`처럼 접두사가 달라, real 모드에서는 모든 실제 케이스가
+  "케이스를 찾을 수 없습니다"로 막혔다 — CASE_SHEETS에 없으면 빈 필드로만 채운 최소
+  `CaseSheet`를 합성해 대체(값을 지어내지 않고 아직 안 내려오는 필드만 비워둠). 이 대체
+  경로에서 `isCitationLocked`가 항상 잠금으로 나와 버튼이 영구 비활성화되는 2차 버그도
+  같이 발견해 real 모드는 서버의 citation-0 게이트에 위임하도록 수정.
+- **DB 트리거 갭**: 서비스 계층에서 위임을 검증해도, DB 트리거 `trg_approvals_decider_role`이
+  대리 승인을 전혀 모르고 있어 실제 UPDATE가 500으로 막혔다 — `db/schema.sql` 갱신 +
+  신규 Alembic 리비전 `0002_r2_4_delegated_approval_decider.py`로 트리거에 위임 경로를 추가.
+- 검증: 백엔드 `uv run pytest` 140건 PASS(신규 16건 — 위임 8·PIN 6·pending_approval_id 2),
+  프론트 `npm run verify` PASS(신규 approvals 어댑터 테스트 5건 + ApprovePage real 모드
+  테스트 3건 포함). 브라우저 실통합(데모 계정 010-0000-0001·manager로 실제 케이스
+  `cs_siti` 대리 반려 1건 → 200 성공, `cases.state='returned'`·`approvals.on_behalf_of_user_id
+  ='usr_owner'`·`decided_by_user_id='usr_kim'` DB 반영 직접 확인) 완료 — 같은 케이스의
+  "대리 승인" 시도는 시드 데이터의 `approvals.checklist`가 전 항목 미체크 상태라 서버
+  체크리스트 게이트(422)에 걸려 성공까지 보지 못했지만, 그 전 단계인 위임 검증(403→통과)·
+  PIN 검증은 실제로 통과했음을 네트워크 로그로 확인했다 — 승인 성공 경로 자체는 백엔드
+  pytest(`test_delegated_approve_succeeds_with_active_delegation`)와 프론트 컴포넌트
+  테스트(mock 성공 응답)로 검증됐다.
+2.5(evidence 서버 영속화)·2.6(행정사 링크 서버 강제)는 다음 세션.
 
 ## 백엔드 접속점 (이후 — 별도 계획)
 

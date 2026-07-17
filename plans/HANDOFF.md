@@ -18,6 +18,85 @@
 
 ---
 
+### [2026-07-17] R2.4 — 승인 결정 배선 — 완료
+
+- 한 일: `ApprovePage`를 실 `POST /api/v1/approvals`(생성)·`/approve`·`/reject`로 배선. 로드맵이
+  지목한 두 백엔드 갭을 닫았다.
+  - **위임(delegation) 유효성 검증(§13-10)**: `decide_approval()`이 이제 `delegations` 테이블을
+    실제로 조회한다 — `on_behalf_of_user_id`(위임자)→`decided_by_user_id`(대리인) 방향의
+    활성(`revoked_at IS NULL`)·기간 내·`scope='approval'` 행이 있어야 승인/반려 가능
+    (`ApprovalDelegationInvalidError`, 403). **검증된 위임은 `manager는 대표만 가능` 정책
+    게이트를 우회한다** — 처음엔 이 우회를 빼먹어서 위임이 있어도 정책 게이트에 다시 막히는
+    버그를 만들었다가, 통합 테스트로 바로 잡았다(`delegated = False`부터 시작해 검증 성공
+    시에만 `True`로 바꾸고, `if membership.role == "manager" and not delegated:` 로 게이트).
+  - **PIN 서버 검증**: `ApprovalDecisionRequest.pin` 신설, `users.pin_hash` + 기존
+    `hash_secret`/`secrets_match`(`domain/auth_tokens.py`, 원래 OTP·세션 토큰용으로 만든
+    유틸 — docstring이 이미 "users.pin_hash와 동일 원칙"이라고 예고해뒀었다) 재사용.
+    PIN 미제출·미등록(`pin_hash` NULL)·불일치를 전부 동일한 에러/메시지로 처리해 등록 여부가
+    새지 않게 한다.
+  - **approval_id 브리징**: `NextActionOut.pending_approval_id` 신설 — 백엔드는 `action_id`가
+    아니라 `Approval` 행의 실제 `id`로 approve/reject를 받는데, mock 세계는 이 둘을 1:1로
+    합쳐놔서 R2.3까지의 읽기 API엔 이 id가 없었다. `GET /api/v1/cases` 응답에 얹어, 프론트가
+    이미 대기 중인 승인의 id를 알 수 있게 했다(모르면 `POST /approvals`로 새로 생성 — manager만
+    가능, 백엔드 `ALLOWED_REQUEST_ROLES`와 동일 제약).
+  - **`GET /api/v1/auth/me` 확장**: `delegated_by` 목록 추가 — 로그인 사용자가 대리 승인할 수
+    있는 owner(들)를 노출해, `ApprovePage`의 "대리 승인(위임: OWNER_NAME)" 하드코딩을 실제
+    데이터로 교체했다.
+  - 프론트: `src/lib/api/approvals.ts` 신설(`cases.ts`와 동일한 어댑터 패턴).
+    `ApprovePage.tsx`는 `USE_REAL_API` 분기로만 확장했고 mock 경로는 전혀 건드리지 않았다 —
+    real 모드는 PIN 시트를 승인·반려 공통으로 재사용(서버는 반려도 본인확인을 요구하는데
+    mock은 반려에 PIN을 안 물어서, 이 하나가 mock/real 동작이 실제로 갈라지는 지점이다),
+    idempotency_key는 시도마다 `crypto.randomUUID()`.
+- 구현 중 발견해 추가로 고친 것(로드맵이 지목한 갭 밖):
+  - **선행 버그**: `ApprovePage.tsx`가 mock 픽스처 `CASE_SHEETS`(키 `'nguyen'`)를 조회하는데
+    real DB 케이스 id는 `'cs_nguyen'`처럼 접두사가 달라, real 모드에서는 **모든 실제 케이스가**
+    "케이스를 찾을 수 없습니다"로 막혔다. CASE_SHEETS에 없으면 빈 필드만 채운 최소
+    `CaseSheet`를 합성해 대체(값을 지어내지 않고, 아직 안 내려오는 필드만 비워둠 — 체크리스트
+    문구도 근거 개수를 지어내지 않고 일반 문구로 폴백). 이 대체 경로에서 `isCitationLocked`가
+    빈 배열을 근거 0건으로 해석해 버튼이 영구 비활성화되는 **2차 버그**도 같이 나와서, real
+    모드는 citation-0 판정을 클라이언트에서 하지 않고 서버 게이트(422)에 위임하도록 했다.
+  - **DB 트리거 갭(가장 시간이 걸린 발견)**: 서비스 계층에서 위임을 검증해도, DB 트리거
+    `trg_approvals_decider_role`(승인 UPDATE의 최종 방어선)이 대리 승인을 전혀 몰라서 실제
+    UPDATE가 500(`RaiseException`)으로 막혔다. `db/schema.sql`의 트리거 함수에 위임 조회
+    OR절을 추가하고, **새 Alembic 리비전 `0002_r2_4_delegated_approval_decider.py`**로
+    이미 마이그레이션된 DB에도 적용되게 했다(0001은 동결 스냅샷이라 다시 손대지 않는다 —
+    `migrations/versions/0001_p1_core_schema.py` 모듈 docstring의 규약).
+  - **`db/seed_demo.sql` 갱신 누락**: 계획엔 있었는데 구현 중 깜빡하고 테스트 픽스처
+    (`test_api_approvals.py`)에만 `pin_hash`를 넣었다 — 브라우저 실검증 중 dev DB에
+    `pin_hash`가 없는 걸 발견하고서야 `seed_demo.sql`에 실제로 반영(`usr_kim`/`usr_owner`
+    pin_hash + `usr_owner`→`usr_kim` 위임 1건). **다음 세션이 dev DB에서 데모 PIN/위임을
+    쓰려면 `db/seed_demo.sql`을 재적용하거나, 기존 dev DB엔 이미 직접 UPDATE로 반영해뒀다.**
+- 결정 사항 (다음 세션이 알아야 할 것):
+  - `companyStore.approvalPolicy`(mock)는 real 모드에서 실제 회사 정책과 동기화되지 않는다 —
+    브라우저 검증 중 이 불일치를 실제로 목격했다: 서버 정책은 owner_only인데 mock
+    companyStore 기본값(manager_allowed)을 보고 프론트가 "승인하기" 버튼을 그냥 보여줘서,
+    대리 승인 체크 없이 누르면 서버가 403으로 막는 상황이 재현된다(정상 동작이지만 UX상
+    한 박자 늦게 발견되는 셈 — 클라이언트가 먼저 막아주지 못함). 회사 정책 real 동기화는
+    이번 세션 스코프 밖으로 남겨둔 것 — 다음에 손볼 때는 `/auth/me` 또는 별도
+    `GET /api/v1/companies/me` 확장을 고려.
+  - real 모드는 근거 라이브러리·체크리스트 완전 동기화가 없다(citation 개수·guardNote 등) —
+    2.5류 후속. 서버 게이트(citation-0·체크리스트·정책)가 유일한 진실 원천이고, 클라이언트는
+    그 결과를 에러 배너로만 보여준다.
+  - 브라우저 실검증에서 "승인" 성공까지는 못 봤다(시드 `apv_siti`의 `checklist`가 전항목
+    미체크 상태로 심어져 있어 서버 체크리스트 게이트에 걸림 — DB의 `trg_approvals_update_guard`
+    가 pending 승인의 필드만 단독으로 못 고치게 막아서 즉석에서 고칠 수도 없었다). 대신 같은
+    케이스로 "대리 반려"는 200 성공까지 끝까지 봤고(`cases.state='returned'`,
+    `on_behalf_of_user_id='usr_owner'` DB 반영 확인), 승인 성공 경로 자체는 pytest
+    (`test_delegated_approve_succeeds_with_active_delegation`)와 프론트 컴포넌트 테스트로
+    커버했다 — 실사용 데모를 준비할 땐 새 케이스로 승인 흐름도 한 번 직접 확인할 것.
+- 남은 일 / 중단 지점: 없음. 2.4 전 항목 완료. 다음은 2.5(evidence 서버 영속화)·2.6(행정사
+  링크 서버 강제) — 별도 세션.
+- verify 상태: 백엔드 `uv run pytest` 140건 PASS(신규 16건). 프론트 `npm run verify`(typecheck→
+  lint→test 498건→build) PASS. `src/features/cases/CaseWorkbench.test.tsx`가 격리 재실행
+  시 간헐적으로 실패했다(같은 파일을 5회 연속 재실행 중 2회 실패, 3회 통과) — 이 세션에서
+  건드리지 않은 파일이고 실패 지점(`케이스 타임라인` region 미검출)도 이전 세션에서 이미
+  같은 파일에 대해 "환경 요인(자원 경합), 실제 회귀 아님"으로 기록된 패턴과 동일해 회귀로
+  보지 않는다 — 다만 재발하니 근본 원인(effect 타이밍 경합 추정)을 다음에 조사할 가치는 있다.
+- 지도/규칙 갱신: `plans/ROADMAP.md`에 R2.4 절 추가. `docs/DB_SCHEMA.md` §5.3-4·§9.10(대리
+  승인 위임 유효성 결정 항목)을 "미결"에서 "R2.4에서 해소"로 갱신.
+
+---
+
 ### [2026-07-17] R2 — 백엔드 배선: API 클라이언트+인증+읽기 API(2.1~2.3) — 완료
 
 - 한 일: 사용자 지시로 R1 다음 태스크(백엔드 배선)에 착수, 세션 범위를 2.1~2.3로 확정(2.4~2.6은
