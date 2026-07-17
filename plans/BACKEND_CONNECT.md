@@ -65,21 +65,32 @@ rag는 인증 개념이 없는 내부 부품이기 때문이다.
 - **CitationOut은 snake_case**(camelCase 변환 없음) — 기존 스키마 관례(ApprovalOut 등)를 그대로 따름. 프론트 계약은 B4에서 확정.
 - backend pytest: `test_rag_client.py`(7, respx 목킹) + `test_evidence_ingest.py`(10, PG 실기록) + `test_api_citations.py`(5, 테넌트 인가) = 140 passed(기존 118 무회귀).
 
-### B3 — backend runs API + SSE 프록시 · L3
-- `POST /api/v1/runs` `{caseId, mode, query}` → run 레코드 생성(models/run.py), RunConfig JSON 반환
-  (runKey·agent·evidenceRef·autonomyLabel·question·altLabel — steps는 비움)
-- `GET /api/v1/runs/{run_id}/stream` → rag `/agent/run` SSE를 구독하며:
-  ① 스텝을 **프론트 RunStep 계약 그대로**(`{kind, label, detail}`) 재발행 ② run_steps 기록
-  ③ rag_retrieved → evidence_events ④ 종료 시 citations upsert + 승인 대기 생성(mode=approval)
-- **RunStep kind 매핑 정본** (rag 스트림 → 프론트 5종):
-  | rag 이벤트 | RunStep.kind |
-  |---|---|
-  | 모델 추론 시작/계속 | `thinking` |
-  | `retrieve_workforce_materials` 등 tool 실행 | `tool_call` |
-  | D/F 차단·`MISSING_EVIDENCE`·금지 판단 차단 | `guardrail` |
-  | 행정사 전달 패키지 준비 | `handoff` |
-  | 재검색/질의 재작성 | `replan` |
-- DoD: SSE 통합 테스트(fake rag 서버), run_steps·evidence_events 기록 검증, `writesData` 런의 owner 차단 규칙 유지
+### B3' — backend 오케스트레이터 + runs SSE · L3 · ✅ 완료(2026-07-17, M7 G3와 함께 개정)
+
+원안(B3, `/agent/run` 단발 SSE 프록시)에서 **2-phase(`/intent`→스냅샷→`/graph/run`)로 개정**
+— M7이 만든 명시적 StateGraph(감지→분석→준비→승인→기록 고정 순서)를 그대로 결선한다.
+
+- `POST /api/v1/runs/stream` `{company_id, message, thread_id?}` → SSE:
+  `run_created → route → (step|evidence)* → structured → done`
+  ① `run_service.execute_command_run()`이 rag `/intent` 호출 → `route.required_context`로
+  `context_service.build_context_snapshot()`(Rule 실행 포함) 조립 → rag `/graph/run` 구독
+  ② `step` 프레임마다 `run_steps` 기록(kind는 rag 값 그대로 — db CHECK
+  `thinking|tool_call|guardrail|handoff|replan`과 **완전히 일치함을 스키마에서 직접 확인**,
+  별도 매핑표 불필요) ③ `evidence` 프레임마다 `evidence_ingest.ingest_rag_evidence_event()`
+  ④ `structured` 프레임의 `answer.citations` → `upsert_citations()` ⑤ `approval.required`면
+  `run.status="waiting_approval"`(CHECK 허용값), 아니면 `"completed"`
+- **case_id 제약**: `runs.case_id`는 커맨드 런에서 NULL 허용이지만 `approvals.case_id`는
+  NOT NULL — 이번 그래프는 아직 case를 만들지 않으므로(case 생성은 G6/Daily Briefing의
+  Rule 엔진 몫) `approvals` 행은 만들지 않고 `run.status`로만 승인 필요를 표시한다.
+  case가 있는 흐름과 연결하는 건 case 생성 로직이 생기는 후속 작업.
+- `get_db()`는 자동 커밋하지 않는다(확인 완료) — 프레임 경계(run 생성·매 step·매
+  evidence·종료)마다 명시적 `db.commit()`. 클라이언트가 중간에 끊겨도 그때까지의
+  evidence는 이미 영속화돼 있다(append-only 감사 원칙에 부합).
+- DoD: `respx`로 rag `/intent`·`/graph/run`을 목킹한 통합 테스트(fake rag 서버 원칙),
+  run_steps·evidence_events·citations 기록 검증, 차단 intent는 그래프 자체를 호출하지
+  않음(`route` 이벤트에서 즉시 `done`), rag 다운 시 `run.status="failed"`+`error` 프레임,
+  테넌트 인가(멤버십 없는 회사 403).
+- 테스트: `test_api_runs.py` 5종. backend 145 passed(기존 140 무회귀).
 
 ### B4 — 프론트 진입점 (읽기 전용: citations + 런 스트리밍) · L3
 §3에 상세. DoD: `VITE_API_BASE` 미설정 시 기존 419 테스트 전부 그린(무변경 동작),
