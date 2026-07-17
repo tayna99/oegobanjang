@@ -17,6 +17,7 @@ class ApprovalDecisionRequest(BaseModel):
     idempotency_key: str = Field(min_length=1)
     on_behalf_of_user_id: str | None = None  # 대리 승인 시 위임자(7단계 §5)
     identity_method: Literal["pin", "biometric"] | None = None  # approve일 때 필수(§5.3-6)
+    pin: str | None = None  # identity_method='pin'일 때만 사용, 비교 후 즉시 버림(§13-10)
     reason: str | None = None  # reject일 때 필수(§5.3-8)
 
 

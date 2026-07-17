@@ -16,15 +16,26 @@ INSERT INTO companies (id, name, industry, region, worker_count_band, approval_p
 VALUES ('cmp_greenfood', '그린푸드 제조', '식품 제조업', '경기 화성', '5_20', 'owner_only',
         'done', 'manual', 6, 4797); -- 카운터: case_006 · #4797까지 발급됨(§9)
 
-INSERT INTO users (id, phone, name, terms_agreed_at) VALUES
-  ('usr_kim',   '010-0000-0001', '김담당', '2026-06-01T09:00:00Z'),
-  ('usr_park',  '010-0000-0002', '박주임', '2026-06-01T09:10:00Z'),
-  ('usr_owner', '010-0000-0003', '김대표', '2026-06-01T09:20:00Z');
+-- pin_hash 값 = hash_secret('1234')(로컬 기본 pepper 기준, backend/app/domain/auth_tokens.py) —
+-- 프론트 DEMO_PIN(src/lib/pin.ts)과 동일한 값이라 real API 모드에서도 같은 데모 PIN이 통한다.
+-- 승인 권한이 있는 두 계정(manager·owner)만 채운다 — R2.4, docs/DB_SCHEMA.md §13-10.
+INSERT INTO users (id, phone, name, terms_agreed_at, pin_hash) VALUES
+  ('usr_kim',   '010-0000-0001', '김담당', '2026-06-01T09:00:00Z',
+   'f6069dbc9e0c0f3a844b39d21e6664b359cbdd2f1cf32b22f8afbb317f5aa86a'),
+  ('usr_park',  '010-0000-0002', '박주임', '2026-06-01T09:10:00Z', NULL),
+  ('usr_owner', '010-0000-0003', '김대표', '2026-06-01T09:20:00Z',
+   'f6069dbc9e0c0f3a844b39d21e6664b359cbdd2f1cf32b22f8afbb317f5aa86a');
 
 INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
   ('mem_kim',   'cmp_greenfood', 'usr_kim',   'manager', 'active'),
   ('mem_park',  'cmp_greenfood', 'usr_park',  'manager', 'active'),
   ('mem_owner', 'cmp_greenfood', 'usr_owner', 'owner',   'active');
+
+-- R2.4 — owner(usr_owner)→manager(usr_kim) 승인 위임 1건. 대리 승인 브라우저 검증을 실제로
+-- 실행 가능하게 한다(docs/DB_SCHEMA.md §4.1 delegations, §13-10).
+INSERT INTO delegations (id, company_id, delegator_user_id, delegate_user_id, scope, starts_at, ends_at) VALUES
+  ('del_owner_kim', 'cmp_greenfood', 'usr_owner', 'usr_kim', 'approval',
+   '2026-06-01T00:00:00Z', '2027-06-01T00:00:00Z');
 
 -- 4.2 근로자 ------------------------------------------------------------------
 -- stay_expires_at: batbayar/nguyen/tran은 디자인 값. siti/rahmat/oyunaa는 [데모 보강]

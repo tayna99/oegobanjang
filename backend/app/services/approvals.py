@@ -27,6 +27,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.ids import new_id
+from app.domain.auth_tokens import secrets_match
 from app.domain.case_transitions import can_transition
 from app.domain.exceptions import (
     ApprovalActionNotRequestableError,
@@ -34,10 +35,12 @@ from app.domain.exceptions import (
     ApprovalAlreadyPendingError,
     ApprovalBlockedByEvidenceError,
     ApprovalChecklistIncompleteError,
+    ApprovalDelegationInvalidError,
     ApprovalForbiddenError,
     ApprovalIdempotencyKeyReusedError,
     ApprovalIdentityRequiredError,
     ApprovalNotFoundError,
+    ApprovalPinInvalidError,
     ApprovalReasonContainsPiiError,
     ApprovalReasonRequiredError,
     CaseTransitionError,
@@ -47,6 +50,7 @@ from app.models.approval import Approval
 from app.models.case import Case, NextAction
 from app.models.citation import CaseCitation, Citation
 from app.models.company import Company
+from app.models.delegation import Delegation
 from app.models.evidence import EvidenceEvent
 from app.models.membership import Membership
 from app.models.user import User
@@ -107,6 +111,7 @@ def decide_approval(
 
     case = db.get(Case, approval.case_id)
     next_action = db.get(NextAction, approval.action_id)
+    now = dt.datetime.now(dt.timezone.utc)
 
     membership = db.execute(
         select(Membership).where(
@@ -118,15 +123,49 @@ def decide_approval(
     if membership is None or membership.role not in APPROVER_ROLES:
         raise ApprovalForbiddenError("승인 권한이 없습니다")
 
+    # 대리 승인(on_behalf_of_user_id 있음)이면 실제 활성 위임 관계를 확인한다(§13-10) —
+    # 본인 승인 경로(None)는 건드리지 않는다(쿼리조차 안 함, 기존 동작 무영향). 검증된 위임은
+    # 아래 "manager는 대표만 가능" 정책 게이트를 우회하는 근거가 된다 — 위임의 존재 이유 자체가
+    # 부재중인 owner를 대신해 manager가 승인하게 하는 것이므로, 검증 없이 게이트만 남겨두면
+    # 위임 기능이 실질적으로 무의미해진다(항상 막힘).
+    delegated = False
+    if payload.on_behalf_of_user_id is not None:
+        delegation = db.execute(
+            select(Delegation).where(
+                Delegation.company_id == approval.company_id,
+                Delegation.delegator_user_id == payload.on_behalf_of_user_id,
+                Delegation.delegate_user_id == decided_by_user_id,
+                Delegation.scope == "approval",
+                Delegation.revoked_at.is_(None),
+                Delegation.starts_at <= now,
+                Delegation.ends_at >= now,
+            )
+        ).scalar_one_or_none()
+        if delegation is None:
+            raise ApprovalDelegationInvalidError()
+        delegated = True
+
+    # 본인확인 수단 필수 — 세션만으로 승인/반려 불가(§5.3-6, 7단계 §4). approve·reject 공통.
+    if payload.identity_method not in ("pin", "biometric"):
+        raise ApprovalIdentityRequiredError()
+
+    decider = db.get(User, decided_by_user_id)
+    # PIN 서버 검증(§13-10) — 미제출·미등록(pin_hash 없음)·불일치를 전부 동일하게 취급해
+    # 등록 여부가 응답으로 새어나가지 않게 한다. biometric은 계속 미검증 플래그(범위 밖).
+    if payload.identity_method == "pin":
+        if payload.pin is None or decider.pin_hash is None or not secrets_match(payload.pin, decider.pin_hash):
+            raise ApprovalPinInvalidError()
+
     # F3: 자유 텍스트(반려 사유·승인 의견)에 PII 패턴이 있으면 저장 전에 차단(approve·reject 공통).
     if payload.reason and contains_pii(payload.reason):
         raise ApprovalReasonContainsPiiError()
 
     if decision == "approved":
         # 결정자 권한 세분화: manager는 approval_policy='manager_allowed'이고
-        # 케이스 severity가 LOW일 때만(§5.3-6, docs/DB_SCHEMA.md §13-9).
+        # 케이스 severity가 LOW일 때만(§5.3-6, docs/DB_SCHEMA.md §13-9) — 단, 검증된 위임이
+        # 있으면 이 게이트를 우회한다(대리 승인은 owner 권한을 위임받아 행사하는 것이므로).
         # 주의: 'low risk'를 severity=LOW로 근사한 것 — 실제 액션 위험도 모델은 §13-9 미결.
-        if membership.role == "manager":
+        if membership.role == "manager" and not delegated:
             company = db.get(Company, approval.company_id)
             if not (company.approval_policy == "manager_allowed" and case.severity == "LOW"):
                 raise ApprovalForbiddenError("이 승인은 대표만 가능합니다")
@@ -146,16 +185,9 @@ def decide_approval(
             items = approval.checklist if isinstance(approval.checklist, list) else []
             if not items or not all(item.get("checked") for item in items):
                 raise ApprovalChecklistIncompleteError()
-
-        # 본인확인 수단 필수 — 세션만으로 승인 불가(§5.3-6, 7단계 §4)
-        if payload.identity_method not in ("pin", "biometric"):
-            raise ApprovalIdentityRequiredError()
     else:
         if not payload.reason:
             raise ApprovalReasonRequiredError()
-        # 반려도 사람 결정이므로 본인확인 필수(approve와 동일 — 스키마 approvals CHECK도 강제)
-        if payload.identity_method not in ("pin", "biometric"):
-            raise ApprovalIdentityRequiredError()
 
     # 케이스 상태 전이는 approval_pending 케이스에서만 일어난다. 그 외(예: blocked 고위험
     # handoff 승인)는 승인/연계 패키지만 결정되고 케이스 상태는 유지된다 — blocked는 종착이며
@@ -167,8 +199,6 @@ def decide_approval(
 
     if target_state is not None and not can_transition(case.state, target_state):
         raise CaseTransitionError(case.state, target_state)
-
-    now = dt.datetime.now(dt.timezone.utc)
 
     approval.status = decision
     approval.idempotency_key = payload.idempotency_key
@@ -186,7 +216,6 @@ def decide_approval(
         case.updated_at = now
         db.flush()
 
-    decider = db.get(User, decided_by_user_id)
     actor_display = f"{decider.name} (본인)" if payload.on_behalf_of_user_id is None else f"{decider.name} (대리 승인)"
 
     event_no = _next_event_no(db, approval.company_id)

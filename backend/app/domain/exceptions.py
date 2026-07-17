@@ -26,6 +26,21 @@ class ApprovalForbiddenError(ApprovalError):
     """권한 없음 — 결정자 role 미달, high risk 케이스에 handoff 외 액션 승인 시도 등(§5.3-6·7)."""
 
 
+class ApprovalDelegationInvalidError(ApprovalError):
+    """on_behalf_of_user_id가 있는데 유효한(활성·기간 내) delegations 행이 없음(§13-10)."""
+
+    def __init__(self) -> None:
+        super().__init__("대리 승인 권한이 없습니다 (유효한 위임 관계를 찾을 수 없습니다)")
+
+
+class ApprovalPinInvalidError(ApprovalError):
+    """identity_method='pin'인데 pin 미제출·미등록(pin_hash 없음)·불일치 — 세 경우를 구분하지
+    않고 동일한 메시지로 처리한다(PIN 등록 여부가 응답으로 새어나가지 않도록)."""
+
+    def __init__(self) -> None:
+        super().__init__("PIN이 일치하지 않습니다")
+
+
 class ApprovalBlockedByEvidenceError(ApprovalError):
     """사용 가능 근거(grade != 'F') 0건 — citation-0 잠금(§5.3-3, GOTCHAS §3)."""
 

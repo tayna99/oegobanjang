@@ -899,6 +899,8 @@ CREATE TRIGGER approvals_members_active
   FOR EACH ROW EXECUTE FUNCTION trg_approvals_members_active();
 
 -- 승인 결정자 role 정책: owner, 또는 (manager_allowed 회사 + manager + 케이스 severity LOW)
+-- R2.4(§13-10): 위임(delegations)으로 대리 승인하는 manager도 허용 — 세 번째 OR절.
+-- 검증된 위임(활성·기간 내·scope='approval')이 있으면 owner_only 정책이어도 허용한다.
 CREATE FUNCTION trg_approvals_decider_role() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.decided_by_user_id IS NOT NULL AND NOT EXISTS (
@@ -912,6 +914,19 @@ BEGIN
       AND (
         m.role = 'owner'
         OR (c.approval_policy = 'manager_allowed' AND m.role = 'manager' AND cs.severity = 'LOW')
+        OR (
+          NEW.on_behalf_of_user_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM delegations d
+            WHERE d.company_id = NEW.company_id
+              AND d.delegator_user_id = NEW.on_behalf_of_user_id
+              AND d.delegate_user_id = NEW.decided_by_user_id
+              AND d.scope = 'approval'
+              AND d.revoked_at IS NULL
+              AND d.starts_at <= now()
+              AND d.ends_at >= now()
+          )
+        )
       )
   ) THEN
     RAISE EXCEPTION 'approval decider is not allowed by company policy';

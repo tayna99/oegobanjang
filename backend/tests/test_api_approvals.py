@@ -19,11 +19,14 @@ from app.main import app
 
 
 def _seed_base(db):
+    # pin_hash 값 = hash_secret('1234')(로컬 기본 pepper 기준) — _body()의 기본 pin과 짝을 이룬다.
     db.execute(text("""
         INSERT INTO companies (id, name, approval_policy) VALUES ('cmp1','테스트','owner_only');
-        INSERT INTO users (id, phone, name, terms_agreed_at) VALUES
-          ('u_owner','010-0000-0001','김대표', now()),
-          ('u_manager','010-0000-0002','박주임', now());
+        INSERT INTO users (id, phone, name, terms_agreed_at, pin_hash) VALUES
+          ('u_owner','010-0000-0001','김대표', now(),
+           'f6069dbc9e0c0f3a844b39d21e6664b359cbdd2f1cf32b22f8afbb317f5aa86a'),
+          ('u_manager','010-0000-0002','박주임', now(),
+           'f6069dbc9e0c0f3a844b39d21e6664b359cbdd2f1cf32b22f8afbb317f5aa86a');
         INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
           ('m_owner','cmp1','u_owner','owner','active'),
           ('m_manager','cmp1','u_manager','manager','active');
@@ -103,7 +106,7 @@ def _auth_headers(client: TestClient, user: str = "u_owner") -> dict:
 
 
 def _body(**overrides):
-    body = {"idempotency_key": str(uuid.uuid4()), "identity_method": "pin"}
+    body = {"idempotency_key": str(uuid.uuid4()), "identity_method": "pin", "pin": "1234"}
     body.update(overrides)
     return body
 
@@ -255,3 +258,157 @@ def test_high_risk_blocked_case_handoff_approves_but_stays_blocked(client, seede
 def test_approval_not_found_returns_404(client):
     resp = client.post("/api/v1/approvals/nope/approve", json=_body(), headers=_auth_headers(client))
     assert resp.status_code == 404
+
+
+def _seed_delegation(db, *, delegator="u_owner", delegate="u_manager", starts_at="now() - interval '1 day'",
+                      ends_at="now() + interval '1 day'", revoked=False, company="cmp1", scope="approval",
+                      id_="del1"):
+    db.execute(
+        text(
+            f"INSERT INTO delegations (id, company_id, delegator_user_id, delegate_user_id, scope, "
+            f"starts_at, ends_at, revoked_at) VALUES "
+            f"(:id, :company, :delegator, :delegate, :scope, {starts_at}, {ends_at}, "
+            f"{'now()' if revoked else 'NULL'})"
+        ),
+        {"id": id_, "company": company, "delegator": delegator, "delegate": delegate, "scope": scope},
+    )
+    db.flush()
+
+
+def test_delegated_approve_succeeds_with_active_delegation(client, seeded):
+    # owner_only 정책 하에서 manager 단독으로는 승인 불가하지만, 유효한 위임이 있으면 성공한다.
+    _seed_delegation(seeded)
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["approval"]["status"] == "approved"
+
+
+def test_delegated_reject_succeeds_with_active_delegation(client, seeded):
+    _seed_delegation(seeded)
+    resp = client.post(
+        "/api/v1/approvals/apv1/reject",
+        json=_body(on_behalf_of_user_id="u_owner", reason="위임 반려 확인"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["approval"]["status"] == "rejected"
+
+
+def test_approve_on_behalf_without_any_delegation_row_is_forbidden(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_approve_on_behalf_with_revoked_delegation_is_forbidden(client, seeded):
+    _seed_delegation(seeded, revoked=True)
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_approve_on_behalf_with_expired_delegation_is_forbidden(client, seeded):
+    _seed_delegation(seeded, starts_at="now() - interval '2 days'", ends_at="now() - interval '1 day'")
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_approve_on_behalf_with_not_yet_started_delegation_is_forbidden(client, seeded):
+    _seed_delegation(seeded, starts_at="now() + interval '1 day'", ends_at="now() + interval '2 days'")
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_approve_on_behalf_with_wrong_direction_delegation_is_forbidden(client, seeded):
+    # 위임은 owner(u_owner)→manager(u_manager) 방향으로 정상 존재하지만, u_owner가 반대로
+    # "u_manager를 대리해" 결정하려 하면(방향이 실제 요청과 반대) 매칭되는 위임이 없어야 한다.
+    _seed_delegation(seeded, delegator="u_owner", delegate="u_manager")
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_manager"),
+        headers=_auth_headers(client, user="u_owner"),
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_approve_on_behalf_ignores_delegation_from_other_company(client, seeded):
+    # 타 회사에 같은 두 사용자로 유효해 보이는 위임이 있어도(멤버십도 별도로 그 회사에
+    # 존재), company_id가 다르면 이 승인(cmp1)에는 적용되지 않아야 한다(테넌트 격리).
+    seeded.execute(text("""
+        INSERT INTO companies (id, name, approval_policy) VALUES ('cmp_other','다른 회사','owner_only');
+        INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
+          ('m_owner_other','cmp_other','u_owner','owner','active'),
+          ('m_manager_other','cmp_other','u_manager','manager','active');
+    """))
+    seeded.flush()
+    _seed_delegation(seeded, company="cmp_other")
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(on_behalf_of_user_id="u_owner"),
+        headers=_auth_headers(client, user="u_manager"),
+    )
+    assert resp.status_code == 403, resp.text
+
+
+def test_approve_with_wrong_pin_is_rejected(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(pin="0000"), headers=_auth_headers(client)
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_approve_with_pin_method_but_missing_pin_value_is_rejected(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(pin=None), headers=_auth_headers(client)
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_approve_with_pin_method_but_user_has_no_pin_registered_is_rejected(client, seeded):
+    seeded.execute(text("UPDATE users SET pin_hash=NULL WHERE id='u_owner'"))
+    seeded.flush()
+    no_pin_resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(pin=None), headers=_auth_headers(client)
+    )
+    wrong_pin_resp = client.post(
+        "/api/v1/approvals/apv1/approve", json=_body(pin="0000"), headers=_auth_headers(client)
+    )
+    assert no_pin_resp.status_code == wrong_pin_resp.status_code == 422
+    # 등록 여부가 응답 메시지로 새어나가지 않는지 확인 — 오답과 동일한 메시지여야 한다.
+    assert no_pin_resp.json()["detail"] == wrong_pin_resp.json()["detail"]
+
+
+def test_approve_with_biometric_method_skips_pin_check(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/approve",
+        json=_body(identity_method="biometric", pin=None),
+        headers=_auth_headers(client),
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_reject_with_wrong_pin_is_rejected(client):
+    resp = client.post(
+        "/api/v1/approvals/apv1/reject",
+        json=_body(pin="0000", reason="근거 확인 필요"),
+        headers=_auth_headers(client),
+    )
+    assert resp.status_code == 422, resp.text
