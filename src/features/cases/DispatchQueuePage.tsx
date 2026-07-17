@@ -1,47 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/Button';
 import { IconLock } from '@/components/icons';
 import { PcOnlyNotice } from '@/components/PcOnlyNotice';
 import { GuardrailError } from '@/lib/guardrail';
+import { deriveDispatchQueue, type DispatchQueueItem } from '@/lib/dispatch';
 import { useNav } from '@/lib/nav';
 import { useIsDesktop } from '@/lib/useIsDesktop';
-import { DISPATCH_HISTORY, DISPATCH_QUEUE, type DispatchItem } from '@/mocks/dispatch';
+import { DISPATCH_HISTORY } from '@/mocks/dispatch';
 import { useApprovalStore } from '@/stores/approvalStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useRoleStore } from '@/stores/roleStore';
 
-// 발송 실행 큐(PC 4d, 순신규) — reference/design-system/외고반장 PC_4a-4f(신규티어).dc.html
-// §4d 이식. "승인된 것만 이 화면에 도착 · mock dispatch · 실행도 evidence 기록." 큐 자체는
-// 각본 기반 고정 데이터(mocks/dispatch.ts) — 실제 승인 파이프라인과 자동 연동하지 않는다
-// (승인 완료→큐 자동 반영은 후속 확장, GOTCHAS "필요한 만큼만"). 실행 버튼을 누르면
-// evidence(dispatch_executed)만 기록하고, 실제 발송 어댑터는 없다(mock).
-const ACTION_LABEL: Record<DispatchItem['actionKind'], string> = { dispatch: '발송 실행 (mock)', link_issue: '링크 발급' };
+// 발송 실행 큐(PC 4d) — reference/design-system/외고반장 PC_4a-4f(신규티어).dc.html §4d
+// 이식. "승인된 것만 이 화면에 도착 · mock dispatch · 실행도 evidence 기록." R1.4부터 큐는
+// 고정 각본이 아니라 approvalStore+evidenceStore에서 파생된다(lib/dispatch.ts) — 실행
+// 버튼을 누르면 evidence(dispatch_executed)만 기록하고, 실제 발송 어댑터는 없다(mock).
+const ACTION_LABEL: Record<DispatchQueueItem['actionKind'], string> = { dispatch: '발송 실행 (mock)', link_issue: '링크 발급' };
 
 function DispatchQueueWorkbench() {
   const appendEvidence = useEvidenceStore((s) => s.append);
   const events = useEvidenceStore((s) => s.events);
-  const requestApproval = useApprovalStore((s) => s.requestApproval);
-  const decide = useApprovalStore((s) => s.decide);
-  const [executedIds, setExecutedIds] = useState<Set<string>>(new Set());
+  const approvals = useApprovalStore((s) => s.approvals);
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
 
-  // 이 큐는 "승인된 것만 도착"을 시나리오상 가정만 하지 않고 approvalStore에 실제로
-  // 반영한다 — dispatch() 실행 시 그 상태를 진짜로 검사하게 하기 위해서다(코드리뷰 P1).
-  useEffect(() => {
-    for (const item of DISPATCH_QUEUE) {
-      if (useApprovalStore.getState().approvals[item.actionId]?.status === 'approved') continue;
-      requestApproval(item.actionId);
-      decide(item.actionId, 'approved', `${item.actionId}:seed:approved`);
-    }
-  }, [requestApproval, decide]);
-
-  const waiting = DISPATCH_QUEUE.filter((item) => !executedIds.has(item.id));
+  const waiting = useMemo(() => deriveDispatchQueue(approvals, events), [approvals, events]);
   const recentEvents = events
     .filter((e) => e.type === 'dispatch_executed')
     .slice()
     .reverse();
 
-  const onExecute = (item: DispatchItem) => {
+  const onExecute = (item: DispatchQueueItem) => {
     try {
       // 승인 없이 dispatch 불가(GOTCHAS §1) — 이 화면도 다른 곳과 동일한 가드레일을 거친다.
       useApprovalStore.getState().dispatch(item.actionId);
@@ -55,11 +43,13 @@ function DispatchQueueWorkbench() {
       type: 'dispatch_executed',
       at: new Date().toISOString(),
       caseId: item.caseId,
+      actionId: item.actionId,
       evidenceRef: item.evidenceRef,
       summary: `${item.workerName} · ${item.actionLabel} 실행`,
       actor: '김담당',
     });
-    setExecutedIds((prev) => new Set(prev).add(item.id));
+    // 로컬 상태 불필요 — dispatch_executed가 기록되는 즉시 deriveDispatchQueue가 재계산돼
+    // waiting 목록에서 자연히 빠진다.
   };
 
   return (
