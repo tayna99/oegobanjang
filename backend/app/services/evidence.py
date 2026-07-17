@@ -31,42 +31,78 @@ from app.schemas.evidence import EvidenceEventCreate
 # 직접 기록한다(docs/DB_SCHEMA.md §4.5 R2.5 노트).
 PACKAGE_LINK_EVIDENCE_TYPES = frozenset({"package_link_issued", "package_link_viewed", "package_reply"})
 
-# db/schema.sql evidence_events.type CHECK과 동일 목록(R2.5) 중 위 3종을 제외한 것 — 이
-# 엔드포인트로 POST 가능한 타입 전체. CHECK와 어긋나면 DB가 최종 방어선이지만, 여기서 먼저
-# 걸러야 사용자에게 500이 아니라 422를 준다.
-ALLOWED_EVIDENCE_TYPES = frozenset(
+# 코드리뷰 지적(PR #20 P1): 이 엔드포인트는 세션만 있으면(회사 소속 여부만) 통과하는
+# get_current_membership 뒤에 있다 — role 검사도, "실제로 그 행위를 했는가" 검사도 없다.
+# 이전에는 ALLOWED_EVIDENCE_TYPES가 approval_decided/role_changed/dispatch_executed 같은
+# "결정·특권 행위의 결과"까지 그대로 받아, 아무 구성원이나 존재하지 않는 승인·역할변경·
+# 발송완료를 감사 로그에 위조해 넣을 수 있었다(GlobalEvidencePage가 그 행을 실제 서버
+# 기록과 구분 없이 보여준다). 이런 타입은 반드시 해당 행위를 실제로 처리하는 서버 로직
+# 안에서만(같은 DB 트랜잭션으로) 기록돼야 한다 — approval_decided/approval_requested는
+# 이미 services/approvals.py가 그렇게 한다(decide_approval/request_approval). 나머지
+# (role/delegation/dispatch/worker 생애주기)는 아직 전용 백엔드가 없는데, 그렇다고 이
+# 범용 엔드포인트로 받아주면 "감사됐다"는 거짓 신호만 남기므로 여기서도 거부한다 — 전용
+# 백엔드가 생기기 전까지는 그 행위들에 대한 감사 기록 자체가 없는 것이 위조된 기록이
+# 있는 것보다 안전하다.
+PRIVILEGED_EVIDENCE_TYPES = frozenset(
     {
-        "intent_classified",
-        "plan_created",
-        "tool_executed",
-        "rag_retrieved",
-        "risk_flagged",
         "approval_requested",
         "approval_decided",
         "approval_rejected",
-        "review_started",
-        "checklist_completed",
-        "exported",
-        "final_response_generated",
-        "briefing_emitted",
-        "worker_reply_received",
-        "worker_reply_summarized",
-        "status_update_confirmed",
-        "handoff_generated",
-        "delegation_granted",
-        "delegation_revoked",
+        "approval_escalated",
         "role_granted",
         "role_changed",
         "member_invited",
         "member_removed",
-        "approval_escalated",
+        "delegation_granted",
+        "delegation_revoked",
         "autonomy_changed",
         "worker_deleted",
-        "interpretation_confirmed",
         "dispatch_executed",
         "delivery_confirmed",
     }
-) - PACKAGE_LINK_EVIDENCE_TYPES
+)
+
+# db/schema.sql evidence_events.type CHECK과 동일 목록(R2.5) 중 무인증 전용 3종 +
+# PRIVILEGED_EVIDENCE_TYPES를 제외한 것 — 이 엔드포인트로 POST 가능한(순수 관찰·정보성)
+# 타입 전체. CHECK와 어긋나면 DB가 최종 방어선이지만, 여기서 먼저 걸러야 사용자에게 500이
+# 아니라 422를 준다.
+ALLOWED_EVIDENCE_TYPES = (
+    frozenset(
+        {
+            "intent_classified",
+            "plan_created",
+            "tool_executed",
+            "rag_retrieved",
+            "risk_flagged",
+            "approval_requested",
+            "approval_decided",
+            "approval_rejected",
+            "review_started",
+            "checklist_completed",
+            "exported",
+            "final_response_generated",
+            "briefing_emitted",
+            "worker_reply_received",
+            "worker_reply_summarized",
+            "status_update_confirmed",
+            "handoff_generated",
+            "delegation_granted",
+            "delegation_revoked",
+            "role_granted",
+            "role_changed",
+            "member_invited",
+            "member_removed",
+            "approval_escalated",
+            "autonomy_changed",
+            "worker_deleted",
+            "interpretation_confirmed",
+            "dispatch_executed",
+            "delivery_confirmed",
+        }
+    )
+    - PACKAGE_LINK_EVIDENCE_TYPES
+    - PRIVILEGED_EVIDENCE_TYPES
+)
 
 
 def next_event_no(db: Session, company_id: str) -> int:

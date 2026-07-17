@@ -13,6 +13,30 @@ const PACKAGE_LINK_EVIDENCE_TYPES: ReadonlySet<EvidenceType> = new Set<EvidenceT
   'package_reply',
 ]);
 
+// 코드리뷰 지적(PR #20 P1): 승인·역할변경·위임·발송완료 등 "특권 행위의 결과"를 이 범용
+// 엔드포인트로 그대로 보내면, 서버가(services/evidence.py PRIVILEGED_EVIDENCE_TYPES) 그
+// 행위를 실제로 수행했는지 검증할 방법이 없어 위조가 가능했다 — 백엔드가 이제 이 타입들을
+// 전부 422로 거부한다(approval_decided/approval_requested만 각자의 도메인 트랜잭션이 직접
+// 기록, 나머지는 전용 백엔드가 생기기 전까지 서버 기록 자체가 없다). 로컬 스토어(클라이언트
+// 표시용)엔 계속 append하되, 실패가 뻔한 POST 시도 자체를 미리 건너뛴다(불필요한 콘솔
+// 에러 방지 — PACKAGE_LINK_EVIDENCE_TYPES와 동일한 패턴). 백엔드 목록의 autonomy_changed/
+// worker_deleted는 여기 없다 — 프론트 EvidenceType 유니온에 아직 없는(발행 코드 자체가
+// 없는) 예약 타입이라 이 Set에 넣으면 타입 에러만 난다.
+const PRIVILEGED_EVIDENCE_TYPES: ReadonlySet<EvidenceType> = new Set<EvidenceType>([
+  'approval_requested',
+  'approval_decided',
+  'approval_rejected',
+  'approval_escalated',
+  'role_granted',
+  'role_changed',
+  'member_invited',
+  'member_removed',
+  'delegation_granted',
+  'delegation_revoked',
+  'dispatch_executed',
+  'delivery_confirmed',
+]);
+
 interface EvidenceStoreState {
   events: readonly EvidenceEvent[];
   /** append-only. 수정·삭제 액션은 존재하지 않는다 (감사 무결성). 정정도 새 이벤트로. */
@@ -35,7 +59,7 @@ export const useEvidenceStore = create<EvidenceStoreState>((set) => ({
     // real 모드 서버 기록 — 로컬 상태는 위에서 이미 낙관적으로 갱신했다(감사 로그는 승인과
     // 달리 게이트가 아니므로 낙관적 갱신이 안전, GOTCHAS §2는 승인 결정에만 적용). 실패해도
     // 화면은 그대로 동작하고 콘솔에만 남긴다(dataSeed.ts의 기존 관례와 동일).
-    if (API_MODE === 'real' && !PACKAGE_LINK_EVIDENCE_TYPES.has(event.type)) {
+    if (API_MODE === 'real' && !PACKAGE_LINK_EVIDENCE_TYPES.has(event.type) && !PRIVILEGED_EVIDENCE_TYPES.has(event.type)) {
       createEvidenceEvent(event).catch((err: unknown) => console.error('[evidenceStore] 서버 기록 실패', err));
     }
   },

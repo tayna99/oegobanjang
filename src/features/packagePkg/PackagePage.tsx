@@ -206,9 +206,12 @@ export function PackagePage() {
   }, [pkg]);
 
   const expired = useMemo(() => (pkg ? isLinkExpired(pkg, events) : false), [pkg, events]);
+  // 코드리뷰 지적(PR #20 P1): pkg.packageId는 mocks/packages.ts에 박힌 mock id("batbayar")라
+  // real 모드에선 서버가 실제로 기록한 evidence의 caseId("cs_batbayar")와 값이 다르다 —
+  // 라우트 파라미터(real 모드=실제 case_id, mock 모드=mock id와 어차피 동일값)로 맞춘다.
   const viewLog = useMemo(
-    () => (pkg ? events.filter((e) => e.type === 'package_link_viewed' && e.caseId === pkg.packageId) : []),
-    [pkg, events],
+    () => (pkg ? events.filter((e) => e.type === 'package_link_viewed' && e.caseId === packageId) : []),
+    [pkg, events, packageId],
   );
 
   const approved = useMemo(
@@ -270,8 +273,11 @@ export function PackagePage() {
   // packages.ts 전용 경로가 이미 자기 트랜잭션 안에서 남긴다(evidenceStore의 일반 real-모드
   // 자동 POST는 package_link_issued 타입을 제외해 이중 기록을 만들지 않는다).
   const onReissue = () => {
-    if (API_MODE === 'real') {
-      issuePackageLink(pkg.packageId).catch((err: unknown) => console.error('[PackagePage] 링크 재발급 실패', err));
+    // 코드리뷰 지적(PR #20 P1): pkg.packageId(mock id, 예: "batbayar")를 그대로 서버에
+    // 보내면 실제 DB엔 그 id의 케이스가 없어(cs_batbayar) 404였다 — real 모드 내비게이션은
+    // 라우트 파라미터(packageId)에 실제 case_id를 싣고 오므로 그 값을 쓴다.
+    if (API_MODE === 'real' && packageId) {
+      issuePackageLink(packageId).catch((err: unknown) => console.error('[PackagePage] 링크 재발급 실패', err));
     }
     appendEvidence({
       id: `${pkg.packageId}-link-reissued-${Date.now()}`,

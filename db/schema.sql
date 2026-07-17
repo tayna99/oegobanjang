@@ -569,16 +569,21 @@ CREATE TABLE handoff_packages (
   status            text NOT NULL DEFAULT 'draft' CHECK (status IN
                       ('draft','pending_approval','approved','rejected','exported')),
   approval_id       text,
-  -- R2.6(2026-07-17) — 무인증 링크(`/link/:packageId`) 만료·재발급의 서버측 근거. 발급 전엔
-  -- 둘 다 NULL(=링크 없음, GET은 404). 재발급은 이 두 컬럼만 갱신(패키지 자체는 유지) — §4.8-1.
+  -- R2.6(2026-07-17) — 무인증 링크(`/link/:linkToken`) 만료·재발급의 서버측 근거. 발급 전엔
+  -- 셋 다 NULL(=링크 없음, GET은 404). 재발급은 이 세 컬럼만 갱신(패키지 자체는 유지) — §4.8-1.
+  -- 코드리뷰 지적(PR #20 P1): link_token 없이 case_id 자체를 비밀로 쓰면 case_id가 PK라
+  -- 영구 불변이라 재발급으로도 기존에 유출된 링크를 회수할 수 없었다 — 발급/재발급마다
+  -- 새로 회전하는 무작위 토큰을 별도로 둔다(공개 링크는 이제 case_id가 아니라 이 토큰).
+  link_token        text,
   link_issued_at    timestamptz,
   link_expires_at   timestamptz,
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id, id),
+  UNIQUE (link_token),
   FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),
   FOREIGN KEY (company_id, case_id, approval_id) REFERENCES approvals(company_id, case_id, id),
-  CHECK (link_expires_at IS NULL OR link_issued_at IS NOT NULL)
+  CHECK (link_expires_at IS NULL OR (link_issued_at IS NOT NULL AND link_token IS NOT NULL))
 );
 CREATE INDEX ix_handoff_packages_company ON handoff_packages (company_id, status);
 CREATE INDEX ix_handoff_packages_case ON handoff_packages (case_id);
