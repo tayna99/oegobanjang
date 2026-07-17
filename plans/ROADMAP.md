@@ -242,9 +242,9 @@ R0 완료 직후 한때 "R1을 건너뛰고 R2로 바로 진행"하기로 했었
 | ✅ 2.1 | API 클라이언트 계층 | L2 | NEXT_ROADMAP R2.1 | `src/lib/api/`(config·client·auth) 신설, mock 기본값 유지, `apiFetch` 성공/실패/204 테스트 |
 | ✅ 2.2 | 인증 배선 | L2 | NEXT_ROADMAP R2.2, M-4·M-6 | 온보딩 O1이 real 모드에서 `POST /api/v1/auth/otp/*` 실호출, `sessionStore` 세션 영속화(localStorage, 부팅 시 복원), `roleStore`가 세션 멤버십에서 파생(새로고침 시 manager 복귀 문제 해소) — 백엔드 `GET /api/v1/auth/me` 신설 포함 |
 | ✅ 2.3 | 읽기 API 신설+배선 | **L3(2~3세션)** | NEXT_ROADMAP R2.3, M-6 | backend에 케이스/브리핑/스레드 read endpoint 신규 구현(`GET /api/v1/cases`·`/briefings/latest`·`/threads`·`/threads/{id}`, `get_current_membership`으로 company 스코프) + 프론트 `lib/api/{cases,briefings,threads}.ts` 어댑터·`lib/dataSeed.ts`(`useSeedCases`/`useSeedThreads`/`useSeedThreadDetail`) 신설, 13개 화면 배선. 여기서 M-6 영속성이 해소된다 |
-| 2.4 | 승인 결정 배선 | L2 | NEXT_ROADMAP R2.4, M-4 | ApprovePage → `POST /api/v1/approvals/{id}/approve\|reject`(real 모드). PIN 서버 측 검증 승격, 위임(delegation) 유효성 검증 구현(backend 잔여 갭, `docs/DB_SCHEMA.md` §13-10) |
-| 2.5 | Evidence 서버 영속화 | L2 | NEXT_ROADMAP R2.5 | evidenceStore append → 서버 기록(real 모드). 민감정보 원문 미저장 원칙 유지 |
-| 2.6 | 행정사 링크 서버 강제 | L2 | NEXT_ROADMAP R2.6, M-11 | `/link/:packageId` 만료·재발급·열람 로그를 서버 검증으로 승격(클라이언트 가드 → 404 강제) |
+| 2.4 | 승인 결정 배선 | L2 | NEXT_ROADMAP R2.4, M-4 | ApprovePage → `POST /api/v1/approvals/{id}/approve\|reject`(real 모드). PIN 서버 측 검증 승격, 위임(delegation) 유효성 검증 구현(backend 잔여 갭, `docs/DB_SCHEMA.md` §13-10) — **사용자 지시로 2.5·2.6을 먼저 진행, 2.4는 후속 세션 몫으로 남는다** |
+| ✅ 2.5 | Evidence 서버 영속화 | L2 | NEXT_ROADMAP R2.5 | `POST/GET /api/v1/evidence` 신규(인증 필요, PII 패턴 차단, 테넌트 격리) + 프론트 `lib/api/evidence.ts`·`evidenceStore.append`가 real 모드에서 자동 서버 기록·`useSeedEvidence` 부팅 시 hydrate. 민감정보 원문 미저장 원칙 유지(요약만, 해시만) |
+| ✅ 2.6 | 행정사 링크 서버 강제 | L2 | NEXT_ROADMAP R2.6, M-11 | `POST/GET /api/v1/packages/{case_id}/link` 신규(발급/재발급은 manager·owner 인증, 열람은 무인증) — `/link/:packageId`가 real 모드에서 서버 만료 판정을 따른다(클라이언트 `isLinkExpired()` → 404 강제, 만료·미발급·대상없음 모두 동일 404로 존재 비노출). 패키지 문서 콘텐츠 자체는 여전히 프론트 mock(범위 밖, 문서화된 경계) |
 
 **2.1+2.2 완료(2026-07-17).** 실제 로컬 PostgreSQL(`oegobanjang-pg` 컨테이너, 시드 데이터 포함)에
 `alembic stamp head`로 정합 후 backend pytest 110건 전부 PASS. 브라우저 실검증: 실 uvicorn +
@@ -265,6 +265,37 @@ R0 완료 직후 한때 "R1을 건너뛰고 R2로 바로 진행"하기로 했었
 백엔드(`ThreadOut.latest_interpretation_status` 신설 + 배치 쿼리)·프론트(`toThreadSummary`)
 양쪽에서 수정. `npm run verify`(typecheck→lint→test 515건→build) 전부 PASS, backend
 `uv run pytest` 128건 전부 PASS.
+
+**2.5+2.6 완료(2026-07-17).** 사용자 지시로 2.4(승인 결정 배선)를 건너뛰고 2.5·2.6을 먼저
+진행했다 — ApprovePage의 실제 승인/반려는 여전히 mock(2.4가 후속 세션 몫)이지만, 감사 기록
+서버 영속화와 행정사 링크 서버 강제는 그와 독립적으로 완결 가능한 범위였다. 상세 경위·설계
+판단은 `plans/HANDOFF.md` 최상단 항목 참조 — 요약:
+- `db/schema.sql`의 `evidence_events.type` CHECK가 프론트(`src/types.ts EvidenceType`)보다
+  뒤처져 있던 것을 발견(7종 누락 — `approval_rejected`·`interpretation_confirmed`·
+  `package_link_issued/viewed`·`dispatch_executed`·`delivery_confirmed`·`package_reply`)해
+  함께 정합화했다.
+- `backend/migrations/versions/0001_...`은 실배포 시점(PR #10) 동결 스냅샷이라 더 이상 손대지
+  않는다 — 이번 스키마 변경은 `0002_r2_5_evidence_and_r2_6_package_links.py`(ALTER 리비전,
+  down_revision=0001)로 표현했다. 이후 스키마를 또 바꿀 땐 0002도 아니라 0003+을 새로 만든다.
+- `handoff_packages.link_issued_at/link_expires_at` 2컬럼을 신설해 링크 발급/재발급/만료를
+  서버가 직접 보유한다(별도 `package_links` 테이블은 만들지 않음 — 패키지당 링크 1개 모델).
+- 승인 결정(2.4)이 아직 실서버에 안 붙어 있어 `action_id`/`approval_id`/`run_id`가 real 모드에서도
+  mock 세계관의 값이라 실제 DB 행을 보장 못 한다(트리거 `trg_evidence_context_match`가 이걸
+  검증한다) — `POST /api/v1/evidence`는 그래서 이 세 필드를 아예 받지 않는다(`case_id`만,
+  R2.3부터 real 모드 caseId는 항상 진짜라 안전). 2.4가 배선되면 재검토 대상.
+- `package_link_viewed`/`package_link_issued`/`package_reply`는 일반 evidence 엔드포인트가
+  거부한다(422) — 무인증 화면(ExpertLinkPage)이 호출할 수 없는 인증 필요 엔드포인트라서다.
+  전용 `POST/GET /api/v1/packages/{case_id}/link`가 자기 트랜잭션 안에서 직접 기록한다.
+- **주의(다음 세션이 알아야 할 것)**: 이 워크트리가 쓰는 로컬 dev Postgres 컨테이너
+  (`oegobanjang-pg:55432`)의 `alembic_version`이 이미 `'0002'`로 찍혀 있었다 — 이 저장소
+  git 이력에는 없는(커밋된 적 없는) 이전 세션의 미완료 R2.4 마이그레이션 시도 흔적으로
+  보인다(`__pycache__`에만 `0002_r2_4_delegated_approval_decider.cpython-*.pyc` 잔존).
+  이번 세션은 그 컨테이너를 건드리지 않았다(backend pytest는 세션마다 새로 만드는 격리
+  `ogb_test` DB만 쓴다) — 하지만 그 컨테이너에 `alembic upgrade head`를 그대로 돌리면
+  revision id가 우연히 `'0002'` 문자열로 겹쳐 이 커밋의 실제 ALTER가 적용 안 된 채
+  "이미 최신"으로 오판될 위험이 있다. 다음에 그 컨테이너로 실서버 브라우저 검증을 하려면
+  먼저 `alembic_version` 실제 내용과 스키마 상태(예: `evidence_events` CHECK 제약, `handoff_packages`
+  컬럼)를 대조 확인할 것.
 
 ## 발송 어댑터·알림톡 (R2 이후 — 별도 계획, PRD Sprint 6)
 

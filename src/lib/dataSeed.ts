@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { CASE_CARDS } from '@/mocks/fixtures';
 import { THREADS } from '@/mocks/threads';
 import { useCaseStore } from '@/stores/caseStore';
+import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useThreadStore } from '@/stores/threadStore';
 import { fetchCases } from './api/cases';
 import { API_MODE } from './api/config';
+import { fetchEvidence } from './api/evidence';
 import { fetchThreadDetail, fetchThreads } from './api/threads';
 
 // 13개 화면에 반복되던 "스토어가 비어있으면 픽스처로 시드" useEffect를 한 곳으로 모은다
@@ -63,4 +65,18 @@ export function useSeedThreadDetail(threadId: string | undefined): void {
       .then(upsert)
       .catch((err: unknown) => console.error('[dataSeed] 스레드 상세 조회 실패', err));
   }, [threadId, upsert]);
+}
+
+// R2.5 — mock 모드는 아무 것도 하지 않는다: 시드(EVIDENCE_SEED)는 evidenceStore에 담기지
+// 않고 표시 시점에 lib/audit.ts가 합친다(기존 관례 그대로). real 모드에서만 서버에 이미
+// 기록된 이벤트를 부팅 시 1회 hydrate한다(재기록 아님 — evidenceStore.hydrate 참조).
+export function useSeedEvidence(): void {
+  const hydrate = useEvidenceStore((s) => s.hydrate);
+  useEffect(() => {
+    if (API_MODE !== 'real') return;
+    if (useEvidenceStore.getState().events.length > 0) return;
+    fetchEvidence()
+      .then(hydrate)
+      .catch((err: unknown) => console.error('[dataSeed] 판단 기록 조회 실패', err));
+  }, [hydrate]);
 }

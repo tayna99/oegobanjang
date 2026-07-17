@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { API_MODE } from '@/lib/api/config';
+import { issuePackageLink } from '@/lib/api/packages';
 import { cn } from '@/lib/cn';
+import { useSeedEvidence } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { isLinkExpired, LINK_VALIDITY_DAYS } from '@/lib/packageLink';
 import {
@@ -196,6 +199,8 @@ export function PackagePage() {
   const [requested, setRequested] = useState(false);
   const [exported, setExported] = useState(false);
 
+  useSeedEvidence();
+
   useEffect(() => {
     if (pkg) setOn(new Set(pkg.items.filter((i) => i.defaultOn).map((i) => i.key)));
   }, [pkg]);
@@ -260,7 +265,14 @@ export function PackagePage() {
   };
 
   // 링크 재발급(7단계 §4 "재발급은 manager") — 만료 여부 계산을 다시 유효로 되돌린다.
+  // real 모드는 서버가 handoff_packages.link_expires_at을 실제로 갱신한다(R2.6) — 로컬
+  // evidence append(아래)는 두 모드 공통으로 즉시 UI 반영(열람 이력 레일)용이며, 서버 기록은
+  // packages.ts 전용 경로가 이미 자기 트랜잭션 안에서 남긴다(evidenceStore의 일반 real-모드
+  // 자동 POST는 package_link_issued 타입을 제외해 이중 기록을 만들지 않는다).
   const onReissue = () => {
+    if (API_MODE === 'real') {
+      issuePackageLink(pkg.packageId).catch((err: unknown) => console.error('[PackagePage] 링크 재발급 실패', err));
+    }
     appendEvidence({
       id: `${pkg.packageId}-link-reissued-${Date.now()}`,
       type: 'package_link_issued',

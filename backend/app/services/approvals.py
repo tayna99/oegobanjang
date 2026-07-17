@@ -22,7 +22,7 @@ import datetime as dt
 import hashlib
 from typing import Literal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -51,6 +51,7 @@ from app.models.evidence import EvidenceEvent
 from app.models.membership import Membership
 from app.models.user import User
 from app.schemas.approval import ApprovalDecisionRequest
+from app.services.evidence import next_event_no as _next_event_no
 
 APPROVER_ROLES = ("owner", "manager")
 ALLOWED_REQUEST_ROLES = ("manager",)  # 7단계 권한 매트릭스: 케이스 진행(C/R/U)은 manager만(owner는 R)
@@ -67,16 +68,6 @@ def _usable_citation_count(db: Session, company_id: str, case_id: str) -> int:
             Citation.grade != "F",
             (Citation.company_id.is_(None)) | (Citation.company_id == company_id),
         )
-    ).scalar_one()
-
-
-def _next_event_no(db: Session, company_id: str) -> int:
-    """companies.evidence_seq를 원자적으로 증가시키고 새 값을 받는다(§9). 경합 안전(단문 UPDATE)."""
-    return db.execute(
-        update(Company)
-        .where(Company.id == company_id)
-        .values(evidence_seq=Company.evidence_seq + 1)
-        .returning(Company.evidence_seq)
     ).scalar_one()
 
 

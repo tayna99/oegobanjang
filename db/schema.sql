@@ -410,14 +410,18 @@ CREATE TABLE evidence_events (
   type            text NOT NULL CHECK (type IN
                     -- 코어(src/types.ts EvidenceType과 동일)
                     ('intent_classified','plan_created','tool_executed','rag_retrieved',
-                     'risk_flagged','approval_requested','approval_decided','review_started',
-                     'checklist_completed','exported','final_response_generated',
+                     'risk_flagged','approval_requested','approval_decided','approval_rejected',
+                     'review_started','checklist_completed','exported','final_response_generated',
                      -- 확장(스펙 요구 — 화면이 붙는 마일스톤에 프론트 타입에도 추가)
                      'briefing_emitted','worker_reply_received',
                      'worker_reply_summarized','status_update_confirmed','handoff_generated',
                      'delegation_granted',
                      'delegation_revoked','role_granted','role_changed','member_invited',
-                     'member_removed','approval_escalated','autonomy_changed','worker_deleted')),
+                     'member_removed','approval_escalated','autonomy_changed','worker_deleted',
+                     -- R2.5(2026-07-17) — 프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있던
+                     -- 타입(운영급 RBAC·행정사 패키지·메시지 해석·발송 실행, src/types.ts와 대조 정합).
+                     'interpretation_confirmed','package_link_issued','package_link_viewed',
+                     'dispatch_executed','delivery_confirmed','package_reply')),
   at              timestamptz NOT NULL,            -- 발생 시각(주입 가능 — 테스트 결정성)
   case_id         text,
   action_id       text,
@@ -556,20 +560,25 @@ CREATE INDEX ix_sup_interpretation ON status_update_proposals (interpretation_id
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE handoff_packages (
-  id             text PRIMARY KEY,
-  company_id     text NOT NULL REFERENCES companies(id),
-  case_id        text NOT NULL,
-  package_type   text NOT NULL CHECK (package_type IN ('expert_review','pre_entry')),
-  masked_payload jsonb NOT NULL,                   -- allowlist 필드만(§7)
-  included_items jsonb,
-  status         text NOT NULL DEFAULT 'draft' CHECK (status IN
-                   ('draft','pending_approval','approved','rejected','exported')),
-  approval_id    text,
-  created_at     timestamptz NOT NULL DEFAULT now(),
-  updated_at     timestamptz NOT NULL DEFAULT now(),
+  id                text PRIMARY KEY,
+  company_id        text NOT NULL REFERENCES companies(id),
+  case_id           text NOT NULL,
+  package_type      text NOT NULL CHECK (package_type IN ('expert_review','pre_entry')),
+  masked_payload    jsonb NOT NULL,                   -- allowlist 필드만(§7)
+  included_items    jsonb,
+  status            text NOT NULL DEFAULT 'draft' CHECK (status IN
+                      ('draft','pending_approval','approved','rejected','exported')),
+  approval_id       text,
+  -- R2.6(2026-07-17) — 무인증 링크(`/link/:packageId`) 만료·재발급의 서버측 근거. 발급 전엔
+  -- 둘 다 NULL(=링크 없음, GET은 404). 재발급은 이 두 컬럼만 갱신(패키지 자체는 유지) — §4.8-1.
+  link_issued_at    timestamptz,
+  link_expires_at   timestamptz,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id, id),
   FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),
-  FOREIGN KEY (company_id, case_id, approval_id) REFERENCES approvals(company_id, case_id, id)
+  FOREIGN KEY (company_id, case_id, approval_id) REFERENCES approvals(company_id, case_id, id),
+  CHECK (link_expires_at IS NULL OR link_issued_at IS NOT NULL)
 );
 CREATE INDEX ix_handoff_packages_company ON handoff_packages (company_id, status);
 CREATE INDEX ix_handoff_packages_case ON handoff_packages (case_id);
@@ -589,7 +598,10 @@ CREATE TABLE package_exports (
 );
 CREATE INDEX ix_package_exports_package ON package_exports (package_id);
 
--- MVP에는 외부 전달 링크를 만들지 않는다. delivery adapter 마일스톤에서 별도 migration으로 도입한다.
+-- handoff_packages.link_issued_at/link_expires_at(R2.6, 위)는 담당자가 이미 아는 케이스에
+-- 한해 "만료형 열람 링크"의 유효성만 서버가 검증하는 것 — SMS/알림톡/이메일로 실제 링크를
+-- 발송하는 delivery adapter(EmailAdapter 등)는 여전히 범위 밖이며 별도 마일스톤(R3)에서
+-- 도입한다(MESSAGING_CHANNELS §5).
 
 -- ---------------------------------------------------------------------------
 -- 4.9 브리핑

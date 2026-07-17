@@ -6,7 +6,7 @@ import { Chip } from '@/components/Chip';
 import { useNextAction } from '@/lib/actionNav';
 import { useApprovalActions } from '@/lib/approval';
 import { applyDocUpdatesOverlay } from '@/lib/cases';
-import { useSeedCases } from '@/lib/dataSeed';
+import { useSeedCases, useSeedEvidence } from '@/lib/dataSeed';
 import { dDayLabel } from '@/lib/dday';
 import { severityTone } from '@/lib/chipTone';
 import { useNav } from '@/lib/nav';
@@ -39,6 +39,7 @@ export function CaseReviewPage() {
   const returnTo = (location.state as CaseRouteState | null)?.returnTo;
 
   useSeedCases();
+  useSeedEvidence();
 
   const card = caseId ? cases[caseId] : undefined;
   const docUpdates = useCaseStore((s) => (caseId ? s.docUpdates[caseId] : undefined));

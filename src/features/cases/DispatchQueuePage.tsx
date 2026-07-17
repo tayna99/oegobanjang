@@ -3,6 +3,7 @@ import { Button } from '@/components/Button';
 import { IconLock } from '@/components/icons';
 import { PcOnlyNotice } from '@/components/PcOnlyNotice';
 import { GuardrailError } from '@/lib/guardrail';
+import { useSeedEvidence } from '@/lib/dataSeed';
 import { deriveDispatchQueue, type DispatchQueueItem } from '@/lib/dispatch';
 import { useNav } from '@/lib/nav';
 import { useIsDesktop } from '@/lib/useIsDesktop';
@@ -22,6 +23,8 @@ function DispatchQueueWorkbench() {
   const events = useEvidenceStore((s) => s.events);
   const approvals = useApprovalStore((s) => s.approvals);
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+
+  useSeedEvidence();
 
   const waiting = useMemo(() => deriveDispatchQueue(approvals, events), [approvals, events]);
   const recentEvents = events

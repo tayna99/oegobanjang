@@ -391,17 +391,30 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | payload_ref | text | | 외부 보관 원본 포인터(선택) |
 | **created_at** | timestamptz | | |
 
-**type 값** — 프론트 11종(`src/types.ts EvidenceType`)이 코어이며 스키마는 상위집합을 허용한다:
+**type 값** — `src/types.ts EvidenceType`(25종, R2.5 기준)과 스키마 CHECK가 합집합으로 정합한다.
+프론트만 쓰던 7종(`approval_rejected` 이하)이 R2.5 전엔 DB CHECK에 없어 서버 기록이 불가능했다 —
+이번에 추가해 정합화했다:
 ```txt
 코어(프론트 계약): intent_classified, plan_created, tool_executed, rag_retrieved,
-  risk_flagged, approval_requested, approval_decided, review_started,
+  risk_flagged, approval_requested, approval_decided, approval_rejected, review_started,
   checklist_completed, exported, final_response_generated
 확장(스펙 요구 — 화면 붙는 마일스톤에 프론트 타입에도 추가):
   briefing_emitted, worker_reply_received, worker_reply_summarized,
   status_update_confirmed, handoff_generated,
   delegation_granted, delegation_revoked, role_granted, role_changed,
   member_invited, member_removed, approval_escalated, autonomy_changed, worker_deleted
+R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있던 나머지 7종):
+  interpretation_confirmed, package_link_issued, package_link_viewed,
+  dispatch_executed, delivery_confirmed, package_reply
 ```
+
+**R2.5 — 서버 기록 경로**: `POST /api/v1/evidence`(인증 필요)가 일반 판단 기록 기록 엔드포인트다.
+`action_id`/`approval_id`/`run_id`는 §5.2 `trg_evidence_context_match` 트리거가 "같은 케이스 소속
+행이 실제로 존재해야 함"을 강제하므로, 아직 백엔드에 실제 행이 생기지 않는 도메인(승인 결정
+자체는 R2.4 몫, 런은 M3 몫)에서 발행되는 이벤트는 이 필드들을 보내지 않고 `case_id`만
+채운다(존재하면). `package_link_issued`/`package_link_viewed`/`package_reply`는 이 일반
+엔드포인트를 타지 않는다 — §4.8의 전용 패키지 링크 엔드포인트가 자기 트랜잭션 안에서 직접
+기록한다(무인증 열람·회신은 애초에 세션이 없어 이 인증 엔드포인트를 호출할 수 없다).
 
 - append-only DB 강제(§5.2 트리거). 컬럼에 원문 PII 필드 자체가 없다 — 스키마가 rules/safety를 집행.
 - 상태 변경 쓰기와 evidence append는 **같은 트랜잭션**(레거시 PRD Transaction rule 승계): Case·NextAction·Approval·EvidenceEvent가 함께 커밋되거나 함께 실패.
@@ -545,9 +558,12 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | included_items | json | | 포함 항목 토글 상태(2.4 화면) |
 | **status** | text | CHECK(`draft,pending_approval,approved,rejected,exported`) | 내보내기도 승인 게이트 통과 후에만 |
 | approval_id | uuid | `(company_id,case_id,approval_id)` →approvals | create_handoff action 승인과 같은 회사·케이스여야 함 |
+| link_issued_at | timestamptz | | R2.6 — 무인증 열람 링크(`/link/:packageId`) 최초/최근 발급 시각. NULL=링크 없음 |
+| link_expires_at | timestamptz | CHECK(`NOT NULL ⇒ link_issued_at NOT NULL`) | 발급 시각 + 7일(§4 "만료형(기본 7일)"). GET이 이 값을 기준으로 서버에서 404 판정 |
 | **created_at / updated_at** | timestamptz | | |
 
-- package는 `draft` 또는 같은 회사·케이스의 pending `create_handoff` approval에 연결된 `pending_approval`으로만 생성한다. approved/rejected는 approval 결정 trigger가 동기화하고, `exported`는 승인된 package의 내부 PDF 산출물이 실제로 생성될 때만 기록된다. 연결 뒤에는 `approval_id`를 제거·교체하거나 pending/terminal package를 `draft`로 되돌릴 수 없다. package 자체에는 외부 전달 시각·링크가 없다.
+- package는 `draft` 또는 같은 회사·케이스의 pending `create_handoff` approval에 연결된 `pending_approval`으로만 생성한다. approved/rejected는 approval 결정 trigger가 동기화하고, `exported`는 승인된 package의 내부 PDF 산출물이 실제로 생성될 때만 기록된다. 연결 뒤에는 `approval_id`를 제거·교체하거나 pending/terminal package를 `draft`로 되돌릴 수 없다.
+- **R2.6 — 링크 발급/재발급**: `POST /api/v1/packages/{case_id}/link`(manager/owner 인증)가 그 케이스의 최신 handoff_package를 찾아(없으면 최소 레코드로 생성) `link_issued_at=now()`·`link_expires_at=now()+7일`로 갱신하고 evidence(`package_link_issued`)를 남긴다. `GET /api/v1/packages/{case_id}/link`(무인증)는 `link_expires_at`이 없거나 지났으면 404(존재 비노출 원칙 — 케이스 없음과 동일하게 취급), 유효하면 열람 evidence(`package_link_viewed`)를 남긴다. 패키지 문서 콘텐츠 자체(검토 요청서 본문·항목 토글)는 이번 범위에 없다 — 프론트가 기존 mock 콘텐츠를 그대로 렌더하고, 서버는 "링크가 살아있는가"만 검증한다.
 
 #### package_exports — 내보내기 산출물 (evidence `exported`와 쌍)
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -561,7 +577,7 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | **external_delivery_performed** | bool | default false, **CHECK (= false)** | MVP 외부 전송 없음 — 어댑터 도입 시 해제 |
 | **created_at** | timestamptz | | |
 
-- `package_exports` INSERT는 approved handoff package에만 허용되고, 성공한 INSERT가 package 상태를 `exported`로 동기화한다. PDF 생성은 내부 산출물이며 외부 전달·메일·링크 발급을 기록하는 테이블과 evidence type은 MVP에 없다.
+- `package_exports` INSERT는 approved handoff package에만 허용되고, 성공한 INSERT가 package 상태를 `exported`로 동기화한다. PDF 생성은 내부 산출물이며, 메일·알림톡 등 실제 외부 전달 채널을 기록하는 테이블은 MVP에 없다(R3 delivery adapter 몫). 무인증 열람 링크 자체의 발급·만료는 `package_exports`가 아니라 §4.8 위 `handoff_packages.link_issued_at/link_expires_at` + evidence(`package_link_issued`)가 담당한다(R2.6).
 
 ### 4.9 브리핑
 
@@ -759,7 +775,12 @@ CREATE TRIGGER evidence_events_no_delete BEFORE DELETE ON evidence_events
 
 **계층 규칙:** 운영 조회·LLM 입력·evidence에는 `worker_id`/마스킹 표시명만. `masked_payload`(패키지)는 allowlist 직렬화만 허용 — denylist가 아니라 **allowlist**(레거시 Decision 005).
 
-**접근:** viewer는 M8 열람 가능(마스킹 차등은 미결 §13). MVP에는 expert 외부 링크 열람 경로가 없고, 테넌트 경계 위반은 404(7단계 §1).
+**접근:** viewer는 M8 열람 가능(마스킹 차등은 미결 §13). R2.6부터 `/link/:packageId`(무인증 열람)에
+서버측 경로가 있다 — `GET /api/v1/packages/{case_id}/link`가 유효한 링크만 200을 반환하고, 없거나
+만료됐으면 케이스 존재 여부를 노출하지 않고 동일하게 404를 반환한다(7단계 §1 "scope 밖은 404"
+원칙). 다만 이 경로는 "링크가 살아있는가"만 서버가 확인할 뿐, 패키지 문서 콘텐츠 자체·행정사
+계정 인증(서명 토큰·OTP)은 여전히 없다 — 화이트라벨 개인 계정 경로(`/expert/:expertId/...`,
+M-11)는 이번 범위 밖으로 남는다.
 
 **보존(retention) — 결정 필요(§13):** 레거시 문서 전반에 보존 기간 규정이 없다. 제안 기본값: thread_messages 원문·draft_variants 전문은 근로자 비활성(퇴사/이직) 처리 후 1년 뒤 파기 배치, evidence_events는 영구(원문이 없으므로), worker_intake_files는 OCR 확정 후 90일. **법무 확인 전 구현 금지** — 컬럼이 아니라 배치 정책이므로 스키마는 지금 확정 가능.
 

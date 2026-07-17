@@ -6,7 +6,7 @@ import { Button } from '@/components/Button';
 import { SAFETY_NOTICE_TEXT } from '@/components/SafetyNotice';
 import { useApprovalActions, canApproveCase, isCitationLocked, OWNER_NAME } from '@/lib/approval';
 import { mergedAuditLog } from '@/lib/audit';
-import { useSeedCases } from '@/lib/dataSeed';
+import { useSeedCases, useSeedEvidence } from '@/lib/dataSeed';
 import { dDayLabel } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
 import { DEMO_PIN, isValidPinFormat } from '@/lib/pin';
@@ -34,6 +34,7 @@ export function ApprovePage() {
   const events = useEvidenceStore((s) => s.events);
 
   useSeedCases();
+  useSeedEvidence();
 
   const card = caseId ? cases[caseId] : undefined;
   const sheet = caseId ? CASE_SHEETS[caseId] : undefined;

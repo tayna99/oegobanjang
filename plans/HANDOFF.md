@@ -18,6 +18,93 @@
 
 ---
 
+### [2026-07-17] R2.5(Evidence 서버 영속화) + R2.6(행정사 링크 서버 강제) — 완료
+
+- 한 일: 사용자 지시로 R2.4(승인 결정 배선)를 건너뛰고 2.5·2.6을 먼저 진행. 브랜치
+  `claude/evidence-persistence-admin-link-082e71`.
+  - **발견(착수 전 조사)**: `db/schema.sql`의 `evidence_events.type` CHECK가 `src/types.ts
+    EvidenceType`(25종)보다 뒤처져 있었다 — 프론트가 이미 발행 중인 7종
+    (`approval_rejected`·`interpretation_confirmed`·`package_link_issued`·
+    `package_link_viewed`·`dispatch_executed`·`delivery_confirmed`·`package_reply`)이 DB엔
+    없어 서버 기록이 애초에 불가능한 상태였다. `backend/migrations/versions/0001_...`은
+    docstring에 "실배포(PR #10) 시점 동결 스냅샷, 이후 `db/schema.sql`을 바꿔도 이 파일은
+    다시 손대지 않는다"고 명시돼 있어, 스키마 변경은 `0002_r2_5_evidence_and_r2_6_package_links.py`
+    (ALTER 리비전)로 새로 표현했다 — `evidence_events_type_check` DROP/재생성 +
+    `handoff_packages.link_issued_at`/`link_expires_at` 컬럼 추가.
+  - **환경 이상 발견**: 이 워크트리가 쓰는 로컬 dev Postgres(`oegobanjang-pg:55432`)의
+    `alembic_version`이 이미 `'0002'`로 찍혀 있었다 — 그런데 그 revision을 만들 소스 파일은
+    이 저장소 git 이력 어디에도 없다(`__pycache__`에만
+    `0002_r2_4_delegated_approval_decider.cpython-*.pyc` 잔존, 이전 세션이 R2.4 마이그레이션을
+    시도하다 커밋 없이 지운 흔적으로 추정). **이 컨테이너를 건드리지 않기로 결정** — backend
+    pytest는 세션마다 새로 만드는 격리 DB(`ogb_test`, `tests/conftest.py`)만 쓰므로 이 드리프트와
+    무관하게 검증 가능했다. 다음에 그 dev 컨테이너로 브라우저 실검증을 하려면 먼저
+    `alembic_version`과 실제 스키마(예: `evidence_events` CHECK 제약 내용)를 대조 확인할 것 —
+    revision id가 우연히 `'0002'` 문자열로 겹쳐서, 그대로 `alembic upgrade head`를 돌리면 이번
+    커밋의 ALTER가 적용 안 된 채 "이미 최신"으로 오판될 위험이 있다.
+  - **2.5 backend**: `POST/GET /api/v1/evidence`(신규 라우터) — 인증 필요(`get_current_membership`),
+    `type`은 허용 목록(`services/evidence.ALLOWED_EVIDENCE_TYPES`, 전체 25종 중 `package_link_*`/
+    `package_reply` 3종 제외)만 통과, `summary`는 `contains_pii()` 통과 필수, `case_id` 제공 시
+    같은 회사 소속 케이스인지 검증(아니면 404). `action_id`/`approval_id`/`run_id`는 아예 받지
+    않는다 — DB 트리거 `trg_evidence_context_match`가 "제공되면 실제 존재하는 행이어야 함"을
+    요구하는데, 승인 결정(R2.4)·런(M3)이 아직 real 모드로 안 붙어 있어 프론트가 넘길 수 있는
+    값이 전부 mock 세계관 id이기 때문(FK 위반 500을 원천 차단). `services/approvals.py`의
+    사설 `_next_event_no`를 `services/evidence.next_event_no`로 옮겨 공유(중복 제거).
+  - **2.6 backend**: `POST /api/v1/packages/{case_id}/link`(manager/owner 인증 — get-or-create,
+    없으면 `status='draft'`로 최소 레코드 생성 후 `link_issued_at`/`link_expires_at`(+7일) 갱신,
+    evidence(`package_link_issued`) 기록) + `GET /api/v1/packages/{case_id}/link`(**무인증** —
+    `link_expires_at` 없거나 지났으면 404, 성공 시 evidence(`package_link_viewed`, actor_type=
+    'system') 기록). 미발급·만료·대상없음을 전부 같은 404로 취급(존재 비노출, 기존
+    ExpertPackagePage.tsx 관례와 동일). `handoff_packages.status`는 반드시 `'draft'`로 시작해야
+    하는 DB 트리거(`trg_handoff_approval_state_insert`)가 있어 처음엔 `'exported'`로 시도했다가
+    insert 실패 — `'draft'`로 교정(이 패키지는 내부 승인/PDF 내보내기 플로우와 무관한 링크
+    발급 전용이라 애초에 approved/exported로 승격할 근거가 없다).
+  - **2.5+2.6 frontend**: `lib/api/evidence.ts`·`lib/api/packages.ts` 신규 어댑터.
+    `evidenceStore.append`가 real 모드에서 (package_link 계열 3종 제외하고) 자동으로
+    `POST /api/v1/evidence`를 fire-and-forget 호출하도록 스토어 내부에서 분기(로컬 상태는
+    항상 먼저 낙관적 갱신 — 감사 로그는 승인과 달리 게이트가 아니라서 optimistic이 안전,
+    GOTCHAS §2는 승인 결정에만 적용). `hydrate` 액션 신규(서버 seed 전용, 재기록 안 함).
+    `lib/dataSeed.useSeedEvidence()` 신규, `useSeedCases`가 있던 10개 화면 + 신규 2곳
+    (`DispatchQueuePage`/`PackagePage`, 원래 useSeedCases도 없었음)에 배선. `lib/audit.ts`의
+    `mergeSeedAndRuntime`이 real 모드에선 `EVIDENCE_SEED`(mock 6인 로스터 픽스처)를 섞지
+    않도록 가드(fetchCases가 mock CASE_CARDS를 완전히 대체하는 것과 동일 원칙).
+    `ExpertLinkPage.tsx`가 real 모드에서 `isLinkExpired()`(클라이언트 계산) 대신
+    `fetchPackageLink()`(서버 GET, 404 시 만료 취급)로 분기 — mock 모드 동작·기존 테스트는
+    변경 없음. `PackagePage.tsx`의 "링크 재발급" 버튼이 real 모드에서
+    `issuePackageLink()`도 함께 호출(로컬 evidence append는 두 모드 공통 유지, UI 즉시 반영용).
+  - **의도적으로 다루지 않은 것**: 패키지 문서 콘텐츠(검토 요청서 본문·항목 토글) 자체는
+    여전히 프론트 mock(`mocks/packages.ts`) — 서버는 "링크가 살아있는가"만 검증한다. 행정사
+    구조화된 회신(`package_reply`) 제출은 여전히 클라이언트 전용(DoD가 "만료·재발급·열람
+    로그"만 요구, 회신 서버 저장은 범위 밖으로 명시적으로 남김 — `StructuredReplyForm.tsx`
+    무변경). 화이트라벨 개인 계정 경로(`/expert/:expertId/...`)도 무변경(M-11 나머지, M4.7 몫).
+- 남은 일 / 중단 지점: R2.4(승인 결정 배선)부터 이어간다 — 그게 배선되면 evidence의
+  `action_id`/`approval_id`/`run_id` 제외 결정을 재검토할 것(실제 행이 생기기 시작하므로).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. 위 "환경 이상 발견" 항목 — dev Postgres 컨테이너의 `alembic_version` 드리프트, 실서버
+     브라우저 검증 전 반드시 확인.
+  2. `POST /api/v1/evidence`는 범용 감사 기록 통로이지 도메인 전용 엔드포인트를 대체하지
+     않는다 — 승인 결정처럼 이미 자기 트랜잭션에서 evidence를 남기는 도메인(approvals.py)은
+     계속 그쪽에서 직접 기록한다. 새 화면이 새 evidence 타입을 추가로 발행해야 하면, 먼저 그
+     타입이 case_id 외의 FK(action/approval/run)를 필요로 하는지부터 확인할 것 — 필요하면 이
+     엔드포인트로는 안 되고 전용 엔드포인트가 필요하다(packages.py가 그 패턴의 예).
+  3. `handoff_packages`는 이제 두 가지 서로 다른 생애주기를 가진 행이 섞일 수 있다 —
+     (a) PackagePage의 승인/내보내기 플로우로 만들어질 행(미래, 아직 없음)과 (b) 이번에 추가한
+     "링크 발급 전용" 최소 레코드(`status='draft'`, masked_payload가 `{case_id}` 뿐). 케이스당
+     최신 1건만 본다(`services/packages._latest_package_for_case`)는 전제가 있다 — 실제 패키지
+     승인 플로우가 나중에 붙으면 이 "최신 것" 가정을 재확인할 것.
+- verify 상태: PASS — backend `uv run pytest` 150/150(신규 22건: evidence 12 + packages 10),
+  프론트 `tsc --noEmit`/`npm run lint`/`vite build` 클린, `npx vitest run` 530/530(전 스위트,
+  신규 48건). 전체 스위트 1회 실행에서 `CaseWorkbench.test.tsx` 1건이 병렬부하로 flake(격리
+  재실행·전체 재실행 모두 통과 확인 — 기존에 이미 문서화된 동일 flake, 이번 변경과 무관).
+  브라우저 실검증은 하지 않았다(위 dev 컨테이너 드리프트 때문에 안전하게 재현하려면 별도
+  격리 DB가 필요 — 대신 backend pytest가 TestClient로 실제 Postgres·트리거·FK를 그대로
+  거치므로 등가 수준의 검증으로 판단).
+- 지도/규칙 갱신: `plans/ROADMAP.md`(R2 절 2.5·2.6 ✅ + 상세 노트), `docs/DB_SCHEMA.md`(§4.5
+  evidence type 목록·R2.5 노트, §4.8 handoff_packages 링크 컬럼·R2.6 노트, §7 접근 규칙 갱신),
+  `docs/ARCHITECTURE.md`(API 클라이언트 항목에 evidence.ts/packages.ts 추가),
+  `backend/README.md`(API 표·구조·스코프 경계 갱신).
+
+---
+
 ### [2026-07-17] PR #16 재구성 — R1(1.1~1.8) + R2.3(읽기 API) — 완료
 
 - 한 일: PR #16(`claude/roadmap-r1-implementation-d95ccf`)을 리뷰한 결과 병합 보류를 권고했다

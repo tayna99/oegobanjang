@@ -1,5 +1,6 @@
 import type { ChipTone } from '@/lib/chipTone';
 import type { EvidenceEvent, EvidenceType } from '@/types';
+import { API_MODE } from '@/lib/api/config';
 import { EVIDENCE_SEED } from '@/mocks/evidence';
 import type { CaseActivityEntry } from '@/mocks/fixtures';
 import { RUN_CONFIGS } from '@/mocks/runs';
@@ -94,7 +95,11 @@ export const AUDIT_FILTERS: AuditFilter[] = [
 // 시드(앱 열기 전 기록)와 런타임 이벤트를 합치되 정렬은 하지 않는다 — 병합 자체는 항상
 // "시드 다음 런타임, 각자 자기 순서 유지"로 결정적이다. mergedAuditLog(최신순)와
 // mergedAuditLogAscending(오래된 순)이 이 위에서 서로 다른 정렬을 얹는다.
+// real 모드는 EVIDENCE_SEED(데모 6인 로스터 픽스처)를 섞지 않는다 — fetchCases()가 mock
+// CASE_CARDS를 완전히 대체하는 것과 동일 원칙(R2.3). real 모드의 "시드"는 서버가 이미 가진
+// 기록이고, 그건 useSeedEvidence가 evidenceStore에 직접 hydrate하므로 여기 events에 이미 있다.
 function mergeSeedAndRuntime(events: readonly EvidenceEvent[]): EvidenceEvent[] {
+  if (API_MODE === 'real') return [...events];
   const runtimeIds = new Set(events.map((event) => event.id));
   return [...EVIDENCE_SEED.filter((event) => !runtimeIds.has(event.id)), ...events];
 }

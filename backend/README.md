@@ -52,6 +52,10 @@ uv run pytest
 | POST | `/api/v1/approvals` | 승인 요청 생성(`action_id` 기준) |
 | POST | `/api/v1/approvals/{approval_id}/approve` | 승인 결정 — 게이트 강제(citation-0 잠금·본인확인·high risk handoff 전용·manager 정책 등) |
 | POST | `/api/v1/approvals/{approval_id}/reject` | 반려 결정 — 사유·본인확인 필수 + PII 패턴 차단, 케이스 `returned` 전이 |
+| POST | `/api/v1/evidence` | 일반 판단 기록 기록(R2.5) — 인증 필요, PII 패턴 차단, `case_id` 제공 시 같은 회사 소속인지 검증. `action_id`/`approval_id`/`run_id`는 받지 않음(아래 §알려진 스코프 경계) |
+| GET | `/api/v1/evidence` | 판단 기록 목록(R2.5) — 인증 필요, 자기 회사만, `case_id` 쿼리로 필터 |
+| POST | `/api/v1/packages/{case_id}/link` | 행정사 패키지 열람 링크 발급/재발급(R2.6) — manager/owner 인증 필요, 7일 유효기간 갱신 |
+| GET | `/api/v1/packages/{case_id}/link` | 행정사 패키지 열람 링크 검증(R2.6) — **무인증**(ExpertLinkPage 전용). 미발급·만료·대상없음 전부 404 |
 | GET | `/health` | 헬스체크 |
 
 승인/반려·생성은 액션(케이스) 단위 단건 처리만 존재한다 — **일괄 승인 엔드포인트는 만들지 않는다**(GOTCHAS §3).
@@ -78,20 +82,28 @@ app/
     auth_exceptions.py      인증 도메인 예외 — 라우터가 HTTP 상태로 변환
     exceptions.py            승인 도메인 예외 — 라우터가 HTTP 상태로 변환
     pii.py                 자유 텍스트 PII 패턴 차단(rules/safety.md)
-  schemas/approval.py, auth.py   요청/응답 Pydantic 모델
+  schemas/approval.py, auth.py, evidence.py, package.py   요청/응답 Pydantic 모델
   services/approvals.py    승인 요청·결정 트랜잭션 — 게이트·FOR UPDATE·전이·evidence append
   services/auth.py         OTP 발급/검증, 세션 발급/조회/폐기
+  services/evidence.py     일반 판단 기록 기록/조회(R2.5) + next_event_no(evidence_seq 원자 증가, approvals.py도 재사용)
+  services/packages.py     행정사 패키지 링크 발급/재발급/열람(R2.6) — 문서 콘텐츠는 다루지 않음
   api/v1/approvals.py      라우터 — 도메인 예외 → HTTP 상태 매핑, batch 엔드포인트 없음
   api/v1/auth.py           라우터 — OTP 요청/검증/me/로그아웃
-  api/deps.py              get_current_user_id — Bearer 세션 토큰에서 신원 도출
+  api/v1/evidence.py       라우터 — POST/GET /api/v1/evidence(R2.5, 인증 필요)
+  api/v1/packages.py       라우터 — POST(인증)/GET(무인증) /api/v1/packages/{case_id}/link(R2.6)
+  api/deps.py              get_current_user_id/get_current_membership — Bearer 세션 토큰에서 신원·소속 도출
 migrations/
-  versions/0001_p1_core_schema.py   유일한 리비전 — db/schema.sql을 그대로 적용
+  versions/0001_p1_core_schema.py   실배포(PR #10) 동결 스냅샷 — 더 이상 손대지 않는다
+  versions/0002_r2_5_evidence_and_r2_6_package_links.py   evidence_events.type CHECK 확장 +
+    handoff_packages.link_issued_at/link_expires_at 추가(ALTER 리비전). 다음 스키마 변경은 0003+
 tests/
   conftest.py              전용 테스트 DB + savepoint 격리
   test_ddl_parity.py       모델 ↔ 마이그레이션된 DB 컬럼/타입/nullable 대조
   test_api_approvals.py    승인 decide 엔드포인트 — 게이트·멱등성·high risk·PII 차단
   test_api_approval_requests.py  승인 요청 생성 엔드포인트
   test_api_auth.py         OTP 요청/검증/세션/로그아웃
+  test_api_evidence.py     일반 판단 기록 기록/조회 — 허용 타입·PII 차단·테넌트 격리(R2.5)
+  test_api_packages.py     행정사 패키지 링크 발급/재발급/열람 — 권한·만료·404(R2.6)
 ```
 
 ## 알려진 스코프 경계 (의도적)
@@ -101,8 +113,18 @@ tests/
   아니라 세션에서 도출된다.
 - `checklist`(M2.6 §2c)·delegation(위임) 흐름은 게이트/트리거는 있으나 그것을 채우는 화면/엔드포인트가
   아직 없다 — **위임 유효성 검증은 아직 구현되지 않았다**(`docs/DB_SCHEMA.md` §13-10 미결, `plans/ROADMAP.md` R2.4).
-- API 라우터는 인증·승인까지만 — 케이스 목록/상세·브리핑·메시지 등 read API는 화면이 백엔드에 붙는
-  순서대로 추가한다(`plans/ROADMAP.md` R2.3).
+  **승인 결정(approve/reject) 자체도 프론트가 아직 이 backend를 호출하지 않는다**(R2.4, 사용자
+  지시로 2.5·2.6을 먼저 진행) — ApprovePage는 여전히 mock 승인 파이프라인만 쓴다.
+- `POST /api/v1/evidence`(R2.5)는 `action_id`/`approval_id`/`run_id`를 받지 않는다 —
+  `evidence_events`의 DB 트리거(`trg_evidence_context_match`)가 그 값들이 실제 존재하는 행을
+  가리키길 요구하는데, 승인 결정(R2.4)·런(M3)이 아직 real 모드로 안 붙어 있어 프론트가 넘길
+  수 있는 값이 전부 mock 세계관 id다 — `case_id`만 받는다(R2.3부터 real 모드 caseId는 항상
+  진짜 DB 행이라 안전).
+- `POST/GET /api/v1/packages/{case_id}/link`(R2.6)는 링크의 유효성(발급·만료·열람 로그)만
+  다룬다 — 패키지 문서 콘텐츠(검토 요청서 본문·항목 토글)는 여전히 프론트 mock이며, 행정사
+  화이트라벨 개인 계정(`/expert/:expertId/...`, M-11 나머지)도 이번 범위 밖이다.
+- API 라우터는 인증·승인·판단 기록·패키지 링크까지만 — 케이스 목록/상세·브리핑·메시지 등 read API는
+  화면이 백엔드에 붙는 순서대로 추가한다(`plans/ROADMAP.md` R2.3, R2.5, R2.6).
 - 프론트(`src/lib/api/`)는 R2.1~2.2(인증)까지 배선됐다 — `VITE_API_MODE=real`일 때만 이 backend를
   호출한다(기본값 mock, `src/lib/api/config.ts`). 케이스/브리핑/스레드/승인/evidence 배선은
   R2.3~2.6에서 순차 진행한다(`plans/ROADMAP.md`).

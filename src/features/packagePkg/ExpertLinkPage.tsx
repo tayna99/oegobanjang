@@ -8,8 +8,11 @@
 // (GlobalEvidencePage)에서 항상 확인 가능하고, R0.5(2026-07-17)부터는 케이스 상세의
 // "케이스 타임라인"(CaseWorkbench.CaseTimeline, lib/audit.ts caseTimelineActivity)에도
 // 실시간으로 반영된다.
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { ApiError } from '@/lib/api/client';
+import { API_MODE } from '@/lib/api/config';
+import { fetchPackageLink } from '@/lib/api/packages';
 import { isLinkExpired } from '@/lib/packageLink';
 import { packageFor } from '@/mocks/packages';
 import { useEvidenceStore } from '@/stores/evidenceStore';
@@ -23,13 +26,38 @@ export function ExpertLinkPage() {
   const appendEvidence = useEvidenceStore((s) => s.append);
   const logged = useRef(false);
 
-  const expired = pkg ? isLinkExpired(pkg, events) : false;
-
-  // 열람 로그(package_link_viewed) — 만료된 링크는 열람으로 치지 않는다.
-  // useRef 가드는 StrictMode 이중 호출 방지용(CaseReviewPage의 review_started와 동일 관례,
-  // 단 여기선 "이미 있는 id면 스킵"이 아니라 "이 마운트에서 한 번만" — 재방문마다 새 로그가 남아야 한다).
+  // real 모드 — 만료·열람 로그를 서버가 강제한다(R2.6, "클라이언트 가드 → 404"). GET 성공
+  // 자체가 곧 열람 기록이다(services/packages.py가 같은 트랜잭션에서 evidence를 남긴다) —
+  // 프론트가 별도로 package_link_viewed를 재전송하지 않는다.
+  const [realLinkValid, setRealLinkValid] = useState<boolean | null>(null);
   useEffect(() => {
-    if (!pkg || expired || logged.current) return;
+    // pkg가 없으면(mocks/packages.ts에 없는 packageId) 콘텐츠 자체가 없을 게 확정이라
+    // 서버까지 왕복하지 않는다 — 아래 !pkg 분기가 어차피 먼저 "찾을 수 없음"을 렌더한다.
+    if (API_MODE !== 'real' || !packageId || !pkg) return;
+    let cancelled = false;
+    fetchPackageLink(packageId)
+      .then(() => {
+        if (!cancelled) setRealLinkValid(true);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404) setRealLinkValid(false);
+        else console.error('[ExpertLinkPage] 링크 확인 실패', err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [packageId, pkg]);
+
+  const mockExpired = pkg ? isLinkExpired(pkg, events) : false;
+  const expired = API_MODE === 'real' ? realLinkValid === false : mockExpired;
+
+  // mock 모드만 클라이언트에서 열람 evidence를 남긴다(기존 동작 그대로). real 모드는 위
+  // GET이 이미 서버에 남겼으므로 다시 appendEvidence하지 않는다 — useRef 가드는 StrictMode
+  // 이중 호출 방지용(CaseReviewPage의 review_started와 동일 관례, 단 여기선 "이미 있는
+  // id면 스킵"이 아니라 "이 마운트에서 한 번만" — 재방문마다 새 로그가 남아야 한다).
+  useEffect(() => {
+    if (API_MODE === 'real' || !pkg || expired || logged.current) return;
     logged.current = true;
     appendEvidence({
       id: `${pkg.packageId}-link-viewed-${Date.now()}`,
@@ -45,6 +73,14 @@ export function ExpertLinkPage() {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-canvas p-5">
         <p className="text-body2 text-muted">링크를 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
+
+  if (API_MODE === 'real' && realLinkValid === null) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-canvas p-5">
+        <p className="text-body2 text-muted">링크 확인 중…</p>
       </div>
     );
   }
