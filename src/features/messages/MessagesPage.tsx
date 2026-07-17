@@ -1,6 +1,5 @@
-import { useEffect } from 'react';
+import { useSeedThreads } from '@/lib/dataSeed';
 import { useIsDesktop } from '@/lib/useIsDesktop';
-import { THREADS } from '@/mocks/threads';
 import { useThreadStore } from '@/stores/threadStore';
 import { sortThreads } from '@/lib/threads';
 import { useNav } from '@/lib/nav';
@@ -18,13 +17,8 @@ export function MessagesPage() {
   const nav = useNav();
   const isDesktop = useIsDesktop();
   const threads = useThreadStore((s) => s.threads);
-  const upsert = useThreadStore((s) => s.upsert);
 
-  useEffect(() => {
-    if (Object.keys(useThreadStore.getState().threads).length === 0) {
-      THREADS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedThreads();
 
   if (isDesktop) {
     return <MessagesWorkbench />;

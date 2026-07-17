@@ -1,11 +1,11 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { BackHeader } from '@/components/BackHeader';
 import { Button } from '@/components/Button';
 import { useNav } from '@/lib/nav';
 import { mergedAuditLog } from '@/lib/audit';
 import { cn } from '@/lib/cn';
-import { CASE_CARDS } from '@/mocks/fixtures';
+import { useSeedCases } from '@/lib/dataSeed';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import type { EvidenceEvent } from '@/types';
@@ -27,14 +27,9 @@ export function CaseHistoryPage() {
   const { caseId } = useParams<{ caseId: string }>();
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
   const events = useEvidenceStore((s) => s.events);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const card = caseId ? cases[caseId] : undefined;
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Chip } from '@/components/Chip';
 import { KpiTile } from '@/components/KpiTile';
 import { cn } from '@/lib/cn';
@@ -14,10 +14,11 @@ import {
   rowAction,
 } from '@/lib/controlTower';
 import { agentStageTone, severityLabel, severityTone } from '@/lib/chipTone';
+import { useSeedCases } from '@/lib/dataSeed';
 import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
 import { pipelineStats } from '@/lib/pipeline';
-import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
+import { CASE_SHEETS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import type { CaseCard } from '@/types';
@@ -176,13 +177,8 @@ function ActivityRail() {
 export function ControlTowerPage() {
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const cards = useMemo(() => Object.values(cases), [cases]);
   const counts = useMemo(() => pipelineStats(cards), [cards]);

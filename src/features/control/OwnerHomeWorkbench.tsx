@@ -1,10 +1,10 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { useSeedCases } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { deriveMonthlyReport } from '@/lib/ownerReport';
 import { ROLE_LABEL } from '@/lib/role';
-import { CASE_CARDS } from '@/mocks/fixtures';
 import { useCaseStore } from '@/stores/caseStore';
 import { useCompanyStore } from '@/stores/companyStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
@@ -20,16 +20,11 @@ const MOCK_APPROVAL_DURATION = { avgApprovalHours: 1.8, avgApprovalHoursLastMont
 export function OwnerHomeWorkbench() {
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
   const events = useEvidenceStore((s) => s.events);
   const members = useCompanyStore((s) => s.members);
   const delegation = useCompanyStore((s) => s.delegation);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const pendingCount = Object.values(cases).filter((c) => c.state === 'approval_pending').length;
   const delegate = delegation.active ? members.find((m) => m.id === delegation.delegateId) : undefined;

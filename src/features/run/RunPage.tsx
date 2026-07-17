@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useSeedCases } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { useCaseStore } from '@/stores/caseStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -30,14 +30,9 @@ function RunPageContent({ config }: { config: RunConfig }) {
   const nav = useNav();
   const engine = useRunEngine(config);
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
   const role = useRoleStore((s) => s.role);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   // 3.2: 커맨드 런 결과 카드 대상 — 스토어 우선, 미시드 시 픽스처 폴백(제목·D-day 표시용).
   const resultCases: RunResultCase[] = (config.resultCaseIds ?? []).flatMap((id) => {

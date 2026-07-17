@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BackHeader } from '@/components/BackHeader';
 import { BottomSheet } from '@/components/BottomSheet';
@@ -6,10 +6,11 @@ import { Button } from '@/components/Button';
 import { SAFETY_NOTICE_TEXT } from '@/components/SafetyNotice';
 import { useApprovalActions, canApproveCase, isCitationLocked, OWNER_NAME } from '@/lib/approval';
 import { mergedAuditLog } from '@/lib/audit';
+import { useSeedCases } from '@/lib/dataSeed';
 import { dDayLabel } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
 import { DEMO_PIN, isValidPinFormat } from '@/lib/pin';
-import { CASE_CARDS, CASE_SHEETS } from '@/mocks/fixtures';
+import { CASE_SHEETS } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
 import { canTransition, useCaseStore } from '@/stores/caseStore';
 import { usableCitations } from '@/stores/citationStore';
@@ -27,17 +28,12 @@ export function ApprovePage() {
   const { caseId } = useParams<{ caseId: string }>();
   const nav = useNav();
   const cases = useCaseStore((s) => s.cases);
-  const upsert = useCaseStore((s) => s.upsert);
   const { approve, reject, requestOwnerApproval } = useApprovalActions();
   const role = useRoleStore((s) => s.role);
   const approvalPolicy = useCompanyStore((s) => s.approvalPolicy);
   const events = useEvidenceStore((s) => s.events);
 
-  useEffect(() => {
-    if (Object.keys(useCaseStore.getState().cases).length === 0) {
-      CASE_CARDS.forEach(upsert);
-    }
-  }, [upsert]);
+  useSeedCases();
 
   const card = caseId ? cases[caseId] : undefined;
   const sheet = caseId ? CASE_SHEETS[caseId] : undefined;
