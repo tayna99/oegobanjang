@@ -1,11 +1,13 @@
-"""rag 서비스(B1, plans/BACKEND_CONNECT.md) — backend 전용 내부 API.
+"""rag 서비스 — backend 전용 내부 API (B1 + M7-G3).
 
 프론트는 이 서비스를 직접 호출하지 않는다 — backend가 유일한 접속점이고, 이 서비스는
 backend가 호출하는 내부 부품이다(상태 기록은 backend의 책임, RAG=근거 검색 경계 유지).
 
 - GET  /health       — pgvector 컬렉션 존재·비어있지 않음 확인
 - POST /retrieve     — 워크포스 3버킷 근거 검색 (rag_retrieved 이벤트 포함)
-- POST /agent/run    — create_agent SSE 스트림: step 이벤트(RunStep kind 매핑) → structured 이벤트(RagAnswer)
+- POST /agent/run    — (B1) create_agent SSE — B3' 결선 후 dev·디버그 보조로 강등 예정
+- POST /intent       — (G3) 결정론 라우팅(키워드 정본) — backend 2-phase의 1단계
+- POST /graph/run    — (G3) 직선 StateGraph SSE: step* → evidence* → structured → done
 
 실행: uv run uvicorn oe_rag.api:app --port 8100
 """
@@ -20,7 +22,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, ToolMessage
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .agent.factory import RagAnswer, create_workforce_rag_agent
 from .agent.tools import (
@@ -31,6 +33,8 @@ from .agent.tools import (
     search_multilingual_contact_materials,
     search_policy_documents,
 )
+from .orchestration.graph import build_orchestration_graph, new_request_id
+from .orchestration.router import RoutePlan, route_message
 
 app = FastAPI(title="oe-rag", version="0.1.0")
 
@@ -177,5 +181,141 @@ async def _agent_event_stream(
 async def agent_run(request: AgentRunRequest, model: ChatModelDep) -> StreamingResponse:
     return StreamingResponse(
         _agent_event_stream(request.query, request.case_type, request.thread_id, model),
+        media_type="text/event-stream",
+    )
+
+
+# --- M7-G3: 직선 오케스트레이션 그래프 ---------------------------------------------------
+
+
+class IntentRequest(BaseModel):
+    message: str
+
+
+class GraphRunRequest(BaseModel):
+    message: str
+    thread_id: str = "graph-default"
+    request_id: str | None = None
+    # backend가 조립한 ContextSnapshot(v1) — 없으면 상태 없는 미션(M0)만 의미 있게 동작
+    context_snapshot: dict[str, Any] = Field(default_factory=dict)
+
+
+@app.post("/intent")
+def intent(request: IntentRequest) -> RoutePlan:
+    """2-phase의 1단계 — 결정론 키워드 라우팅(정본). backend는 이 결과의
+    required_context로 ContextSnapshot을 조립해 /graph/run에 주입한다."""
+    return route_message(request.message)
+
+
+# 그래프 노드 → 프론트 RunStep(kind: thinking/tool_call/guardrail/handoff/replan) 매핑.
+_NODE_STEP_BUILDERS: dict[str, Any] = {
+    "input_guard": lambda update: {
+        "kind": "guardrail" if update.get("blocked") else "thinking",
+        "label": "입력 가드 차단" if update.get("blocked") else "입력 검증·PII 마스킹",
+        "detail": update.get("blocked_reason", "") or ("PII 마스킹 적용" if update.get("pii_masked") else "통과"),
+    },
+    "intent_router": lambda update: {
+        "kind": "thinking",
+        "label": "의도 분류",
+        "detail": f"{update.get('route', {}).get('intent', '?')} → {update.get('route', {}).get('mission') or '-'}",
+    },
+    "planner": lambda update: {
+        "kind": "thinking",
+        "label": "실행 계획 수립 (코드 dict)",
+        "detail": "",
+    },
+    "executor": lambda update: {
+        "kind": "tool_call",
+        "label": "미션 실행",
+        "detail": ", ".join(r.get("mission", "?") for r in update.get("mission_results", [])),
+    },
+    "aggregator": lambda update: {
+        "kind": "thinking",
+        "label": "결과 집계",
+        "detail": f"key findings {len(update.get('aggregated', {}).get('key_findings', []))}건",
+    },
+    "approval_gate": lambda update: {
+        "kind": "handoff" if (update.get("approval") or {}).get("required") else "thinking",
+        "label": "승인 게이트",
+        "detail": (update.get("approval") or {}).get("status", ""),
+    },
+    "blocked_response": lambda update: {
+        "kind": "guardrail",
+        "label": "요청 차단",
+        "detail": "안전 규칙 — 자동 실행 없이 담당자 검토 필요",
+    },
+}
+
+
+async def _graph_event_stream(
+    request: GraphRunRequest, chat_model: BaseChatModel | None
+) -> AsyncIterator[str]:
+    graph = build_orchestration_graph(chat_model)
+    request_id = request.request_id or new_request_id()
+
+    initial_state = {
+        "request_id": request_id,
+        "thread_id": request.thread_id,
+        "user_message": request.message,
+        "context_snapshot": request.context_snapshot,
+        "mission_results": [],
+        "evidence_events": [],
+    }
+
+    final_structured: dict[str, Any] | None = None
+    final_approval: dict[str, Any] | None = None
+    try:
+        async for chunk in graph.astream(initial_state, stream_mode="updates"):
+            for node, update in chunk.items():
+                if not isinstance(update, dict):
+                    continue
+                builder = _NODE_STEP_BUILDERS.get(node)
+                if builder is not None:
+                    yield _sse_event("step", builder(update))
+                for event in update.get("evidence_events", []) or []:
+                    yield _sse_event("evidence", event)
+                if update.get("structured_response"):
+                    final_structured = update["structured_response"]
+                if update.get("approval"):
+                    final_approval = update["approval"]
+    except Exception as exc:  # noqa: BLE001 — SSE 내부 오류는 error 이벤트로
+        yield _sse_event("error", {"detail": str(exc), "request_id": request_id})
+        return
+
+    yield _sse_event(
+        "structured",
+        {
+            "request_id": request_id,
+            "answer": final_structured,
+            "approval": final_approval,
+        },
+    )
+    yield _sse_event("done", {"request_id": request_id})
+
+
+def get_graph_chat_model() -> BaseChatModel | None:
+    """그래프 미션 합성용 모델 — 키가 있으면 ChatOpenAI, 없으면 None(결정론 폴백 — 정본).
+
+    /agent/run의 get_chat_model과 달리 모델이 없어도 전 경로가 동작해야 하므로
+    (오프라인 데모가 정본) 예외를 던지지 않는다. 테스트는 dependency_overrides로
+    fake 모델을 주입해 LLM 합성 경로를 검증할 수 있다.
+    """
+    import os
+
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    from langchain_openai import ChatOpenAI
+
+    return ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=api_key)
+
+
+GraphChatModelDep = Annotated[BaseChatModel | None, Depends(get_graph_chat_model)]
+
+
+@app.post("/graph/run")
+async def graph_run(request: GraphRunRequest, chat_model: GraphChatModelDep) -> StreamingResponse:
+    return StreamingResponse(
+        _graph_event_stream(request, chat_model),
         media_type="text/event-stream",
     )
