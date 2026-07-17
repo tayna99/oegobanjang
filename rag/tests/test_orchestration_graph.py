@@ -36,15 +36,25 @@ def test_happy_path_visa_intent_flows_to_final_response() -> None:
     assert state["blocked"] is False
     assert state["route"]["intent"] == "visa_expiry"
     assert state["route"]["mission"] == "m2_visa"
-    # m2_visa는 아직 미등록 — rag_answer 폴백 + 명시 플래그 (조용한 폴백 금지)
-    assert state["mission_results"][0]["mission"] == "rag_answer"
-    assert "MISSION_NOT_IMPLEMENTED" in state["mission_results"][0]["risk_flags"]
+    assert state["mission_results"][0]["mission"] == "m2_visa"  # G4에서 등록됨
+    assert "MISSION_NOT_IMPLEMENTED" not in state["mission_results"][0].get("risk_flags", [])
     assert state["structured_response"]["final_response"]
     event_types = [e["event_type"] for e in state["evidence_events"]]
     assert event_types[0] == "intent_classified"  # input_guard
     assert "plan_created" in event_types
     assert "rag_retrieved" in event_types
     assert event_types[-1] == "final_response_generated"
+
+
+def test_unregistered_mission_falls_back_to_rag_answer_with_explicit_flag() -> None:
+    # m1_workforce는 G5에서 등록 예정 — 그때까지 조용한 폴백 금지 계약 검증
+    state = _run("E-9 추가 채용 가능한지 확인")
+
+    assert state["route"]["mission"] == "m1_workforce"
+    result = state["mission_results"][0]
+    assert result["mission"] == "rag_answer"
+    assert "MISSION_NOT_IMPLEMENTED" in result["risk_flags"]
+    assert result["requested_mission"] == "m1_workforce"
 
 
 def test_forbidden_input_terms_short_circuit_before_any_retrieval() -> None:

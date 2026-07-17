@@ -21,6 +21,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, START, StateGraph
 
 from ..agent.factory import RagAnswer
+from ..missions.m2_visa import run_m2_visa_mission
 from ..missions.rag_answer import run_rag_answer_mission
 from .contracts import AUTO_ACTION_BLOCKLIST, EventType
 from .evidence import make_event
@@ -30,10 +31,11 @@ from .state import OrchestrationState
 
 MissionRunner = Callable[..., dict[str, Any]]
 
-# 미션 레지스트리 — G4(m2_visa)·G5(m1_workforce/m3_contact)가 여기 등록한다.
+# 미션 레지스트리 — G5(m1_workforce/m3_contact)가 추가 등록한다.
 # 미등록 미션은 rag_answer(M0)로 폴백하되 결과에 플래그를 남긴다(조용한 폴백 금지).
 MISSION_REGISTRY: dict[str, MissionRunner] = {
     "rag_answer": run_rag_answer_mission,
+    "m2_visa": run_m2_visa_mission,
 }
 
 _BLOCKED_FINAL_RESPONSE = (
