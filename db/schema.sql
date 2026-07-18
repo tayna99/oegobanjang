@@ -410,14 +410,18 @@ CREATE TABLE evidence_events (
   type            text NOT NULL CHECK (type IN
                     -- 코어(src/types.ts EvidenceType과 동일)
                     ('intent_classified','plan_created','tool_executed','rag_retrieved',
-                     'risk_flagged','approval_requested','approval_decided','review_started',
-                     'checklist_completed','exported','final_response_generated',
+                     'risk_flagged','approval_requested','approval_decided','approval_rejected',
+                     'review_started','checklist_completed','exported','final_response_generated',
                      -- 확장(스펙 요구 — 화면이 붙는 마일스톤에 프론트 타입에도 추가)
                      'briefing_emitted','worker_reply_received',
                      'worker_reply_summarized','status_update_confirmed','handoff_generated',
                      'delegation_granted',
                      'delegation_revoked','role_granted','role_changed','member_invited',
-                     'member_removed','approval_escalated','autonomy_changed','worker_deleted')),
+                     'member_removed','approval_escalated','autonomy_changed','worker_deleted',
+                     -- R2.5(2026-07-17) — 프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있던
+                     -- 타입(운영급 RBAC·행정사 패키지·메시지 해석·발송 실행, src/types.ts와 대조 정합).
+                     'interpretation_confirmed','package_link_issued','package_link_viewed',
+                     'dispatch_executed','delivery_confirmed','package_reply')),
   at              timestamptz NOT NULL,            -- 발생 시각(주입 가능 — 테스트 결정성)
   case_id         text,
   action_id       text,
@@ -556,20 +560,30 @@ CREATE INDEX ix_sup_interpretation ON status_update_proposals (interpretation_id
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE handoff_packages (
-  id             text PRIMARY KEY,
-  company_id     text NOT NULL REFERENCES companies(id),
-  case_id        text NOT NULL,
-  package_type   text NOT NULL CHECK (package_type IN ('expert_review','pre_entry')),
-  masked_payload jsonb NOT NULL,                   -- allowlist 필드만(§7)
-  included_items jsonb,
-  status         text NOT NULL DEFAULT 'draft' CHECK (status IN
-                   ('draft','pending_approval','approved','rejected','exported')),
-  approval_id    text,
-  created_at     timestamptz NOT NULL DEFAULT now(),
-  updated_at     timestamptz NOT NULL DEFAULT now(),
+  id                text PRIMARY KEY,
+  company_id        text NOT NULL REFERENCES companies(id),
+  case_id           text NOT NULL,
+  package_type      text NOT NULL CHECK (package_type IN ('expert_review','pre_entry')),
+  masked_payload    jsonb NOT NULL,                   -- allowlist 필드만(§7)
+  included_items    jsonb,
+  status            text NOT NULL DEFAULT 'draft' CHECK (status IN
+                      ('draft','pending_approval','approved','rejected','exported')),
+  approval_id       text,
+  -- R2.6(2026-07-17) — 무인증 링크(`/link/:linkToken`) 만료·재발급의 서버측 근거. 발급 전엔
+  -- 셋 다 NULL(=링크 없음, GET은 404). 재발급은 이 세 컬럼만 갱신(패키지 자체는 유지) — §4.8-1.
+  -- 코드리뷰 지적(PR #20 P1): link_token 없이 case_id 자체를 비밀로 쓰면 case_id가 PK라
+  -- 영구 불변이라 재발급으로도 기존에 유출된 링크를 회수할 수 없었다 — 발급/재발급마다
+  -- 새로 회전하는 무작위 토큰을 별도로 둔다(공개 링크는 이제 case_id가 아니라 이 토큰).
+  link_token        text,
+  link_issued_at    timestamptz,
+  link_expires_at   timestamptz,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id, id),
+  UNIQUE (link_token),
   FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),
-  FOREIGN KEY (company_id, case_id, approval_id) REFERENCES approvals(company_id, case_id, id)
+  FOREIGN KEY (company_id, case_id, approval_id) REFERENCES approvals(company_id, case_id, id),
+  CHECK (link_expires_at IS NULL OR (link_issued_at IS NOT NULL AND link_token IS NOT NULL))
 );
 CREATE INDEX ix_handoff_packages_company ON handoff_packages (company_id, status);
 CREATE INDEX ix_handoff_packages_case ON handoff_packages (case_id);
@@ -589,7 +603,10 @@ CREATE TABLE package_exports (
 );
 CREATE INDEX ix_package_exports_package ON package_exports (package_id);
 
--- MVP에는 외부 전달 링크를 만들지 않는다. delivery adapter 마일스톤에서 별도 migration으로 도입한다.
+-- handoff_packages.link_issued_at/link_expires_at(R2.6, 위)는 담당자가 이미 아는 케이스에
+-- 한해 "만료형 열람 링크"의 유효성만 서버가 검증하는 것 — SMS/알림톡/이메일로 실제 링크를
+-- 발송하는 delivery adapter(EmailAdapter 등)는 여전히 범위 밖이며 별도 마일스톤(R3)에서
+-- 도입한다(MESSAGING_CHANNELS §5).
 
 -- ---------------------------------------------------------------------------
 -- 4.9 브리핑
@@ -898,7 +915,8 @@ CREATE TRIGGER approvals_members_active
   BEFORE INSERT OR UPDATE OF company_id, requested_by_user_id, decided_by_user_id, on_behalf_of_user_id ON approvals
   FOR EACH ROW EXECUTE FUNCTION trg_approvals_members_active();
 
--- 승인 결정자 role 정책: owner, 또는 (manager_allowed 회사 + manager + 케이스 severity LOW)
+-- 승인 결정자 role 정책: owner, 또는 (manager_allowed 회사 + manager + 케이스 severity LOW),
+-- 또는 owner의 유효한 위임(delegations, R2.4)을 받은 대리 결정자.
 CREATE FUNCTION trg_approvals_decider_role() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.decided_by_user_id IS NOT NULL AND NOT EXISTS (
@@ -913,6 +931,20 @@ BEGIN
         m.role = 'owner'
         OR (c.approval_policy = 'manager_allowed' AND m.role = 'manager' AND cs.severity = 'LOW')
       )
+  ) AND NOT (
+    NEW.on_behalf_of_user_id IS NOT NULL
+    AND EXISTS (
+      SELECT 1 FROM delegations d
+      JOIN memberships md ON md.company_id = d.company_id AND md.user_id = d.delegator_user_id
+      WHERE d.company_id = NEW.company_id
+        AND d.delegator_user_id = NEW.on_behalf_of_user_id
+        AND d.delegate_user_id = NEW.decided_by_user_id
+        AND d.scope = 'approval'
+        AND d.revoked_at IS NULL
+        AND d.starts_at <= COALESCE(NEW.decided_at, now())
+        AND COALESCE(NEW.decided_at, now()) < d.ends_at
+        AND md.status = 'active' AND md.role = 'owner'
+    )
   ) THEN
     RAISE EXCEPTION 'approval decider is not allowed by company policy';
   END IF;
@@ -920,7 +952,7 @@ BEGIN
 END;
 $$;
 CREATE TRIGGER approvals_decider_role
-  BEFORE INSERT OR UPDATE OF company_id, case_id, decided_by_user_id ON approvals
+  BEFORE INSERT OR UPDATE OF company_id, case_id, decided_by_user_id, on_behalf_of_user_id ON approvals
   FOR EACH ROW EXECUTE FUNCTION trg_approvals_decider_role();
 
 -- evidence actor(사람)는 활성 멤버여야 한다(append-only이라 INSERT만)

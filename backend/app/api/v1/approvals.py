@@ -17,11 +17,13 @@ from app.domain.exceptions import (
     ApprovalAlreadyPendingError,
     ApprovalBlockedByEvidenceError,
     ApprovalChecklistIncompleteError,
+    ApprovalDelegationInvalidError,
     ApprovalError,
     ApprovalForbiddenError,
     ApprovalIdempotencyKeyReusedError,
     ApprovalIdentityRequiredError,
     ApprovalNotFoundError,
+    ApprovalPinInvalidError,
     ApprovalReasonContainsPiiError,
     ApprovalReasonRequiredError,
     CaseTransitionError,
@@ -47,8 +49,10 @@ _ERROR_STATUS: dict[type[ApprovalError], int] = {
     ApprovalBlockedByEvidenceError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ApprovalChecklistIncompleteError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ApprovalIdentityRequiredError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    ApprovalPinInvalidError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ApprovalReasonRequiredError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ApprovalReasonContainsPiiError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    ApprovalDelegationInvalidError: status.HTTP_403_FORBIDDEN,
 }
 
 

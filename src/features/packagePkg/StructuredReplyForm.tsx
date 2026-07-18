@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@/components/Button';
+import { API_MODE } from '@/lib/api/config';
 import { cn } from '@/lib/cn';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 
@@ -27,6 +28,24 @@ export function StructuredReplyForm({ packageId, recipient }: { packageId: strin
   const [detail, setDetail] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [sent, setSent] = useState(false);
+
+  // 코드리뷰 지적(PR #20 P1): package_reply는 무인증 화면 전용이라(PACKAGE_LINK_EVIDENCE_TYPES)
+  // 서버에 기록하려면 packages.py가 자기 트랜잭션 안에서 직접 남겨야 하는데, 이번 R2.6엔
+  // 회신을 받는 엔드포인트 자체가 없다("패키지 문서 콘텐츠는 범위 밖"). 그런데도 이 폼은
+  // real 모드에서도 무조건 "회신을 보냈습니다"를 보여줬다 — 실제로는 그 순간 그 브라우저의
+  // 로컬 상태에만 남고 서버 어디에도 저장되지 않아, 새로고침·다른 기기에서 전부 사라진다.
+  // 백엔드가 생기기 전까지는 "보냈다"고 거짓으로 확인해주는 것보다, 아직 안 된다고
+  // 정직하게 말하는 편이 낫다.
+  if (API_MODE === 'real') {
+    return (
+      <section aria-label="구조화된 회신" className="flex flex-col gap-1.5 rounded-in bg-surface px-4 py-3.5">
+        <p className="text-label1 font-semibold text-ink">회신 접수는 아직 준비 중입니다</p>
+        <p className="text-caption1 leading-relaxed text-subtle">
+          이 기능은 서버에 저장되지 않습니다. 지금은 담당자에게 직접 연락해 전달해주세요.
+        </p>
+      </section>
+    );
+  }
 
   if (sent) {
     return (

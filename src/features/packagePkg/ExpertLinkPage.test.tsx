@@ -20,7 +20,7 @@ async function renderAt(path: string) {
   const rendered = render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/link/:packageId" element={<ExpertLinkPage />} />
+        <Route path="/link/:linkToken" element={<ExpertLinkPage />} />
       </Routes>
     </MemoryRouter>,
   );

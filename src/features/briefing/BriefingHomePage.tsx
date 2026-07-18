@@ -1,6 +1,6 @@
 import { visibleCardsForRole } from '@/lib/briefing';
 import { sortCaseList } from '@/lib/cases';
-import { useSeedCases, useSeedThreads } from '@/lib/dataSeed';
+import { useSeedCases, useSeedEvidence, useSeedThreads } from '@/lib/dataSeed';
 import { countArrivedResponses } from '@/lib/threads';
 import { useNav } from '@/lib/nav';
 import { useCaseStore } from '@/stores/caseStore';
@@ -21,6 +21,7 @@ export function BriefingHomePage() {
 
   useSeedCases();
   useSeedThreads();
+  useSeedEvidence();
 
   const visible = sortCaseList(visibleCardsForRole(Object.values(cases), role));
   const arrivedResponseCount = countArrivedResponses(Object.values(threads));

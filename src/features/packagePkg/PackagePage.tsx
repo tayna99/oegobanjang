@@ -2,9 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
+import { API_MODE } from '@/lib/api/config';
+import { issuePackageLink } from '@/lib/api/packages';
 import { cn } from '@/lib/cn';
+import { useSeedEvidence } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { isLinkExpired, LINK_VALIDITY_DAYS } from '@/lib/packageLink';
+import { ROUTES } from '@/lib/routes';
 import {
   PACKAGE_EXPORT_FOOTER,
   PACKAGE_WATERMARK,
@@ -195,15 +199,25 @@ export function PackagePage() {
   const [on, setOn] = useState<Set<string>>(() => new Set(pkg?.items.filter((i) => i.defaultOn).map((i) => i.key)));
   const [requested, setRequested] = useState(false);
   const [exported, setExported] = useState(false);
+  // 코드리뷰 회귀(PR #20 P1): real 모드 재발급이 실패해도 무조건 "재발급됨" evidence를
+  // 남기고 있었고, 성공해도 서버가 새로 발급한 linkToken(공유용 실제 URL의 근거)을 어디에도
+  // 쓰지 않았다 — 성공 시에만 evidence를 남기고 그 링크를 화면에 노출한다.
+  const [issuedLinkUrl, setIssuedLinkUrl] = useState<string | null>(null);
+  const [reissueError, setReissueError] = useState<string | null>(null);
+
+  useSeedEvidence();
 
   useEffect(() => {
     if (pkg) setOn(new Set(pkg.items.filter((i) => i.defaultOn).map((i) => i.key)));
   }, [pkg]);
 
   const expired = useMemo(() => (pkg ? isLinkExpired(pkg, events) : false), [pkg, events]);
+  // 코드리뷰 지적(PR #20 P1): pkg.packageId는 mocks/packages.ts에 박힌 mock id("batbayar")라
+  // real 모드에선 서버가 실제로 기록한 evidence의 caseId("cs_batbayar")와 값이 다르다 —
+  // 라우트 파라미터(real 모드=실제 case_id, mock 모드=mock id와 어차피 동일값)로 맞춘다.
   const viewLog = useMemo(
-    () => (pkg ? events.filter((e) => e.type === 'package_link_viewed' && e.caseId === pkg.packageId) : []),
-    [pkg, events],
+    () => (pkg ? events.filter((e) => e.type === 'package_link_viewed' && e.caseId === packageId) : []),
+    [pkg, events, packageId],
   );
 
   const approved = useMemo(
@@ -260,7 +274,30 @@ export function PackagePage() {
   };
 
   // 링크 재발급(7단계 §4 "재발급은 manager") — 만료 여부 계산을 다시 유효로 되돌린다.
-  const onReissue = () => {
+  // real 모드는 서버가 handoff_packages.link_expires_at을 실제로 갱신한다(R2.6) — 로컬
+  // evidence append(아래)는 두 모드 공통으로 즉시 UI 반영(열람 이력 레일)용이며, 서버 기록은
+  // packages.ts 전용 경로가 이미 자기 트랜잭션 안에서 남긴다(evidenceStore의 일반 real-모드
+  // 자동 POST는 package_link_issued 타입을 제외해 이중 기록을 만들지 않는다).
+  const onReissue = async () => {
+    setReissueError(null);
+    if (API_MODE === 'real') {
+      // 코드리뷰 지적(PR #20 P1): pkg.packageId(mock id, 예: "batbayar")를 그대로 서버에
+      // 보내면 실제 DB엔 그 id의 케이스가 없어(cs_batbayar) 404였다 — real 모드 내비게이션은
+      // 라우트 파라미터(packageId)에 실제 case_id를 싣고 오므로 그 값을 쓴다.
+      if (!packageId) return;
+      try {
+        const status = await issuePackageLink(packageId);
+        // 코드리뷰 회귀(PR #20 P1): 응답의 linkToken이 실제 공유 URL의 유일한 근거다
+        // (case_id는 더 이상 조회 키가 아니다) — 화면에 노출해야 담당자가 실제로 쓸 수 있다.
+        setIssuedLinkUrl(`${window.location.origin}${ROUTES.packageLink(status.linkToken)}`);
+      } catch (err: unknown) {
+        // 코드리뷰 회귀(PR #20 P1): 실패했는데도 무조건 "재발급됨" evidence를 남기고 있었다
+        // — 실패 시에는 evidence를 남기지 않고 에러만 보여준 뒤 종료한다.
+        console.error('[PackagePage] 링크 재발급 실패', err);
+        setReissueError('링크 재발급에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
+    }
     appendEvidence({
       id: `${pkg.packageId}-link-reissued-${Date.now()}`,
       type: 'package_link_issued',
@@ -300,6 +337,19 @@ export function PackagePage() {
         {expired && (
           <p className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
             행정사 링크가 만료되었습니다({LINK_VALIDITY_DAYS}일 경과) — 재발급이 필요합니다.
+          </p>
+        )}
+        {/* 코드리뷰 회귀(PR #20 P1): 재발급 성공 시 실제로 공유할 URL(linkToken 기반)을
+            보여준다 — 지금까지는 서버 응답을 받고도 아무 데도 쓰지 않았다. */}
+        {issuedLinkUrl && (
+          <p className="rounded-in bg-succbg px-3.5 py-3 text-body2 leading-relaxed text-success">
+            링크가 발급됐습니다 — 행정사에게 이 주소를 전달하세요:{' '}
+            <span className="font-mono text-caption1 break-all">{issuedLinkUrl}</span>
+          </p>
+        )}
+        {reissueError && (
+          <p role="alert" className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
+            {reissueError}
           </p>
         )}
       </header>

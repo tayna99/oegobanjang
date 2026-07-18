@@ -91,12 +91,16 @@ describe('M2.6 approval funnel', () => {
       target: { value: '초안 톤 수정 필요' },
     });
     fireEvent.click(screen.getByRole('button', { name: '반려하기' }));
+    await passPinGate(); // R2.4 — 반려도 PIN 본인확인을 거친다(승인과 통일)
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
     expect(useCaseStore.getState().cases.nguyen.state).toBe('returned');
     expect(useApprovalStore.getState().approvals['nguyen-approve'].status).toBe('rejected');
     expect(useApprovalStore.getState().approvals['nguyen-approve'].reason).toBe('초안 톤 수정 필요');
-    expect(screen.getByText('반려됨 · 보완 필요')).toBeInTheDocument();
+    // R2.4 — 결정 핸들러가 async가 되면서 nav.toHome()이 await 이후 마이크로태스크에서
+    // 실행된다. router.state는 waitFor로 먼저 확인되지만 홈 화면 재렌더 커밋은 한 틱 더
+    // 걸릴 수 있어, 동기 getByText 대신 재시도하는 findByText로 확인한다.
+    expect(await screen.findByText('반려됨 · 보완 필요')).toBeInTheDocument();
   });
 
   // 코드리뷰 A3 회귀: 반려는 감사 이력에서 '반려'로 표기되고 '최종 승인'(사람 primary 노드)이 아니다.
@@ -105,6 +109,7 @@ describe('M2.6 approval funnel', () => {
     render(<RouterProvider router={router} />);
     await screen.findByRole('heading', { name: '최종 승인' });
     fireEvent.click(screen.getByRole('button', { name: '반려하기' }));
+    await passPinGate();
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
 
     // 이력 화면 진입 — 승인 노드/배너가 없어야 한다.
@@ -123,6 +128,7 @@ describe('M2.6 approval funnel', () => {
     render(<RouterProvider router={router} />);
     await screen.findByRole('heading', { name: '최종 승인' });
     fireEvent.click(screen.getByRole('button', { name: '반려하기' }));
+    await passPinGate();
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
     expect(useCaseStore.getState().cases.nguyen.state).toBe('returned');
 
@@ -149,6 +155,7 @@ describe('M2.6 approval funnel', () => {
       target: { value: '초안 톤 수정 필요' },
     });
     fireEvent.click(screen.getByRole('button', { name: '반려하기' }));
+    await passPinGate();
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
     expect(
       useEvidenceStore.getState().events.filter((e) => e.type === 'approval_rejected').length,
@@ -163,6 +170,7 @@ describe('M2.6 approval funnel', () => {
       target: { value: '초안 톤 수정 필요' },
     });
     fireEvent.click(screen.getByRole('button', { name: '반려하기' }));
+    await passPinGate();
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
 
     expect(useCaseStore.getState().cases.nguyen.state).toBe('returned');

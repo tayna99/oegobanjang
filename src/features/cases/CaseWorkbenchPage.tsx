@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
 import { normalizeCaseFilter } from '@/lib/cases';
-import { useSeedCases } from '@/lib/dataSeed';
+import { useSeedCases, useSeedEvidence } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { ROUTES } from '@/lib/routes';
 import { useCaseStore } from '@/stores/caseStore';
@@ -20,6 +20,7 @@ export function CaseWorkbenchPage({ selectedCaseId, filterOverride }: CaseWorkbe
   const cases = useCaseStore((state) => state.cases);
 
   useSeedCases();
+  useSeedEvidence();
 
   const preset = normalizeCaseFilter(filterOverride ?? searchParams.get('filter'));
   const returnTo = ROUTES.cases(preset === 'all' ? undefined : preset);

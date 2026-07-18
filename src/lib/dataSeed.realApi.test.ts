@@ -5,8 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // 경유하는 모든 import가 동일하게 관측한다 — StepPhoneAuth.realApi.test.tsx와 동일한 관례).
 vi.mock('./api/config', () => ({ API_BASE_URL: 'http://localhost:8000', API_MODE: 'real' }));
 
-import { useSeedCases, useSeedThreadDetail, useSeedThreads } from './dataSeed';
+import { useSeedCases, useSeedEvidence, useSeedThreadDetail, useSeedThreads } from './dataSeed';
 import { useCaseStore } from '@/stores/caseStore';
+import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useThreadStore } from '@/stores/threadStore';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -133,6 +134,47 @@ describe('useSeedThreadDetail — 실 API 모드(R2.3)', () => {
     global.fetch = fetchMock as unknown as typeof fetch;
 
     renderHook(() => useSeedThreadDetail(undefined));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+const EVIDENCE_DTO = {
+  id: 'evt_1',
+  company_id: 'cmp1',
+  event_no: 4790,
+  type: 'role_granted',
+  at: '2026-07-17T09:00:00Z',
+  case_id: null,
+  summary: '역할 부여',
+  input_hash: null,
+  actor_display: '김담당',
+};
+
+describe('useSeedEvidence — 실 API 모드(R2.5)', () => {
+  afterEach(() => {
+    useEvidenceStore.getState().reset();
+    vi.restoreAllMocks();
+  });
+
+  it('evidenceStore가 비어있으면 GET /api/v1/evidence로 hydrate한다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([EVIDENCE_DTO])) as unknown as typeof fetch;
+
+    renderHook(() => useSeedEvidence());
+
+    await waitFor(() => expect(useEvidenceStore.getState().events).toHaveLength(1));
+    expect(useEvidenceStore.getState().events[0].id).toBe('evt_1');
+  });
+
+  it('스토어에 이미 이벤트가 있으면 fetch하지 않는다', () => {
+    // hydrate로 미리 채운다(append는 real 모드에서 그 자체로 POST를 쏘므로, "이미 채워진
+    // 상태"를 만드는 이 준비 단계에서는 서버로 아무 것도 보내지 않는 쪽을 써야 아래
+    // fetchMock 단언이 useSeedEvidence만의 동작을 본다).
+    useEvidenceStore.getState().hydrate([{ id: 'existing', type: 'role_granted', at: '2026-07-17T09:00:00Z', summary: '기존' }]);
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([EVIDENCE_DTO]));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderHook(() => useSeedEvidence());
 
     expect(fetchMock).not.toHaveBeenCalled();
   });

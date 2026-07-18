@@ -5,7 +5,7 @@ import { Button } from '@/components/Button';
 import { useNav } from '@/lib/nav';
 import { mergedAuditLogAscending } from '@/lib/audit';
 import { cn } from '@/lib/cn';
-import { useSeedCases } from '@/lib/dataSeed';
+import { useSeedCases, useSeedEvidence } from '@/lib/dataSeed';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import type { EvidenceEvent } from '@/types';
@@ -30,6 +30,7 @@ export function CaseHistoryPage() {
   const events = useEvidenceStore((s) => s.events);
 
   useSeedCases();
+  useSeedEvidence();
 
   const card = caseId ? cases[caseId] : undefined;
 

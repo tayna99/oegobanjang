@@ -18,6 +18,230 @@
 
 ---
 
+### [2026-07-18] R2.5+R2.6 코드리뷰 2라운드 — P1 3건 + P2 1건 수정 — 완료
+
+- 한 일: 아래 R2.5+R2.6 항목이 코드리뷰 2라운드를 거쳤다. 1라운드(P1 4건 — 링크 발급 승인
+  전제조건 누락, `case_id`를 불변 비밀값으로 오용, evidence 엔드포인트의 특권 타입 위조
+  가능, real 모드 mock/real id 불일치)는 이미 수정·병합됐다. 2라운드에서 추가로 P1 3건 +
+  P2 1건이 남아 병합 보류 → 전부 수정:
+  1. `PackagePage.onReissue`가 real 모드 재발급 API가 실패해도 무조건 evidence를 "재발급됨"
+     으로 기록했고, 성공해도 응답의 `link_token`(공유 URL의 유일한 근거)을 어디에도 쓰지
+     않았다 — `await` 기반으로 교정, 성공했을 때만 evidence 기록 + 화면에 공유 URL 노출,
+     실패 시엔 evidence 없이 에러 메시지만.
+  2. `create_evidence_event`가 `summary`만 PII 패턴을 검사해 `input_hash`/`output_hash`/
+     `trace_id`/`request_id`/`payload_ref`로 원문 PII를 그대로 우회 저장할 수 있었다 — 필드
+     이름이 "해시"/"참조"를 암시할 뿐 실제로는 클라이언트가 임의 문자열을 보내는 자유
+     텍스트 필드라, 이 엔드포인트가 받는 모든 자유 텍스트 필드를 검사하도록 교정.
+  3. `StructuredReplyForm`(행정사 구조화된 회신)이 real 모드에서도 "회신을 보냈습니다"를
+     보여줬는데, 회신을 받는 서버 엔드포인트 자체가 없어(문서 콘텐츠와 함께 R2.6 스코프
+     밖으로 명시) 실제로는 그 브라우저의 로컬 상태에만 남고 새로고침·다른 기기에서 전부
+     사라졌다 — real 모드에서는 성공 표시 대신 "회신 접수는 아직 준비 중입니다"로 교체(백엔드가
+     생기기 전까지는 거짓 확인보다 정직한 미지원 안내가 낫다는 판단).
+  4. P2: `backend/README.md`·`docs/DB_SCHEMA.md`·`plans/ROADMAP.md`의 GET 경로 문서가
+     1라운드에서 `case_id` → `link_token` 경로로 바뀐 뒤에도 구 경로를 계속 안내했다 — 전부
+     갱신.
+- 남은 일 / 중단 지점: 없음(2라운드 4건 전부 수정). R2.4(승인 결정 배선)는 여전히 후속
+  세션 몫.
+- 결정 사항 (다음 세션이 알아야 할 것): 없음(1라운드 항목의 결정 사항을 그대로 유지).
+- verify 상태: PASS — backend `uv run pytest` 172/172(신규 5건 — PII 자유 텍스트 필드별
+  거부), 프론트 `tsc --noEmit`/`eslint .` 클린. `vitest`는 대상 파일(`packagePkg/*`) 통과
+  확인, 전체 스위트는 `main`에 그새 병합된 PR #17(RAG)·#21(role/logout hotfix)과의 병합
+  충돌(`backend/app/main.py` 라우터 목록, 이 파일 자체의 새 항목 추가 위치) 해소 직후라
+  재검증 진행 중.
+- 지도/규칙 갱신: `plans/ROADMAP.md`에 2라운드 수정 요약 추가.
+
+---
+
+### [2026-07-18] R2.4(승인 결정 배선) — 완료 — R2 마일스톤 전체 완결
+
+- 한 일: 사용자 지시로 R2.5·R2.6(직전 항목) 다음 순서로 R2.4를 진행. 착수 전 3개 Explore
+  에이전트(프론트 승인 플로우/백엔드+DB/스펙 문서)를 병렬로 돌려 조사한 뒤 Plan 에이전트로
+  설계, 사용자에게 2가지(반려 PIN 통일 여부, 진입 퍼널 범위)를 확인받고 진행했다.
+  - **착수 전 발견한 구조적 공백 2건**: (A) real 모드 `ApprovePage`가 체크리스트·근거수·
+    가드노트를 읽던 mock `CASE_SHEETS`가 슬러그 키(`'nguyen'` 등)라 real caseId(DB id)와
+    매칭되지 않아 항상 "케이스를 찾을 수 없습니다"가 떴다. (B) 승인/반려 엔드포인트가
+    `approval_id`로 식별되는데 프론트가 이를 얻을 GET이 없었다. 신규
+    `GET /api/v1/cases/{case_id}`(`services/cases.py::get_case_detail_out`, 목록 조립
+    함수 `get_case_out` 재사용 + `usable_citation_count`·`guard_note`·
+    `pending_approval{id,action_id,checklist,requested_at}`)로 둘 다 해소.
+  - **DB — 위임 유효성 검증 구현(§13-10 해소)**: `trg_approvals_decider_role`에 세 번째
+    OR-arm 추가(owner 유효 위임 + delegate=결정자 + scope='approval' + 미철회 + 결정 시각이
+    유효기간 내 + delegator가 활성 owner). 서비스 계층 `_validate_delegation`이 같은 조건을
+    먼저 검사해 트리거의 500을 403(`ApprovalDelegationInvalidError`)으로 선변환. **버그
+    발견·수정**: 위임이 유효해도 기존 "manager는 owner_only+LOW만" 정책 게이트가 무조건
+    먼저 막고 있었다 — `on_behalf_of_user_id`가 있으면(=이미 위임 검증을 통과했으면) 그
+    게이트를 건너뛰도록 교정(신규 테스트
+    `test_manager_can_approve_on_behalf_of_owner_with_valid_delegation`으로 잡음, owner_only+
+    HIGH 케이스에서 재현).
+  - **마이그레이션**: `backend/migrations/versions/0003_r2_4_delegated_approval_decider.py`
+    (down_revision=0002, `CREATE OR REPLACE FUNCTION` + 트리거 재생성 ALTER). 0001은 실배포
+    동결 스냅샷, 0002는 R2.5/2.6이 점유 — **다음 스키마 변경은 0004+**.
+  - **PIN 서버 검증**: `ApprovalDecisionRequest`에 `pin`·`checklist` 필드 추가.
+    `identity_method='pin'`이면 결정자 `users.pin_hash`를 `secrets_match`(OTP·세션 토큰과
+    동일 HMAC-SHA256+pepper 원리, `app.domain.auth_tokens`)로 대조 — 미등록/불일치는
+    `ApprovalPinInvalidError`(422). `db/seed_demo.sql`의 김담당·박주임·김대표 3인에
+    `pin_hash`(데모 PIN '1234'의 해시 리터럴) 추가 — `.env`로 `AUTH_PEPPER`를 바꾸면 이 값도
+    다시 계산해야 한다(시드 주석에 재생성 커맨드 명시). 위임 시드 1건도 추가(김대표→김담당).
+  - **checklist 제출 반영**: `payload.checklist`가 오면 게이트 평가 전에 로컬 변수
+    `checklist_value`로 받아 completeness 체크에 쓰고, 다른 approval.* 필드들과 **한 번에**
+    `db.flush()` 직전에 ORM 속성으로 씀 — 처음엔 받자마자 바로 `approval.checklist = ...`로
+    썼다가, 그 뒤 `usable_citation_count` 등의 SELECT가 유발하는 SQLAlchemy autoflush가
+    `status` 변경 없이 `checklist`만 UPDATE하는 별도 문장을 내보내 `trg_approvals_update_guard`
+    ("pending에서 승인/반려로 전이하는 UPDATE만 허용")에 걸리는 버그를 발견·수정(에러 메시지가
+    `session.no_autoflush` 사용을 직접 제안해줬다).
+  - **reject의 evidence type 버그 발견·수정**: 이전엔 approve·reject 모두
+    `type="approval_decided"`를 기록하고 있었다(프론트 `CaseHistoryPage`는 `approval_rejected`를
+    '반려'로 표기하는데, 서버가 이걸 한 번도 안 냈다는 뜻 — real 모드였다면 반려도 감사
+    타임라인에서 '최종 승인'으로 오표기됐을 것). `approval_rejected`(R2.5에서 CHECK엔 이미
+    있었음)로 교정.
+  - **위임 조회**: 신규 `GET /api/v1/delegations/mine`(`services/delegations.py`) — 현재
+    세션 사용자가 delegate인 유효 위임 1건 또는 `null`(에러 아님).
+  - **프론트 — `useApprovalActions` async 전환**: `approve`/`reject`를 `Promise<boolean>`으로
+    바꾸되 **mock 분기는 기존 동기 변이를 그대로 유지**(사전에 `approvalFlow.test.tsx`/
+    `approvalDelegation.test.tsx`의 단언이 이미 `waitFor`/`findBy` 기반임을 확인해 안전하다고
+    판단, 실제로 무깨짐 확인됨). real 분기는 서버 확인 후에만 로컬 `approvalStore`/`caseStore`를
+    미러링(GOTCHAS §2 — 승인은 낙관적 갱신 금지). 결정 evidence는 서버가 자기 트랜잭션에서 이미
+    기록했으므로 로컬 재기록 없이 `fetchEvidence()+hydrate`로 재동기화(R2.5 패턴 재사용).
+    `canApproveCase`/`isCitationLocked`가 `CaseSheet` 대신 `usableCount: number`를 받도록
+    일반화(real 모드엔 sheet가 없음) — `approval.test.ts` 호출부도 함께 개정.
+  - **사용자 결정 2건 반영**:
+    1. **반려도 PIN 본인확인 통일** — mock 반려 플로우에도 PIN 시트 추가(DB 정본이 승인·반려
+       모두 요구, `approvals` CHECK). `ApprovePage`의 `pinOpen: boolean`을
+       `pendingDecision: 'approve'|'reject'|null`로 재구성해 승인·반려가 같은 시트를 공유.
+       **영향 범위는 `approvalFlow.test.tsx`의 반려 테스트 5건뿐**(확인 완료) — "반려하기"
+       클릭 후 PIN 입력 스텝(`passPinGate()` 헬퍼 재사용)을 추가했다. 그 중 1건은 async
+       핸들러 전환으로 `getByText`가 한 틱 빠르게 실행돼 flake가 났는데 `findByText`로 교정
+       (재현 원인: `onPinConfirm`이 async가 되며 `nav.toHome()`이 await 이후 마이크로태스크에서
+       실행 — `waitFor`로 router 상태는 잡히지만 곧바로 이어지는 동기 `getByText`가 그 다음
+       렌더 커밋을 못 기다림).
+    2. **진입 퍼널: 2c 완전 전환 + 2b 최소 폴백** — `CaseReviewPage`도 real 모드에서 mock
+       시트가 없으면 "케이스를 찾을 수 없습니다"가 떴다. 시트 없이도 카드 정보 + 서버
+       `guard_note`(가벼운 `fetchCaseDetail` 재사용)만으로 최소 렌더하고 "검토 계속" 버튼은
+       항상 동작하도록 최소 폴백만 추가(누락 서류·초안 미리보기 등 풍부한 mock 콘텐츠는
+       의도적으로 재현하지 않음 — 범위 밖으로 명시).
+  - **검증 중 발견한 인프라 이슈(코드 버그 아님, 다음 세션이 알아야 할 것)**: 이 워크트리와
+    같은 로컬 Postgres 컨테이너(`oegobanjang-pg:55432`)를 쓰는 형제 워크트리 세션이 backend
+    pytest 기본 테스트 DB 이름(`ogb_test`)에 동시 접근해, 일시적으로 이 브랜치에 없는
+    `handoff_packages.link_token` 컬럼이 관측되는 등 스키마 충돌이 발생했다 — `TEST_DB_NAME`
+    환경변수로 이름을 격리하면(예: `TEST_DB_NAME=ogb_test_r24_iso`) 재현되지 않음을 확인해
+    원인이 아님을 확정했다. **여러 세션이 동시에 backend pytest를 돌릴 가능성이 있으면
+    `TEST_DB_NAME`을 세션마다 다르게 지정할 것** — `conftest.py`가 이미 이 환경변수를
+    지원한다(코드 변경 불필요).
+- 남은 일 / 중단 지점: R2 마일스톤(2.1~2.6) 전체 완료. 다음은 R3(메시징 실연동) 또는
+  M4.7이 지목한 "법무 미확정" 항목(행정사 화이트라벨 v1) 등 별도 트랙 — `plans/ROADMAP.md`
+  "발송 어댑터·알림톡" 절 참조.
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. 위임 **관리**(발급/철회 화면·엔드포인트)는 여전히 범위 밖(P3) — `GET /api/v1/delegations/mine`은
+     조회만 한다. 위임 레코드는 시드나 직접 INSERT로만 생긴다.
+  2. `services/approvals.py::usable_citation_count`는 원래 사설 함수였다가 `services/cases.py`도
+     쓰게 되며 공개 함수로 승격했다(R2.5의 `next_event_no` 공유 패턴과 동일) — 앞으로 이
+     로직이 필요한 새 서비스는 새로 구현하지 말고 이걸 import.
+  3. `ApprovePage`/`CaseReviewPage`의 `guardNote`/`usableCount`는 이제 mock(`sheet`)과
+     real(`detail`)을 화면 레벨에서 삼항으로 합성한다 — 두 화면을 고칠 땐 항상 두 분기 모두
+     확인할 것(evidenceStore/sessionStore와 같은 "분기점 하나로 유지" 원칙과 동일).
+  4. dev Postgres 컨테이너(`oegobanjang-pg:55432`)의 `alembic_version` 드리프트(직전 R2.5/2.6
+     항목에 기록된 미아 '0002')는 이번 세션에서 손대지 않았다 — 실서버 브라우저 검증을 하려면
+     여전히 그 상태를 먼저 확인해야 한다.
+- verify 상태: PASS — backend `uv run pytest` 171/171(`TEST_DB_NAME` 격리, 신규 55건:
+  approvals 10 + cases 5 + delegations 6 기존 대비 순증분 포함), `db/validate.py` 181/181(신규
+  3건: 위임 대리 결정 성공/만료/철회), 프론트 `tsc --noEmit`/`npm run lint`/`vite build` 클린,
+  `npx vitest run` 561/561(전 스위트, 신규 21건). 별도 실행에서 `CsvUploadWorkbench.test.tsx`
+  1건이 병렬부하 flake(격리 재실행 통과 확인 — 기존에 이미 문서화된 동일 flake, 이번 변경과
+  무관). 브라우저 실검증은 하지 않았다(위 dev 컨테이너 드리프트 때문 — R2.5/2.6과 동일 판단,
+  backend pytest가 TestClient로 실제 Postgres·트리거·FK를 그대로 거치는 것으로 등가 검증).
+- 지도/규칙 갱신: `plans/ROADMAP.md`(R2.4 ✅ + 상세 노트), `docs/DB_SCHEMA.md`(§13-10 "구현
+  완료"로 갱신), `backend/README.md`(API 표·구조·스코프 경계 갱신), `docs/ARCHITECTURE.md`
+  (API 클라이언트 항목에 approvals.ts/delegations.ts 추가).
+
+---
+
+### [2026-07-17] R2.5(Evidence 서버 영속화) + R2.6(행정사 링크 서버 강제) — 완료
+
+- 한 일: 사용자 지시로 R2.4(승인 결정 배선)를 건너뛰고 2.5·2.6을 먼저 진행. 브랜치
+  `claude/evidence-persistence-admin-link-082e71`.
+  - **발견(착수 전 조사)**: `db/schema.sql`의 `evidence_events.type` CHECK가 `src/types.ts
+    EvidenceType`(25종)보다 뒤처져 있었다 — 프론트가 이미 발행 중인 7종
+    (`approval_rejected`·`interpretation_confirmed`·`package_link_issued`·
+    `package_link_viewed`·`dispatch_executed`·`delivery_confirmed`·`package_reply`)이 DB엔
+    없어 서버 기록이 애초에 불가능한 상태였다. `backend/migrations/versions/0001_...`은
+    docstring에 "실배포(PR #10) 시점 동결 스냅샷, 이후 `db/schema.sql`을 바꿔도 이 파일은
+    다시 손대지 않는다"고 명시돼 있어, 스키마 변경은 `0002_r2_5_evidence_and_r2_6_package_links.py`
+    (ALTER 리비전)로 새로 표현했다 — `evidence_events_type_check` DROP/재생성 +
+    `handoff_packages.link_issued_at`/`link_expires_at` 컬럼 추가.
+  - **환경 이상 발견**: 이 워크트리가 쓰는 로컬 dev Postgres(`oegobanjang-pg:55432`)의
+    `alembic_version`이 이미 `'0002'`로 찍혀 있었다 — 그런데 그 revision을 만들 소스 파일은
+    이 저장소 git 이력 어디에도 없다(`__pycache__`에만
+    `0002_r2_4_delegated_approval_decider.cpython-*.pyc` 잔존, 이전 세션이 R2.4 마이그레이션을
+    시도하다 커밋 없이 지운 흔적으로 추정). **이 컨테이너를 건드리지 않기로 결정** — backend
+    pytest는 세션마다 새로 만드는 격리 DB(`ogb_test`, `tests/conftest.py`)만 쓰므로 이 드리프트와
+    무관하게 검증 가능했다. 다음에 그 dev 컨테이너로 브라우저 실검증을 하려면 먼저
+    `alembic_version`과 실제 스키마(예: `evidence_events` CHECK 제약 내용)를 대조 확인할 것 —
+    revision id가 우연히 `'0002'` 문자열로 겹쳐서, 그대로 `alembic upgrade head`를 돌리면 이번
+    커밋의 ALTER가 적용 안 된 채 "이미 최신"으로 오판될 위험이 있다.
+  - **2.5 backend**: `POST/GET /api/v1/evidence`(신규 라우터) — 인증 필요(`get_current_membership`),
+    `type`은 허용 목록(`services/evidence.ALLOWED_EVIDENCE_TYPES`, 전체 25종 중 `package_link_*`/
+    `package_reply` 3종 제외)만 통과, `summary`는 `contains_pii()` 통과 필수, `case_id` 제공 시
+    같은 회사 소속 케이스인지 검증(아니면 404). `action_id`/`approval_id`/`run_id`는 아예 받지
+    않는다 — DB 트리거 `trg_evidence_context_match`가 "제공되면 실제 존재하는 행이어야 함"을
+    요구하는데, 승인 결정(R2.4)·런(M3)이 아직 real 모드로 안 붙어 있어 프론트가 넘길 수 있는
+    값이 전부 mock 세계관 id이기 때문(FK 위반 500을 원천 차단). `services/approvals.py`의
+    사설 `_next_event_no`를 `services/evidence.next_event_no`로 옮겨 공유(중복 제거).
+  - **2.6 backend**: `POST /api/v1/packages/{case_id}/link`(manager/owner 인증 — get-or-create,
+    없으면 `status='draft'`로 최소 레코드 생성 후 `link_issued_at`/`link_expires_at`(+7일) 갱신,
+    evidence(`package_link_issued`) 기록) + `GET /api/v1/packages/{case_id}/link`(**무인증** —
+    `link_expires_at` 없거나 지났으면 404, 성공 시 evidence(`package_link_viewed`, actor_type=
+    'system') 기록). 미발급·만료·대상없음을 전부 같은 404로 취급(존재 비노출, 기존
+    ExpertPackagePage.tsx 관례와 동일). `handoff_packages.status`는 반드시 `'draft'`로 시작해야
+    하는 DB 트리거(`trg_handoff_approval_state_insert`)가 있어 처음엔 `'exported'`로 시도했다가
+    insert 실패 — `'draft'`로 교정(이 패키지는 내부 승인/PDF 내보내기 플로우와 무관한 링크
+    발급 전용이라 애초에 approved/exported로 승격할 근거가 없다).
+  - **2.5+2.6 frontend**: `lib/api/evidence.ts`·`lib/api/packages.ts` 신규 어댑터.
+    `evidenceStore.append`가 real 모드에서 (package_link 계열 3종 제외하고) 자동으로
+    `POST /api/v1/evidence`를 fire-and-forget 호출하도록 스토어 내부에서 분기(로컬 상태는
+    항상 먼저 낙관적 갱신 — 감사 로그는 승인과 달리 게이트가 아니라서 optimistic이 안전,
+    GOTCHAS §2는 승인 결정에만 적용). `hydrate` 액션 신규(서버 seed 전용, 재기록 안 함).
+    `lib/dataSeed.useSeedEvidence()` 신규, `useSeedCases`가 있던 10개 화면 + 신규 2곳
+    (`DispatchQueuePage`/`PackagePage`, 원래 useSeedCases도 없었음)에 배선. `lib/audit.ts`의
+    `mergeSeedAndRuntime`이 real 모드에선 `EVIDENCE_SEED`(mock 6인 로스터 픽스처)를 섞지
+    않도록 가드(fetchCases가 mock CASE_CARDS를 완전히 대체하는 것과 동일 원칙).
+    `ExpertLinkPage.tsx`가 real 모드에서 `isLinkExpired()`(클라이언트 계산) 대신
+    `fetchPackageLink()`(서버 GET, 404 시 만료 취급)로 분기 — mock 모드 동작·기존 테스트는
+    변경 없음. `PackagePage.tsx`의 "링크 재발급" 버튼이 real 모드에서
+    `issuePackageLink()`도 함께 호출(로컬 evidence append는 두 모드 공통 유지, UI 즉시 반영용).
+  - **의도적으로 다루지 않은 것**: 패키지 문서 콘텐츠(검토 요청서 본문·항목 토글) 자체는
+    여전히 프론트 mock(`mocks/packages.ts`) — 서버는 "링크가 살아있는가"만 검증한다. 행정사
+    구조화된 회신(`package_reply`) 제출은 여전히 클라이언트 전용(DoD가 "만료·재발급·열람
+    로그"만 요구, 회신 서버 저장은 범위 밖으로 명시적으로 남김 — `StructuredReplyForm.tsx`
+    무변경). 화이트라벨 개인 계정 경로(`/expert/:expertId/...`)도 무변경(M-11 나머지, M4.7 몫).
+- 남은 일 / 중단 지점: R2.4(승인 결정 배선)부터 이어간다 — 그게 배선되면 evidence의
+  `action_id`/`approval_id`/`run_id` 제외 결정을 재검토할 것(실제 행이 생기기 시작하므로).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  1. 위 "환경 이상 발견" 항목 — dev Postgres 컨테이너의 `alembic_version` 드리프트, 실서버
+     브라우저 검증 전 반드시 확인.
+  2. `POST /api/v1/evidence`는 범용 감사 기록 통로이지 도메인 전용 엔드포인트를 대체하지
+     않는다 — 승인 결정처럼 이미 자기 트랜잭션에서 evidence를 남기는 도메인(approvals.py)은
+     계속 그쪽에서 직접 기록한다. 새 화면이 새 evidence 타입을 추가로 발행해야 하면, 먼저 그
+     타입이 case_id 외의 FK(action/approval/run)를 필요로 하는지부터 확인할 것 — 필요하면 이
+     엔드포인트로는 안 되고 전용 엔드포인트가 필요하다(packages.py가 그 패턴의 예).
+  3. `handoff_packages`는 이제 두 가지 서로 다른 생애주기를 가진 행이 섞일 수 있다 —
+     (a) PackagePage의 승인/내보내기 플로우로 만들어질 행(미래, 아직 없음)과 (b) 이번에 추가한
+     "링크 발급 전용" 최소 레코드(`status='draft'`, masked_payload가 `{case_id}` 뿐). 케이스당
+     최신 1건만 본다(`services/packages._latest_package_for_case`)는 전제가 있다 — 실제 패키지
+     승인 플로우가 나중에 붙으면 이 "최신 것" 가정을 재확인할 것.
+- verify 상태: PASS — backend `uv run pytest` 150/150(신규 22건: evidence 12 + packages 10),
+  프론트 `tsc --noEmit`/`npm run lint`/`vite build` 클린, `npx vitest run` 530/530(전 스위트,
+  신규 48건). 전체 스위트 1회 실행에서 `CaseWorkbench.test.tsx` 1건이 병렬부하로 flake(격리
+  재실행·전체 재실행 모두 통과 확인 — 기존에 이미 문서화된 동일 flake, 이번 변경과 무관).
+  브라우저 실검증은 하지 않았다(위 dev 컨테이너 드리프트 때문에 안전하게 재현하려면 별도
+  격리 DB가 필요 — 대신 backend pytest가 TestClient로 실제 Postgres·트리거·FK를 그대로
+  거치므로 등가 수준의 검증으로 판단).
+- 지도/규칙 갱신: `plans/ROADMAP.md`(R2 절 2.5·2.6 ✅ + 상세 노트), `docs/DB_SCHEMA.md`(§4.5
+  evidence type 목록·R2.5 노트, §4.8 handoff_packages 링크 컬럼·R2.6 노트, §7 접근 규칙 갱신),
+  `docs/ARCHITECTURE.md`(API 클라이언트 항목에 evidence.ts/packages.ts 추가),
+  `backend/README.md`(API 표·구조·스코프 경계 갱신).
+
+---
+
 ### [2026-07-17] M5 — RAG 인제스천 파이프라인 (legacy 이식 + pgvector + LangChain 1.x) — 완료
 - **한 일**: ROADMAP에 M5 마일스톤 신설 후 루트 `rag/` 독립 uv 프로젝트(Python 3.13)를 구축했다.
   legacy/backend/app/agent_runtime/rag*의 raw_ingest·domain_splitters·workforce_metadata·

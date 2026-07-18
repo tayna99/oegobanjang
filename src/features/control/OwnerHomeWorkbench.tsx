@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
-import { useSeedCases } from '@/lib/dataSeed';
+import { useSeedCases, useSeedEvidence } from '@/lib/dataSeed';
 import { useNav } from '@/lib/nav';
 import { deriveMonthlyReport } from '@/lib/ownerReport';
 import { ROLE_LABEL } from '@/lib/role';
@@ -25,6 +25,7 @@ export function OwnerHomeWorkbench() {
   const delegation = useCompanyStore((s) => s.delegation);
 
   useSeedCases();
+  useSeedEvidence();
 
   const pendingCount = Object.values(cases).filter((c) => c.state === 'approval_pending').length;
   const delegate = delegation.active ? members.find((m) => m.id === delegation.delegateId) : undefined;

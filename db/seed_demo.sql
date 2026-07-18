@@ -16,15 +16,28 @@ INSERT INTO companies (id, name, industry, region, worker_count_band, approval_p
 VALUES ('cmp_greenfood', '그린푸드 제조', '식품 제조업', '경기 화성', '5_20', 'owner_only',
         'done', 'manual', 6, 4797); -- 카운터: case_006 · #4797까지 발급됨(§9)
 
-INSERT INTO users (id, phone, name, terms_agreed_at) VALUES
-  ('usr_kim',   '010-0000-0001', '김담당', '2026-06-01T09:00:00Z'),
-  ('usr_park',  '010-0000-0002', '박주임', '2026-06-01T09:10:00Z'),
-  ('usr_owner', '010-0000-0003', '김대표', '2026-06-01T09:20:00Z');
+-- pin_hash: 데모 PIN '1234'를 hash_secret()과 동일한 방식(HMAC-SHA256, pepper=
+-- Settings.auth_pepper 기본값 'local-dev-insecure-pepper-change-me')으로 해시한 값(R2.4).
+-- 재생성: python -c "from app.domain.auth_tokens import hash_secret; print(hash_secret('1234'))"
+-- (backend/ 디렉터리에서 uv run) — .env로 AUTH_PEPPER를 바꾸면 이 리터럴도 다시 계산해야 한다.
+INSERT INTO users (id, phone, name, terms_agreed_at, pin_hash) VALUES
+  ('usr_kim',   '010-0000-0001', '김담당', '2026-06-01T09:00:00Z',
+   'f6069dbc9e0c0f3a844b39d21e6664b359cbdd2f1cf32b22f8afbb317f5aa86a'),
+  ('usr_park',  '010-0000-0002', '박주임', '2026-06-01T09:10:00Z',
+   'f6069dbc9e0c0f3a844b39d21e6664b359cbdd2f1cf32b22f8afbb317f5aa86a'),
+  ('usr_owner', '010-0000-0003', '김대표', '2026-06-01T09:20:00Z',
+   'f6069dbc9e0c0f3a844b39d21e6664b359cbdd2f1cf32b22f8afbb317f5aa86a');
 
 INSERT INTO memberships (id, company_id, user_id, role, status) VALUES
   ('mem_kim',   'cmp_greenfood', 'usr_kim',   'manager', 'active'),
   ('mem_park',  'cmp_greenfood', 'usr_park',  'manager', 'active'),
   ('mem_owner', 'cmp_greenfood', 'usr_owner', 'owner',   'active');
+
+-- 승인 위임(R2.4, 7단계 §3.1 "명시적 위임") — 김대표(owner)가 김담당(manager)에게 위임.
+-- 대리 승인 데모 및 GET /api/v1/delegations/mine 실데이터로 쓴다.
+INSERT INTO delegations (id, company_id, delegator_user_id, delegate_user_id, scope, starts_at, ends_at) VALUES
+  ('dlg_owner_kim', 'cmp_greenfood', 'usr_owner', 'usr_kim', 'approval',
+   '2026-07-01T00:00:00Z', '2027-01-01T00:00:00Z');
 
 -- 4.2 근로자 ------------------------------------------------------------------
 -- stay_expires_at: batbayar/nguyen/tran은 디자인 값. siti/rahmat/oyunaa는 [데모 보강]
@@ -182,6 +195,12 @@ INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, sta
   ('act_rahmat_confirm',   'cmp_greenfood', 'cs_rahmat',   'confirm', 'confirm_status', '케이스 확인 완료',       'ready', false, 'secondary'),
   ('act_oyunaa_detail',    'cmp_greenfood', 'cs_oyunaa',   'detail',  'other',          '상세 보기',             'ready', false, 'primary'),
   ('act_oyunaa_confirm',   'cmp_greenfood', 'cs_oyunaa',   'confirm', 'confirm_status', '케이스 확인 완료',       'ready', false, 'secondary');
+
+-- [R2.4 시드 공백 기록] 신규 request_approval→approve 경로(사전 pending 승인 없이 처음부터
+-- 요청 생성)를 태울 수 있는 시드 케이스가 없다 — cs_tran이 유일한 risk_review 케이스지만
+-- 그 primary 액션(act_tran_confirm)은 requires_approval=false. 아래 apv_nguyen/apv_siti처럼
+-- 이미 pending인 승인을 통해 decide_approval을 검증하는 경로만 시드돼 있다. 새 케이스를
+-- 추가하지 않는다(기존 데모 대본·6인 로스터 보존) — 후속 파일럿 데이터로 자연히 해소될 것.
 
 -- 승인 (pending 2건 = 모바일 §2a "내가 처리할 승인" · package export는 아래에서
 -- pending → approved 동기화 뒤에 생성)

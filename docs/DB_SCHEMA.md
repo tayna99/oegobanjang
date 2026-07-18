@@ -35,8 +35,8 @@
 
 - 실행 가능한 설계 정본은 `db/schema.sql`(PostgreSQL DDL)이고, 이 문서의 타입은 논리 타입이다. DDL이 물리 정본이다.
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
-- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 178항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(178)를 다시 통과시킨다.
-- **backend 범위:** 루트 `backend/`가 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다(`tests/test_ddl_parity.py`가 보증). 인증(OTP·세션)·승인 결정(approve/reject) endpoint는 이미 구현돼 있다 — 단, 승인 "요청" 생성 이후 흐름 중 delegation 유효성 검증은 아직 미결(§13-10). 케이스/브리핑/스레드 등 나머지 read API와 프론트 배선은 `plans/ROADMAP.md` R2 범위다.
+- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 181항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(181)를 다시 통과시킨다.
+- **backend 범위:** 루트 `backend/`가 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다(`tests/test_ddl_parity.py`가 보증). 인증(OTP·세션)·승인 결정(approve/reject, PIN 서버 검증·위임 유효성 검증 포함)·판단 기록·행정사 패키지 링크 endpoint는 이미 구현돼 있다(§13-10 참조). 케이스/브리핑/스레드 등 read API·프론트 배선은 `plans/ROADMAP.md` R2 범위다.
 
 ## 2. 공통 규약
 
@@ -391,17 +391,30 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | payload_ref | text | | 외부 보관 원본 포인터(선택) |
 | **created_at** | timestamptz | | |
 
-**type 값** — 프론트 11종(`src/types.ts EvidenceType`)이 코어이며 스키마는 상위집합을 허용한다:
+**type 값** — `src/types.ts EvidenceType`(25종, R2.5 기준)과 스키마 CHECK가 합집합으로 정합한다.
+프론트만 쓰던 7종(`approval_rejected` 이하)이 R2.5 전엔 DB CHECK에 없어 서버 기록이 불가능했다 —
+이번에 추가해 정합화했다:
 ```txt
 코어(프론트 계약): intent_classified, plan_created, tool_executed, rag_retrieved,
-  risk_flagged, approval_requested, approval_decided, review_started,
+  risk_flagged, approval_requested, approval_decided, approval_rejected, review_started,
   checklist_completed, exported, final_response_generated
 확장(스펙 요구 — 화면 붙는 마일스톤에 프론트 타입에도 추가):
   briefing_emitted, worker_reply_received, worker_reply_summarized,
   status_update_confirmed, handoff_generated,
   delegation_granted, delegation_revoked, role_granted, role_changed,
   member_invited, member_removed, approval_escalated, autonomy_changed, worker_deleted
+R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있던 나머지 7종):
+  interpretation_confirmed, package_link_issued, package_link_viewed,
+  dispatch_executed, delivery_confirmed, package_reply
 ```
+
+**R2.5 — 서버 기록 경로**: `POST /api/v1/evidence`(인증 필요)가 일반 판단 기록 기록 엔드포인트다.
+`action_id`/`approval_id`/`run_id`는 §5.2 `trg_evidence_context_match` 트리거가 "같은 케이스 소속
+행이 실제로 존재해야 함"을 강제하므로, 아직 백엔드에 실제 행이 생기지 않는 도메인(승인 결정
+자체는 R2.4 몫, 런은 M3 몫)에서 발행되는 이벤트는 이 필드들을 보내지 않고 `case_id`만
+채운다(존재하면). `package_link_issued`/`package_link_viewed`/`package_reply`는 이 일반
+엔드포인트를 타지 않는다 — §4.8의 전용 패키지 링크 엔드포인트가 자기 트랜잭션 안에서 직접
+기록한다(무인증 열람·회신은 애초에 세션이 없어 이 인증 엔드포인트를 호출할 수 없다).
 
 - append-only DB 강제(§5.2 트리거). 컬럼에 원문 PII 필드 자체가 없다 — 스키마가 rules/safety를 집행.
 - 상태 변경 쓰기와 evidence append는 **같은 트랜잭션**(레거시 PRD Transaction rule 승계): Case·NextAction·Approval·EvidenceEvent가 함께 커밋되거나 함께 실패.
@@ -545,9 +558,13 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | included_items | json | | 포함 항목 토글 상태(2.4 화면) |
 | **status** | text | CHECK(`draft,pending_approval,approved,rejected,exported`) | 내보내기도 승인 게이트 통과 후에만 |
 | approval_id | uuid | `(company_id,case_id,approval_id)` →approvals | create_handoff action 승인과 같은 회사·케이스여야 함 |
+| link_token | text | UNIQUE | R2.6(코드리뷰 P1 수정) — 무인증 열람 링크(`/link/:linkToken`)의 실제 비밀값. 발급/재발급마다 회전한다(`case_id`는 PK라 불변이라 비밀로 못 씀). NULL=링크 없음 |
+| link_issued_at | timestamptz | | R2.6 — 무인증 열람 링크 최초/최근 발급 시각. NULL=링크 없음 |
+| link_expires_at | timestamptz | CHECK(`NOT NULL ⇒ link_issued_at NOT NULL AND link_token NOT NULL`) | 발급 시각 + 7일(§4 "만료형(기본 7일)"). GET이 이 값을 기준으로 서버에서 404 판정 |
 | **created_at / updated_at** | timestamptz | | |
 
-- package는 `draft` 또는 같은 회사·케이스의 pending `create_handoff` approval에 연결된 `pending_approval`으로만 생성한다. approved/rejected는 approval 결정 trigger가 동기화하고, `exported`는 승인된 package의 내부 PDF 산출물이 실제로 생성될 때만 기록된다. 연결 뒤에는 `approval_id`를 제거·교체하거나 pending/terminal package를 `draft`로 되돌릴 수 없다. package 자체에는 외부 전달 시각·링크가 없다.
+- package는 `draft` 또는 같은 회사·케이스의 pending `create_handoff` approval에 연결된 `pending_approval`으로만 생성한다. approved/rejected는 approval 결정 trigger가 동기화하고, `exported`는 승인된 package의 내부 PDF 산출물이 실제로 생성될 때만 기록된다. 연결 뒤에는 `approval_id`를 제거·교체하거나 pending/terminal package를 `draft`로 되돌릴 수 없다.
+- **R2.6 — 링크 발급/재발급**: `POST /api/v1/packages/{case_id}/link`(manager/owner 인증)는 먼저 그 케이스에 승인된(`status='approved'`) `create_handoff` approval이 있는지 확인하고(코드리뷰 지적 — AGENTS.md §8 "행정사/노무사에게 패키지 전달"은 승인 필요 작업, 없으면 403), 있으면 최신 handoff_package를 찾아(없으면 최소 레코드로 생성) `link_token`을 새로 회전시키고 `link_issued_at=now()`·`link_expires_at=now()+7일`로 갱신, evidence(`package_link_issued`)를 남긴다. `GET /api/v1/packages/link/{link_token}`(무인증, 코드리뷰 지적으로 `case_id` 경로에서 이관 — `case_id`는 불변이라 비밀로 못 씀)는 `link_expires_at`이 없거나 지났으면 404(존재 비노출 원칙 — 케이스 없음과 동일하게 취급), 유효하면 열람 evidence(`package_link_viewed`)를 남긴다. 패키지 문서 콘텐츠 자체(검토 요청서 본문·항목 토글)는 이번 범위에 없다 — 프론트가 기존 mock 콘텐츠를 그대로 렌더하고, 서버는 "링크가 살아있는가"만 검증한다.
 
 #### package_exports — 내보내기 산출물 (evidence `exported`와 쌍)
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -561,7 +578,7 @@ CREATE UNIQUE INDEX ux_approvals_one_pending ON approvals (action_id) WHERE stat
 | **external_delivery_performed** | bool | default false, **CHECK (= false)** | MVP 외부 전송 없음 — 어댑터 도입 시 해제 |
 | **created_at** | timestamptz | | |
 
-- `package_exports` INSERT는 approved handoff package에만 허용되고, 성공한 INSERT가 package 상태를 `exported`로 동기화한다. PDF 생성은 내부 산출물이며 외부 전달·메일·링크 발급을 기록하는 테이블과 evidence type은 MVP에 없다.
+- `package_exports` INSERT는 approved handoff package에만 허용되고, 성공한 INSERT가 package 상태를 `exported`로 동기화한다. PDF 생성은 내부 산출물이며, 메일·알림톡 등 실제 외부 전달 채널을 기록하는 테이블은 MVP에 없다(R3 delivery adapter 몫). 무인증 열람 링크 자체의 발급·만료는 `package_exports`가 아니라 §4.8 위 `handoff_packages.link_issued_at/link_expires_at` + evidence(`package_link_issued`)가 담당한다(R2.6).
 
 ### 4.9 브리핑
 
@@ -759,7 +776,15 @@ CREATE TRIGGER evidence_events_no_delete BEFORE DELETE ON evidence_events
 
 **계층 규칙:** 운영 조회·LLM 입력·evidence에는 `worker_id`/마스킹 표시명만. `masked_payload`(패키지)는 allowlist 직렬화만 허용 — denylist가 아니라 **allowlist**(레거시 Decision 005).
 
-**접근:** viewer는 M8 열람 가능(마스킹 차등은 미결 §13). MVP에는 expert 외부 링크 열람 경로가 없고, 테넌트 경계 위반은 404(7단계 §1).
+**접근:** viewer는 M8 열람 가능(마스킹 차등은 미결 §13). R2.6부터 `/link/:linkToken`(무인증 열람)에
+서버측 경로가 있다 — `GET /api/v1/packages/link/{link_token}`이 유효한 링크만 200을 반환하고, 없거나
+만료됐으면 케이스 존재 여부를 노출하지 않고 동일하게 404를 반환한다(7단계 §1 "scope 밖은 404"
+원칙). 조회 키는 `case_id`가 아니라 발급/재발급마다 회전하는 `link_token`이다(코드리뷰 지적 —
+`case_id`는 PK라 불변이라 그대로 두면 재발급으로도 기존 유출 링크를 회수할 수 없었다). 발급 자체도
+그 케이스의 `create_handoff` approval이 승인 완료 상태여야만 가능하다(코드리뷰 지적 — 승인 전
+발급은 AGENTS.md §8 위반). 다만 이 경로는 "링크가 살아있는가"만 서버가 확인할 뿐, 패키지 문서
+콘텐츠 자체·행정사 계정 인증(서명 토큰·OTP)은 여전히 없다 — 화이트라벨 개인 계정 경로
+(`/expert/:expertId/...`, M-11)는 이번 범위 밖으로 남는다.
 
 **보존(retention) — 결정 필요(§13):** 레거시 문서 전반에 보존 기간 규정이 없다. 제안 기본값: thread_messages 원문·draft_variants 전문은 근로자 비활성(퇴사/이직) 처리 후 1년 뒤 파기 배치, evidence_events는 영구(원문이 없으므로), worker_intake_files는 OCR 확정 후 90일. **법무 확인 전 구현 금지** — 컬럼이 아니라 배치 정책이므로 스키마는 지금 확정 가능.
 
@@ -869,5 +894,11 @@ P1 안에서도 프론트가 아직 안 읽는 컬럼(checklist 등)은 nullable
 7. **근로자 0명 계정 알림 mute — 결정: 실제 delivery 마일스톤으로 이연.** 현재 `notifications`는 전송 의도 큐일 뿐 외부 발송 상태·adapter가 없다. mute 정책은 delivery-outbox를 도입할 때 재검토한다.
 8. **표시 번호 시작값 — 결정: 신규 테넌트는 #0001부터.** `companies.case_seq`/`evidence_seq`의 DDL 기본값은 `0`이며, 새 테넌트는 `case_001`/`#0001`부터 발급된다. 데모 세계관(#4783~#4797)은 `db/seed_demo.sql`에서 시드로만 주입하고, 실제 회사 레코드의 카운터도 그 최고값 이상으로 맞춰 다음 발급과 충돌하지 않게 한다.
 9. **manager 승인 조건의 '위험도' 근사 — 결정: MVP는 `case.severity='LOW'`로 근사(정식 액션 위험도 모델 이연).** 7단계 권한 매트릭스는 manager가 '저위험' 승인만 가능하다고 규정하나, '저위험'의 정본은 액션 단위 위험도다. MVP 백엔드(`app/services/approvals.py`)는 이를 케이스 `severity='LOW'` + `companies.approval_policy='manager_allowed'`로 근사한다. 실제 액션 위험도 컬럼/모델은 파일럿에서 필요가 확인되면 도입한다 — 근사가 과승인을 만들지 않는다(LOW가 아닌 케이스는 owner 전용으로 남으므로 보수적).
-10. **대리 승인(`on_behalf_of_user_id`) 위임 유효성 — 결정: MVP는 '활성 멤버'까지만 검증, 위임 관계는 이연.** 현재 트리거·서비스는 대리인이 같은 회사의 active 멤버인지까지만 확인한다. 실제 위임 관계(위임자→대리인·유효 기간·범위)의 유효성 검증은 `delegations` 테이블(§4.1, P3)이 화면·엔드포인트와 함께 배선되는 시점으로 미룬다. 그때까지 대리 승인은 감사 기록(`actor_display='… (대리 승인)'`)만 남기고 관계 검증은 하지 않는다.
+10. **대리 승인(`on_behalf_of_user_id`) 위임 유효성 — R2.4(2026-07-18)에서 구현 완료.** 트리거
+    `trg_approvals_decider_role`이 기존 owner/manager_allowed 조건에 OR-arm을 추가해, `delegations`
+    행(delegator=on_behalf_of_user_id·delegate=decided_by_user_id·scope='approval'·미철회·결정
+    시각이 유효기간 내·delegator가 활성 owner)이 실제로 존재할 때만 대리 결정을 허용한다.
+    서비스 계층(`app/services/approvals.py::_validate_delegation`)이 같은 조건을 먼저 검사해
+    트리거의 500을 403(`ApprovalDelegationInvalidError`)으로 선변환한다. 위임 관리 화면(발급/철회
+    UI)은 여전히 범위 밖(P3) — 이번 구현은 검증만이며, 위임 레코드 자체는 여전히 시드/직접 INSERT로만 생긴다.
 11. **OTP·세션 TTL, 재시도 한도 — 결정(엔지니어링 재량, 파일럿 피드백으로 조정 가능).** `login_otps` 코드 유효기간 5분·최대 검증 시도 5회(초과 시 재발급 필요), `sessions` 유효기간 30일. 값은 스키마가 아니라 서비스 상수로 관리한다(컬럼 제약이 아님 — TTL은 `expires_at` 계산 입력일 뿐). OTP 발송은 이 시점에 실제 SMS 연동이 없으므로 `notifications`와 동일하게 mock(§13-7 선례)이며, `login_otps.phone`은 발급 시점에 계정 존재 여부를 노출하지 않는다(계정 유무와 무관하게 항상 발급 성공).

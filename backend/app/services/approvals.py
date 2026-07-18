@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.db.counters import next_event_no
 from app.db.ids import new_id
+from app.domain.auth_tokens import secrets_match
 from app.domain.case_transitions import can_transition
 from app.domain.exceptions import (
     ApprovalActionNotRequestableError,
@@ -35,10 +36,12 @@ from app.domain.exceptions import (
     ApprovalAlreadyPendingError,
     ApprovalBlockedByEvidenceError,
     ApprovalChecklistIncompleteError,
+    ApprovalDelegationInvalidError,
     ApprovalForbiddenError,
     ApprovalIdempotencyKeyReusedError,
     ApprovalIdentityRequiredError,
     ApprovalNotFoundError,
+    ApprovalPinInvalidError,
     ApprovalReasonContainsPiiError,
     ApprovalReasonRequiredError,
     CaseTransitionError,
@@ -48,16 +51,61 @@ from app.models.approval import Approval
 from app.models.case import Case, NextAction
 from app.models.citation import CaseCitation, Citation
 from app.models.company import Company
+from app.models.delegation import Delegation
 from app.models.evidence import EvidenceEvent
 from app.models.membership import Membership
 from app.models.user import User
 from app.schemas.approval import ApprovalDecisionRequest
+from app.services.evidence import next_event_no as _next_event_no
 
 APPROVER_ROLES = ("owner", "manager")
 ALLOWED_REQUEST_ROLES = ("manager",)  # 7단계 권한 매트릭스: 케이스 진행(C/R/U)은 manager만(owner는 R)
 
 
-def _usable_citation_count(db: Session, company_id: str, case_id: str) -> int:
+def _verify_identity(db: Session, payload: ApprovalDecisionRequest, decided_by_user_id: str) -> None:
+    """본인확인 수단 필수(§5.3-6, 7단계 §4) — approve·reject 공통. identity_method='pin'이면
+    R2.4부터 users.pin_hash와 실제로 대조한다(이전엔 문자열 존재만 확인했다)."""
+    if payload.identity_method not in ("pin", "biometric"):
+        raise ApprovalIdentityRequiredError()
+    if payload.identity_method == "pin":
+        decider = db.get(User, decided_by_user_id)
+        if decider is None or decider.pin_hash is None:
+            raise ApprovalPinInvalidError("PIN이 등록되지 않았습니다")
+        if not payload.pin or not secrets_match(payload.pin, decider.pin_hash):
+            raise ApprovalPinInvalidError("PIN이 일치하지 않습니다")
+
+
+def _validate_delegation(
+    db: Session, payload: ApprovalDecisionRequest, company_id: str, decided_by_user_id: str, now: dt.datetime
+) -> None:
+    """on_behalf_of_user_id가 있으면 실제 위임 관계를 검증한다(§13-10, R2.4) — DB 트리거
+    (trg_approvals_decider_role)가 최종 방어선이지만, 여기서 먼저 친절한 403으로 바꾼다."""
+    if payload.on_behalf_of_user_id is None:
+        return
+    delegation = db.execute(
+        select(Delegation).where(
+            Delegation.company_id == company_id,
+            Delegation.delegator_user_id == payload.on_behalf_of_user_id,
+            Delegation.delegate_user_id == decided_by_user_id,
+            Delegation.scope == "approval",
+            Delegation.revoked_at.is_(None),
+            Delegation.starts_at <= now,
+            Delegation.ends_at > now,
+        )
+    ).scalar_one_or_none()
+    delegator_membership = db.execute(
+        select(Membership).where(
+            Membership.company_id == company_id,
+            Membership.user_id == payload.on_behalf_of_user_id,
+            Membership.status == "active",
+            Membership.role == "owner",
+        )
+    ).scalar_one_or_none()
+    if delegation is None or delegator_membership is None:
+        raise ApprovalDelegationInvalidError()
+
+
+def usable_citation_count(db: Session, company_id: str, case_id: str) -> int:
     """사용 가능 근거 수 — F등급(합성) 제외 + 스코프(전역 또는 자사)만(§5.3-3, §4.4)."""
     return db.execute(
         select(func.count(CaseCitation.citation_id))
@@ -109,15 +157,30 @@ def decide_approval(
     if membership is None or membership.role not in APPROVER_ROLES:
         raise ApprovalForbiddenError("승인 권한이 없습니다")
 
+    now = dt.datetime.now(dt.timezone.utc)
+
+    # 위임 유효성(§13-10, R2.4) — approve·reject 공통, 결정 시각(now) 기준.
+    _validate_delegation(db, payload, approval.company_id, decided_by_user_id, now)
+
+    # 화면이 체크리스트를 제출했으면 결정 게이트 평가에 그 값을 쓴다(R2.4) — approval.checklist에는
+    # 아직 쓰지 않는다: ORM 속성을 지금 바꾸면 뒤이은 SELECT(usable_citation_count 등)의
+    # autoflush가 status 변경 없이 checklist만 UPDATE하는 별도 문장을 내보내는데,
+    # trg_approvals_update_guard가 "pending에서 승인/반려로 전이하는 UPDATE만" 허용해 그
+    # 중간 UPDATE에서 예외가 난다 — 다른 approval.* 필드들과 한 번에(아래 db.flush() 직전) 쓴다.
+    checklist_value = (
+        [item.model_dump() for item in payload.checklist] if payload.checklist is not None else approval.checklist
+    )
+
     # F3: 자유 텍스트(반려 사유·승인 의견)에 PII 패턴이 있으면 저장 전에 차단(approve·reject 공통).
     if payload.reason and contains_pii(payload.reason):
         raise ApprovalReasonContainsPiiError()
 
     if decision == "approved":
         # 결정자 권한 세분화: manager는 approval_policy='manager_allowed'이고
-        # 케이스 severity가 LOW일 때만(§5.3-6, docs/DB_SCHEMA.md §13-9).
+        # 케이스 severity가 LOW일 때만(§5.3-6, docs/DB_SCHEMA.md §13-9) — 단, 유효한 위임을
+        # 받아 대리 승인하는 경우는 예외다(위 _validate_delegation이 이미 검증 완료, R2.4).
         # 주의: 'low risk'를 severity=LOW로 근사한 것 — 실제 액션 위험도 모델은 §13-9 미결.
-        if membership.role == "manager":
+        if membership.role == "manager" and payload.on_behalf_of_user_id is None:
             company = db.get(Company, approval.company_id)
             if not (company.approval_policy == "manager_allowed" and case.severity == "LOW"):
                 raise ApprovalForbiddenError("이 승인은 대표만 가능합니다")
@@ -129,24 +192,22 @@ def decide_approval(
             )
 
         # citation-0 잠금: 사용 가능 근거 0건이면 승인 불가(§5.3-3, GOTCHAS §3)
-        if _usable_citation_count(db, approval.company_id, approval.case_id) < 1:
+        if usable_citation_count(db, approval.company_id, approval.case_id) < 1:
             raise ApprovalBlockedByEvidenceError()
 
         # M2.6 체크리스트: 값이 있으면(=화면이 제출했으면) 전 항목 checked여야 함(§5.3-5)
-        if approval.checklist is not None:
-            items = approval.checklist if isinstance(approval.checklist, list) else []
+        if checklist_value is not None:
+            items = checklist_value if isinstance(checklist_value, list) else []
             if not items or not all(item.get("checked") for item in items):
                 raise ApprovalChecklistIncompleteError()
 
-        # 본인확인 수단 필수 — 세션만으로 승인 불가(§5.3-6, 7단계 §4)
-        if payload.identity_method not in ("pin", "biometric"):
-            raise ApprovalIdentityRequiredError()
+        # 본인확인 수단 필수 — 세션만으로 승인 불가(§5.3-6, 7단계 §4). PIN이면 값도 검증한다.
+        _verify_identity(db, payload, decided_by_user_id)
     else:
         if not payload.reason:
             raise ApprovalReasonRequiredError()
         # 반려도 사람 결정이므로 본인확인 필수(approve와 동일 — 스키마 approvals CHECK도 강제)
-        if payload.identity_method not in ("pin", "biometric"):
-            raise ApprovalIdentityRequiredError()
+        _verify_identity(db, payload, decided_by_user_id)
 
     # 케이스 상태 전이는 approval_pending 케이스에서만 일어난다. 그 외(예: blocked 고위험
     # handoff 승인)는 승인/연계 패키지만 결정되고 케이스 상태는 유지된다 — blocked는 종착이며
@@ -159,14 +220,13 @@ def decide_approval(
     if target_state is not None and not can_transition(case.state, target_state):
         raise CaseTransitionError(case.state, target_state)
 
-    now = dt.datetime.now(dt.timezone.utc)
-
     approval.status = decision
     approval.idempotency_key = payload.idempotency_key
     approval.decided_by_user_id = decided_by_user_id
     approval.on_behalf_of_user_id = payload.on_behalf_of_user_id
     approval.identity_method = payload.identity_method
     approval.reason = payload.reason
+    approval.checklist = checklist_value
     approval.decided_at = now
     # 승인 UPDATE를 먼저 DB에 반영한다 — cases_state_transition 트리거가 human_approved 전이 시
     # '승인된 케이스 액션 존재'를 검사하므로, 케이스 UPDATE보다 approval UPDATE가 앞서야 한다.
@@ -193,7 +253,7 @@ def decide_approval(
             id=new_id(),
             company_id=approval.company_id,
             event_no=event_no,
-            type="approval_decided",
+            type="approval_decided" if decision == "approved" else "approval_rejected",
             at=now,
             case_id=approval.case_id,
             action_id=approval.action_id,

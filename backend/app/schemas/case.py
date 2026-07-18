@@ -44,3 +44,28 @@ class CaseOut(BaseModel):
     worker: WorkerRefOut | None
     primary_action: NextActionOut | None
     secondary_action: NextActionOut | None
+
+
+class ApprovalChecklistItemOut(BaseModel):
+    key: str
+    label: str
+    checked: bool
+
+
+class PendingApprovalOut(BaseModel):
+    """이 케이스의 살아있는(pending) 승인 요청 — R2.4. 없으면 GET /cases/{id}가 null로 내린다."""
+
+    id: str
+    action_id: str
+    checklist: list[ApprovalChecklistItemOut] | None
+    requested_at: dt.datetime
+
+
+class CaseDetailOut(CaseOut):
+    """GET /api/v1/cases/{case_id} 전용 — 목록(CaseOut)에 승인 화면(ApprovePage)이 필요로
+    하는 필드를 얹는다(R2.4). usable_citation_count는 services.approvals.usable_citation_count와
+    동일 로직(F등급 제외 + 전역/자사 스코프)."""
+
+    usable_citation_count: int
+    guard_note: str | None
+    pending_approval: PendingApprovalOut | None

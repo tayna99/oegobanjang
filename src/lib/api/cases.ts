@@ -89,3 +89,64 @@ export async function fetchCases(): Promise<CaseCard[]> {
   const dtos = await apiFetch<CaseDto[]>('/api/v1/cases', { token });
   return dtos.map(toCaseCard);
 }
+
+// GET /api/v1/cases/{case_id} 응답 DTO(R2.4) — CaseOut 필드 전부 + ApprovePage 전용 필드.
+export interface PendingApprovalChecklistItemDto {
+  key: string;
+  label: string;
+  checked: boolean;
+}
+
+export interface PendingApprovalDto {
+  id: string;
+  action_id: string;
+  checklist: PendingApprovalChecklistItemDto[] | null;
+  requested_at: string;
+}
+
+export interface CaseDetailDto extends CaseDto {
+  usable_citation_count: number;
+  guard_note: string | null;
+  pending_approval: PendingApprovalDto | null;
+}
+
+export interface PendingApprovalChecklistItem {
+  key: string;
+  label: string;
+  checked: boolean;
+}
+
+export interface PendingApproval {
+  id: string;
+  actionId: string;
+  checklist: PendingApprovalChecklistItem[] | null;
+  requestedAt: string;
+}
+
+// ApprovePage가 real 모드에서 CASE_SHEETS(mock) 대신 쓰는 필드만 뽑는다 — 카드 본체는
+// caseStore(fetchCases가 이미 채움)를 그대로 쓴다(중복 조립 방지).
+export interface CaseDetail {
+  usableCitationCount: number;
+  guardNote: string | null;
+  pendingApproval: PendingApproval | null;
+}
+
+function toPendingApproval(dto: PendingApprovalDto | null): PendingApproval | null {
+  if (!dto) return null;
+  return {
+    id: dto.id,
+    actionId: dto.action_id,
+    checklist: dto.checklist?.map((item) => ({ key: item.key, label: item.label, checked: item.checked })) ?? null,
+    requestedAt: dto.requested_at,
+  };
+}
+
+export async function fetchCaseDetail(caseId: string): Promise<CaseDetail> {
+  const token = useSessionStore.getState().token ?? undefined;
+  const dto = await apiFetch<CaseDetailDto>(`/api/v1/cases/${caseId}`, { token });
+  return {
+    usableCitationCount: dto.usable_citation_count,
+    guardNote: dto.guard_note,
+    pendingApproval: toPendingApproval(dto.pending_approval),
+  };
+}

@@ -5,8 +5,10 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { useNextAction } from '@/lib/actionNav';
 import { useApprovalActions } from '@/lib/approval';
+import { API_MODE } from '@/lib/api/config';
+import { fetchCaseDetail } from '@/lib/api/cases';
 import { applyDocUpdatesOverlay } from '@/lib/cases';
-import { useSeedCases } from '@/lib/dataSeed';
+import { useSeedCases, useSeedEvidence } from '@/lib/dataSeed';
 import { dDayLabel } from '@/lib/dday';
 import { severityTone } from '@/lib/chipTone';
 import { useNav } from '@/lib/nav';
@@ -21,6 +23,10 @@ import { useRoleStore } from '@/stores/roleStore';
 // M2 바텀시트를 대체하는 전면 페이지: 케이스 헤드 → 왜 확인이 필요한가요 → 누락 서류 →
 // 연결 근거 → 초안 미리보기(언어 토글) → "검토 계속". 승인 버튼은 여기 없다 —
 // 승인은 2c 체크리스트 페이지에서만("카드에서는 검토만, 승인은 체크리스트 화면에서").
+//
+// R2.4 — sheet(mock CASE_SHEETS)는 real 모드 caseId와 매칭되지 않는다. real 모드는 카드만으로
+// 최소 렌더하고(풍부한 mock 콘텐츠는 범위 밖, plans/HANDOFF.md 참조), guardNote만 서버
+// GET /api/v1/cases/{id}에서 보강한다 — "검토 계속" 버튼 동작(ApprovePage 진입)은 항상 보장한다.
 
 interface CaseRouteState {
   returnTo?: string;
@@ -39,6 +45,7 @@ export function CaseReviewPage() {
   const returnTo = (location.state as CaseRouteState | null)?.returnTo;
 
   useSeedCases();
+  useSeedEvidence();
 
   const card = caseId ? cases[caseId] : undefined;
   const docUpdates = useCaseStore((s) => (caseId ? s.docUpdates[caseId] : undefined));
@@ -71,7 +78,25 @@ export function CaseReviewPage() {
   const missingDocs = useMemo(() => sheet?.docs?.filter((doc) => doc.status !== 'received') ?? [], [sheet]);
   const citations = sheet?.citations ?? [];
 
-  if (!card || !sheet) {
+  // real 모드 + mock 시트 없음 — guardNote만 서버에서 보강한다(문서 콘텐츠 전체는 범위 밖).
+  const [realGuardNote, setRealGuardNote] = useState<string | null>(null);
+  const [realUsableCount, setRealUsableCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (API_MODE !== 'real' || sheet || !caseId) return;
+    let cancelled = false;
+    fetchCaseDetail(caseId)
+      .then((detail) => {
+        if (cancelled) return;
+        setRealGuardNote(detail.guardNote);
+        setRealUsableCount(detail.usableCitationCount);
+      })
+      .catch((err: unknown) => console.error('[CaseReviewPage] 케이스 상세 조회 실패', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId, sheet]);
+
+  if (!card) {
     return (
       <div className="p-5">
         <p className="text-body2 text-muted">케이스를 찾을 수 없습니다.</p>
@@ -86,10 +111,12 @@ export function CaseReviewPage() {
 
   // 고위험(기한 경과 blocked)은 앱 승인 경로가 아니라 행정사 전달 전용(GOTCHAS 고위험 처리 버튼 금지).
   const highRisk = card.state === 'blocked';
+  const guardNote = sheet?.guardNote ?? realGuardNote;
+  const usableCount = sheet ? usableCitations(citations).length : (realUsableCount ?? 0);
 
-  const onContinue = () => {
+  const onContinue = async () => {
     // 반려됐던 케이스는 재검토 위해 승인 대기로 되돌린 뒤 승인 화면으로(코드리뷰 A1/B2 크래시 방지).
-    if (card.state === 'returned') reopenForReview(card);
+    if (card.state === 'returned') await reopenForReview(card);
     nav.toApprove(card.caseId);
   };
 
@@ -130,15 +157,17 @@ export function CaseReviewPage() {
           )}
         </section>
 
-        <section className="flex flex-col gap-2">
-          <h3 className="text-caption1 font-bold text-subtle">왜 확인이 필요한가요</h3>
-          <p className="text-label1 leading-relaxed text-ink">{sheet.summary}</p>
-          {sheet.guardNote && (
-            <p className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
-              {sheet.guardNote}
-            </p>
-          )}
-        </section>
+        {/* real 모드 + mock 시트 없음이면 이 섹션 전체를 생략한다(풍부한 콘텐츠는 범위 밖) —
+            guardNote만 있으면 별도로 보여준다. */}
+        {sheet && (
+          <section className="flex flex-col gap-2">
+            <h3 className="text-caption1 font-bold text-subtle">왜 확인이 필요한가요</h3>
+            <p className="text-label1 leading-relaxed text-ink">{sheet.summary}</p>
+          </section>
+        )}
+        {guardNote && (
+          <p className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">{guardNote}</p>
+        )}
 
         {missingDocs.length > 0 && (
           <section className="flex flex-col gap-2">
@@ -156,13 +185,13 @@ export function CaseReviewPage() {
         )}
 
         <section className="flex flex-col gap-2">
-          <h3 className="text-caption1 font-bold text-subtle">연결 근거 ({usableCitations(citations).length})</h3>
+          <h3 className="text-caption1 font-bold text-subtle">연결 근거 ({usableCount})</h3>
           {/* 코드리뷰 지적: 0건 게이트가 raw citations.length를 써 헤더 카운트와 어긋났다. */}
-          {usableCitations(citations).length === 0 ? (
+          {usableCount === 0 ? (
             <p className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
               공식 근거가 연결되지 않았습니다. 승인 전 확인이 필요합니다.
             </p>
-          ) : (
+          ) : sheet ? (
             <ul className="flex flex-col gap-1.5">
               {citations.map((citation) => (
                 <li key={citation.title} className="flex items-center gap-2.5 rounded-in border border-hairline px-3 py-2.5">
@@ -176,7 +205,7 @@ export function CaseReviewPage() {
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
         </section>
 
         {draft && activeVariant && (

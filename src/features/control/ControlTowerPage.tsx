@@ -14,7 +14,7 @@ import {
   rowAction,
 } from '@/lib/controlTower';
 import { agentStageTone, severityLabel, severityTone } from '@/lib/chipTone';
-import { useSeedCases } from '@/lib/dataSeed';
+import { useSeedCases, useSeedEvidence } from '@/lib/dataSeed';
 import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { useNav } from '@/lib/nav';
 import { pipelineStats } from '@/lib/pipeline';
@@ -179,6 +179,7 @@ export function ControlTowerPage() {
   const cases = useCaseStore((s) => s.cases);
 
   useSeedCases();
+  useSeedEvidence();
 
   const cards = useMemo(() => Object.values(cases), [cases]);
   const counts = useMemo(() => pipelineStats(cards), [cards]);

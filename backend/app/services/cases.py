@@ -11,9 +11,18 @@ import datetime as dt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.approval import Approval
 from app.models.case import Case, NextAction
 from app.models.worker import Worker
-from app.schemas.case import CaseOut, NextActionOut, WorkerRefOut
+from app.schemas.case import (
+    ApprovalChecklistItemOut,
+    CaseDetailOut,
+    CaseOut,
+    NextActionOut,
+    PendingApprovalOut,
+    WorkerRefOut,
+)
+from app.services.approvals import usable_citation_count
 
 # 목록 정렬 기준: 심각도(높을수록 먼저) → 마감일(빠를수록 먼저) → 생성순.
 _SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
@@ -72,6 +81,35 @@ def get_case_out(db: Session, company_id: str, case: Case) -> CaseOut:
         worker=WorkerRefOut.model_validate(worker) if worker is not None else None,
         primary_action=_next_action_out(primary),
         secondary_action=_next_action_out(secondary),
+    )
+
+
+def _pending_approval_out(approval: Approval | None) -> PendingApprovalOut | None:
+    if approval is None:
+        return None
+    checklist = None
+    if approval.checklist is not None and isinstance(approval.checklist, list):
+        checklist = [ApprovalChecklistItemOut(**item) for item in approval.checklist]
+    return PendingApprovalOut(
+        id=approval.id, action_id=approval.action_id, checklist=checklist, requested_at=approval.requested_at
+    )
+
+
+def get_case_detail_out(db: Session, company_id: str, case: Case) -> CaseDetailOut:
+    """GET /api/v1/cases/{case_id} 전용 조립 — get_case_out(목록용) 위에 승인 화면이
+    필요로 하는 필드를 얹는다(R2.4, Blocker A+B 해소: 프론트가 mock CASE_SHEETS 대신
+    이 응답으로 체크리스트·근거수·가드노트·pending approval_id를 얻는다)."""
+    base = get_case_out(db, company_id, case)
+    pending = db.execute(
+        select(Approval).where(
+            Approval.company_id == company_id, Approval.case_id == case.id, Approval.status == "pending"
+        )
+    ).scalar_one_or_none()
+    return CaseDetailOut(
+        **base.model_dump(),
+        usable_citation_count=usable_citation_count(db, company_id, case.id),
+        guard_note=case.guard_note,
+        pending_approval=_pending_approval_out(pending),
     )
 
 
