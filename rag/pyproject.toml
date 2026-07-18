@@ -1,0 +1,42 @@
+[project]
+name = "oegobanjang-rag"
+version = "0.1.0"
+description = "외고반장 RAG 인제스천 파이프라인 — 문서 수집·청킹·전처리·pgvector 적재 + LangChain 1.x/LangGraph 검색 연동 (legacy 자산 이식)"
+readme = "README.md"
+# backend/는 uuid7 때문에 >=3.14이지만, langchain 스택(langgraph·pymupdf)의 3.14 휠이 미검증이라 분리 핀
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "langchain>=1.3,<2",
+    "langchain-openai>=1.2,<2",
+    "langchain-text-splitters>=1.1,<2",
+    "langgraph>=1.2,<2",
+    "langchain-postgres>=0.0.17,<0.1",
+    "psycopg[binary]>=3.2",
+    "pymupdf>=1.24",
+    "numpy>=1.26",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# 시스템 %TEMP%의 pytest-of-* 디렉터리 ACL이 깨진 환경이 있어 basetemp를 프로젝트 안에 둔다
+addopts = "--basetemp=.pytest_tmp"
+markers = [
+    "openai_smoke: 실제 OpenAI API 키가 필요한 테스트 (CI 제외)",
+    "heavy_deps: pymupdf 등 무거운 네이티브 의존성이 필요한 테스트",
+    "pgvector: 실행 중인 pgvector PostgreSQL이 필요한 통합 테스트",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oe_rag"]

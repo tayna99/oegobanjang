@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { IconBriefing, IconClock, IconFolder, IconMoon, IconMsg, IconSun } from '@/components/icons';
+import { API_MODE } from '@/lib/api/config';
 import { ROUTES } from '@/lib/routes';
 import { useThemeStore } from '@/stores/themeStore';
 import { useRoleStore } from '@/stores/roleStore';
@@ -62,11 +63,17 @@ function ThemeToggle({ className }: { className?: string }) {
 }
 
 // 역할 전환 — 로그인/SSO 이전 데모 스위치(4.2, 운영급 확장). 담당자→대표→열람자 순환.
+// 코드리뷰 지적(PR #19 P1): real 모드에서는 role이 서버 멤버십으로 정해지므로(sessionStore),
+// 이 버튼을 그대로 두면 로그인한 사용자가 클릭만으로 viewer→manager→owner 자기 승급이
+// 가능했다 — real 모드에서는 렌더 자체를 하지 않는다(컴포넌트 단일 지점에서 막아, 호출부를
+// 전부 API_MODE로 감쌀 필요가 없게 한다).
 const ROLE_NEXT: Record<Role, Role> = { manager: 'owner', owner: 'viewer', viewer: 'manager' };
 
 function RoleToggle({ className }: { className?: string }) {
   const role = useRoleStore((s) => s.role);
   const toggleRole = useRoleStore((s) => s.toggleRole);
+
+  if (API_MODE === 'real') return null;
 
   return (
     <button

@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=safety_training_available
+purpose=safety_training_reply
+language_code=vi
+incoming_message=Tôi có thể tham gia buổi đào tạo an toàn.
+korean_meaning=안전교육에 참석할 수 있다는 의미의 합성 답변.
+expected_summary=근로자는 안전교육 참석이 가능하다고 답했다.
+expected_status_update=safety_training:attendance_available_candidate
+next_action=참석 가능 상태 후보를 만들고 교육 일정 재확인 메시지 초안은 담당자 승인 후 사용한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

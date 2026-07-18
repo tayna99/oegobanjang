@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=passport_photo_later
+purpose=document_status_reply
+language_code=vi
+incoming_message=Tôi có hộ chiếu rồi, nhưng ảnh thì tôi sẽ gửi sau.
+korean_meaning=여권은 이미 있고, 사진은 나중에 보내겠다는 의미의 합성 답변.
+expected_summary=근로자는 여권을 보유하고 있으며 사진은 추후 제출하겠다고 답했다.
+expected_status_update=passport:available_candidate|photo:pending_candidate
+next_action=사진 제출 기한을 다시 안내하는 메시지 초안을 만들고 담당자 검토를 요청한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

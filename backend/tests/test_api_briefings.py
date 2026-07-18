@@ -1,7 +1,10 @@
 """GET /api/v1/briefings/latest — 최신 브리핑 조회. plans/NEXT_ROADMAP_2026-07-16.md §R2.3.
 
-이 라우터는 아직 app/main.py에 등록되지 않으므로(여러 도메인 동시 작업 충돌 방지),
-이 테스트는 app/api/v1/briefings.py의 router만 담은 전용 테스트 앱을 구성해 검증한다.
+이 라우터는 app/main.py에 등록돼 있지만, 이 테스트는 app/api/v1/briefings.py의 router만
+담은 전용 테스트 앱을 구성해 검증한다(POST /generate 쪽 테스트와 fixture 이름이 겹치지
+않도록 test_api_briefings_generate.py로 분리돼 있다 — G6 PR #17과 R2.3이 같은 파일 경로를
+독립적으로 구현해 병합 시 add/add 충돌이 났고, 두 테스트 전략(전용 앱 vs 글로벌 app)이
+서로 달라 한 파일에 합치지 않기로 했다).
 DB 레벨 가드레일(테넌트 격리 등)은 db/validate.py가 담당한다 — 이 pytest는 서비스 계층
 (회사 스코프 필터링·조립·rank 순서·세션 인증)을 PG 실 인스턴스에서 검증한다.
 """

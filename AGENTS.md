@@ -38,6 +38,12 @@ AI는 다음을 하지 않는다.
 src/
 = 현재 제품 UI, 라우팅, 화면 상태, 데모 런 엔진
 
+backend/, db/
+= 백엔드 접속점 선행 산출물 — PostgreSQL 정본 스키마(db/schema.sql)와 승인 API(FastAPI, Python 3.14)
+
+rag/
+= RAG 인제스천 파이프라인 — 수집→청킹→pgvector 적재→LangChain 1.x 검색 (Python 3.13 독립 uv 프로젝트, ROADMAP M5)
+
 docs/, plans/, rules/
 = 현재 프론트 MVP의 사양, 로드맵, 작업 규칙
 
@@ -45,7 +51,7 @@ legacy/
 = 이전 FastAPI 백엔드, 데이터 파이프라인, Agent Runtime, eval, 기존 문서 보관 영역
 ```
 
-루트 `backend/`는 `db/schema.sql`을 그대로 적용하는 FastAPI 서비스로 이미 존재하고 동작한다(OTP 인증·세션, 승인 요청 생성 + approve/reject, pytest 스위트가 CI에 편입). 다만 프론트(`src/`)는 아직 이 backend를 한 줄도 호출하지 않는다(fetch 0건) — 배선은 `plans/ROADMAP.md` R2 범위다. `legacy/backend/`는 이전 백엔드(Agent Runtime 포함)를 보존한 별개 경로이며, 새 프론트 MVP 작업의 production import 대상이 아니다.
+루트 `backend/`는 `db/schema.sql`을 그대로 적용하는 FastAPI 서비스로 이미 존재하고 동작한다(OTP 인증·세션, 승인 요청 생성 + approve/reject, 오케스트레이션 런(SSE)·데일리 브리핑·케이스/스레드 읽기 엔드포인트, pytest 스위트가 CI에 편입). 다만 프론트(`src/`)는 아직 이 backend를 한 줄도 호출하지 않는다(fetch 0건) — 배선은 `plans/ROADMAP.md` R2 범위다. `rag/`는 legacy RAG 자산을 복사·정제해 이식한 별도 Python 3.13 uv 프로젝트로, backend가 내부망으로 호출한다. `legacy/backend/`는 이전 백엔드(Agent Runtime 포함)를 보존한 별개 경로이며, 새 프론트 MVP 작업이나 루트 `backend/`·`rag/`의 production import 대상이 아니다.
 
 Agent Runtime 관련 코드는 legacy 영역에 남아 있다.
 

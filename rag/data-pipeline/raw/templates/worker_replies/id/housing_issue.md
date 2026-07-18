@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=housing_issue
+purpose=housing_support_reply
+language_code=id
+incoming_message=Ada masalah dengan tempat tinggal. Saya ingin bicara dengan penanggung jawab.
+korean_meaning=숙소에 문제가 있어 담당자와 이야기하고 싶다는 의미의 합성 답변.
+expected_summary=근로자는 숙소 관련 문제가 있어 담당자 상담을 요청했다.
+expected_status_update=housing_issue:reported_candidate
+next_action=개인정보나 상세 주소를 로그에 저장하지 말고 담당자 상담 필요 후보로 기록한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

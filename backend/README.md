@@ -75,6 +75,7 @@ app/
   db/base.py               단일 DeclarativeBase
   db/session.py            엔진·세션 팩토리(lock_timeout)
   db/ids.py                new_id() = UUIDv7 발급 단일 지점
+  db/counters.py           case_seq·evidence_seq 원자 증가 단일 지점
   models/                  33테이블 ORM 매핑(컬럼만 — FK/CHECK/트리거/뷰는 DB 소유)
   domain/
     case_transitions.py    src/stores/caseStore.ts CASE_TRANSITIONS와 동일한 전이 화이트리스트

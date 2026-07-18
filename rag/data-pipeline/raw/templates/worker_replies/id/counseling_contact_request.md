@@ -1,0 +1,14 @@
+data_type=synthetic_worker_reply
+reply_pattern=counseling_contact_request
+purpose=worker_support_reply
+language_code=id
+incoming_message=Saya ingin tahu nomor telepon pusat konsultasi resmi.
+korean_meaning=공식 상담센터 연락처를 알고 싶다는 의미의 합성 답변.
+expected_summary=근로자는 공식 상담센터 연락처 안내를 요청했다.
+expected_status_update=counseling_contact:requested_candidate
+next_action=공식 상담 채널 안내 초안을 만들되 법적 확답 없이 담당자 승인 후 발송한다.
+approval_required=true
+review_status=needs_human_review
+evidence_grade=F
+not_for_legal_basis=true
+notes=합성 테스트 데이터. 실제 근로자 답변 아님. 공식 근거로 사용 금지.

@@ -18,6 +18,40 @@
 
 ---
 
+### [2026-07-18] R2.5+R2.6 코드리뷰 2라운드 — P1 3건 + P2 1건 수정 — 완료
+
+- 한 일: 아래 R2.5+R2.6 항목이 코드리뷰 2라운드를 거쳤다. 1라운드(P1 4건 — 링크 발급 승인
+  전제조건 누락, `case_id`를 불변 비밀값으로 오용, evidence 엔드포인트의 특권 타입 위조
+  가능, real 모드 mock/real id 불일치)는 이미 수정·병합됐다. 2라운드에서 추가로 P1 3건 +
+  P2 1건이 남아 병합 보류 → 전부 수정:
+  1. `PackagePage.onReissue`가 real 모드 재발급 API가 실패해도 무조건 evidence를 "재발급됨"
+     으로 기록했고, 성공해도 응답의 `link_token`(공유 URL의 유일한 근거)을 어디에도 쓰지
+     않았다 — `await` 기반으로 교정, 성공했을 때만 evidence 기록 + 화면에 공유 URL 노출,
+     실패 시엔 evidence 없이 에러 메시지만.
+  2. `create_evidence_event`가 `summary`만 PII 패턴을 검사해 `input_hash`/`output_hash`/
+     `trace_id`/`request_id`/`payload_ref`로 원문 PII를 그대로 우회 저장할 수 있었다 — 필드
+     이름이 "해시"/"참조"를 암시할 뿐 실제로는 클라이언트가 임의 문자열을 보내는 자유
+     텍스트 필드라, 이 엔드포인트가 받는 모든 자유 텍스트 필드를 검사하도록 교정.
+  3. `StructuredReplyForm`(행정사 구조화된 회신)이 real 모드에서도 "회신을 보냈습니다"를
+     보여줬는데, 회신을 받는 서버 엔드포인트 자체가 없어(문서 콘텐츠와 함께 R2.6 스코프
+     밖으로 명시) 실제로는 그 브라우저의 로컬 상태에만 남고 새로고침·다른 기기에서 전부
+     사라졌다 — real 모드에서는 성공 표시 대신 "회신 접수는 아직 준비 중입니다"로 교체(백엔드가
+     생기기 전까지는 거짓 확인보다 정직한 미지원 안내가 낫다는 판단).
+  4. P2: `backend/README.md`·`docs/DB_SCHEMA.md`·`plans/ROADMAP.md`의 GET 경로 문서가
+     1라운드에서 `case_id` → `link_token` 경로로 바뀐 뒤에도 구 경로를 계속 안내했다 — 전부
+     갱신.
+- 남은 일 / 중단 지점: 없음(2라운드 4건 전부 수정). R2.4(승인 결정 배선)는 여전히 후속
+  세션 몫.
+- 결정 사항 (다음 세션이 알아야 할 것): 없음(1라운드 항목의 결정 사항을 그대로 유지).
+- verify 상태: PASS — backend `uv run pytest` 172/172(신규 5건 — PII 자유 텍스트 필드별
+  거부), 프론트 `tsc --noEmit`/`eslint .` 클린. `vitest`는 대상 파일(`packagePkg/*`) 통과
+  확인, 전체 스위트는 `main`에 그새 병합된 PR #17(RAG)·#21(role/logout hotfix)과의 병합
+  충돌(`backend/app/main.py` 라우터 목록, 이 파일 자체의 새 항목 추가 위치) 해소 직후라
+  재검증 진행 중.
+- 지도/규칙 갱신: `plans/ROADMAP.md`에 2라운드 수정 요약 추가.
+
+---
+
 ### [2026-07-17] R2.5(Evidence 서버 영속화) + R2.6(행정사 링크 서버 강제) — 완료
 
 - 한 일: 사용자 지시로 R2.4(승인 결정 배선)를 건너뛰고 2.5·2.6을 먼저 진행. 브랜치
@@ -102,6 +136,46 @@
   evidence type 목록·R2.5 노트, §4.8 handoff_packages 링크 컬럼·R2.6 노트, §7 접근 규칙 갱신),
   `docs/ARCHITECTURE.md`(API 클라이언트 항목에 evidence.ts/packages.ts 추가),
   `backend/README.md`(API 표·구조·스코프 경계 갱신).
+
+---
+
+### [2026-07-17] M5 — RAG 인제스천 파이프라인 (legacy 이식 + pgvector + LangChain 1.x) — 완료
+- **한 일**: ROADMAP에 M5 마일스톤 신설 후 루트 `rag/` 독립 uv 프로젝트(Python 3.13)를 구축했다.
+  legacy/backend/app/agent_runtime/rag*의 raw_ingest·domain_splitters·workforce_metadata·
+  chunking·embeddings를 복사·정제 이식하고(legacy는 무수정), VectorDB는 사용자 선택에 따라
+  **pgvector**로 결정(Chroma 아님) — `VectorIndex` 프로토콜 위에 `PgVectorIndex`(langchain-postgres
+  PGVectorStore 기반, 전용 `rag` PG 스키마, provider/dimensions manifest로 색인-질의 provider
+  불일치를 차단)를 구현했다. 런타임 retriever(3버킷+어휘 재랭킹+D/F 차단), `rag eval` 품질
+  게이트(Hit@1≥0.60·Hit@3≥0.80·Hit@5≥0.90·MRR≥0.65·safety/misuse=0), LangChain 1.x
+  `create_agent`(+`@tool retrieve_workforce_materials`+`RagAnswer` structured output),
+  `rag_retrieved` 이벤트 계약(질의는 sha256 해시만, 원문·PII 없음)까지 전부 이식·구현했다.
+  CI에 `rag` 잡(pgvector 서비스 + pytest + E2E ingest→index→eval) 신설. 최종 산출물:
+  2033청크, workforce 컬렉션 945(official)+38(templates), eval hit@3=1.0/MRR=0.84.
+- **남은 일 / 중단 지점**: 없음(M5.1~5.4 전부 완료). 5.5(후속, ROADMAP에 미완료로 남겨둠):
+  Playwright 크롤러 `[crawl]` optional extra 이식, OpenAI 운영 인덱스 전환, 실제 Evidence Log
+  백엔드 연동(현재는 로컬 JSONL까지만), src/ runEngine RunConfig와의 결선 — 전부 "백엔드
+  접속점" 별도 계획 범위로 명시적으로 미룸.
+- **결정 사항 (다음 세션이 알아야 할 것)**:
+  - `rag/`는 legacy와 **별도 Python 버전**(3.12~3.13, backend/는 3.14) — langgraph/chromadb류
+    3.14 미검증이라 의도적으로 분리했다. uv workspace로 묶지 말 것.
+  - VectorDB는 pgvector 확정. 로컬은 전용 컨테이너 `oegobanjang-rag-pg`(포트 55433, 스키마
+    `rag`) — 서비스 DB(`oegobanjang-pg`:55432, `postgres:16`)와 별개 인스턴스다. 합치고
+    싶으면 서비스 DB 이미지를 `pgvector/pgvector:pg16`으로 바꾸면 되지만(상위호환), 이번
+    세션에서는 분리 상태로 뒀다.
+  - legacy 커밋 산출물(all_chunks.jsonl 964청크, 2026-05)은 doc_type 청킹 도입 이전 것이라
+    이식 검증의 텍스트 비교 기준으로 못 썼다. 대신 무손실 검증(입력 각 줄이 출력 청크에
+    보존되는지)과 source_id 집합 패리티로 대체했다. 그 과정에서 legacy 청킹 버그(첫 헤딩
+    매치 이전 서두 텍스트를 조용히 버리는 문제, 절차문서 도입부 유실)를 발견해 이식본에서
+    수정했다(`rag/src/oe_rag/chunking.py`의 `_preamble_chunks`) — legacy 자체는 무수정.
+  - 청크 ID에 내용해시 접미사(`_{hash8}`)를 추가해 멱등 upsert를 가능하게 했다(legacy는
+    위치 기반 ID라 갱신 시 잔존 청크 문제가 있었음).
+- **verify 상태**: PASS — `rag/`: `uv run pytest` 66 passed(offline, OPENAI_API_KEY 불필요).
+  `rag eval` GATE: PASS(hit@3=1.0). CI YAML 문법 검증 통과. 루트 `npm run verify`: exit 0
+  (71 files/419 tests + vite build) — 프론트 MVP 비영향 확인. `verifier` 서브에이전트 DoD
+  검증 PASS(5.1~5.4 전항목, legacy 무수정, 문서 diff는 추가/교정 수준).
+- **지도/규칙 갱신**: `AGENTS.md` §3에 `backend/`·`rag/` 항목 추가 + "루트에 backend 없다"는
+  낡은 문구를 실체에 맞게 교정. `db/README.md`에 RAG 전용 pgvector 컨테이너 안내 1줄 추가.
+  `plans/ROADMAP.md`에 M5 마일스톤 신설(5.1~5.4 완료, 5.5 후속 미완료로 표시).
 
 ---
 
