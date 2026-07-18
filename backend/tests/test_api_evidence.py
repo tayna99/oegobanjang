@@ -83,7 +83,7 @@ def test_create_without_session_is_unauthorized(client):
 
 def test_company_level_event_without_case_id_allowed(client):
     resp = client.post(
-        "/api/v1/evidence", json={"type": "role_granted", "summary": "역할 부여"}, headers=_auth_headers(client)
+        "/api/v1/evidence", json={"type": "plan_created", "summary": "계획 생성"}, headers=_auth_headers(client)
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["case_id"] is None
@@ -106,10 +106,41 @@ def test_package_link_types_rejected_on_generic_endpoint(client, type_):
     assert resp.status_code == 422, resp.text
 
 
+# 코드리뷰 회귀(PR #20 P1): get_current_membership은 "이 회사 소속인가"만 확인하고 role은
+# 안 본다 — 예전엔 ALLOWED_EVIDENCE_TYPES가 approval_decided/role_changed/dispatch_executed
+# 같은 특권 결과 타입까지 그대로 받아, 아무 구성원이나 실제로 일어나지 않은 승인·역할변경·
+# 발송완료를 감사 로그에 위조해 넣을 수 있었다. 이제 이런 타입은 전부 거부돼야 한다(해당
+# 도메인의 실제 서버 트랜잭션 안에서만 기록 가능).
+@pytest.mark.parametrize(
+    "type_",
+    [
+        "approval_requested",
+        "approval_decided",
+        "approval_rejected",
+        "approval_escalated",
+        "role_granted",
+        "role_changed",
+        "member_invited",
+        "member_removed",
+        "delegation_granted",
+        "delegation_revoked",
+        "autonomy_changed",
+        "worker_deleted",
+        "dispatch_executed",
+        "delivery_confirmed",
+    ],
+)
+def test_privileged_types_rejected_on_generic_endpoint(client, type_):
+    resp = client.post(
+        "/api/v1/evidence", json={"type": type_, "summary": "위조 시도"}, headers=_auth_headers(client)
+    )
+    assert resp.status_code == 422, resp.text
+
+
 def test_summary_containing_pii_rejected(client):
     resp = client.post(
         "/api/v1/evidence",
-        json={"type": "role_granted", "summary": "등록번호 900101-1234567 포함"},
+        json={"type": "plan_created", "summary": "등록번호 900101-1234567 포함"},
         headers=_auth_headers(client),
     )
     assert resp.status_code == 422, resp.text
@@ -128,9 +159,9 @@ def test_case_id_from_other_company_is_not_found(client):
 def test_list_returns_only_own_company_events_sorted_by_event_no(client):
     headers1 = _auth_headers(client, "010-0000-0001")
     headers2 = _auth_headers(client, "010-0000-0002")
-    client.post("/api/v1/evidence", json={"type": "role_granted", "summary": "cmp1 이벤트 1"}, headers=headers1)
-    client.post("/api/v1/evidence", json={"type": "role_granted", "summary": "cmp2 이벤트"}, headers=headers2)
-    client.post("/api/v1/evidence", json={"type": "role_granted", "summary": "cmp1 이벤트 2"}, headers=headers1)
+    client.post("/api/v1/evidence", json={"type": "plan_created", "summary": "cmp1 이벤트 1"}, headers=headers1)
+    client.post("/api/v1/evidence", json={"type": "plan_created", "summary": "cmp2 이벤트"}, headers=headers2)
+    client.post("/api/v1/evidence", json={"type": "plan_created", "summary": "cmp1 이벤트 2"}, headers=headers1)
 
     resp = client.get("/api/v1/evidence", headers=headers1)
     assert resp.status_code == 200, resp.text
@@ -146,7 +177,7 @@ def test_list_filtered_by_case_id(client):
         json={"type": "interpretation_confirmed", "case_id": "cs1", "summary": "케이스 이벤트"},
         headers=headers,
     )
-    client.post("/api/v1/evidence", json={"type": "role_granted", "summary": "회사 이벤트"}, headers=headers)
+    client.post("/api/v1/evidence", json={"type": "plan_created", "summary": "회사 이벤트"}, headers=headers)
 
     resp = client.get("/api/v1/evidence", params={"case_id": "cs1"}, headers=headers)
     assert resp.status_code == 200, resp.text

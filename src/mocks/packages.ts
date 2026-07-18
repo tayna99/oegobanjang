@@ -127,6 +127,20 @@ export const HANDOFF_PACKAGES: Record<string, HandoffPackage> = {
   },
 };
 
+// 코드리뷰 지적(PR #20 P1): real 모드에서는 케이스 id가 실제 DB PK(db/seed_demo.sql —
+// 'cs_batbayar' 등)인데, 이 파일의 문서 콘텐츠(HANDOFF_PACKAGES)는 여전히 mock 세계관의
+// 짧은 id('batbayar')로만 키가 잡혀 있다(문서 콘텐츠 자체는 R2.6 스코프 밖이라 아직 실
+// API가 없다 — packages.py 모듈 docstring 참조). 이 alias가 없으면 real 모드에서 실제
+// case_id로 내비게이트했을 때 packageFor()가 항상 undefined를 반환해 "패키지를 찾을 수
+// 없습니다"만 보였다. 여기 없는 실 케이스(예: cs_levan에 대응하는 시드가 없음)는 원래부터
+// mock 콘텐츠가 없으므로 이 alias로도 못 찾는 게 맞다(값을 지어내지 않는다).
+const REAL_CASE_ID_ALIASES: Record<string, string> = {
+  cs_batbayar: 'batbayar',
+};
+
 export function packageFor(packageId: string | undefined): HandoffPackage | undefined {
-  return packageId ? HANDOFF_PACKAGES[packageId] : undefined;
+  if (!packageId) return undefined;
+  if (HANDOFF_PACKAGES[packageId]) return HANDOFF_PACKAGES[packageId];
+  const aliased = REAL_CASE_ID_ALIASES[packageId];
+  return aliased ? HANDOFF_PACKAGES[aliased] : undefined;
 }

@@ -9,6 +9,7 @@ services/evidence.py의 일반 엔드포인트를 거치지 않는다).
 from __future__ import annotations
 
 import datetime as dt
+import secrets
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,8 +19,10 @@ from app.domain.package_exceptions import (
     PackageCaseNotFoundError,
     PackageForbiddenError,
     PackageLinkNotFoundError,
+    PackageNotApprovedError,
 )
-from app.models.case import Case
+from app.models.approval import Approval
+from app.models.case import Case, NextAction
 from app.models.evidence import EvidenceEvent
 from app.models.handoff import HandoffPackage
 from app.models.membership import Membership
@@ -28,12 +31,43 @@ from app.services.evidence import next_event_no
 
 LINK_VALIDITY = dt.timedelta(days=7)  # 7단계 §4 "만료형(기본 7일)" — src/lib/packageLink.ts와 동일
 ISSUER_ROLES = ("owner", "manager")
+HANDOFF_ACTION_TYPE = "create_handoff"
 
 
 def _latest_package_for_case(db: Session, case_id: str) -> HandoffPackage | None:
     return db.execute(
         select(HandoffPackage).where(HandoffPackage.case_id == case_id).order_by(HandoffPackage.created_at.desc())
     ).scalars().first()
+
+
+def _has_approved_handoff(db: Session, company_id: str, case_id: str) -> bool:
+    """코드리뷰 지적(PR #20 P1): 링크 발급은 "행정사/노무사에게 패키지 전달"에 해당하는
+    승인 필요 작업(AGENTS.md §8)인데, 서버가 케이스의 승인 상태를 전혀 확인하지 않아
+    승인 전에도(심지어 승인 요청조차 없어도) 외부 열람 링크가 발급됐다. handoff_packages
+    상태 트리거(db/schema.sql trg_handoff_approval_state_update)가 이미 "approved/exported는
+    승인된 create_handoff가 있어야 한다"는 계약을 강제하고 있으므로, 같은 조건을 링크
+    발급 전제조건으로 재사용한다."""
+    return (
+        db.execute(
+            select(Approval.id)
+            .join(NextAction, NextAction.id == Approval.action_id)
+            .where(
+                Approval.company_id == company_id,
+                Approval.case_id == case_id,
+                Approval.status == "approved",
+                NextAction.action_type == HANDOFF_ACTION_TYPE,
+            )
+            .limit(1)
+        ).scalar_one_or_none()
+        is not None
+    )
+
+
+def _generate_link_token() -> str:
+    # 코드리뷰 지적(PR #20 P1): case_id(cases.id, PK)를 공개 링크의 비밀값으로 쓰면 값이
+    # 영구 불변이라 재발급으로도 기존 유출 링크를 회수할 수 없었다 — 발급/재발급마다 새로
+    # 회전하는, case_id와 무관한 무작위 토큰을 대신 발급한다.
+    return secrets.token_urlsafe(32)
 
 
 def issue_package_link(db: Session, membership: Membership, case_id: str) -> HandoffPackage:
@@ -47,6 +81,12 @@ def issue_package_link(db: Session, membership: Membership, case_id: str) -> Han
     if case is None:
         raise PackageCaseNotFoundError(case_id)
 
+    # 코드리뷰 지적(PR #20 P1): 링크 발급은 "행정사에게 패키지 전달"이라 AGENTS.md §8이
+    # 요구하는 사전 승인 없이는 절대 실행돼선 안 되는 작업이다 — 케이스가 아직 create_handoff
+    # 승인을 받지 못했으면(요청조차 없어도) 여기서 막는다.
+    if not _has_approved_handoff(db, membership.company_id, case_id):
+        raise PackageNotApprovedError(case_id)
+
     pkg = _latest_package_for_case(db, case_id)
     is_reissue = pkg is not None
     now = dt.datetime.now(dt.timezone.utc)
@@ -54,8 +94,9 @@ def issue_package_link(db: Session, membership: Membership, case_id: str) -> Han
     if pkg is None:
         # 문서 콘텐츠를 만들지 않는다 — masked_payload는 NOT NULL 제약만 충족하는 최소 레코드.
         # status는 반드시 'draft'(+approval_id NULL)로 시작해야 한다(trg_handoff_approval_state_insert) —
-        # 이 패키지는 내부 승인·PDF 내보내기 플로우(PackagePage)와 무관하게 링크 발급 전용이라
-        # approved/exported로 승격할 근거(승인된 create_handoff)가 없다.
+        # 이 북키핑 레코드 자체는 내부 승인·PDF 내보내기 플로우(PackagePage)의 상태 머신과
+        # 별개로 유지한다(위 _has_approved_handoff가 "승인된 create_handoff가 존재하는가"를
+        # 별도로 보증하므로, 이 레코드를 굳이 그 승인에 묶어 approved로 승격시킬 필요가 없다).
         pkg = HandoffPackage(
             id=new_id(),
             company_id=membership.company_id,
@@ -66,6 +107,7 @@ def issue_package_link(db: Session, membership: Membership, case_id: str) -> Han
         )
         db.add(pkg)
 
+    pkg.link_token = _generate_link_token()
     pkg.link_issued_at = now
     pkg.link_expires_at = now + LINK_VALIDITY
     db.flush()
@@ -92,10 +134,13 @@ def issue_package_link(db: Session, membership: Membership, case_id: str) -> Han
     return pkg
 
 
-def view_package_link(db: Session, case_id: str) -> HandoffPackage:
-    """무인증 — case_id 자체가 비밀 링크(cases.id는 PK라 전역 유일, R2.3 cases.py와 동일
-    신뢰 모델). 존재하지 않거나 만료됐으면 둘 다 같은 404(존재 비노출)."""
-    pkg = _latest_package_for_case(db, case_id)
+def view_package_link(db: Session, link_token: str) -> HandoffPackage:
+    """무인증 — link_token(발급/재발급마다 회전하는 무작위 값)이 유일한 자격 증명이다.
+    코드리뷰 지적(PR #20 P1): 이전엔 case_id(PK, 불변)를 비밀로 썼는데, 재발급이 이 값을
+    바꾸지 않아 한 번 유출된 링크를 영구히 회수할 수 없었다 — 이제 재발급마다 새 토큰이
+    발급되므로 이전 토큰은 즉시 무효(아래 조회가 실패)가 된다. 존재하지 않거나 만료됐으면
+    둘 다 같은 404(존재 비노출)."""
+    pkg = db.execute(select(HandoffPackage).where(HandoffPackage.link_token == link_token)).scalar_one_or_none()
     now = dt.datetime.now(dt.timezone.utc)
     if pkg is None or pkg.link_expires_at is None or pkg.link_expires_at < now:
         raise PackageLinkNotFoundError()
@@ -108,7 +153,7 @@ def view_package_link(db: Session, case_id: str) -> HandoffPackage:
             event_no=event_no,
             type="package_link_viewed",
             at=now,
-            case_id=case_id,
+            case_id=pkg.case_id,
             actor_type="system",
             actor_display="외부 열람(행정사)",
             summary="외부 열람 · 행정사 패키지 링크",

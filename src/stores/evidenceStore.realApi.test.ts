@@ -11,8 +11,12 @@ function jsonResponse(body: unknown, status = 201): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
+// 코드리뷰 회귀(PR #20 P1): 기본 type은 반드시 서버로 실제 POST가 시도되는(=특권/무인증
+// 제외 목록 밖) 타입이어야 한다 — role_granted를 기본값으로 쓰면 아래 "서버 기록 실패" 등의
+// 테스트가 fetch 호출 자체를 검증하지 못한 채 통과해버린다(PRIVILEGED_EVIDENCE_TYPES는
+// POST 시도 자체를 건너뛰므로).
 function makeEvent(overrides: Partial<EvidenceEvent> = {}): EvidenceEvent {
-  return { id: 'e1', type: 'role_granted', at: '2026-07-17T09:00:00Z', summary: '역할 부여', ...overrides };
+  return { id: 'e1', type: 'plan_created', at: '2026-07-17T09:00:00Z', summary: '계획 생성', ...overrides };
 }
 
 describe('evidenceStore — real 모드(R2.5)', () => {
@@ -41,7 +45,7 @@ describe('evidenceStore — real 모드(R2.5)', () => {
       'http://localhost:8000/api/v1/evidence',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ type: 'interpretation_confirmed', case_id: 'nguyen', summary: '역할 부여' }),
+        body: JSON.stringify({ type: 'interpretation_confirmed', case_id: 'nguyen', summary: '계획 생성' }),
       }),
     );
   });
@@ -60,6 +64,32 @@ describe('evidenceStore — real 모드(R2.5)', () => {
       expect(fetchMock).not.toHaveBeenCalled();
     },
   );
+
+  // 코드리뷰 회귀(PR #20 P1): 특권 타입은 서버가 422로 거부하므로(services/evidence.py
+  // PRIVILEGED_EVIDENCE_TYPES), 실패가 뻔한 POST 자체를 시도하지 않는다.
+  it.each([
+    'approval_requested',
+    'approval_decided',
+    'approval_rejected',
+    'approval_escalated',
+    'role_granted',
+    'role_changed',
+    'member_invited',
+    'member_removed',
+    'delegation_granted',
+    'delegation_revoked',
+    'dispatch_executed',
+    'delivery_confirmed',
+  ] as const)('%s는 특권 타입이라 서버로 보내지 않는다(로컬 상태는 그대로 반영)', async (type) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({}));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    useEvidenceStore.getState().append(makeEvent({ type }));
+
+    expect(useEvidenceStore.getState().events).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 
   it('서버 기록이 실패해도 로컬 이벤트는 유지되고 예외가 밖으로 새지 않는다', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);

@@ -20,24 +20,30 @@ import { DocumentPreview } from './PackagePage';
 import { StructuredReplyForm } from './StructuredReplyForm';
 
 export function ExpertLinkPage() {
-  const { packageId } = useParams<{ packageId: string }>();
-  const pkg = packageFor(packageId);
+  // 코드리뷰 지적(PR #20 P1): mock 모드에서는 이 라우트 파라미터가 여전히
+  // mocks/packages.ts의 짧은 id("batbayar")다. real 모드에서는 case_id가 아니라
+  // 발급/재발급마다 회전하는 link_token이다(case_id를 URL에 그대로 쓰면 재발급으로도
+  // 유출된 링크를 회수할 수 없었다) — 그래서 real 모드에서는 이 값만으로 mock 콘텐츠를
+  // 바로 찾을 수 없고, 먼저 서버에 물어 실제 case_id를 받아와야 한다(아래 useEffect).
+  const { linkToken } = useParams<{ linkToken: string }>();
   const events = useEvidenceStore((s) => s.events);
   const appendEvidence = useEvidenceStore((s) => s.append);
   const logged = useRef(false);
 
   // real 모드 — 만료·열람 로그를 서버가 강제한다(R2.6, "클라이언트 가드 → 404"). GET 성공
   // 자체가 곧 열람 기록이다(services/packages.py가 같은 트랜잭션에서 evidence를 남긴다) —
-  // 프론트가 별도로 package_link_viewed를 재전송하지 않는다.
+  // 프론트가 별도로 package_link_viewed를 재전송하지 않는다. 성공하면 응답의 caseId로
+  // mock 콘텐츠(mocks/packages.ts)를 찾는다 — 문서 콘텐츠 자체는 여전히 R2.6 스코프 밖.
   const [realLinkValid, setRealLinkValid] = useState<boolean | null>(null);
+  const [realCaseId, setRealCaseId] = useState<string | undefined>(undefined);
   useEffect(() => {
-    // pkg가 없으면(mocks/packages.ts에 없는 packageId) 콘텐츠 자체가 없을 게 확정이라
-    // 서버까지 왕복하지 않는다 — 아래 !pkg 분기가 어차피 먼저 "찾을 수 없음"을 렌더한다.
-    if (API_MODE !== 'real' || !packageId || !pkg) return;
+    if (API_MODE !== 'real' || !linkToken) return;
     let cancelled = false;
-    fetchPackageLink(packageId)
-      .then(() => {
-        if (!cancelled) setRealLinkValid(true);
+    fetchPackageLink(linkToken)
+      .then((status) => {
+        if (cancelled) return;
+        setRealCaseId(status.caseId);
+        setRealLinkValid(true);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -47,8 +53,9 @@ export function ExpertLinkPage() {
     return () => {
       cancelled = true;
     };
-  }, [packageId, pkg]);
+  }, [linkToken]);
 
+  const pkg = packageFor(API_MODE === 'real' ? realCaseId : linkToken);
   const mockExpired = pkg ? isLinkExpired(pkg, events) : false;
   const expired = API_MODE === 'real' ? realLinkValid === false : mockExpired;
 
@@ -69,14 +76,9 @@ export function ExpertLinkPage() {
     });
   }, [pkg, expired, appendEvidence]);
 
-  if (!pkg) {
-    return (
-      <div className="flex min-h-dvh items-center justify-center bg-canvas p-5">
-        <p className="text-body2 text-muted">링크를 찾을 수 없습니다.</p>
-      </div>
-    );
-  }
-
+  // 순서가 중요하다: real 모드에서 서버가 404를 준 경우 realCaseId가 끝내 안 채워져
+  // pkg도 항상 undefined다 — "링크를 찾을 수 없습니다"가 아니라 "만료되었습니다"를
+  // 보여줘야 하므로(서버가 실제로 그렇게 말했다), expired 체크를 !pkg보다 먼저 둔다.
   if (API_MODE === 'real' && realLinkValid === null) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-canvas p-5">
@@ -94,6 +96,14 @@ export function ExpertLinkPage() {
             보안을 위해 만료형 링크로만 전달됩니다. 담당자에게 재발급을 요청해주세요.
           </p>
         </div>
+      </div>
+    );
+  }
+
+  if (!pkg) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-canvas p-5">
+        <p className="text-body2 text-muted">링크를 찾을 수 없습니다.</p>
       </div>
     );
   }

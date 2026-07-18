@@ -1,8 +1,14 @@
-"""행정사 패키지 무인증 열람 링크 — POST(발급/재발급, 인증)·GET(열람, 무인증) /api/v1/packages/{case_id}/link (R2.6).
+"""행정사 패키지 무인증 열람 링크 — POST(발급/재발급, 인증) /api/v1/packages/{case_id}/link ·
+GET(열람, 무인증) /api/v1/packages/link/{link_token} (R2.6).
 
 GET은 로그인 없이 접근하는 유일한 엔드포인트다(ExpertLinkPage와 동일한 무인증 전제) — 이
 파일의 `view_link`만 `get_current_membership`을 거치지 않는다. 나머지 화면(패키지 문서
 콘텐츠)은 여전히 프론트 mock(mocks/packages.ts)이 렌더한다 — 여기서는 링크 유효성만 다룬다.
+
+코드리뷰 지적(PR #20 P1): GET을 case_id로 조회하던 이전 버전은 case_id(PK, 불변)를
+비밀값으로 취급해 재발급으로도 유출된 링크를 회수할 수 없었다 — 이제 회전하는
+link_token으로만 조회한다(services/packages.py view_package_link 참조). URL 경로 모양이
+서로 다르므로(POST는 {case_id}/link, GET은 link/{token}) 라우팅 충돌은 없다.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ from app.domain.package_exceptions import (
     PackageError,
     PackageForbiddenError,
     PackageLinkNotFoundError,
+    PackageNotApprovedError,
 )
 from app.models.handoff import HandoffPackage
 from app.models.membership import Membership
@@ -28,13 +35,16 @@ router = APIRouter(prefix="/api/v1/packages", tags=["packages"])
 _ERROR_STATUS: dict[type[PackageError], int] = {
     PackageForbiddenError: status.HTTP_403_FORBIDDEN,
     PackageCaseNotFoundError: status.HTTP_404_NOT_FOUND,
+    PackageNotApprovedError: status.HTTP_403_FORBIDDEN,
     PackageLinkNotFoundError: status.HTTP_404_NOT_FOUND,
 }
 
 
 def _to_status(pkg: HandoffPackage) -> PackageLinkStatus:
-    assert pkg.link_issued_at is not None and pkg.link_expires_at is not None
-    return PackageLinkStatus(case_id=pkg.case_id, issued_at=pkg.link_issued_at, expires_at=pkg.link_expires_at)
+    assert pkg.link_token is not None and pkg.link_issued_at is not None and pkg.link_expires_at is not None
+    return PackageLinkStatus(
+        case_id=pkg.case_id, link_token=pkg.link_token, issued_at=pkg.link_issued_at, expires_at=pkg.link_expires_at
+    )
 
 
 @router.post("/{case_id}/link", response_model=PackageLinkStatus, status_code=status.HTTP_201_CREATED)
@@ -50,10 +60,10 @@ def issue_link(
     return _to_status(pkg)
 
 
-@router.get("/{case_id}/link", response_model=PackageLinkStatus)
-def view_link(case_id: str, db: Session = Depends(get_db)) -> PackageLinkStatus:
+@router.get("/link/{link_token}", response_model=PackageLinkStatus)
+def view_link(link_token: str, db: Session = Depends(get_db)) -> PackageLinkStatus:
     try:
-        pkg = view_package_link(db, case_id)
+        pkg = view_package_link(db, link_token)
     except PackageError as exc:
         raise HTTPException(_ERROR_STATUS.get(type(exc), status.HTTP_400_BAD_REQUEST), str(exc)) from exc
     return _to_status(pkg)

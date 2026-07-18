@@ -1,8 +1,8 @@
-"""R2.5 evidence type CHECK 정합 + R2.6 handoff_packages 링크 만료 컬럼
+"""R2.5 evidence type CHECK 정합 + R2.6 handoff_packages 링크 만료·토큰 컬럼
 
 0001은 동결 스냅샷(모듈 docstring 참조)이라 더 이상 손대지 않는다 — 이 리비전이
 db/schema.sql의 그 이후 변경분(§4.5 evidence_events.type CHECK 확장, §4.8
-handoff_packages.link_issued_at/link_expires_at 추가)을 ALTER로 표현한다.
+handoff_packages.link_token/link_issued_at/link_expires_at 추가)을 ALTER로 표현한다.
 
 Revision ID: 0002
 Revises: 0001
@@ -54,10 +54,12 @@ def upgrade() -> None:
         ALTER TABLE evidence_events ADD CONSTRAINT evidence_events_type_check
           CHECK (type IN {_NEW_TYPE_CHECK});
 
+        ALTER TABLE handoff_packages ADD COLUMN link_token text;
         ALTER TABLE handoff_packages ADD COLUMN link_issued_at timestamptz;
         ALTER TABLE handoff_packages ADD COLUMN link_expires_at timestamptz;
+        ALTER TABLE handoff_packages ADD CONSTRAINT handoff_packages_link_token_key UNIQUE (link_token);
         ALTER TABLE handoff_packages ADD CONSTRAINT handoff_packages_link_check
-          CHECK (link_expires_at IS NULL OR link_issued_at IS NOT NULL);
+          CHECK (link_expires_at IS NULL OR (link_issued_at IS NOT NULL AND link_token IS NOT NULL));
         """
     )
 
@@ -67,8 +69,10 @@ def downgrade() -> None:
     bind.exec_driver_sql(
         f"""
         ALTER TABLE handoff_packages DROP CONSTRAINT handoff_packages_link_check;
+        ALTER TABLE handoff_packages DROP CONSTRAINT handoff_packages_link_token_key;
         ALTER TABLE handoff_packages DROP COLUMN link_expires_at;
         ALTER TABLE handoff_packages DROP COLUMN link_issued_at;
+        ALTER TABLE handoff_packages DROP COLUMN link_token;
 
         ALTER TABLE evidence_events DROP CONSTRAINT evidence_events_type_check;
         ALTER TABLE evidence_events ADD CONSTRAINT evidence_events_type_check

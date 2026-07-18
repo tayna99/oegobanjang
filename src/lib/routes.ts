@@ -18,7 +18,10 @@ export const ROUTES = {
   evidence: (ref?: string) =>
     ref ? `/evidence?ref=${encodeURIComponent(ref)}` : '/evidence',
   package: (packageId: string) => `/package/${packageId}`,
-  packageLink: (packageId: string) => `/link/${packageId}`, // 행정사 무인증 링크(운영급 RBAC 확장)
+  // 행정사 무인증 링크(운영급 RBAC 확장). 코드리뷰 지적(PR #20 P1) — real 모드에서는
+  // case_id가 아니라 회전하는 link_token이 실제 값이다(mock 모드는 여전히 mocks/packages.ts의
+  // packageId를 그대로 쓴다 — 백엔드를 안 거치므로 회전 개념 자체가 없다).
+  packageLink: (linkToken: string) => `/link/${linkToken}`,
   expertDashboard: (expertId: string) => `/expert/${expertId}`, // 행정사 화이트라벨 대시보드(7-1)
   expertPackage: (expertId: string, packageId: string) => `/expert/${expertId}/package/${packageId}`,
   done: '/done',
@@ -48,7 +51,7 @@ export const ROUTE_PATHS = {
   settingsMembers: 'settings/members',
   settingsDelegation: 'settings/delegation',
   // Shell 트리 바깥의 최상위 형제 라우트라 절대 경로(무인증 행정사 링크, 7단계 §4).
-  packageLinkAbsolute: '/link/:packageId',
+  packageLinkAbsolute: '/link/:linkToken',
   // 온보딩도 Shell(로그인 앱 챙) 없이 진행하는 전체 화면 플로우라 형제 라우트로 둔다(4.1).
   onboardingAbsolute: '/onboarding',
   // 행정사 화이트라벨(7-1) — 계정 없이 브랜드 화면으로 접근하는 Shell 바깥 형제 라우트.

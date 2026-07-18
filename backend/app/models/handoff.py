@@ -25,7 +25,10 @@ class HandoffPackage(Base):
     included_items: Mapped[dict | list | None] = mapped_column(JSONB)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="draft")
     approval_id: Mapped[str | None] = mapped_column(Text)
-    # R2.6 — 무인증 열람 링크(`/link/:packageId`) 발급/만료 시각. 둘 다 NULL=링크 미발급.
+    # R2.6 — 무인증 열람 링크(`/link/:linkToken`) 발급/만료 시각 + 회전 토큰. 셋 다
+    # NULL=링크 미발급. link_token은 발급/재발급마다 새로 생성한다(PR #20 P1 리뷰 —
+    # case_id는 PK라 불변이라 비밀로 쓸 수 없다).
+    link_token: Mapped[str | None] = mapped_column(Text)
     link_issued_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     link_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

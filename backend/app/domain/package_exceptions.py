@@ -18,6 +18,15 @@ class PackageCaseNotFoundError(PackageError):
         self.case_id = case_id
 
 
+class PackageNotApprovedError(PackageError):
+    """코드리뷰 지적(PR #20 P1): 승인된 create_handoff 없이는 외부 열람 링크를 발급할 수
+    없다(AGENTS.md §8 "행정사/노무사에게 패키지 전달"은 승인 필요 작업)."""
+
+    def __init__(self, case_id: str) -> None:
+        super().__init__(f"이 케이스는 아직 행정사 전달 승인이 완료되지 않았습니다: {case_id}")
+        self.case_id = case_id
+
+
 class PackageLinkNotFoundError(PackageError):
     """링크 미발급·만료·대상 없음을 모두 같은 404로 취급한다(존재 비노출 원칙, 7단계 §1)."""
 

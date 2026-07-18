@@ -1,7 +1,11 @@
-"""POST/GET /api/v1/packages/{case_id}/link — 행정사 패키지 무인증 열람 링크. R2.6, docs/DB_SCHEMA.md §4.8.
+"""POST /api/v1/packages/{case_id}/link(발급/재발급) · GET /api/v1/packages/link/{link_token}
+(열람) — 행정사 패키지 무인증 열람 링크. R2.6, docs/DB_SCHEMA.md §4.8.
 
-POST(발급/재발급)는 manager/owner 인증 필요, GET(열람)은 무인증 — ExpertLinkPage와 동일한
-신뢰 모델(case_id 자체가 비밀 링크). 만료·미발급·대상 없음은 모두 같은 404(존재 비노출).
+POST는 manager/owner 인증 + 케이스의 create_handoff 승인 완료가 필요(코드리뷰 지적, PR #20
+P1 — AGENTS.md §8 "행정사/노무사에게 패키지 전달"은 승인 필요 작업). GET은 무인증이지만
+회전하는 link_token으로만 조회한다(코드리뷰 지적, PR #20 P1 — case_id는 불변이라 비밀로
+쓰면 재발급으로 기존 유출 링크를 회수할 수 없다). 만료·미발급·대상 없음은 모두 같은
+404(존재 비노출).
 """
 
 from __future__ import annotations
@@ -26,10 +30,20 @@ def _seed_base(db):
           ('m_manager','cmp1','u_manager','manager','active'),
           ('m_viewer','cmp1','u_viewer','viewer','active');
         INSERT INTO workers (id, company_id, display_name, nationality, stay_expires_at) VALUES
-          ('w1','cmp1','Batbayar E.','몽골','2026-07-04');
+          ('w1','cmp1','Batbayar E.','몽골','2026-07-04'),
+          ('w2','cmp1','Le Van T.','베트남','2026-08-01');
         INSERT INTO cases (id, company_id, case_code, worker_id, case_type, title, severity, state, due_date) VALUES
-          ('cs1','cmp1','case_001','w1','visa_expiry','케이스1','CRITICAL','blocked','2026-07-04');
+          ('cs1','cmp1','case_001','w1','visa_expiry','케이스1','CRITICAL','blocked','2026-07-04'),
+          ('cs2','cmp1','case_002','w2','visa_expiry','케이스2','HIGH','risk_review','2026-08-01');
+        INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval, slot) VALUES
+          ('act_cs1_handoff','cmp1','cs1','approve','create_handoff','행정사 검토 자료 만들기','ready',true,'primary'),
+          ('act_cs2_handoff','cmp1','cs2','approve','create_handoff','행정사 검토 자료 만들기','ready',true,'primary');
+        INSERT INTO approvals (id, company_id, case_id, action_id, status, requested_by_actor, requested_at) VALUES
+          ('apv_cs1_handoff','cmp1','cs1','act_cs1_handoff','pending','user', now());
+        UPDATE approvals SET status='approved', decided_by_user_id='u_owner', identity_method='pin', decided_at=now()
+          WHERE id='apv_cs1_handoff';
     """))
+    # cs2는 의도적으로 승인이 없다(요청조차 없음) — 승인 전 링크 발급 차단 테스트용.
     db.flush()
 
 
@@ -63,11 +77,12 @@ def _auth_headers(client: TestClient, user: str = "u_manager") -> dict:
     return {"Authorization": f"Bearer {_login(client, PHONE_BY_USER[user])}"}
 
 
-def test_manager_can_issue_link(client, seeded):
+def test_manager_can_issue_link_for_approved_case(client, seeded):
     resp = client.post("/api/v1/packages/cs1/link", headers=_auth_headers(client, "u_manager"))
     assert resp.status_code == 201, resp.text
     data = resp.json()
     assert data["case_id"] == "cs1"
+    assert data["link_token"]
     assert data["issued_at"] < data["expires_at"]
 
     evt = seeded.execute(
@@ -80,7 +95,7 @@ def test_manager_can_issue_link(client, seeded):
     assert pkg_count == 1
 
 
-def test_owner_can_issue_link(client):
+def test_owner_can_issue_link_for_approved_case(client):
     resp = client.post("/api/v1/packages/cs1/link", headers=_auth_headers(client, "u_owner"))
     assert resp.status_code == 201, resp.text
 
@@ -100,6 +115,30 @@ def test_issue_for_nonexistent_case_is_not_found(client):
     assert resp.status_code == 404, resp.text
 
 
+# 코드리뷰 지적(PR #20 P1): 승인 없이는(요청조차 없어도) 절대 링크가 발급돼선 안 된다
+# (AGENTS.md §8 "행정사/노무사에게 패키지 전달"은 승인 필요 작업).
+def test_issue_without_approved_handoff_is_forbidden(client, seeded):
+    resp = client.post("/api/v1/packages/cs2/link", headers=_auth_headers(client, "u_manager"))
+    assert resp.status_code == 403, resp.text
+
+    pkg_count = seeded.execute(text("SELECT count(*) FROM handoff_packages WHERE case_id='cs2'")).scalar_one()
+    assert pkg_count == 0
+
+
+def test_issue_with_pending_approval_is_still_forbidden(client, seeded):
+    # 승인 "요청"만 있고 아직 결정(approved)되지 않은 경우도 마찬가지로 막혀야 한다.
+    seeded.execute(
+        text(
+            "INSERT INTO approvals (id, company_id, case_id, action_id, status, requested_by_actor, requested_at) "
+            "VALUES ('apv_cs2_pending','cmp1','cs2','act_cs2_handoff','pending','user', now())"
+        )
+    )
+    seeded.flush()
+
+    resp = client.post("/api/v1/packages/cs2/link", headers=_auth_headers(client, "u_manager"))
+    assert resp.status_code == 403, resp.text
+
+
 def test_reissue_updates_same_row_not_a_duplicate(client, seeded):
     headers = _auth_headers(client)
     first = client.post("/api/v1/packages/cs1/link", headers=headers)
@@ -116,10 +155,29 @@ def test_reissue_updates_same_row_not_a_duplicate(client, seeded):
     assert reissue_events == 2
 
 
-def test_view_valid_link_returns_200_without_auth_and_logs_evidence(client, seeded):
-    client.post("/api/v1/packages/cs1/link", headers=_auth_headers(client))
+# 코드리뷰 지적(PR #20 P1) 핵심 회귀 테스트: 재발급은 case_id가 아니라 link_token을
+# 회전시켜야 한다 — 그렇지 않으면 이전에 유출된 링크를 회수할 방법이 없다.
+def test_reissue_rotates_link_token_and_invalidates_the_old_one(client, seeded):
+    headers = _auth_headers(client)
+    first = client.post("/api/v1/packages/cs1/link", headers=headers).json()
+    old_token = first["link_token"]
 
-    resp = client.get("/api/v1/packages/cs1/link")
+    # 재발급 전: 옛 토큰으로 열람 가능.
+    assert client.get(f"/api/v1/packages/link/{old_token}").status_code == 200
+
+    second = client.post("/api/v1/packages/cs1/link", headers=headers).json()
+    new_token = second["link_token"]
+
+    assert new_token != old_token
+    # 재발급 후: 옛 토큰은 더 이상 통하지 않는다(회수 완료) — 새 토큰만 유효.
+    assert client.get(f"/api/v1/packages/link/{old_token}").status_code == 404
+    assert client.get(f"/api/v1/packages/link/{new_token}").status_code == 200
+
+
+def test_view_valid_link_returns_200_without_auth_and_logs_evidence(client, seeded):
+    issued = client.post("/api/v1/packages/cs1/link", headers=_auth_headers(client)).json()
+
+    resp = client.get(f"/api/v1/packages/link/{issued['link_token']}")
     assert resp.status_code == 200, resp.text
     assert resp.json()["case_id"] == "cs1"
 
@@ -130,21 +188,21 @@ def test_view_valid_link_returns_200_without_auth_and_logs_evidence(client, seed
 
 
 def test_view_before_issue_returns_404(client):
-    resp = client.get("/api/v1/packages/cs1/link")
+    resp = client.get("/api/v1/packages/link/never-issued")
     assert resp.status_code == 404, resp.text
 
 
-def test_view_nonexistent_case_returns_404(client):
-    resp = client.get("/api/v1/packages/no-such-case/link")
+def test_view_unknown_token_returns_404(client):
+    resp = client.get("/api/v1/packages/link/no-such-token")
     assert resp.status_code == 404, resp.text
 
 
 def test_view_expired_link_returns_404(client, seeded):
-    client.post("/api/v1/packages/cs1/link", headers=_auth_headers(client))
+    issued = client.post("/api/v1/packages/cs1/link", headers=_auth_headers(client)).json()
     seeded.execute(text("UPDATE handoff_packages SET link_expires_at = now() - interval '1 day' WHERE case_id='cs1'"))
     seeded.flush()
 
-    resp = client.get("/api/v1/packages/cs1/link")
+    resp = client.get(f"/api/v1/packages/link/{issued['link_token']}")
     assert resp.status_code == 404, resp.text
 
 
