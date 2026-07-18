@@ -35,8 +35,8 @@
 
 - 실행 가능한 설계 정본은 `db/schema.sql`(PostgreSQL DDL)이고, 이 문서의 타입은 논리 타입이다. DDL이 물리 정본이다.
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
-- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 178항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(178)를 다시 통과시킨다.
-- **backend 범위:** 루트 `backend/`가 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다(`tests/test_ddl_parity.py`가 보증). 인증(OTP·세션)·승인 결정(approve/reject) endpoint는 이미 구현돼 있다 — 단, 승인 "요청" 생성 이후 흐름 중 delegation 유효성 검증은 아직 미결(§13-10). 케이스/브리핑/스레드 등 나머지 read API와 프론트 배선은 `plans/ROADMAP.md` R2 범위다.
+- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 181항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(181)를 다시 통과시킨다.
+- **backend 범위:** 루트 `backend/`가 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다(`tests/test_ddl_parity.py`가 보증). 인증(OTP·세션)·승인 결정(approve/reject, PIN 서버 검증·위임 유효성 검증 포함)·판단 기록·행정사 패키지 링크 endpoint는 이미 구현돼 있다(§13-10 참조). 케이스/브리핑/스레드 등 read API·프론트 배선은 `plans/ROADMAP.md` R2 범위다.
 
 ## 2. 공통 규약
 
@@ -894,5 +894,11 @@ P1 안에서도 프론트가 아직 안 읽는 컬럼(checklist 등)은 nullable
 7. **근로자 0명 계정 알림 mute — 결정: 실제 delivery 마일스톤으로 이연.** 현재 `notifications`는 전송 의도 큐일 뿐 외부 발송 상태·adapter가 없다. mute 정책은 delivery-outbox를 도입할 때 재검토한다.
 8. **표시 번호 시작값 — 결정: 신규 테넌트는 #0001부터.** `companies.case_seq`/`evidence_seq`의 DDL 기본값은 `0`이며, 새 테넌트는 `case_001`/`#0001`부터 발급된다. 데모 세계관(#4783~#4797)은 `db/seed_demo.sql`에서 시드로만 주입하고, 실제 회사 레코드의 카운터도 그 최고값 이상으로 맞춰 다음 발급과 충돌하지 않게 한다.
 9. **manager 승인 조건의 '위험도' 근사 — 결정: MVP는 `case.severity='LOW'`로 근사(정식 액션 위험도 모델 이연).** 7단계 권한 매트릭스는 manager가 '저위험' 승인만 가능하다고 규정하나, '저위험'의 정본은 액션 단위 위험도다. MVP 백엔드(`app/services/approvals.py`)는 이를 케이스 `severity='LOW'` + `companies.approval_policy='manager_allowed'`로 근사한다. 실제 액션 위험도 컬럼/모델은 파일럿에서 필요가 확인되면 도입한다 — 근사가 과승인을 만들지 않는다(LOW가 아닌 케이스는 owner 전용으로 남으므로 보수적).
-10. **대리 승인(`on_behalf_of_user_id`) 위임 유효성 — 결정: MVP는 '활성 멤버'까지만 검증, 위임 관계는 이연.** 현재 트리거·서비스는 대리인이 같은 회사의 active 멤버인지까지만 확인한다. 실제 위임 관계(위임자→대리인·유효 기간·범위)의 유효성 검증은 `delegations` 테이블(§4.1, P3)이 화면·엔드포인트와 함께 배선되는 시점으로 미룬다. 그때까지 대리 승인은 감사 기록(`actor_display='… (대리 승인)'`)만 남기고 관계 검증은 하지 않는다.
+10. **대리 승인(`on_behalf_of_user_id`) 위임 유효성 — R2.4(2026-07-18)에서 구현 완료.** 트리거
+    `trg_approvals_decider_role`이 기존 owner/manager_allowed 조건에 OR-arm을 추가해, `delegations`
+    행(delegator=on_behalf_of_user_id·delegate=decided_by_user_id·scope='approval'·미철회·결정
+    시각이 유효기간 내·delegator가 활성 owner)이 실제로 존재할 때만 대리 결정을 허용한다.
+    서비스 계층(`app/services/approvals.py::_validate_delegation`)이 같은 조건을 먼저 검사해
+    트리거의 500을 403(`ApprovalDelegationInvalidError`)으로 선변환한다. 위임 관리 화면(발급/철회
+    UI)은 여전히 범위 밖(P3) — 이번 구현은 검증만이며, 위임 레코드 자체는 여전히 시드/직접 INSERT로만 생긴다.
 11. **OTP·세션 TTL, 재시도 한도 — 결정(엔지니어링 재량, 파일럿 피드백으로 조정 가능).** `login_otps` 코드 유효기간 5분·최대 검증 시도 5회(초과 시 재발급 필요), `sessions` 유효기간 30일. 값은 스키마가 아니라 서비스 상수로 관리한다(컬럼 제약이 아님 — TTL은 `expires_at` 계산 입력일 뿐). OTP 발송은 이 시점에 실제 SMS 연동이 없으므로 `notifications`와 동일하게 mock(§13-7 선례)이며, `login_otps.phone`은 발급 시점에 계정 존재 여부를 노출하지 않는다(계정 유무와 무관하게 항상 발급 성공).

@@ -47,6 +47,21 @@ class ApprovalIdentityRequiredError(ApprovalError):
         super().__init__("승인 본인확인(PIN 또는 생체인증)이 필요합니다")
 
 
+class ApprovalPinInvalidError(ApprovalError):
+    """PIN 미등록(users.pin_hash NULL) 또는 제출값 불일치(R2.4, 7단계 §4)."""
+
+    def __init__(self, reason: str = "PIN이 일치하지 않습니다") -> None:
+        super().__init__(reason)
+
+
+class ApprovalDelegationInvalidError(ApprovalError):
+    """on_behalf_of_user_id가 있는데 유효한 위임(delegations)이 없음 — DB 트리거의 최종 방어선
+    앞에서 서비스 계층이 먼저 403으로 변환한다(§13-10, R2.4)."""
+
+    def __init__(self) -> None:
+        super().__init__("유효한 위임이 없어 대리 승인할 수 없습니다")
+
+
 class ApprovalReasonRequiredError(ApprovalError):
     def __init__(self) -> None:
         super().__init__("반려 시 사유가 필요합니다")

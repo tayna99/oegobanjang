@@ -5,7 +5,7 @@ Run:  DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegoban
 Env:  DATABASE_URL (default: local Docker PG on :55432)
 
 db/schema.sql(정본) + db/seed_demo.sql을 대상 스키마에 로드한 뒤, 테넌트 격리·승인
-상태머신·외부 실행 차단 등 178개 회귀를 검증한다. 이 파일은 db/validate.cjs(SQLite)의
+상태머신·외부 실행 차단 등 181개 회귀를 검증한다. 이 파일은 db/validate.cjs(SQLite)의
 PG 이식본이다 — 검증 이름·시맨틱은 1:1로 보존하고, SQLite 전용(PRAGMA·sqlite_master·
 boolean 0/1)만 PG로 옮겼다.
 
@@ -478,6 +478,32 @@ run("INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label
 run("INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_manager_owner_only','cmp_other','cs_other','act_other_owner_only','pending','idem-manager-owner-only','rule','2026-07-10T00:00:00Z')")
 expect_throw("approval decider must satisfy the owner-only policy",
   "UPDATE approvals SET status='approved', decided_by_user_id='usr_other_manager', identity_method='pin', decided_at='2026-07-10T00:05:00Z' WHERE id='apv_manager_owner_only'", "not allowed by company policy")
+
+# R2.4 — delegated decider (del_other_valid: usr_other(owner) -> usr_other_manager, scope='approval',
+# 2026-07-10T00:00:00Z ~ 2026-07-11T00:00:00Z). owner_only 정책 하에서도 유효한 위임 + on_behalf_of_user_id면 허용된다.
+# 전용 케이스(cs_other_delegated)를 쓴다 — cs_other를 재사용하면 이 블록에서 승인된 액션이
+# 뒤쪽 "case cannot become human-approved while approval is pending" 검증(같은 cs_other 대상)을
+# 오염시킨다.
+run("INSERT INTO cases (id, company_id, case_code, worker_id, case_type, title, severity, state) VALUES ('cs_other_delegated','cmp_other','case_005','wrk_other','other','Delegated case','LOW','draft')")
+run("INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval) VALUES ('act_other_delegated','cmp_other','cs_other_delegated','approve','confirm_status','Delegated Approve','ready',true)")
+run("INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_manager_delegated','cmp_other','cs_other_delegated','act_other_delegated','pending','idem-manager-delegated','rule','2026-07-10T00:00:00Z')")
+run("UPDATE approvals SET status='approved', decided_by_user_id='usr_other_manager', on_behalf_of_user_id='usr_other', identity_method='pin', decided_at='2026-07-10T12:00:00Z' WHERE id='apv_manager_delegated'")
+ok("delegated manager can approve on behalf of the owner under owner-only policy",
+  scalar("SELECT status FROM approvals WHERE id='apv_manager_delegated'")["status"] == "approved")
+
+run("INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval) VALUES ('act_other_delegated_expired','cmp_other','cs_other_delegated','approve','confirm_status','Delegated Approve Expired','ready',true)")
+run("INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_manager_delegated_expired','cmp_other','cs_other_delegated','act_other_delegated_expired','pending','idem-manager-delegated-expired','rule','2026-07-10T00:00:00Z')")
+expect_throw("delegated decider is rejected once the delegation window has expired",
+  "UPDATE approvals SET status='approved', decided_by_user_id='usr_other_manager', on_behalf_of_user_id='usr_other', identity_method='pin', decided_at='2026-07-12T00:00:00Z' WHERE id='apv_manager_delegated_expired'",
+  "not allowed by company policy")
+
+run("UPDATE delegations SET revoked_at='2026-07-10T13:00:00Z' WHERE id='del_other_valid'")
+run("INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval) VALUES ('act_other_delegated_revoked','cmp_other','cs_other_delegated','approve','confirm_status','Delegated Approve Revoked','ready',true)")
+run("INSERT INTO approvals (id, company_id, case_id, action_id, status, idempotency_key, requested_by_actor, requested_at) VALUES ('apv_manager_delegated_revoked','cmp_other','cs_other_delegated','act_other_delegated_revoked','pending','idem-manager-delegated-revoked','rule','2026-07-10T00:00:00Z')")
+expect_throw("delegated decider is rejected once the delegation is revoked",
+  "UPDATE approvals SET status='approved', decided_by_user_id='usr_other_manager', on_behalf_of_user_id='usr_other', identity_method='pin', decided_at='2026-07-10T14:00:00Z' WHERE id='apv_manager_delegated_revoked'",
+  "not allowed by company policy")
+
 run("UPDATE companies SET approval_policy='manager_allowed' WHERE id='cmp_other'")
 run("INSERT INTO cases (id, company_id, case_code, worker_id, case_type, title, severity, state) VALUES ('cs_other_medium','cmp_other','case_004','wrk_other','other','Medium case','MEDIUM','draft')")
 run("INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval) VALUES ('act_other_medium','cmp_other','cs_other_medium','approve','send_message','Approve','ready',true)")

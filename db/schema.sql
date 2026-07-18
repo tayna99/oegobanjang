@@ -915,7 +915,8 @@ CREATE TRIGGER approvals_members_active
   BEFORE INSERT OR UPDATE OF company_id, requested_by_user_id, decided_by_user_id, on_behalf_of_user_id ON approvals
   FOR EACH ROW EXECUTE FUNCTION trg_approvals_members_active();
 
--- 승인 결정자 role 정책: owner, 또는 (manager_allowed 회사 + manager + 케이스 severity LOW)
+-- 승인 결정자 role 정책: owner, 또는 (manager_allowed 회사 + manager + 케이스 severity LOW),
+-- 또는 owner의 유효한 위임(delegations, R2.4)을 받은 대리 결정자.
 CREATE FUNCTION trg_approvals_decider_role() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW.decided_by_user_id IS NOT NULL AND NOT EXISTS (
@@ -930,6 +931,20 @@ BEGIN
         m.role = 'owner'
         OR (c.approval_policy = 'manager_allowed' AND m.role = 'manager' AND cs.severity = 'LOW')
       )
+  ) AND NOT (
+    NEW.on_behalf_of_user_id IS NOT NULL
+    AND EXISTS (
+      SELECT 1 FROM delegations d
+      JOIN memberships md ON md.company_id = d.company_id AND md.user_id = d.delegator_user_id
+      WHERE d.company_id = NEW.company_id
+        AND d.delegator_user_id = NEW.on_behalf_of_user_id
+        AND d.delegate_user_id = NEW.decided_by_user_id
+        AND d.scope = 'approval'
+        AND d.revoked_at IS NULL
+        AND d.starts_at <= COALESCE(NEW.decided_at, now())
+        AND COALESCE(NEW.decided_at, now()) < d.ends_at
+        AND md.status = 'active' AND md.role = 'owner'
+    )
   ) THEN
     RAISE EXCEPTION 'approval decider is not allowed by company policy';
   END IF;
@@ -937,7 +952,7 @@ BEGIN
 END;
 $$;
 CREATE TRIGGER approvals_decider_role
-  BEFORE INSERT OR UPDATE OF company_id, case_id, decided_by_user_id ON approvals
+  BEFORE INSERT OR UPDATE OF company_id, case_id, decided_by_user_id, on_behalf_of_user_id ON approvals
   FOR EACH ROW EXECUTE FUNCTION trg_approvals_decider_role();
 
 -- evidence actor(사람)는 활성 멤버여야 한다(append-only이라 INSERT만)
