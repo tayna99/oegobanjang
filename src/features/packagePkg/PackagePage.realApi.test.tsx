@@ -33,16 +33,23 @@ describe('PackagePage — 링크 재발급 real 모드(R2.6)', () => {
   });
 
   it('링크 재발급 클릭 시 POST /api/v1/packages/{실제 case_id}/link를 호출한다(mock id가 아니다)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          case_id: 'cs_batbayar',
-          link_token: 'tok_new',
-          issued_at: '2026-07-17T09:00:00Z',
-          expires_at: '2026-07-24T09:00:00Z',
-        }),
-        { status: 201 },
-      ),
+    // 코드리뷰 회귀 진단: mockResolvedValue로 Response 인스턴스 하나를 재사용하면, 이
+    // 화면이 마운트 시 useSeedEvidence()로 이미 한 번 쏘는 백그라운드 fetch(GET
+    // /api/v1/evidence)가 그 Response의 body 스트림을 먼저 소비해버려, 버튼 클릭이 만드는
+    // 두 번째 apiFetch(.json() 재호출)가 "body already read"로 실패한다(그 결과 onReissue의
+    // catch가 이를 삼켜 evidence가 영원히 안 남는 것처럼 보였다) — 호출마다 새 Response를
+    // 만들어야 한다.
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Response(
+          JSON.stringify({
+            case_id: 'cs_batbayar',
+            link_token: 'tok_new',
+            issued_at: '2026-07-17T09:00:00Z',
+            expires_at: '2026-07-24T09:00:00Z',
+          }),
+          { status: 201 },
+        ),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
 
@@ -57,7 +64,11 @@ describe('PackagePage — 링크 재발급 real 모드(R2.6)', () => {
         expect.objectContaining({ method: 'POST' }),
       ),
     );
-    // 로컬 UI(열람 이력·만료 안내 재계산용 evidence)는 두 모드 공통으로 즉시 반영된다.
-    expect(useEvidenceStore.getState().events.some((e) => e.type === 'package_link_issued')).toBe(true);
+    // 코드리뷰 회귀(PR #20 P1): onReissue가 이제 await 기반이라(성공했을 때만 evidence를
+    // 남기도록 교정) evidence append가 fetch 호출보다 한 틱 늦게 일어난다 — 즉시 동기
+    // 단언이 아니라 waitFor로 확인해야 한다(그렇지 않으면 레이스로 간헐적 실패).
+    await waitFor(() =>
+      expect(useEvidenceStore.getState().events.some((e) => e.type === 'package_link_issued')).toBe(true),
+    );
   });
 });
