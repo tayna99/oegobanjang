@@ -558,12 +558,13 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | included_items | json | | 포함 항목 토글 상태(2.4 화면) |
 | **status** | text | CHECK(`draft,pending_approval,approved,rejected,exported`) | 내보내기도 승인 게이트 통과 후에만 |
 | approval_id | uuid | `(company_id,case_id,approval_id)` →approvals | create_handoff action 승인과 같은 회사·케이스여야 함 |
-| link_issued_at | timestamptz | | R2.6 — 무인증 열람 링크(`/link/:packageId`) 최초/최근 발급 시각. NULL=링크 없음 |
-| link_expires_at | timestamptz | CHECK(`NOT NULL ⇒ link_issued_at NOT NULL`) | 발급 시각 + 7일(§4 "만료형(기본 7일)"). GET이 이 값을 기준으로 서버에서 404 판정 |
+| link_token | text | UNIQUE | R2.6(코드리뷰 P1 수정) — 무인증 열람 링크(`/link/:linkToken`)의 실제 비밀값. 발급/재발급마다 회전한다(`case_id`는 PK라 불변이라 비밀로 못 씀). NULL=링크 없음 |
+| link_issued_at | timestamptz | | R2.6 — 무인증 열람 링크 최초/최근 발급 시각. NULL=링크 없음 |
+| link_expires_at | timestamptz | CHECK(`NOT NULL ⇒ link_issued_at NOT NULL AND link_token NOT NULL`) | 발급 시각 + 7일(§4 "만료형(기본 7일)"). GET이 이 값을 기준으로 서버에서 404 판정 |
 | **created_at / updated_at** | timestamptz | | |
 
 - package는 `draft` 또는 같은 회사·케이스의 pending `create_handoff` approval에 연결된 `pending_approval`으로만 생성한다. approved/rejected는 approval 결정 trigger가 동기화하고, `exported`는 승인된 package의 내부 PDF 산출물이 실제로 생성될 때만 기록된다. 연결 뒤에는 `approval_id`를 제거·교체하거나 pending/terminal package를 `draft`로 되돌릴 수 없다.
-- **R2.6 — 링크 발급/재발급**: `POST /api/v1/packages/{case_id}/link`(manager/owner 인증)가 그 케이스의 최신 handoff_package를 찾아(없으면 최소 레코드로 생성) `link_issued_at=now()`·`link_expires_at=now()+7일`로 갱신하고 evidence(`package_link_issued`)를 남긴다. `GET /api/v1/packages/{case_id}/link`(무인증)는 `link_expires_at`이 없거나 지났으면 404(존재 비노출 원칙 — 케이스 없음과 동일하게 취급), 유효하면 열람 evidence(`package_link_viewed`)를 남긴다. 패키지 문서 콘텐츠 자체(검토 요청서 본문·항목 토글)는 이번 범위에 없다 — 프론트가 기존 mock 콘텐츠를 그대로 렌더하고, 서버는 "링크가 살아있는가"만 검증한다.
+- **R2.6 — 링크 발급/재발급**: `POST /api/v1/packages/{case_id}/link`(manager/owner 인증)는 먼저 그 케이스에 승인된(`status='approved'`) `create_handoff` approval이 있는지 확인하고(코드리뷰 지적 — AGENTS.md §8 "행정사/노무사에게 패키지 전달"은 승인 필요 작업, 없으면 403), 있으면 최신 handoff_package를 찾아(없으면 최소 레코드로 생성) `link_token`을 새로 회전시키고 `link_issued_at=now()`·`link_expires_at=now()+7일`로 갱신, evidence(`package_link_issued`)를 남긴다. `GET /api/v1/packages/link/{link_token}`(무인증, 코드리뷰 지적으로 `case_id` 경로에서 이관 — `case_id`는 불변이라 비밀로 못 씀)는 `link_expires_at`이 없거나 지났으면 404(존재 비노출 원칙 — 케이스 없음과 동일하게 취급), 유효하면 열람 evidence(`package_link_viewed`)를 남긴다. 패키지 문서 콘텐츠 자체(검토 요청서 본문·항목 토글)는 이번 범위에 없다 — 프론트가 기존 mock 콘텐츠를 그대로 렌더하고, 서버는 "링크가 살아있는가"만 검증한다.
 
 #### package_exports — 내보내기 산출물 (evidence `exported`와 쌍)
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -775,12 +776,15 @@ CREATE TRIGGER evidence_events_no_delete BEFORE DELETE ON evidence_events
 
 **계층 규칙:** 운영 조회·LLM 입력·evidence에는 `worker_id`/마스킹 표시명만. `masked_payload`(패키지)는 allowlist 직렬화만 허용 — denylist가 아니라 **allowlist**(레거시 Decision 005).
 
-**접근:** viewer는 M8 열람 가능(마스킹 차등은 미결 §13). R2.6부터 `/link/:packageId`(무인증 열람)에
-서버측 경로가 있다 — `GET /api/v1/packages/{case_id}/link`가 유효한 링크만 200을 반환하고, 없거나
+**접근:** viewer는 M8 열람 가능(마스킹 차등은 미결 §13). R2.6부터 `/link/:linkToken`(무인증 열람)에
+서버측 경로가 있다 — `GET /api/v1/packages/link/{link_token}`이 유효한 링크만 200을 반환하고, 없거나
 만료됐으면 케이스 존재 여부를 노출하지 않고 동일하게 404를 반환한다(7단계 §1 "scope 밖은 404"
-원칙). 다만 이 경로는 "링크가 살아있는가"만 서버가 확인할 뿐, 패키지 문서 콘텐츠 자체·행정사
-계정 인증(서명 토큰·OTP)은 여전히 없다 — 화이트라벨 개인 계정 경로(`/expert/:expertId/...`,
-M-11)는 이번 범위 밖으로 남는다.
+원칙). 조회 키는 `case_id`가 아니라 발급/재발급마다 회전하는 `link_token`이다(코드리뷰 지적 —
+`case_id`는 PK라 불변이라 그대로 두면 재발급으로도 기존 유출 링크를 회수할 수 없었다). 발급 자체도
+그 케이스의 `create_handoff` approval이 승인 완료 상태여야만 가능하다(코드리뷰 지적 — 승인 전
+발급은 AGENTS.md §8 위반). 다만 이 경로는 "링크가 살아있는가"만 서버가 확인할 뿐, 패키지 문서
+콘텐츠 자체·행정사 계정 인증(서명 토큰·OTP)은 여전히 없다 — 화이트라벨 개인 계정 경로
+(`/expert/:expertId/...`, M-11)는 이번 범위 밖으로 남는다.
 
 **보존(retention) — 결정 필요(§13):** 레거시 문서 전반에 보존 기간 규정이 없다. 제안 기본값: thread_messages 원문·draft_variants 전문은 근로자 비활성(퇴사/이직) 처리 후 1년 뒤 파기 배치, evidence_events는 영구(원문이 없으므로), worker_intake_files는 OCR 확정 후 90일. **법무 확인 전 구현 금지** — 컬럼이 아니라 배치 정책이므로 스키마는 지금 확정 가능.
 

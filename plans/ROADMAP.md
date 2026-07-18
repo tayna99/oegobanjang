@@ -244,7 +244,7 @@ R0 완료 직후 한때 "R1을 건너뛰고 R2로 바로 진행"하기로 했었
 | ✅ 2.3 | 읽기 API 신설+배선 | **L3(2~3세션)** | NEXT_ROADMAP R2.3, M-6 | backend에 케이스/브리핑/스레드 read endpoint 신규 구현(`GET /api/v1/cases`·`/briefings/latest`·`/threads`·`/threads/{id}`, `get_current_membership`으로 company 스코프) + 프론트 `lib/api/{cases,briefings,threads}.ts` 어댑터·`lib/dataSeed.ts`(`useSeedCases`/`useSeedThreads`/`useSeedThreadDetail`) 신설, 13개 화면 배선. 여기서 M-6 영속성이 해소된다 |
 | 2.4 | 승인 결정 배선 | L2 | NEXT_ROADMAP R2.4, M-4 | ApprovePage → `POST /api/v1/approvals/{id}/approve\|reject`(real 모드). PIN 서버 측 검증 승격, 위임(delegation) 유효성 검증 구현(backend 잔여 갭, `docs/DB_SCHEMA.md` §13-10) — **사용자 지시로 2.5·2.6을 먼저 진행, 2.4는 후속 세션 몫으로 남는다** |
 | ✅ 2.5 | Evidence 서버 영속화 | L2 | NEXT_ROADMAP R2.5 | `POST/GET /api/v1/evidence` 신규(인증 필요, PII 패턴 차단, 테넌트 격리) + 프론트 `lib/api/evidence.ts`·`evidenceStore.append`가 real 모드에서 자동 서버 기록·`useSeedEvidence` 부팅 시 hydrate. 민감정보 원문 미저장 원칙 유지(요약만, 해시만) |
-| ✅ 2.6 | 행정사 링크 서버 강제 | L2 | NEXT_ROADMAP R2.6, M-11 | `POST/GET /api/v1/packages/{case_id}/link` 신규(발급/재발급은 manager·owner 인증, 열람은 무인증) — `/link/:packageId`가 real 모드에서 서버 만료 판정을 따른다(클라이언트 `isLinkExpired()` → 404 강제, 만료·미발급·대상없음 모두 동일 404로 존재 비노출). 패키지 문서 콘텐츠 자체는 여전히 프론트 mock(범위 밖, 문서화된 경계) |
+| ✅ 2.6 | 행정사 링크 서버 강제 | L2 | NEXT_ROADMAP R2.6, M-11 | `POST /api/v1/packages/{case_id}/link`(발급/재발급, manager·owner 인증 + 케이스의 `create_handoff` 승인 완료 필요) · `GET /api/v1/packages/link/{link_token}`(열람, 무인증) 신규 — `/link/:linkToken`이 real 모드에서 서버 만료 판정을 따른다(클라이언트 `isLinkExpired()` → 404 강제, 만료·미발급·대상없음 모두 동일 404로 존재 비노출). `link_token`은 발급/재발급마다 회전(코드리뷰 지적 — `case_id`는 불변이라 비밀로 못 씀). 패키지 문서 콘텐츠 자체는 여전히 프론트 mock(범위 밖, 문서화된 경계) |
 
 **2.1+2.2 완료(2026-07-17).** 실제 로컬 PostgreSQL(`oegobanjang-pg` 컨테이너, 시드 데이터 포함)에
 `alembic stamp head`로 정합 후 backend pytest 110건 전부 PASS. 브라우저 실검증: 실 uvicorn +
@@ -285,7 +285,8 @@ R0 완료 직후 한때 "R1을 건너뛰고 R2로 바로 진행"하기로 했었
   R2.3부터 real 모드 caseId는 항상 진짜라 안전). 2.4가 배선되면 재검토 대상.
 - `package_link_viewed`/`package_link_issued`/`package_reply`는 일반 evidence 엔드포인트가
   거부한다(422) — 무인증 화면(ExpertLinkPage)이 호출할 수 없는 인증 필요 엔드포인트라서다.
-  전용 `POST/GET /api/v1/packages/{case_id}/link`가 자기 트랜잭션 안에서 직접 기록한다.
+  전용 `POST /api/v1/packages/{case_id}/link`·`GET /api/v1/packages/link/{link_token}`가
+  자기 트랜잭션 안에서 직접 기록한다.
 - **주의(다음 세션이 알아야 할 것)**: 이 워크트리가 쓰는 로컬 dev Postgres 컨테이너
   (`oegobanjang-pg:55432`)의 `alembic_version`이 이미 `'0002'`로 찍혀 있었다 — 이 저장소
   git 이력에는 없는(커밋된 적 없는) 이전 세션의 미완료 R2.4 마이그레이션 시도 흔적으로
@@ -296,6 +297,20 @@ R0 완료 직후 한때 "R1을 건너뛰고 R2로 바로 진행"하기로 했었
   "이미 최신"으로 오판될 위험이 있다. 다음에 그 컨테이너로 실서버 브라우저 검증을 하려면
   먼저 `alembic_version` 실제 내용과 스키마 상태(예: `evidence_events` CHECK 제약, `handoff_packages`
   컬럼)를 대조 확인할 것.
+
+**2.5+2.6 코드리뷰 2라운드 수정(2026-07-17~18).** PR #20 리뷰에서 병합 보류 권고 받은 P1 총 7건 +
+P2 1건을 모두 수정했다(상세는 `plans/HANDOFF.md` 참조). 1라운드(P1 4건): 링크 발급 시 케이스
+승인 상태를 전혀 확인하지 않던 것(AGENTS.md §8 위반) → `create_handoff` 승인 완료 전제조건
+추가, `case_id`(불변)를 공개 링크 비밀값으로 쓰던 것 → 발급/재발급마다 회전하는 `link_token`
+도입, 일반 evidence 엔드포인트가 `approval_decided`/`role_changed` 등 특권 이벤트까지 받아
+위조 가능하던 것 → `PRIVILEGED_EVIDENCE_TYPES` 거부 목록 추가, real 모드 mock/real id 불일치
+(`batbayar` vs `cs_batbayar`) → 라우트 파라미터·`REAL_CASE_ID_ALIASES`로 정합. 2라운드(P1 3건 +
+P2 1건): 재발급 API 실패에도 UI가 성공으로 기록하고 응답의 `link_token`을 쓰지 않던 것 →
+성공 시에만 evidence 기록 + 공유 URL 노출, evidence의 `summary` 외 자유 텍스트 필드
+(`input_hash`/`output_hash`/`trace_id`/`request_id`/`payload_ref`)로 PII 우회 저장 가능하던
+것 → 전 필드 검사, real 모드 행정사 구조화된 회신이 서버 저장 없이 "보냈습니다" 표시하던 것
+(백엔드 미구현) → real 모드에서는 성공 표시 대신 정직한 "준비 중" 안내, 문서(`backend/README.md`·
+`docs/DB_SCHEMA.md`)의 GET 경로 표기가 구 `case_id` 경로로 남아있던 것 → `link_token` 경로로 갱신.
 
 ## 발송 어댑터·알림톡 (R2 이후 — 별도 계획, PRD Sprint 6)
 

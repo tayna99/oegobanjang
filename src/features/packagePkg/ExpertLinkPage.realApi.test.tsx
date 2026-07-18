@@ -50,6 +50,12 @@ describe('ExpertLinkPage — real 모드(R2.6)', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/api/v1/packages/link/tok_valid', expect.anything());
     expect(await screen.findByRole('heading', { name: '행정사 검토 요청서' })).toBeInTheDocument();
     expect(useEvidenceStore.getState().events.some((e) => e.type === 'package_link_viewed')).toBe(false);
+
+    // 코드리뷰 회귀(PR #20 P1): 구조화된 회신을 받는 서버 엔드포인트가 아직 없는데도
+    // "회신을 보냈습니다"라고 거짓으로 확인해주고 있었다 — real 모드에서는 회신 폼 대신
+    // 정직한 "아직 준비 중" 안내만 보여야 한다(회신 보내기 버튼 자체가 없어야 한다).
+    expect(screen.getByText('회신 접수는 아직 준비 중입니다')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '회신 보내기' })).not.toBeInTheDocument();
   });
 
   it('서버가 404를 반환하면 만료 안내를 보여준다(클라이언트 가드가 아니라 서버 강제)', async () => {

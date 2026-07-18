@@ -146,6 +146,19 @@ def test_summary_containing_pii_rejected(client):
     assert resp.status_code == 422, resp.text
 
 
+# 코드리뷰 회귀(PR #20 P1): summary만 PII 검사하면 나머지 자유 텍스트 필드로 원문 PII를
+# 그대로 우회 저장할 수 있었다 — 이름이 "해시"/"참조"를 암시할 뿐 실제로는 클라이언트가
+# 임의 문자열을 보내는 필드다.
+@pytest.mark.parametrize("field", ["input_hash", "output_hash", "trace_id", "request_id", "payload_ref"])
+def test_pii_in_other_free_text_fields_rejected(client, field):
+    resp = client.post(
+        "/api/v1/evidence",
+        json={"type": "plan_created", "summary": "정상 요약", field: "010-1234-5678로 연락"},
+        headers=_auth_headers(client),
+    )
+    assert resp.status_code == 422, resp.text
+
+
 def test_case_id_from_other_company_is_not_found(client):
     # cs2는 cmp2 소속 — cmp1 세션으로는 존재하지 않는 것과 동일하게 취급(테넌트 격리).
     resp = client.post(

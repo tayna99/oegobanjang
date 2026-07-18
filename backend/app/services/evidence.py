@@ -118,7 +118,20 @@ def next_event_no(db: Session, company_id: str) -> int:
 def create_evidence_event(db: Session, membership: Membership, payload: EvidenceEventCreate) -> EvidenceEvent:
     if payload.type not in ALLOWED_EVIDENCE_TYPES:
         raise EvidenceInvalidTypeError(payload.type)
-    if contains_pii(payload.summary):
+    # 코드리뷰 지적(PR #20 P1): summary만 PII 패턴을 검사해, input_hash/output_hash/
+    # trace_id/request_id/payload_ref 같은 나머지 자유 텍스트 필드로 원문 PII를 그대로
+    # 우회 저장할 수 있었다 — 필드 이름이 "해시"/"참조"를 암시할 뿐 실제로는 클라이언트가
+    # 임의 문자열을 보낼 수 있는 필드이므로, 이 엔드포인트가 받는 모든 자유 텍스트 필드를
+    # 검사한다.
+    free_text_fields = (
+        payload.summary,
+        payload.input_hash,
+        payload.output_hash,
+        payload.trace_id,
+        payload.request_id,
+        payload.payload_ref,
+    )
+    if any(contains_pii(value) for value in free_text_fields):
         raise EvidenceReasonContainsPiiError()
 
     if payload.case_id is not None:

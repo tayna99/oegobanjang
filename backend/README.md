@@ -54,8 +54,8 @@ uv run pytest
 | POST | `/api/v1/approvals/{approval_id}/reject` | 반려 결정 — 사유·본인확인 필수 + PII 패턴 차단, 케이스 `returned` 전이 |
 | POST | `/api/v1/evidence` | 일반 판단 기록 기록(R2.5) — 인증 필요, PII 패턴 차단, `case_id` 제공 시 같은 회사 소속인지 검증. `action_id`/`approval_id`/`run_id`는 받지 않음(아래 §알려진 스코프 경계) |
 | GET | `/api/v1/evidence` | 판단 기록 목록(R2.5) — 인증 필요, 자기 회사만, `case_id` 쿼리로 필터 |
-| POST | `/api/v1/packages/{case_id}/link` | 행정사 패키지 열람 링크 발급/재발급(R2.6) — manager/owner 인증 필요, 7일 유효기간 갱신 |
-| GET | `/api/v1/packages/{case_id}/link` | 행정사 패키지 열람 링크 검증(R2.6) — **무인증**(ExpertLinkPage 전용). 미발급·만료·대상없음 전부 404 |
+| POST | `/api/v1/packages/{case_id}/link` | 행정사 패키지 열람 링크 발급/재발급(R2.6) — manager/owner 인증 + 케이스의 `create_handoff` 승인 완료 필요, 7일 유효기간 갱신, 응답에 회전된 `link_token` 포함 |
+| GET | `/api/v1/packages/link/{link_token}` | 행정사 패키지 열람 링크 검증(R2.6) — **무인증**(ExpertLinkPage 전용). `case_id`가 아니라 발급/재발급마다 회전하는 `link_token`으로만 조회(코드리뷰 지적 — `case_id`는 PK라 불변이라 비밀로 쓰면 재발급으로 기존 유출 링크를 회수할 수 없었다). 미발급·만료·대상없음 전부 404 |
 | GET | `/health` | 헬스체크 |
 
 승인/반려·생성은 액션(케이스) 단위 단건 처리만 존재한다 — **일괄 승인 엔드포인트는 만들지 않는다**(GOTCHAS §3).
@@ -90,7 +90,7 @@ app/
   api/v1/approvals.py      라우터 — 도메인 예외 → HTTP 상태 매핑, batch 엔드포인트 없음
   api/v1/auth.py           라우터 — OTP 요청/검증/me/로그아웃
   api/v1/evidence.py       라우터 — POST/GET /api/v1/evidence(R2.5, 인증 필요)
-  api/v1/packages.py       라우터 — POST(인증)/GET(무인증) /api/v1/packages/{case_id}/link(R2.6)
+  api/v1/packages.py       라우터 — POST(인증) /api/v1/packages/{case_id}/link · GET(무인증) /api/v1/packages/link/{link_token}(R2.6)
   api/deps.py              get_current_user_id/get_current_membership — Bearer 세션 토큰에서 신원·소속 도출
 migrations/
   versions/0001_p1_core_schema.py   실배포(PR #10) 동결 스냅샷 — 더 이상 손대지 않는다
@@ -120,9 +120,11 @@ tests/
   가리키길 요구하는데, 승인 결정(R2.4)·런(M3)이 아직 real 모드로 안 붙어 있어 프론트가 넘길
   수 있는 값이 전부 mock 세계관 id다 — `case_id`만 받는다(R2.3부터 real 모드 caseId는 항상
   진짜 DB 행이라 안전).
-- `POST/GET /api/v1/packages/{case_id}/link`(R2.6)는 링크의 유효성(발급·만료·열람 로그)만
-  다룬다 — 패키지 문서 콘텐츠(검토 요청서 본문·항목 토글)는 여전히 프론트 mock이며, 행정사
-  화이트라벨 개인 계정(`/expert/:expertId/...`, M-11 나머지)도 이번 범위 밖이다.
+- `POST /api/v1/packages/{case_id}/link`(발급/재발급, 인증) · `GET /api/v1/packages/link/{link_token}`
+  (열람, 무인증)(R2.6)는 링크의 유효성(발급·만료·열람 로그)만 다룬다 — 패키지 문서 콘텐츠(검토
+  요청서 본문·항목 토글)는 여전히 프론트 mock이며, 행정사 화이트라벨 개인 계정
+  (`/expert/:expertId/...`, M-11 나머지)도 이번 범위 밖이다. GET의 조회 키가 `case_id`가
+  아니라 회전하는 `link_token`인 이유·POST의 승인 전제조건은 위 API 표 참조(코드리뷰 지적).
 - API 라우터는 인증·승인·판단 기록·패키지 링크까지만 — 케이스 목록/상세·브리핑·메시지 등 read API는
   화면이 백엔드에 붙는 순서대로 추가한다(`plans/ROADMAP.md` R2.3, R2.5, R2.6).
 - 프론트(`src/lib/api/`)는 R2.1~2.2(인증)까지 배선됐다 — `VITE_API_MODE=real`일 때만 이 backend를
