@@ -1,4 +1,4 @@
-# 디자인 시스템 원본 고정 (frozen 2026-07-11, 2026-07-13 갱신)
+# 디자인 시스템 원본 고정 (frozen 2026-07-11, 2026-07-13/07-17 갱신)
 
 > **왜 이 폴더가 있는가**: M2.5 전환 전까지 저장소의 디자인 기준이 claude.ai/design "Mobile screen design" 프로젝트(`bd0fd8f8-615f-48e9-875b-eb5c9e9b398d`)라는 **외부 라이브 링크**에만 의존했다. 그 프로젝트가 수정·삭제되거나 접근 권한이 바뀌면 `rules/design.md`·`ROADMAP.md`(2.5.4~2.5.6)·`ui-matcher.md`가 가리키는 스펙이 통째로 사라진다. 이 폴더는 그 프로젝트에서 실제로 사용한 원본 파일을 **그대로, 재현 가능하게** 저장소에 고정한 것이다. 이후 디자인 결정에 대한 근거는 여기 파일을 1차로 삼는다.
 
@@ -14,6 +14,9 @@
 | `외고반장 CSV 업로드.dc.html` | 프로젝트 루트 `외고반장 CSV 업로드.dc.html` (2026-07-13 신규) | CSV 근로자 일괄 등록(PC) 원본. ROADMAP **4.4**의 1차 스펙. `reference/design-system/design-briefs/CSV_업로드_브리프.md`를 claude.ai/design에 투입해 생성됨.
 | `외고반장 Mobile.dc.html` | 프로젝트 루트 `외고반장 Mobile.dc.html` | 모바일 개편안(승인 큐 중심) 원본. 최초 검수에서는 보류였으나 **2026-07-11 사용자 지시로 디자인 소스 채택 대상에 포함** — 채택 설계는 design-first 블루프린트 문서를 따른다.
 | `Montage 공용 컴포넌트.dc.html` | 프로젝트 루트 `Montage 공용 컴포넌트.dc.html` | 자체 제작 컴포넌트 6종(모바일 탭바·BottomSheet·SafetyNotice 2종·OfflineBanner·Skeleton·StepTimeline)의 시각·모션 스펙 원본(2026-07-11 고정). `src/components/*`가 이 스펙과 정합해야 한다.
+| `외고반장 알림 설정.dc.html` | 프로젝트 루트 `외고반장 알림 설정.dc.html` (2026-07-17 신규) | 설정 › 알림(A-3) 원본 — 알림카탈로그 §6 표 반영, 신규 pill 토글 스위치 채택. ROADMAP **R5.4 선행**의 1차 스펙. `reference/design-system/design-briefs/알림_설정_브리프.md`를 claude.ai/design에 투입해 생성됨. 감사: `docs/DESIGN_SYNC_AUDIT_2026-07-17.md`.
+| `외고반장 서류 스캔 분류.dc.html` | 프로젝트 루트 `외고반장 서류 스캔 분류.dc.html` (2026-07-17 신규) | 서류 스캔 자동분류 확인(A-2) 원본 — 업로드→분류→매칭 확인·보정→확인 대기 반영 4단계 워크벤치(52px nav·290px 좌측 스텝트래커·340px 우측 안내 레일). ROADMAP **R5.2**의 1차 스펙. `reference/design-system/design-briefs/서류스캔_업로드_브리프.md`를 claude.ai/design에 투입해 생성됨. 감사: `docs/DESIGN_SYNC_AUDIT_2026-07-17.md`.
+| `외고반장 근로자 응답 링크.dc.html` | 프로젝트 루트 `외고반장 근로자 응답 링크.dc.html` (2026-07-17 신규) | 근로자 응답 링크(A-1) 원본 — 무인증 모바일 단독 페이지, vi/ko 언어 토글 + 단일선택 프리셋 3종 + 자유입력. ROADMAP **R3.2** 프론트 절반의 1차 스펙. `reference/design-system/design-briefs/근로자_응답링크_브리프.md`를 claude.ai/design에 투입해 생성됨. 감사: `docs/DESIGN_SYNC_AUDIT_2026-07-17.md`.
 
 온보딩·CSV 업로드는 **design-FILE-first**(고정 목업 존재)다 — `docs/DESIGN_FIRST_BLUEPRINT_2026-07-11.md §9-B`에 따라 구현 화면은 이 절의 "System-derived" 태그를 붙이지 않고, PC §3b/§3c 화면들과 동일하게 소스 섹션을 인용하는 파일 상단 주석만 남긴다.
 
@@ -42,5 +45,6 @@
 
 ## 갱신 이력
 
+- **2026-07-17**: 알림 설정(A-3)·서류 스캔 분류(A-2)·근로자 응답 링크(A-1) 신규 목업 3종 고정 — `plans/FRONTEND_DESIGN_TODO_2026-07-17.md`가 도출한 항목을 브리프화(`design-briefs/`)해 투입한 결과물. `get_file` 응답 전부 `truncated:false`(부분 캡처 없음). 감사 문서: `docs/DESIGN_SYNC_AUDIT_2026-07-17.md`.
 - **2026-07-13**: 온보딩(신규)·CSV 업로드(신규) 목업 고정 + PC 재수입(부분, 4a~4f 델타만 캡처 — 위 표 참고). 감사 문서: `docs/DESIGN_SYNC_AUDIT_2026-07-13.md`.
 - **2026-07-11**: 최초 고정(PC/Mobile/공용 컴포넌트/Montage 토큰/규칙 원문).

@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
+  <link rel="stylesheet" href="_ds/montage-wanted-design-system-019e203d-1226-70d2-89dc-5cf5dc0a81a4/colors_and_type.css">
+  <script src="_ds/montage-wanted-design-system-019e203d-1226-70d2-89dc-5cf5dc0a81a4/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; background: #EAEBEC; font-family: 'Pretendard', -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #0066FF; } a:hover { color: #005EEB; }
+  </style>
+</helmet>
+
+<section style="padding:56px 64px;display:flex;flex-direction:column;gap:32px">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:960px">
+    <div style="font-size:24px;line-height:32px;font-weight:700;letter-spacing:-0.023em;color:#171719">외고반장 근로자 응답 링크 — 무인증 모바일 페이지 (A-1 · R3.2)</div>
+    <div style="font-size:14px;line-height:20px;color:rgba(55,56,60,0.61)">SMS로 받은 만료형 토큰 링크에서 열리는 단독 페이지 — 앱 크롬 없음. 근로자 모국어 UI(vi 기준) + 언어 토글. 응답은 담당자 확인 후 반영(케이스 상태 직접 변경 없음). <a href="#1a" style="text-decoration:none">1a</a> 인터랙티브 · <a href="#1b" style="text-decoration:none">1b</a> 정적 5상태</div>
+  </div>
+
+  <!-- ═══════════ 1a. Interactive ═══════════ -->
+  <div id="1a" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="#1a" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">1a</a>
+      <div style="display:flex;flex-direction:column">
+        <div style="font-size:15px;font-weight:600;color:#171719">인터랙티브 — 정상 → 제출 완료</div>
+        <div style="font-size:12px;color:rgba(55,56,60,0.61)">버튼 선택지 + 자유 입력(선택) → 제출 → 재제출 잠금 · 우상단 언어 토글(vi/ko)</div>
+      </div>
+    </div>
+
+    <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" hint-size="402px,874px">
+      <div data-screen-label="응답 링크 인터랙티브" style="position:relative;height:100%;overflow:hidden;background:#F7F7F8;display:flex;flex-direction:column;font-family:'Pretendard',-apple-system,sans-serif">
+
+        <!-- minimal header: no app shell, service mark + lang toggle only -->
+        <div style="padding:58px 20px 12px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:22px;height:22px;border-radius:6px;background:#0066FF;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center">외</div>
+            <span style="font-size:13px;font-weight:600;color:#171719">{{ t.serviceName }}</span>
+          </div>
+          <div style="display:flex;gap:2px;background:rgba(112,115,124,0.08);border-radius:8px;padding:2px">
+            <button onClick="{{ setVi }}" style="border:none;cursor:pointer;font-family:inherit;height:28px;padding:0 12px;border-radius:6px;font-size:12px;font-weight:600;background:{{ viBg }};box-shadow:{{ viShadow }};color:{{ viColor }};transition:all 0.2s ease">Tiếng Việt</button>
+            <button onClick="{{ setKo }}" style="border:none;cursor:pointer;font-family:inherit;height:28px;padding:0 12px;border-radius:6px;font-size:12px;font-weight:600;background:{{ koBg }};box-shadow:{{ koShadow }};color:{{ koColor }};transition:all 0.2s ease">한국어</button>
+          </div>
+        </div>
+
+        <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px">
+
+          <!-- message from manager -->
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">{{ t.fromLabel }}</span>
+            <div style="background:#FFFFFF;border-radius:14px;border:1px solid rgba(112,115,124,0.08);box-shadow:0px 1px 2px rgba(23,23,23,0.06);padding:16px;display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:9px">
+                <div style="width:30px;height:30px;border-radius:99px;background:#EAF2FE;color:#0066FF;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">김</div>
+                <div style="display:flex;flex-direction:column">
+                  <span style="font-size:13px;font-weight:600;color:#171719">{{ t.senderName }}</span>
+                  <span style="font-size:11px;color:rgba(55,56,60,0.61)">{{ t.senderCompany }} · 2026-07-17</span>
+                </div>
+              </div>
+              <div style="font-size:14.5px;line-height:22px;color:#171719">{{ t.messageBody }}</div>
+              <div style="border-top:1px solid rgba(112,115,124,0.08);padding-top:10px;display:flex;flex-direction:column;gap:4px">
+                <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.88)">{{ t.docListTitle }}</span>
+                <span style="font-size:12.5px;line-height:18px;color:rgba(55,56,60,0.61)">{{ t.docList }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- reply: preset buttons -->
+          <sc-if value="{{ notSubmitted }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">{{ t.replyLabel }}</span>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <button onClick="{{ pick0 }}" style="text-align:left;border:none;cursor:pointer;font-family:inherit;border-radius:12px;background:{{ p0Bg }};box-shadow:{{ p0Shadow }};padding:14px;display:flex;align-items:center;gap:11px;transition:all 0.2s ease">
+                  <div style="width:20px;height:20px;border-radius:99px;box-shadow:{{ p0Dot }};display:flex;align-items:center;justify-content:center;flex-shrink:0"><sc-if value="{{ p0Sel }}" hint-placeholder-val="{{ false }}"><div style="width:9px;height:9px;border-radius:99px;background:#0066FF"></div></sc-if></div>
+                  <span style="font-size:14px;font-weight:600;color:#171719">{{ t.preset0 }}</span>
+                </button>
+                <button onClick="{{ pick1 }}" style="text-align:left;border:none;cursor:pointer;font-family:inherit;border-radius:12px;background:{{ p1Bg }};box-shadow:{{ p1Shadow }};padding:14px;display:flex;align-items:center;gap:11px;transition:all 0.2s ease">
+                  <div style="width:20px;height:20px;border-radius:99px;box-shadow:{{ p1Dot }};display:flex;align-items:center;justify-content:center;flex-shrink:0"><sc-if value="{{ p1Sel }}" hint-placeholder-val="{{ false }}"><div style="width:9px;height:9px;border-radius:99px;background:#0066FF"></div></sc-if></div>
+                  <span style="font-size:14px;font-weight:600;color:#171719">{{ t.preset1 }}</span>
+                </button>
+                <button onClick="{{ pick2 }}" style="text-align:left;border:none;cursor:pointer;font-family:inherit;border-radius:12px;background:{{ p2Bg }};box-shadow:{{ p2Shadow }};padding:14px;display:flex;align-items:center;gap:11px;transition:all 0.2s ease">
+                  <div style="width:20px;height:20px;border-radius:99px;box-shadow:{{ p2Dot }};display:flex;align-items:center;justify-content:center;flex-shrink:0"><sc-if value="{{ p2Sel }}" hint-placeholder-val="{{ false }}"><div style="width:9px;height:9px;border-radius:99px;background:#0066FF"></div></sc-if></div>
+                  <span style="font-size:14px;font-weight:600;color:#171719">{{ t.preset2 }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- free text (optional) -->
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">{{ t.freeLabel }}</span>
+                <span style="font-size:11px;color:rgba(55,56,60,0.43)">{{ t.optional }}</span>
+              </div>
+              <button onClick="{{ toggleFree }}" style="text-align:left;border:none;cursor:pointer;font-family:inherit;min-height:88px;border-radius:12px;background:#FFFFFF;box-shadow:{{ freeShadow }};padding:13px 14px;display:flex;align-items:flex-start;transition:box-shadow 0.2s ease">
+                <span style="font-size:14px;line-height:21px;color:{{ freeTextColor }}">{{ freeText }}</span>
+              </button>
+            </div>
+
+            <!-- guardrail notice -->
+            <div style="display:flex;gap:8px;background:rgba(112,115,124,0.08);border-radius:10px;padding:11px 13px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;margin-top:2px"><circle cx="12" cy="12" r="9" stroke="#70737C" stroke-width="1.8"></circle><path d="M12 11v5" stroke="#70737C" stroke-width="1.8" stroke-linecap="round"></path><circle cx="12" cy="7.8" r="1" fill="#70737C"></circle></svg>
+              <span style="font-size:12px;line-height:17px;color:rgba(55,56,60,0.61)">{{ t.reviewNotice }}</span>
+            </div>
+          </sc-if>
+
+          <!-- submitted lock state -->
+          <sc-if value="{{ submitted }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;background:#FFFFFF;border-radius:14px;border:1px solid rgba(112,115,124,0.08);padding:28px 20px;text-align:center">
+              <div style="width:44px;height:44px;border-radius:99px;background:#D9FFE6;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M6 12.5L10.5 17L18 7.5" stroke="#009632" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <span style="font-size:16px;font-weight:700;color:#171719">{{ t.doneTitle }}</span>
+                <span style="font-size:13px;line-height:19px;color:rgba(55,56,60,0.61)">{{ t.doneDesc }}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:4px;background:#F7F7F8;border-radius:10px;padding:11px 14px;width:100%">
+                <span style="font-size:11px;font-weight:600;color:rgba(55,56,60,0.61)">{{ t.yourReply }}</span>
+                <span style="font-size:13px;font-weight:600;color:#171719">{{ submittedPreset }}</span>
+                <sc-if value="{{ hasFree }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;line-height:18px;color:rgba(55,56,60,0.88)">{{ freeText }}</span></sc-if>
+              </div>
+              <span style="font-size:11.5px;color:rgba(55,56,60,0.43)">{{ t.lockNotice }}</span>
+            </div>
+          </sc-if>
+
+        </div>
+
+        <!-- bottom CTA -->
+        <sc-if value="{{ notSubmitted }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:12px 20px 40px;background:#FFFFFF;border-top:1px solid rgba(112,115,124,0.08)">
+            <button onClick="{{ submit }}" style="width:100%;height:50px;border:none;border-radius:12px;background:{{ submitBg }};color:{{ submitColor }};font-size:15px;font-weight:600;cursor:{{ submitCursor }};pointer-events:{{ submitPe }};font-family:inherit;transition:background 0.2s ease">{{ t.submitLabel }}</button>
+          </div>
+        </sc-if>
+
+      </div>
+    </x-import>
+  </div>
+
+  <!-- ═══════════ 1b. Static 5 states ═══════════ -->
+  <div id="1b" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="#1b" style="background:#171719;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px;font-weight:600;text-decoration:none">1b</a>
+      <div style="display:flex;flex-direction:column">
+        <div style="font-size:15px;font-weight:600;color:#171719">정적 — 5상태 (vi 기준)</div>
+        <div style="font-size:12px;color:rgba(55,56,60,0.61)">정상 · 제출 완료 · 만료 · 이미 응답 · 무효 — 무효 상태는 존재 자체 비노출 원칙</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+
+      <!-- S1 normal -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">① 정상 (vi)</span>
+        <div style="width:320px;height:640px;background:#F7F7F8;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:14px 16px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:7px"><div style="width:18px;height:18px;border-radius:5px;background:#0066FF;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">외</div><span style="font-size:11.5px;font-weight:600;color:#171719">Ngoại Cao Ban Trưởng</span></div>
+            <div style="display:flex;gap:2px;background:rgba(112,115,124,0.08);border-radius:7px;padding:2px"><span style="height:22px;padding:0 8px;border-radius:5px;font-size:10px;font-weight:600;background:#FFFFFF;box-shadow:0px 1px 2px rgba(23,23,23,0.08);color:#171719;display:flex;align-items:center">Tiếng Việt</span><span style="height:22px;padding:0 8px;border-radius:5px;font-size:10px;font-weight:600;color:rgba(55,56,60,0.61);display:flex;align-items:center">한국어</span></div>
+          </div>
+          <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:11px;overflow:hidden">
+            <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:12px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:7px"><div style="width:24px;height:24px;border-radius:99px;background:#EAF2FE;color:#0066FF;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center">김</div><div style="display:flex;flex-direction:column"><span style="font-size:11px;font-weight:600;color:#171719">Quản lý Kim Min-su</span><span style="font-size:9.5px;color:rgba(55,56,60,0.61)">Greenfood · 2026-07-17</span></div></div>
+              <span style="font-size:12px;line-height:18px;color:#171719">Anh Nguyen Van A, để gia hạn thời gian lưu trú, vui lòng chuẩn bị các giấy tờ dưới đây trước ngày 24-07.</span>
+              <div style="border-top:1px solid rgba(112,115,124,0.08);padding-top:7px"><span style="font-size:10.5px;line-height:15px;color:rgba(55,56,60,0.61)">1. Hộ chiếu (bản gốc) · 2. Giấy xác nhận làm việc</span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:10.5px;font-weight:600;color:rgba(55,56,60,0.61)">Chọn câu trả lời</span>
+              <div style="border-radius:10px;background:rgba(0,102,255,0.04);box-shadow:inset 0 0 0 2px #0066FF;padding:11px;display:flex;align-items:center;gap:8px"><div style="width:16px;height:16px;border-radius:99px;box-shadow:inset 0 0 0 2px #0066FF;display:flex;align-items:center;justify-content:center"><div style="width:7px;height:7px;border-radius:99px;background:#0066FF"></div></div><span style="font-size:12px;font-weight:600;color:#171719">Tôi đã xác nhận</span></div>
+              <div style="border-radius:10px;background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);padding:11px;display:flex;align-items:center;gap:8px"><div style="width:16px;height:16px;border-radius:99px;box-shadow:inset 0 0 0 1.5px rgba(112,115,124,0.32)"></div><span style="font-size:12px;font-weight:600;color:#171719">Vui lòng gửi lại</span></div>
+              <div style="border-radius:10px;background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);padding:11px;display:flex;align-items:center;gap:8px"><div style="width:16px;height:16px;border-radius:99px;box-shadow:inset 0 0 0 1.5px rgba(112,115,124,0.32)"></div><span style="font-size:12px;font-weight:600;color:#171719">Tôi có câu hỏi</span></div>
+            </div>
+            <div style="min-height:56px;border-radius:10px;background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(112,115,124,0.22);padding:10px 11px"><span style="font-size:11.5px;color:rgba(55,56,60,0.43)">Nhập nội dung (không bắt buộc)</span></div>
+            <div style="display:flex;gap:6px;background:rgba(112,115,124,0.08);border-radius:9px;padding:9px 11px"><span style="font-size:10px;line-height:14px;color:rgba(55,56,60,0.61)">Câu trả lời sẽ được phản ánh sau khi người quản lý xác nhận.</span></div>
+          </div>
+          <div style="padding:10px 14px 18px;background:#FFFFFF;border-top:1px solid rgba(112,115,124,0.08)"><div style="height:42px;border-radius:11px;background:#0066FF;display:flex;align-items:center;justify-content:center"><span style="font-size:13px;font-weight:600;color:#fff">Gửi câu trả lời</span></div></div>
+        </div>
+      </div>
+
+      <!-- S2 submitted -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">② 제출 완료</span>
+        <div style="width:320px;height:640px;background:#F7F7F8;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:14px 16px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;gap:7px"><div style="width:18px;height:18px;border-radius:5px;background:#0066FF;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">외</div><span style="font-size:11.5px;font-weight:600;color:#171719">Ngoại Cao Ban Trưởng</span></div>
+          <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:11px">
+            <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:12px;display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:11px;font-weight:600;color:#171719">Quản lý Kim Min-su · Greenfood</span>
+              <span style="font-size:11.5px;line-height:17px;color:rgba(55,56,60,0.61)">Anh Nguyen Van A, để gia hạn thời gian lưu trú, vui lòng chuẩn bị các giấy tờ dưới đây…</span>
+            </div>
+            <div style="background:#FFFFFF;border-radius:12px;border:1px solid rgba(112,115,124,0.08);padding:22px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center">
+              <div style="width:38px;height:38px;border-radius:99px;background:#D9FFE6;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 12.5L10.5 17L18 7.5" stroke="#009632" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+              <span style="font-size:14px;font-weight:700;color:#171719">Đã gửi câu trả lời</span>
+              <span style="font-size:11.5px;line-height:17px;color:rgba(55,56,60,0.61)">Câu trả lời sẽ được phản ánh sau khi người quản lý xác nhận.</span>
+              <div style="width:100%;background:#F7F7F8;border-radius:9px;padding:9px 11px;display:flex;flex-direction:column;gap:3px;text-align:left">
+                <span style="font-size:9.5px;font-weight:600;color:rgba(55,56,60,0.61)">Câu trả lời của bạn</span>
+                <span style="font-size:11.5px;font-weight:600;color:#171719">Tôi đã xác nhận</span>
+              </div>
+              <span style="font-size:10px;color:rgba(55,56,60,0.43)">Không thể gửi lại câu trả lời.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S3 expired -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">③ 만료됨</span>
+        <div style="width:320px;height:640px;background:#F7F7F8;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:14px 16px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;gap:7px"><div style="width:18px;height:18px;border-radius:5px;background:#0066FF;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">외</div><span style="font-size:11.5px;font-weight:600;color:#171719">Ngoại Cao Ban Trưởng</span></div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
+              <div style="width:44px;height:44px;border-radius:99px;background:#FEF4E6;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#D47800" stroke-width="1.8"></circle><path d="M12 7.5V12.5L15 14.5" stroke="#D47800" stroke-width="1.8" stroke-linecap="round"></path></svg></div>
+              <span style="font-size:15px;font-weight:700;color:#171719">Liên kết đã hết hạn</span>
+              <span style="font-size:12px;line-height:18px;color:rgba(55,56,60,0.61)">Liên kết này chỉ có hiệu lực trong thời gian nhất định.<br>Vui lòng liên hệ người quản lý để nhận liên kết mới.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S4 already replied -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">④ 이미 응답함</span>
+        <div style="width:320px;height:640px;background:#F7F7F8;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:14px 16px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;gap:7px"><div style="width:18px;height:18px;border-radius:5px;background:#0066FF;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">외</div><span style="font-size:11.5px;font-weight:600;color:#171719">Ngoại Cao Ban Trưởng</span></div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
+              <div style="width:44px;height:44px;border-radius:99px;background:#EAF2FE;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M6 12.5L10.5 17L18 7.5" stroke="#0066FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></div>
+              <span style="font-size:15px;font-weight:700;color:#171719">Đã nhận được câu trả lời</span>
+              <span style="font-size:12px;line-height:18px;color:rgba(55,56,60,0.61)">Câu trả lời trước đó đã được tiếp nhận.<br>Không cần gửi lại.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- S5 invalid -->
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font-size:12px;font-weight:600;color:rgba(55,56,60,0.61)">⑤ 무효 — 존재 비노출</span>
+        <div style="width:320px;height:640px;background:#F7F7F8;border-radius:20px;border:1px solid #E1E2E4;box-shadow:0px 2px 4px -2px rgba(23,23,23,0.06),0px 4px 6px -1px rgba(23,23,23,0.06);overflow:hidden;display:flex;flex-direction:column">
+          <div style="padding:14px 16px;background:#FFFFFF;border-bottom:1px solid rgba(112,115,124,0.08);display:flex;align-items:center;gap:7px"><div style="width:18px;height:18px;border-radius:5px;background:#0066FF;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">외</div><span style="font-size:11.5px;font-weight:600;color:#171719">Ngoại Cao Ban Trưởng</span></div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:20px">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
+              <div style="width:44px;height:44px;border-radius:99px;background:rgba(112,115,124,0.08);display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#70737C" stroke-width="1.8"></circle><path d="M9 9.5C9 8 10.2 7 12 7s3 1 3 2.5c0 1.8-3 2-3 4" stroke="#70737C" stroke-width="1.8" stroke-linecap="round"></path><circle cx="12" cy="16.6" r="1" fill="#70737C"></circle></svg></div>
+              <span style="font-size:15px;font-weight:700;color:#171719">Không tìm thấy liên kết</span>
+              <span style="font-size:12px;line-height:18px;color:rgba(55,56,60,0.61)">Vui lòng kiểm tra lại địa chỉ liên kết.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;defaultLang&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Tiếng Việt&quot;,&quot;한국어&quot;],&quot;default&quot;:&quot;한국어&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;응답 링크&quot;}}">
+class Component extends DCLogic {
+  state = { lang: null, preset: null, freeOn: false, submitted: false };
+
+  strings() {
+    return {
+      vi: {
+        serviceName: 'Ngoại Cao Ban Trưởng',
+        fromLabel: 'Tin nhắn từ người quản lý',
+        senderName: 'Quản lý Kim Min-su',
+        senderCompany: 'Greenfood',
+        messageBody: 'Anh Nguyen Van A, để gia hạn thời gian lưu trú, vui lòng chuẩn bị các giấy tờ dưới đây trước ngày 24-07.',
+        docListTitle: 'Giấy tờ cần chuẩn bị',
+        docList: '1. Hộ chiếu (bản gốc) · 2. Giấy xác nhận làm việc',
+        replyLabel: 'Chọn câu trả lời',
+        preset0: 'Tôi đã xác nhận',
+        preset1: 'Vui lòng gửi lại',
+        preset2: 'Tôi có câu hỏi',
+        freeLabel: 'Nội dung thêm',
+        optional: 'Không bắt buộc',
+        freePlaceholder: 'Nhập nội dung (không bắt buộc)',
+        freeSample: 'Tôi sẽ mang hộ chiếu vào thứ Hai.',
+        reviewNotice: 'Câu trả lời sẽ được phản ánh sau khi người quản lý xác nhận.',
+        submitLabel: 'Gửi câu trả lời',
+        doneTitle: 'Đã gửi câu trả lời',
+        doneDesc: 'Câu trả lời sẽ được phản ánh sau khi người quản lý xác nhận.',
+        yourReply: 'Câu trả lời của bạn',
+        lockNotice: 'Không thể gửi lại câu trả lời.',
+      },
+      ko: {
+        serviceName: '외고반장',
+        fromLabel: '담당자가 보낸 메시지',
+        senderName: '김민수 담당자',
+        senderCompany: '그린푸드 제조',
+        messageBody: 'Nguyen Van A님, 체류기간 연장을 위해 아래 서류를 7월 24일까지 준비해 주세요.',
+        docListTitle: '준비할 서류',
+        docList: '1. 여권 (원본) · 2. 재직 확인서',
+        replyLabel: '답변 선택',
+        preset0: '확인했습니다',
+        preset1: '다시 보내주세요',
+        preset2: '질문이 있습니다',
+        freeLabel: '추가 내용',
+        optional: '선택 사항',
+        freePlaceholder: '내용 입력 (선택 사항)',
+        freeSample: '월요일에 여권을 가져가겠습니다.',
+        reviewNotice: '답변은 담당자 확인 후 반영됩니다.',
+        submitLabel: '답변 보내기',
+        doneTitle: '답변을 보냈습니다',
+        doneDesc: '답변은 담당자 확인 후 반영됩니다.',
+        yourReply: '내 답변',
+        lockNotice: '답변을 다시 보낼 수 없습니다.',
+      },
+    };
+  }
+
+  renderVals() {
+    const lang = this.state.lang || (this.props.defaultLang === '한국어' ? 'ko' : 'vi');
+    const t = this.strings()[lang];
+    const preset = this.state.preset;
+    const submitted = this.state.submitted;
+    const freeOn = this.state.freeOn;
+
+    const idle = 'inset 0 0 0 1px rgba(112,115,124,0.22)';
+    const sel = 'inset 0 0 0 2px #0066FF';
+    const pStyle = (i) => ({
+      bg: preset === i ? 'rgba(0,102,255,0.04)' : '#FFFFFF',
+      shadow: preset === i ? sel : idle,
+      dot: preset === i ? 'inset 0 0 0 2px #0066FF' : 'inset 0 0 0 1.5px rgba(112,115,124,0.32)',
+    });
+    const p0 = pStyle(0), p1 = pStyle(1), p2 = pStyle(2);
+
+    const langBtn = (on) => ({
+      bg: on ? '#FFFFFF' : 'transparent',
+      shadow: on ? '0px 1px 2px rgba(23,23,23,0.08)' : 'none',
+      color: on ? '#171719' : 'rgba(55,56,60,0.61)',
+    });
+    const vb = langBtn(lang === 'vi'), kb = langBtn(lang === 'ko');
+
+    const canSubmit = preset !== null;
+    const presetLabels = [t.preset0, t.preset1, t.preset2];
+
+    return {
+      t,
+      setVi: () => this.setState({ lang: 'vi' }),
+      setKo: () => this.setState({ lang: 'ko' }),
+      viBg: vb.bg, viShadow: vb.shadow, viColor: vb.color,
+      koBg: kb.bg, koShadow: kb.shadow, koColor: kb.color,
+
+      notSubmitted: !submitted, submitted,
+      p0Sel: preset === 0, p1Sel: preset === 1, p2Sel: preset === 2,
+      p0Bg: p0.bg, p0Shadow: p0.shadow, p0Dot: p0.dot,
+      p1Bg: p1.bg, p1Shadow: p1.shadow, p1Dot: p1.dot,
+      p2Bg: p2.bg, p2Shadow: p2.shadow, p2Dot: p2.dot,
+      pick0: () => this.setState({ preset: 0 }),
+      pick1: () => this.setState({ preset: 1 }),
+      pick2: () => this.setState({ preset: 2 }),
+
+      toggleFree: () => this.setState({ freeOn: !freeOn }),
+      freeShadow: freeOn ? sel : idle,
+      freeText: freeOn ? t.freeSample : t.freePlaceholder,
+      freeTextColor: freeOn ? '#171719' : 'rgba(55,56,60,0.43)',
+      hasFree: freeOn,
+
+      submit: () => { if (canSubmit) this.setState({ submitted: true }); },
+      submitBg: canSubmit ? '#0066FF' : 'rgba(112,115,124,0.16)',
+      submitColor: canSubmit ? '#FFFFFF' : 'rgba(55,56,60,0.43)',
+      submitCursor: canSubmit ? 'pointer' : 'default',
+      submitPe: canSubmit ? 'auto' : 'none',
+      submittedPreset: preset !== null ? presetLabels[preset] : '',
+    };
+  }
+}
+</script>
+</body>
+</html>
