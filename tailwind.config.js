@@ -91,6 +91,7 @@ export default {
         sheet: 'var(--sheet-max-h)',
       },
       boxShadow: {
+        xsmall: 'var(--shadow-xsmall)',
         card: 'var(--shadow-medium)',
         lift: 'var(--shadow-large)',
         sheet: 'var(--sh-sheet)',

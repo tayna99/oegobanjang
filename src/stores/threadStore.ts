@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import type { Interpretation, MessageThread } from '@/types';
+import type { Interpretation, Message, MessageThread } from '@/types';
 import { GuardrailError } from '@/lib/guardrail';
+import { formatClockTime } from '@/lib/threads';
 
 interface ThreadStoreState {
   threads: Record<string, MessageThread>;
@@ -21,6 +22,21 @@ interface ThreadStoreState {
     threadId: string,
     updateIds: string[],
   ) => Interpretation;
+  /**
+   * 인바운드 정규화 지점(MESSAGING_CHANNELS §3) — 근로자 응답 링크(R3.2)·(후속) webhook이
+   * 여기로 합류한다. direction/channel/caseId는 스레드에서 파생해 스토어가 조립한다(호출자가
+   * 위조 불가). preview는 상태 요약 고정 문자열만 — 원문(body)이 preview로 새는 경로를
+   * 구조적으로 차단한다(GOTCHAS §3, src/lib/api/threads.ts의 real API 어댑터와 동일 문구
+   * 재사용). interpretationStatus를 'pending_review'로 옮길 뿐 interpretation 객체는 만들지
+   * 않는다 — mock 세계에는 해석 생성 에이전트(R4.5)가 없다. ThreadPage/MessagesWorkbench는
+   * interpretation 부재 시 타임라인 모드로 렌더한다(기존 분기 그대로, "해석 확인" UI
+   * 미노출 — 가짜 확인 흐름을 만들지 않는다). 같은 messageId 재수신은 no-op(evidenceStore.append와
+   * 동일한 멱등 규칙).
+   */
+  receiveInbound: (
+    threadId: string,
+    inbound: { messageId: string; body: string; lang: string; at: string },
+  ) => void;
   /** 테스트용 초기화 — evidenceStore.ts의 reset 선례. */
   reset: () => void;
 }
@@ -89,6 +105,40 @@ export const useThreadStore = create<ThreadStoreState>((set, get) => ({
       },
     }));
     return interpretation;
+  },
+
+  receiveInbound: (threadId, inbound) => {
+    const thread = get().threads[threadId];
+    if (!thread) {
+      throw new GuardrailError(`존재하지 않는 스레드: ${threadId}`);
+    }
+    if (thread.messages.some((m) => m.messageId === inbound.messageId)) {
+      return; // 중복 수신 — no-op(멱등)
+    }
+
+    const message: Message = {
+      messageId: inbound.messageId,
+      threadId,
+      direction: 'in',
+      channel: thread.channel,
+      body: inbound.body,
+      lang: inbound.lang,
+      at: inbound.at,
+      caseId: thread.caseId,
+    };
+
+    set((s) => ({
+      threads: {
+        ...s.threads,
+        [threadId]: {
+          ...thread,
+          messages: [...thread.messages, message],
+          preview: '응답이 도착했습니다', // src/lib/api/threads.ts의 real API 상태 요약과 동일 문구 재사용
+          timeLabel: formatClockTime(inbound.at),
+          interpretationStatus: 'pending_review',
+        },
+      },
+    }));
   },
 
   reset: () => set({ threads: {} }),

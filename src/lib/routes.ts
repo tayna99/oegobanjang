@@ -22,6 +22,10 @@ export const ROUTES = {
   // case_id가 아니라 회전하는 link_token이 실제 값이다(mock 모드는 여전히 mocks/packages.ts의
   // packageId를 그대로 쓴다 — 백엔드를 안 거치므로 회전 개념 자체가 없다).
   packageLink: (linkToken: string) => `/link/${linkToken}`,
+  // 근로자 응답 링크(R3.2) — packageLink와 같은 부류(Shell 바깥 무인증 단독 페이지). 스레드
+  // 목록 진입점의 "응답"과 행정사 "회신"은 이 코드베이스에서 다른 개념이라 경로명도 분리한다
+  // (GLOSSARY: 응답 링크 = response link).
+  responseLink: (token: string) => `/response/${token}`,
   expertDashboard: (expertId: string) => `/expert/${expertId}`, // 행정사 화이트라벨 대시보드(7-1)
   expertPackage: (expertId: string, packageId: string) => `/expert/${expertId}/package/${packageId}`,
   done: '/done',
@@ -54,6 +58,7 @@ export const ROUTE_PATHS = {
   settingsNotifications: 'settings/notifications',
   // Shell 트리 바깥의 최상위 형제 라우트라 절대 경로(무인증 행정사 링크, 7단계 §4).
   packageLinkAbsolute: '/link/:linkToken',
+  responseLinkAbsolute: '/response/:token',
   // 온보딩도 Shell(로그인 앱 챙) 없이 진행하는 전체 화면 플로우라 형제 라우트로 둔다(4.1).
   onboardingAbsolute: '/onboarding',
   // 행정사 화이트라벨(7-1) — 계정 없이 브랜드 화면으로 접근하는 Shell 바깥 형제 라우트.

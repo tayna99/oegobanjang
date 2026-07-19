@@ -17,6 +17,7 @@ import { EvidencePage } from '@/features/governance/EvidencePage';
 import { MessagesPage } from '@/features/messages/MessagesPage';
 import { PackagePage } from '@/features/packagePkg/PackagePage';
 import { ExpertLinkPage } from '@/features/packagePkg/ExpertLinkPage';
+import { ResponseLinkPage } from '@/features/response/ResponseLinkPage';
 import { ExpertDashboardPage } from '@/features/expert/ExpertDashboardPage';
 import { ExpertPackagePage } from '@/features/expert/ExpertPackagePage';
 import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
@@ -89,6 +90,12 @@ export const routeConfig: RouteObject[] = [
   {
     path: ROUTE_PATHS.packageLinkAbsolute,
     element: <ExpertLinkPage />,
+  },
+  // 근로자 응답 링크(R3.2) — packageLinkAbsolute와 동일 관례(무인증, loader 없음, 만료는
+  // 화면 내부 판정).
+  {
+    path: ROUTE_PATHS.responseLinkAbsolute,
+    element: <ResponseLinkPage />,
   },
   // 온보딩(4.1)도 로그인 전 전체 화면 플로우라 Shell 바깥 형제 라우트 — 상태 머신은
   // OnboardingFlow 내부에서 관리하고 딥링크 카탈로그(2단계)엔 O1~O5 개별 경로가 없다
