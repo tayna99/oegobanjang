@@ -5,6 +5,7 @@ import { HomePage } from '@/features/HomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
 import { CsvUploadPage } from '@/features/cases/CsvUploadPage';
 import { WorkerDataPage } from '@/features/cases/WorkerDataPage';
+import { CasesScanPage } from '@/features/cases/CasesScanPage';
 import { DispatchQueuePage } from '@/features/cases/DispatchQueuePage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { CaseHistoryPage } from '@/features/case/CaseHistoryPage';
@@ -39,6 +40,7 @@ export const routeConfig: RouteObject[] = [
       // CSV 일괄 등록(4.4) — PC 전용(4b), case/:caseId보다 앞에 둘 필요는 없다(다른 최상위 세그먼트).
       { path: ROUTE_PATHS.casesImport, element: <CsvUploadPage /> },
       { path: ROUTE_PATHS.casesWorkers, element: <WorkerDataPage /> },
+      { path: ROUTE_PATHS.casesScan, element: <CasesScanPage /> },
       { path: ROUTE_PATHS.casesDispatch, element: <DispatchQueuePage /> },
       {
         path: ROUTE_PATHS.case,
