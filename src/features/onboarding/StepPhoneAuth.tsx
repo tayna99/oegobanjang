@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Toggle } from '@/components/Toggle';
 import { API_MODE } from '@/lib/api/config';
 import { useSessionStore } from '@/stores/sessionStore';
 
@@ -144,18 +145,7 @@ export function StepPhoneAuth({ onCodeConfirmedChange }: StepPhoneAuthProps) {
       <div className="flex flex-col gap-2.5 rounded-in bg-surface p-3.5">
         <div className="flex items-center justify-between gap-3">
           <span className="text-label1 font-semibold text-ink">승인 시 본인확인 사용</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={bioEnabled}
-            aria-label="승인 시 본인확인 사용"
-            onClick={() => setBioEnabled((v) => !v)}
-            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-btn ease-v2 ${bioEnabled ? 'bg-primary' : 'bg-track'}`}
-          >
-            <span
-              className={`absolute top-0.5 size-5 rounded-full bg-white shadow-lift transition-transform duration-btn ease-v2 ${bioEnabled ? 'translate-x-5' : 'translate-x-0.5'}`}
-            />
-          </button>
+          <Toggle checked={bioEnabled} onChange={setBioEnabled} label="승인 시 본인확인 사용" />
         </div>
         <p className="text-caption1 leading-relaxed text-muted">
           승인 화면에서 생체·PIN을 본인확인 용도로만 사용합니다. 실제 등록은 다음 단계에서 진행합니다.

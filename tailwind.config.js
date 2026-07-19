@@ -19,6 +19,8 @@ export default {
         hairline: 'var(--color-line-solid-normal)',
         line: 'var(--color-line-normal)',
         primary: { DEFAULT: 'var(--color-primary-normal)', press: 'var(--color-primary-strong)' },
+        // Toggle 잠금 상태 전용(2026-07-17) — 일반 primary와 구분되는 반투명 트랙.
+        toggleLocked: 'var(--toggle-locked-bg)',
         critical: { DEFAULT: 'var(--chip-critical-fg)', text: 'var(--chip-critical-fg)' },
         warning: { DEFAULT: 'var(--chip-high-fg)', text: 'var(--chip-high-fg)' },
         success: 'var(--chip-positive-fg)',

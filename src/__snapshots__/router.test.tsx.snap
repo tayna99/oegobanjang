@@ -94,6 +94,11 @@ exports[`routeConfig > 딥링크 맵과 1:1 대응하는 경로 구조를 유지
         "hasLoader": false,
         "path": "settings/delegation",
       },
+      {
+        "children": undefined,
+        "hasLoader": false,
+        "path": "settings/notifications",
+      },
     ],
     "hasLoader": false,
     "path": "(layout)",

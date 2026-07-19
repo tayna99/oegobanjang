@@ -22,6 +22,7 @@ import { ExpertPackagePage } from '@/features/expert/ExpertPackagePage';
 import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
 import { MembersPage } from '@/features/settings/MembersPage';
 import { DelegationPage } from '@/features/settings/DelegationPage';
+import { NotificationSettingsPage } from '@/features/settings/NotificationSettingsPage';
 import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -80,6 +81,7 @@ export const routeConfig: RouteObject[] = [
       { path: ROUTE_PATHS.settings, element: <SettingsHubPage /> },
       { path: ROUTE_PATHS.settingsMembers, element: <MembersPage /> },
       { path: ROUTE_PATHS.settingsDelegation, element: <DelegationPage /> },
+      { path: ROUTE_PATHS.settingsNotifications, element: <NotificationSettingsPage /> },
     ],
   },
   // Shell(로그인 앱 챙) 바깥의 최상위 형제 라우트 — 행정사는 계정이 없어 nav/tabbar가 없다

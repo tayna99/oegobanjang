@@ -27,5 +27,6 @@ export function useNav() {
     toSettings: () => navigate(ROUTES.settings),
     toSettingsMembers: () => navigate(ROUTES.settingsMembers),
     toSettingsDelegation: () => navigate(ROUTES.settingsDelegation),
+    toSettingsNotifications: () => navigate(ROUTES.settingsNotifications),
   };
 }

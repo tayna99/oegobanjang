@@ -42,6 +42,7 @@ export function SettingsHubPage() {
   const setApprovalPolicy = useCompanyStore((s) => s.setApprovalPolicy);
   const briefingTime = useCompanyStore((s) => s.briefingTime);
   const setBriefingTime = useCompanyStore((s) => s.setBriefingTime);
+  const notificationPrefs = useCompanyStore((s) => s.notificationPrefs);
 
   // 7단계 §6 "설정: viewer –" — 열람자는 설정에 진입할 수 없다.
   if (role === 'viewer') {
@@ -121,6 +122,17 @@ export function SettingsHubPage() {
               className="rounded-in bg-canvas px-2 py-1 text-label1 text-ink shadow-outline outline-none focus:shadow-rail-focus"
             />
             <span className="text-caption1 text-dim">매일 이 시각에 오늘 브리핑이 생성됩니다</span>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h3 className="text-caption1 font-bold text-subtle">알림</h3>
+          <div className="overflow-hidden rounded-in border border-hairline">
+            <SettingsRow
+              label="알림"
+              sublabel={`브리핑 ${briefingTime} · 응답 즉시 알림 ${notificationPrefs.responseImmediate ? 'ON' : 'OFF'}`}
+              onClick={() => nav.toSettingsNotifications()}
+            />
           </div>
         </section>
       </main>

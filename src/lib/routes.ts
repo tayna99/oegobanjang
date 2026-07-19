@@ -29,6 +29,7 @@ export const ROUTES = {
   settings: '/settings', // 운영급 RBAC 확장(7단계 §6 "설정")
   settingsMembers: '/settings/members',
   settingsDelegation: '/settings/delegation',
+  settingsNotifications: '/settings/notifications',
 } as const;
 
 // react-router 자식 라우트의 path 세그먼트(선행 슬래시 없음).
@@ -50,6 +51,7 @@ export const ROUTE_PATHS = {
   settings: 'settings',
   settingsMembers: 'settings/members',
   settingsDelegation: 'settings/delegation',
+  settingsNotifications: 'settings/notifications',
   // Shell 트리 바깥의 최상위 형제 라우트라 절대 경로(무인증 행정사 링크, 7단계 §4).
   packageLinkAbsolute: '/link/:linkToken',
   // 온보딩도 Shell(로그인 앱 챙) 없이 진행하는 전체 화면 플로우라 형제 라우트로 둔다(4.1).

@@ -112,5 +112,6 @@ exports[`tokens.css의 디자인 토큰이 v3 :root와 일치한다 1`] = `
   "std": "240ms",
   "tabbar-h": "62px",
   "tabbar-label-fs": "11px",
+  "toggle-locked-bg": "rgba(0, 102, 255, .35)",
 }
 `;

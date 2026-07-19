@@ -190,6 +190,16 @@ export interface DelegationConfig {
 // 회사 승인 정책(7단계 §2 각주1) — owner_only(기본, 20인 미만) | manager_allowed(20인 이상).
 export type ApprovalPolicy = 'owner_only' | 'manager_allowed';
 
+// 알림 수신 설정(2단계_알림카탈로그_딥링크맵_v1.md §6) — 회사 단위. "승인 요청 즉시 알림"은
+// 여기 없다 — OFF 불가(강제 ON)라 저장값을 두지 않는다(threadStore에 send 액션을 안 두는 것과
+// 같은 구조적 차단 — 끌 수 없는 값은 애초에 상태로 표현하지 않는다). "채널 우선순위"도 읽기
+// 전용 표시값이라 상태 아님.
+export interface NotificationPrefs {
+  responseImmediate: boolean; // 응답 도착 즉시 알림 — 기본 ON, OFF 시 다이제스트로 강등
+  criticalNight: boolean; // CRITICAL 야간 알림 — 기본 ON, OFF 시 경고 캡션
+  weeklyDigest: boolean; // 주간 요약 — 기본 OFF, 옵트인
+}
+
 // --- 행정사 화이트라벨 (7단계 §7 후속 · 설계 reference/specs/7-1_행정사_화이트라벨_v0.md) ---
 // 스펙 §1 씨앗("역할은 tenant 단위, 한 사용자가 여러 회사에 회사별 역할 — 행정사 화이트라벨
 // 대비")의 실체화. 지금까지 암묵적 단일 회사였던 것을 명시적 Tenant로 올리고, 계정 없는

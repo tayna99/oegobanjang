@@ -39,4 +39,12 @@ describe('SettingsHubPage', () => {
     expect(useCompanyStore.getState().approvalPolicy).toBe('owner_only');
     expect(ownerOnlyBtn).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it('알림 행이 알림 설정 화면으로 이동한다', async () => {
+    renderAt('/settings');
+    const notiRow = await screen.findByRole('button', { name: /알림/ });
+    expect(notiRow).toHaveTextContent('브리핑 08:00');
+    fireEvent.click(notiRow);
+    expect(await screen.findByText('아침 브리핑 시각')).toBeInTheDocument();
+  });
 });
