@@ -3,7 +3,7 @@
 // 버튼 관용구를 그대로 재사용해 조립한다(블루프린트 §9.1-A와 동일 방식) — 새 시각
 // 결정 없음. 근거: reference/design-system/design-briefs/README.md(태깅).
 import { BackHeader } from '@/components/BackHeader';
-import { Button } from '@/components/Button';
+import { RoleBlockedNotice } from '@/components/RoleBlockedNotice';
 import { cn } from '@/lib/cn';
 import { useNav } from '@/lib/nav';
 import { useCompanyStore } from '@/stores/companyStore';
@@ -47,11 +47,12 @@ export function SettingsHubPage() {
   // 7단계 §6 "설정: viewer –" — 열람자는 설정에 진입할 수 없다.
   if (role === 'viewer') {
     return (
-      <div className="p-5">
-        <p className="text-body2 text-muted">열람자 권한으로는 설정에 진입할 수 없습니다.</p>
-        <Button variant="outline" className="mt-4" onClick={() => nav.toHome()}>
-          오늘 브리핑으로
-        </Button>
+      <div className="flex min-h-dvh flex-col bg-canvas">
+        <BackHeader title="설정" onBack={() => nav.toHome()} />
+        <RoleBlockedNotice
+          title="열람자 권한으로는 설정에 진입할 수 없습니다."
+          subtitle="설정 변경은 대표·담당자만 가능합니다."
+        />
       </div>
     );
   }

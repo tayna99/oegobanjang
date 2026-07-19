@@ -16,10 +16,14 @@ describe('NotificationSettingsPage', () => {
     useCompanyStore.getState().reset();
   });
 
-  it('viewer는 알림 설정에 딥링크로 직접 진입해도 차단된다', async () => {
+  it('viewer는 알림 설정에 딥링크로 직접 진입해도 차단된다 — 헤더는 유지되고 권한 배지 안내가 뜬다', async () => {
     useRoleStore.getState().setRole('viewer');
     renderAt('/settings/notifications');
-    expect(await screen.findByText('열람자 권한으로는 알림 설정에 진입할 수 없습니다.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '알림 설정' })).toBeInTheDocument();
+    expect(screen.getByText('열람자 권한으로는 알림 설정에 진입할 수 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText('알림 설정 변경은 대표·담당자만 가능합니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /브리핑으로/ })).not.toBeInTheDocument();
   });
 
   it('manager도 승인 요청 즉시 알림 항목을 본다 — 대표 전용이 아니다', async () => {

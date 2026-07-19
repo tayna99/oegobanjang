@@ -250,6 +250,11 @@ ko: (위 각 항목의 한국어 원문 — 브리핑 상세는 목업 스크립
 후속(이번 스코프 밖으로 명시 등재):
 - `ExpertLinkPage`의 만료/무효 상태를 근로자 응답 링크 목업 수준(아이콘 배지)으로 개선.
 - "아침 브리핑 시각" 행의 실제 클릭 동작(네이티브 피커 vs 별도 시트) 확정.
-- 설정 화면군(`MembersPage`·`DelegationPage`·`SettingsHubPage`·`NotificationSettingsPage`)의
-  viewer 차단 상태를 목업 수준(아이콘 배지)으로 통일할지 결정 — 4화면 전체를 한 번에 바꿔야
-  일관성이 깨지지 않으므로 개별 화면 작업이 아니라 별도 태스크로.
+- [해결, 2026-07-19] 설정 화면군(`MembersPage`·`DelegationPage`·`SettingsHubPage`·
+  `NotificationSettingsPage`)의 viewer 차단 상태를 목업 수준(아이콘 배지)으로 통일하기로
+  결정 — 4화면 전체를 한 번에 공용 컴포넌트 `src/components/RoleBlockedNotice.tsx`(제목·부제
+  props)로 교체했다. 목업 구조를 그대로 따라 `BackHeader`는 차단 상태에서도 계속 렌더해
+  뒤로가기를 제공하고(4화면 전부 헤더가 없었던 기존 결함 겸 수정), 기존 "돌아가기" 버튼은
+  제거했다(헤더 뒤로가기로 대체 — 목업에 CTA 버튼 없음). 배지 아이콘은 `IconLock`
+  + `bg-neutbg`(`rgba(112,115,124,.08)`, 목업 배지 배경과 값 일치) + `text-subtle` 재사용,
+  목업의 `#70737C`(토큰 밖 임의 hex)는 채택하지 않음.

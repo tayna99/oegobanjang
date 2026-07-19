@@ -6,8 +6,8 @@
 // manager_allowed가 기본 정책)과 맞지 않아 owner+manager 둘 다에게 노출한다
 // (docs/DESIGN_SYNC_AUDIT_2026-07-17.md §1.2에 디자인 내부 결함으로 기록).
 import { BackHeader } from '@/components/BackHeader';
-import { Button } from '@/components/Button';
 import { IconClock, IconLock } from '@/components/icons';
+import { RoleBlockedNotice } from '@/components/RoleBlockedNotice';
 import { Toggle } from '@/components/Toggle';
 import { useNav } from '@/lib/nav';
 import { useCompanyStore } from '@/stores/companyStore';
@@ -24,11 +24,12 @@ export function NotificationSettingsPage() {
   // 설정 허브와 동일 가드 — 딥링크로 이 화면에 직접 진입해도 viewer는 차단(MembersPage 관례).
   if (role === 'viewer') {
     return (
-      <div className="p-5">
-        <p className="text-body2 text-muted">열람자 권한으로는 알림 설정에 진입할 수 없습니다.</p>
-        <Button variant="outline" className="mt-4" onClick={() => nav.toHome()}>
-          오늘 브리핑으로
-        </Button>
+      <div className="flex min-h-dvh flex-col bg-canvas">
+        <BackHeader title="알림 설정" onBack={() => nav.toHome()} />
+        <RoleBlockedNotice
+          title="열람자 권한으로는 알림 설정에 진입할 수 없습니다."
+          subtitle="알림 설정 변경은 대표·담당자만 가능합니다."
+        />
       </div>
     );
   }

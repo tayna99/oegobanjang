@@ -18,9 +18,13 @@ describe('DelegationPage', () => {
     useEvidenceStore.getState().reset();
   });
 
-  it('manager는 위임 관리에 진입할 수 없다', async () => {
+  it('manager는 위임 관리에 진입할 수 없다 — 헤더는 유지되고 권한 배지 안내가 뜬다', async () => {
     renderAt('/settings/delegation');
-    expect(await screen.findByText('위임 관리는 대표 권한으로만 열 수 있습니다.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '위임 관리' })).toBeInTheDocument();
+    expect(screen.getByText('위임 관리는 대표 권한으로만 열 수 있습니다.')).toBeInTheDocument();
+    expect(screen.getByText('위임 설정·해제는 대표만 가능합니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /돌아가기/ })).not.toBeInTheDocument();
   });
 
   it('owner는 위임 대상을 선택하고 기간을 지정해 위임을 설정할 수 있다', async () => {
