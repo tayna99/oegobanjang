@@ -51,6 +51,7 @@ Tailwind theme에서는 hex를 복제하지 말고 `var(--color-*)`를 참조한
 - **명칭**: Badge가 아니라 **Chip**. 컴포넌트/스토리/테스트 이름을 Chip으로 통일 (M2.5.2에서 개명).
 - **라디우스**: 버튼 8/10/12px(사이즈별), Chip 6/8/10px, 카드 ~12px, Avatar 원형은 pill. (pill은 아바타 전용 — 칩에 쓰지 않는다)
 - **아웃라인 버튼/칩**: CSS `border` 대신 `inset 0 0 0 1px box-shadow` — 레이아웃 시프트 방지.
+- **선택형 카드(라디오)**: PC 워크벤치 `rail-focus`(1px 아웃라인 + `approvalbg` 솔리드 배경, 탭·칩 전용)와는 다른 컴포넌트. 모바일 대형 선택 카드(온보딩 역할 선택, 응답 링크 프리셋 응답)는 선택 시 `shadow-select-ring`(`inset 0 0 0 2px primary`) + `bg-selectbg`(`--color-selection-tint`, 라이트 `rgba(0,102,255,.04)` / 다크 `rgba(51,133,255,.08)`), 라디오 점(dot)은 선택 `shadow-select-ring` · 미선택 `shadow-select-ring-idle`(`inset 0 0 0 1.5px --color-line-strong`, 라이트 `rgba(112,115,124,.32)` / 다크 `.42`). 카드 자체의 미선택 상태는 기존 `shadow-outline`과 값이 같아 그대로 재사용. 출처: `외고반장 온보딩.dc.html`, `외고반장 근로자 응답 링크.dc.html`(2026-07-19 등록, Montage 램프 밖 이 프로젝트 확장).
 - **Disabled**: `label.disable` 텍스트 + `interaction.disable` 배경, `pointer-events:none`.
 - **모션**: `0.2s ease` (칩은 `0.3s ease`) — 스프링/바운스 금지.
 - **그림자**: neutral-tone, 6~12% opacity 5단계(`--shadow-xsmall…xlarge`)만 사용.

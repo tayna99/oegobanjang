@@ -33,6 +33,8 @@ export default {
         neutbg: 'var(--chip-neutral-bg)',
         approvalbg: 'var(--chip-approval-bg)',
         medbg: 'var(--chip-medium-bg)',
+        // 선택형 카드(라디오) 선택 배경 틴트 — rail-focus/approvalbg(PC 워크벤치 탭)와는 별개.
+        selectbg: 'var(--color-selection-tint)',
         draft: 'var(--chip-draft-fg)',
         draftbg: 'var(--chip-draft-bg)',
         detected: 'var(--chip-detected-fg)',
@@ -102,6 +104,9 @@ export default {
         'rail-active': 'inset 2px 0 0 var(--color-primary-normal)',
         'rail-focus': 'inset 0 0 0 1px var(--color-primary-normal)',
         'step-current': '0 0 0 4px var(--chip-approval-bg)',
+        // 선택형 카드(라디오) 전용 — rail-focus(1px)보다 두꺼운 2px 링(rules/design.md §4).
+        'select-ring': 'inset 0 0 0 2px var(--color-primary-normal)',
+        'select-ring-idle': 'inset 0 0 0 1.5px var(--color-line-strong)',
       },
       transitionDuration: {
         fast: 'var(--fast)',

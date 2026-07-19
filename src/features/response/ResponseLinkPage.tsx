@@ -229,9 +229,9 @@ export function ResponseLinkPage() {
                 role="radio"
                 aria-checked={selected}
                 onClick={() => setPresetIndex(i)}
-                className={`flex items-center gap-2.5 rounded-in px-3.5 py-3 text-left transition-all duration-btn ease-v2 ${selected ? 'bg-approvalbg shadow-rail-focus' : 'bg-canvas shadow-outline'}`}
+                className={`flex items-center gap-2.5 rounded-in px-3.5 py-3 text-left transition-all duration-btn ease-v2 ${selected ? 'bg-selectbg shadow-select-ring' : 'bg-canvas shadow-outline'}`}
               >
-                <span className={`flex size-5 shrink-0 items-center justify-center rounded-full ${selected ? 'shadow-rail-focus' : 'shadow-outline'}`}>
+                <span className={`flex size-5 shrink-0 items-center justify-center rounded-full ${selected ? 'shadow-select-ring' : 'shadow-select-ring-idle'}`}>
                   {selected && <span className="size-2 rounded-full bg-primary" />}
                 </span>
                 <span className="text-label1 font-semibold text-ink">{preset}</span>
