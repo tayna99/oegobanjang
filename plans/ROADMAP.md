@@ -388,6 +388,23 @@ P2 1건): 재발급 API 실패에도 UI가 성공으로 기록하고 응답의 `
 - 검증: backend `uv run pytest` 171/171(격리 DB), `db/validate.py` 181/181, 프론트
   `npm run verify`(typecheck→lint→test 561건→build) 전부 PASS.
 
+## UI 선행 구현 — 알림 설정 · 서류 스캔 분류 · 근로자 응답 링크 (목 세계, 2026-07-17)
+
+> `plans/FRONTEND_DESIGN_TODO_2026-07-17.md` A-1/A-2/A-3이 도출한 항목. R3.2(SMS 인바운드)·
+> R5.2(OCR)·R5.4(알림·푸시)의 **프론트 UI만 목 세계 안에서 먼저 구현**한다 — 실제 백엔드
+> (Outbox, OCR 파이프라인, 푸시 발송)는 각 R번호의 몫으로 남긴다. 디자인 소스: 브리프 3종
+> (`reference/design-system/design-briefs/`) → 목업 3종(`reference/design-system/외고반장
+> {알림 설정|서류 스캔 분류|근로자 응답 링크}.dc.html`) → 감사 `docs/DESIGN_SYNC_AUDIT_2026-07-17.md`.
+
+| # | 태스크 | 레벨 | 스펙 | DoD |
+|---|---|---|---|---|
+| UI-1 | 알림 설정 화면(`/settings/notifications`) | L2 | 브리프 A-3 + 목업 + 감사 §1 | 신규 `Toggle` 컴포넌트(`rules/design.md` §6 등재) + `companyStore.notificationPrefs`, 승인 요청 알림 행 owner+manager 노출·비활성+사유 캡션 테스트, viewer 딥링크 가드, 브리핑 시각 companyStore 단일 바인딩(허브+이 화면 동시 반영) 테스트 |
+| UI-2 | 서류 스캔 분류 화면(`/cases/scan`, PC 전용, 신규) | L2 | 브리프 A-2 + 목업 + 감사 §2 | `DocScanUpload`/`lib/docScan.ts` 신설, 미매칭 전건 해결 전 확인 대기 버튼 비활성 테스트, `caseStore.applyInterpretationUpdates` 재사용(statusLabel="스캔 확인 대기"), 일괄 확정 UI 부재 테스트, `tool_executed` evidence(파일명 미포함) 테스트 |
+| UI-3 | 근로자 응답 링크 페이지(`/response/:token`, 무인증) | L2 | 브리프 A-1 + 목업 + 감사 §3 | `threadStore.receiveInbound` 신설(가드레일 테스트: 없는 스레드·중복 messageId), vi/ko 언어 토글, 프리셋 단일선택 게이트, 5상태(정상/제출완료/만료/이미응답/무효) 렌더 테스트, 응답 원문 미재노출 테스트, `nguyen` 스레드 데모 매핑 |
+
+각 태스크 완료 조건 공통: `npm run verify` PASS + 브라우저 실검증(UI-2는 데스크톱 1440+,
+UI-1·UI-3은 모바일 375, UI-1은 PC 레이아웃도 확인) + ui-matcher 서브에이전트 대조.
+
 ## 발송 어댑터·알림톡 (R2 이후 — 별도 계획, PRD Sprint 6)
 
 발송 어댑터·알림톡은 R2 배선과 별개로 계속 범위 밖이다¹.
