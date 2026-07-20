@@ -5,6 +5,7 @@ import { useBriefingStore } from '@/stores/briefingStore';
 import { useCaseStore } from '@/stores/caseStore';
 import { useCitationStore } from '@/stores/citationStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useThreadStore } from '@/stores/threadStore';
 import { fetchLatestBriefing } from './api/briefings';
@@ -12,6 +13,7 @@ import { fetchCases } from './api/cases';
 import { fetchCitationLibrary } from './api/citations';
 import { API_MODE } from './api/config';
 import { fetchEvidence } from './api/evidence';
+import { fetchNotifications } from './api/notifications';
 import { fetchThreadDetail, fetchThreads } from './api/threads';
 
 // 13개 화면에 반복되던 "스토어가 비어있으면 픽스처로 시드" useEffect를 한 곳으로 모은다
@@ -111,5 +113,20 @@ export function useSeedBriefing(): void {
     fetchLatestBriefing()
       .then(hydrate)
       .catch((err: unknown) => console.error('[dataSeed] 브리핑 조회 실패', err));
+  }, [hydrate]);
+}
+
+// R5.4 — mock 모드는 notificationStore를 절대 채우지 않는다(초기값 빈 배열 그대로) — 알림
+// 센터·unreadNotifications 배지는 mock 모드에서 항상 "알림 없음"으로 렌더된다(동작 무변경
+// 보장, BriefingHomePage의 unreadNotifications:0 배선 참조). real 모드에서만 부팅 시 1회
+// 서버 수신함을 hydrate한다 — Shell.tsx의 NotificationBell이 이 훅을 호출해, 앱이 뜨는 동안
+// 항상 한 번은 채워진다.
+export function useSeedNotifications(): void {
+  const hydrate = useNotificationStore((s) => s.hydrate);
+  useEffect(() => {
+    if (API_MODE !== 'real') return;
+    fetchNotifications()
+      .then(hydrate)
+      .catch((err: unknown) => console.error('[dataSeed] 알림 조회 실패', err));
   }, [hydrate]);
 }

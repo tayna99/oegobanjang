@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # R2.1 — 프론트(src/lib/api/)가 실서버 모드(VITE_API_MODE=real)에서 이 origin으로 호출한다.
     # 로컬 Vite 기본 포트(5173)만 기본 허용 — 배포 시 실제 프론트 origin으로 교체한다.
     cors_allow_origins: list[str] = ["http://localhost:5173"]
+    # R5.4 — 실 FCM/APNs 자격증명. `app/api/v1/auth.py`의 `debug_code=... if is_local else None`
+    # 게이트와 동일한 원칙: 이 값이 없으면(이 저장소·CI·리뷰어 환경 전부 기본값) push_adapter가
+    # 로그 전용 no-op으로만 동작한다 — placeholder 값으로 실 외부 호출을 시도하지 않는다.
+    push_provider_credentials: str | None = None
 
     # R3 — 메시징 채널 어댑터 자격 증명(backend/app/services/channels/). 전부 기본값 None —
     # 이 dev 환경·CI·리뷰어 환경엔 실계정이 없으므로 항상 비어 있다. auth.py의

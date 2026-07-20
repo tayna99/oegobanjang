@@ -76,6 +76,8 @@ uv run pytest
 | GET | `/api/v1/response-link/{token}` | 근로자 응답 링크 조회(R3) — **무인증**. 발신 메시지 본문(모국어)·버튼 선택지를 내려준다. 만료·미발급 전부 404 |
 | POST | `/api/v1/response-link/{token}` | 근로자 응답 제출(R3) — **무인증**. 버튼 선택/자유입력 → 인바운드 정규화 + N02(`worker_reply_received`) + M6 Interpretation(proposed) |
 | POST | `/api/v1/webhooks/zalo` | Zalo OA 인바운드 webhook(R3 stage ④) — 공유 시크릿(`X-Webhook-Secret` 헤더) 게이팅, 미설정 시 항상 503 |
+| GET | `/api/v1/notifications` | 본인 수신함 조회(R5.4) — 최신순. 생성 엔드포인트는 없다(승인 요청/결정·CRITICAL 리스크 트랜잭션이 직접 기록, 아래 §알려진 스코프 경계) |
+| POST | `/api/v1/notifications/{notification_id}/read` | 알림 읽음 처리(R5.4) — 본인 수신함 스코프만(다른 사람 알림 id는 404), 멱등(최초 열람 시각 보존) |
 | GET | `/health` | 헬스체크 |
 
 승인/반려·생성은 액션(케이스) 단위 단건 처리만 존재한다 — **일괄 승인 엔드포인트는 만들지 않는다**(GOTCHAS §3).
@@ -128,6 +130,8 @@ app/
   services/outbox.py       발송 대기열 오케스트레이션(R3) — 승인 게이트·발송 창·리마인드 쿨다운·48h 재발송·알림톡→SMS fallback
   services/response_link.py  응답 링크 조회/제출 + 인바운드 정규화 단일 지점(`ingest_inbound_reply`, R3)
   services/webhooks.py     Zalo OA webhook 인바운드(R3 stage ④) — 공유 시크릿 검증 + response_link.ingest_inbound_reply 재사용
+  services/notifications.py  알림 큐 생성(N01·N06·N03)/조회/읽음 처리(R5.4) — approvals.py·briefing_service.py가 자기 트랜잭션 안에서 직접 호출
+  services/push_adapter.py 푸시 발송 자격증명 게이트 스텁(R5.4) — PUSH_PROVIDER_CREDENTIALS 미설정 시 로그 전용 no-op
   api/v1/approvals.py      라우터 — 도메인 예외 → HTTP 상태 매핑, batch 엔드포인트 없음
   api/v1/auth.py           라우터 — OTP 요청/검증/me/로그아웃
   api/v1/cases.py          라우터 — GET 목록(R2.3)/상세(R2.4)
@@ -138,6 +142,7 @@ app/
   api/v1/outbox.py         라우터 — POST/GET /api/v1/outbox(R3, 인증 필요)
   api/v1/response_link.py  라우터 — GET/POST /api/v1/response-link/{token}(R3, 무인증)
   api/v1/webhooks.py       라우터 — POST /api/v1/webhooks/zalo(R3, 공유 시크릿)
+  api/v1/notifications.py  라우터 — GET/POST /api/v1/notifications(R5.4, 생성 엔드포인트 없음)
   api/deps.py              get_current_user_id/get_current_membership — Bearer 세션 토큰에서 신원·소속 도출
   api/expert_deps.py       get_current_expert_member — 화이트라벨 세션 토큰에서 ExpertOfficeMember 도출(R5.1)
 migrations/
@@ -149,9 +154,11 @@ migrations/
   versions/0004_r3_outbox_and_response_link.py   outbox 테이블(+트리거 3종) + thread_messages
     response_token/response_token_expires_at 컬럼(ALTER 리비전)
   versions/0005_r5_1_expert_whitelabel.py   행정사 화이트라벨 v1 신규 테이블 7개 + handoff_packages.
-    expert_account_id + evidence_events.type CHECK 확장(ALTER 리비전, down_revision=0004로 병합 시
-    재정렬 — 병렬 작업 중 두 브랜치가 독립적으로 0003을 down_revision으로 잡았던 것을 병합 후
-    0004→0005로 체인). 다음 스키마 변경은 0006+
+    expert_account_id + evidence_events.type CHECK 확장(ALTER 리비전)
+  versions/0006_r5_4_notification_read_at.py   notifications.read_at 컬럼 추가(ALTER 리비전)
+  — 0004/0005/0006 세 리비전이 병렬 세션에서 독립적으로 작업돼 처음엔 전부 down_revision=0003
+  이었다 — 병합 시 0004→0005→0006 선형 체인으로 재정렬(단일 head 확인: `alembic heads`).
+  다음 스키마 변경은 0007+
 tests/
   conftest.py              전용 테스트 DB + savepoint 격리
   test_ddl_parity.py       모델 ↔ 마이그레이션된 DB 컬럼/타입/nullable 대조
@@ -168,6 +175,8 @@ tests/
   test_api_outbox.py       발송 대기열 — 승인 게이트·idempotency·발송 창·리마인드 쿨다운·48h 재발송·알림톡 fallback(R3)
   test_api_response_link.py  응답 링크 조회/제출 — 만료·인바운드 정규화·원문 미노출(R3)
   test_api_webhooks.py     Zalo webhook — 시크릿 게이팅·인바운드 정규화(R3)
+  test_api_notifications.py  알림 목록/읽음 처리 엔드포인트 — 테넌트·수신자 격리·멱등성(R5.4)
+  test_notifications_service.py  알림 생성 훅(N01·N06·N03)·dedupe·조회/읽음 서비스 함수(R5.4)
 ```
 
 ## 알려진 스코프 경계 (의도적)
@@ -200,3 +209,10 @@ tests/
   §5-1). 리마인드 24h 쿨다운·48h 재발송 규칙은 서비스 함수로 구현됐지만 이를 주기적으로
   트리거하는 스케줄러는 없다 — 사람/후속 자동화가 `event_type='reminder'|'resend'`로
   `POST /api/v1/outbox`를 호출해야 실제로 발동한다.
+- `notifications`(R5.4)는 서버가 이미 감지하는 이벤트 3종(N01 승인 요청·N06 승인/반려 결정·
+  N03 CRITICAL 리스크)에만 생성 훅이 있다 — N02(worker_replied)는 인바운드 쓰기 API 자체가
+  없어 소스가 없고, N04/N05(런 상태 전이)·N10~N14(아침 다이제스트 스케줄러)·N20~N22(주간
+  묶음)는 스코프 밖(후속, R3/R4). 외부 푸시 발송은 `services/push_adapter.py`(자격증명 게이트
+  스텁)만 있다 — `PUSH_PROVIDER_CREDENTIALS`가 없는 이 저장소·CI·리뷰어 환경에서는 항상
+  로그 전용 no-op이고, 값이 있어도 실 FCM/APNs SDK 연동 자체는 아직 없다(§13-7 "발신 확인
+  없음" 설계와 정합 — `notifications`에는 애초에 발신 확인 컬럼이 없다).

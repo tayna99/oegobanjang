@@ -57,6 +57,7 @@ from app.models.membership import Membership
 from app.models.user import User
 from app.schemas.approval import ApprovalDecisionRequest
 from app.services.evidence import next_event_no as _next_event_no
+from app.services.notifications import notify_approval_decided, notify_approval_requested
 
 APPROVER_ROLES = ("owner", "manager")
 ALLOWED_REQUEST_ROLES = ("manager",)  # 7단계 권한 매트릭스: 케이스 진행(C/R/U)은 manager만(owner는 R)
@@ -266,6 +267,21 @@ def decide_approval(
         )
     )
 
+    # N06 — 요청을 만든 담당자에게 결정 결과를 알린다(2단계 카탈로그 §4.1). evidence와 같은
+    # 트랜잭션에 얹는다: 알림 실패가 결정 자체를 막아서는 안 되지만(그런 경로는 없다 —
+    # notify_approval_decided는 예외를 던지지 않는다), 반대로 결정이 롤백되면(아래
+    # IntegrityError) 알림도 함께 롤백돼야 "일어나지 않은 결정"의 알림이 남지 않는다.
+    notify_approval_decided(
+        db,
+        company_id=approval.company_id,
+        case_id=approval.case_id,
+        case_title=case.title,
+        approval_id=approval.id,
+        requested_by_user_id=approval.requested_by_user_id,
+        decision=decision,
+        at=now,
+    )
+
     try:
         db.commit()
     except IntegrityError as exc:
@@ -343,6 +359,20 @@ def request_approval(db: Session, action_id: str, requested_by_user_id: str) -> 
             actor_display=f"{requester.name} (본인)",
             summary="승인 요청",
         )
+    )
+
+    # N01 — 승인 권한자(활성 owner+manager, 요청자 본인 제외)에게 즉시 알린다(2단계 카탈로그
+    # §4.1). ux_approvals_one_pending 유니크 인덱스 충돌로 이 커밋 자체가 실패하면(동시 요청
+    # 경합) 아래 IntegrityError 롤백에 알림도 함께 말려든다 — "일어나지 않은 요청"의 알림이
+    # 남지 않는다.
+    notify_approval_requested(
+        db,
+        company_id=next_action.company_id,
+        case_id=next_action.case_id,
+        case_title=case.title,
+        approval_id=approval.id,
+        requested_by_user_id=requested_by_user_id,
+        at=now,
     )
 
     try:

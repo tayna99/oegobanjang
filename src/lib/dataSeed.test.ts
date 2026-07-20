@@ -1,12 +1,13 @@
 import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useSeedBriefing, useSeedCases, useSeedCitations, useSeedThreads } from './dataSeed';
+import { useSeedBriefing, useSeedCases, useSeedCitations, useSeedNotifications, useSeedThreads } from './dataSeed';
 import { CASE_CARDS } from '@/mocks/fixtures';
 import { CITATION_LIBRARY } from '@/mocks/citations';
 import { THREADS } from '@/mocks/threads';
 import { useBriefingStore } from '@/stores/briefingStore';
 import { useCaseStore } from '@/stores/caseStore';
 import { useCitationStore } from '@/stores/citationStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { useThreadStore } from '@/stores/threadStore';
 
 // API_MODE 기본값('mock') 경로 — 실 API 모드는 dataSeed.realApi.test.ts에서 별도로 다룬다
@@ -64,5 +65,16 @@ describe('useSeedCitations / useSeedBriefing — mock 모드', () => {
     renderHook(() => useSeedBriefing());
     expect(fetchMock).not.toHaveBeenCalled();
     expect(useBriefingStore.getState().briefing).toBeNull();
+  });
+});
+
+// R5.4 — mock 모드는 notificationStore를 절대 건드리지 않는다(BriefingHomePage
+// unreadNotifications:0 무변경 보장의 근거).
+describe('useSeedNotifications — mock 모드', () => {
+  beforeEach(() => useNotificationStore.getState().reset());
+
+  it('mock 모드에서는 아무 것도 hydrate하지 않는다', () => {
+    renderHook(() => useSeedNotifications());
+    expect(useNotificationStore.getState().records).toEqual([]);
   });
 });
