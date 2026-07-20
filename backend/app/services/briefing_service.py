@@ -33,6 +33,7 @@ from app.models.case import Case
 from app.models.evidence import EvidenceEvent
 from app.services import context_service
 from app.services.context_service import ContextSnapshot, RuleFinding
+from app.services.notifications import notify_risk_flagged_critical
 
 
 def generate_daily_briefing(
@@ -231,3 +232,26 @@ def _record_risk_flagged(
             summary=f"{finding.display_label} — {finding.severity} ({_risk_timing_label(finding)})",
         )
     )
+    # N03 — 2단계 카탈로그 §2는 CRITICAL만 실시간 P1이고 HIGH 이하는 아침 다이제스트(N11,
+    # P2)로 합산된다. 다이제스트 스케줄러는 이번 범위 밖이라 notify_risk_flagged_critical이
+    # severity != 'CRITICAL'이면 스스로 빈 리스트를 반환한다(호출은 항상 하되 필터는 그
+    # 함수 책임 — 이 함수가 "새로 flagged된 case만" 걸러주는 already_flagged 가드와 대칭
+    # 위치에 둔다).
+    notify_risk_flagged_critical(
+        db,
+        company_id=company_id,
+        case_id=case_id,
+        case_title=finding.display_label,
+        severity=finding.severity,
+        threshold_key=_notification_threshold_key(finding),
+        at=at,
+    )
+
+
+def _notification_threshold_key(finding: RuleFinding) -> str:
+    """N03 dedupe_key 재료 — 2단계 §5.2 "같은 임계값은 1회만"의 임계값 표현. 만료 후 경과일이
+    매일 바뀌므로 자연히 매일 새 dedupe_key가 되어(=여전히 진행 중인 문제를 매일 재알림하는
+    쪽이 조용히 묻히는 것보다 안전) 하루 1회씩은 정당하게 재알림된다."""
+    if finding.expired and finding.days_overdue is not None:
+        return f"overdue:{finding.days_overdue}"
+    return f"dday:{finding.d_day}"

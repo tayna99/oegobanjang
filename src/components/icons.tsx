@@ -155,3 +155,20 @@ export function IconWait(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+// 알림 벨(R5.4) — BriefingHeader.tsx의 기존 인라인 bell path와 동일 글리프(새로 발명하지
+// 않고 이미 쓰이던 모양을 공유 아이콘으로 승격, GOTCHAS "필요한 만큼만"). Shell.tsx의
+// NotificationBell이 nav 진입점으로 쓴다.
+export function IconBell(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" {...props}>
+      <path
+        d="M6 9a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5h-15S6 13 6 9z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path d="M10 18.5a2 2 0 004 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}

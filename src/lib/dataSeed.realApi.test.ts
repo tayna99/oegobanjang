@@ -5,9 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // 경유하는 모든 import가 동일하게 관측한다 — StepPhoneAuth.realApi.test.tsx와 동일한 관례).
 vi.mock('./api/config', () => ({ API_BASE_URL: 'http://localhost:8000', API_MODE: 'real' }));
 
-import { useSeedCases, useSeedEvidence, useSeedThreadDetail, useSeedThreads } from './dataSeed';
+import { useSeedCases, useSeedEvidence, useSeedNotifications, useSeedThreadDetail, useSeedThreads } from './dataSeed';
 import { useCaseStore } from '@/stores/caseStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import { useThreadStore } from '@/stores/threadStore';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -177,5 +178,36 @@ describe('useSeedEvidence — 실 API 모드(R2.5)', () => {
     renderHook(() => useSeedEvidence());
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+const NOTIFICATION_DTO = {
+  id: 'nt_1',
+  type: 'N01',
+  priority: 'P1',
+  title: '승인 요청 1건',
+  body: '체류 만료 임박',
+  deeplink_path: 'case/cs1/approve',
+  channel: 'push',
+  status: 'queued',
+  case_id: 'cs1',
+  run_id: null,
+  created_at: '2026-07-20T09:00:00Z',
+  read_at: null,
+};
+
+describe('useSeedNotifications — 실 API 모드(R5.4)', () => {
+  afterEach(() => {
+    useNotificationStore.getState().reset();
+    vi.restoreAllMocks();
+  });
+
+  it('부팅 시 GET /api/v1/notifications로 hydrate한다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([NOTIFICATION_DTO])) as unknown as typeof fetch;
+
+    renderHook(() => useSeedNotifications());
+
+    await waitFor(() => expect(useNotificationStore.getState().records).toHaveLength(1));
+    expect(useNotificationStore.getState().records[0].id).toBe('nt_1');
   });
 });

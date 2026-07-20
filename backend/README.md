@@ -59,6 +59,8 @@ uv run pytest
 | GET | `/api/v1/evidence` | 판단 기록 목록(R2.5) — 인증 필요, 자기 회사만, `case_id` 쿼리로 필터 |
 | POST | `/api/v1/packages/{case_id}/link` | 행정사 패키지 열람 링크 발급/재발급(R2.6) — manager/owner 인증 + 케이스의 `create_handoff` 승인 완료 필요, 7일 유효기간 갱신, 응답에 회전된 `link_token` 포함 |
 | GET | `/api/v1/packages/link/{link_token}` | 행정사 패키지 열람 링크 검증(R2.6) — **무인증**(ExpertLinkPage 전용). `case_id`가 아니라 발급/재발급마다 회전하는 `link_token`으로만 조회(코드리뷰 지적 — `case_id`는 PK라 불변이라 비밀로 쓰면 재발급으로 기존 유출 링크를 회수할 수 없었다). 미발급·만료·대상없음 전부 404 |
+| GET | `/api/v1/notifications` | 본인 수신함 조회(R5.4) — 최신순. 생성 엔드포인트는 없다(승인 요청/결정·CRITICAL 리스크 트랜잭션이 직접 기록, 아래 §알려진 스코프 경계) |
+| POST | `/api/v1/notifications/{notification_id}/read` | 알림 읽음 처리(R5.4) — 본인 수신함 스코프만(다른 사람 알림 id는 404), 멱등(최초 열람 시각 보존) |
 | GET | `/health` | 헬스체크 |
 
 승인/반려·생성은 액션(케이스) 단위 단건 처리만 존재한다 — **일괄 승인 엔드포인트는 만들지 않는다**(GOTCHAS §3).
@@ -100,19 +102,25 @@ app/
   services/delegations.py  현재 세션 사용자의 유효 위임 조회(R2.4)
   services/evidence.py     일반 판단 기록 기록/조회(R2.5) + next_event_no(evidence_seq 원자 증가, approvals.py도 재사용)
   services/packages.py     행정사 패키지 링크 발급/재발급/열람(R2.6) — 문서 콘텐츠는 다루지 않음
+  services/notifications.py  알림 큐 생성(N01·N06·N03)/조회/읽음 처리(R5.4) — approvals.py·briefing_service.py가 자기 트랜잭션 안에서 직접 호출
+  services/push_adapter.py 푸시 발송 자격증명 게이트 스텁(R5.4) — PUSH_PROVIDER_CREDENTIALS 미설정 시 로그 전용 no-op
   api/v1/approvals.py      라우터 — 도메인 예외 → HTTP 상태 매핑, batch 엔드포인트 없음
   api/v1/auth.py           라우터 — OTP 요청/검증/me/로그아웃
   api/v1/cases.py          라우터 — GET 목록(R2.3)/상세(R2.4)
   api/v1/delegations.py    라우터 — GET /api/v1/delegations/mine(R2.4)
   api/v1/evidence.py       라우터 — POST/GET /api/v1/evidence(R2.5, 인증 필요)
   api/v1/packages.py       라우터 — POST(인증) /api/v1/packages/{case_id}/link · GET(무인증) /api/v1/packages/link/{link_token}(R2.6)
+  api/v1/notifications.py  라우터 — GET/POST /api/v1/notifications(R5.4, 생성 엔드포인트 없음)
   api/deps.py              get_current_user_id/get_current_membership — Bearer 세션 토큰에서 신원·소속 도출
 migrations/
   versions/0001_p1_core_schema.py   실배포(PR #10) 동결 스냅샷 — 더 이상 손대지 않는다
   versions/0002_r2_5_evidence_and_r2_6_package_links.py   evidence_events.type CHECK 확장 +
     handoff_packages.link_issued_at/link_expires_at 추가(ALTER 리비전)
   versions/0003_r2_4_delegated_approval_decider.py   trg_approvals_decider_role에 위임 OR-arm 추가
-    (ALTER 리비전). 다음 스키마 변경은 0004+
+    (ALTER 리비전)
+  versions/0006_r5_4_notification_read_at.py   notifications.read_at 컬럼 추가(ALTER 리비전) —
+    down_revision=0003. 착수 시점에 0004/0005가 없어 번호가 스킵됨(병렬 작업 중이던 다른
+    마이그레이션들 — 병합 시 실제 체인 순서로 재배치 필요할 수 있음)
 tests/
   conftest.py              전용 테스트 DB + savepoint 격리
   test_ddl_parity.py       모델 ↔ 마이그레이션된 DB 컬럼/타입/nullable 대조
@@ -123,6 +131,8 @@ tests/
   test_api_delegations.py  위임 조회 — 유효·만료·철회·본인 소유 위임 제외(R2.4)
   test_api_evidence.py     일반 판단 기록 기록/조회 — 허용 타입·PII 차단·테넌트 격리(R2.5)
   test_api_packages.py     행정사 패키지 링크 발급/재발급/열람 — 권한·만료·404(R2.6)
+  test_api_notifications.py  알림 목록/읽음 처리 엔드포인트 — 테넌트·수신자 격리·멱등성(R5.4)
+  test_notifications_service.py  알림 생성 훅(N01·N06·N03)·dedupe·조회/읽음 서비스 함수(R5.4)
 ```
 
 ## 알려진 스코프 경계 (의도적)
@@ -147,3 +157,10 @@ tests/
 - 프론트(`src/lib/api/`)는 R2.1~2.4까지 배선됐다 — `VITE_API_MODE=real`일 때만 이 backend를
   호출한다(기본값 mock, `src/lib/api/config.ts`). 브리핑·메시지 배선은 R2.3 범위(이미 완료),
   나머지 화면별 real 모드 배선은 화면이 필요해지는 순서대로 진행한다(`plans/ROADMAP.md`).
+- `notifications`(R5.4)는 서버가 이미 감지하는 이벤트 3종(N01 승인 요청·N06 승인/반려 결정·
+  N03 CRITICAL 리스크)에만 생성 훅이 있다 — N02(worker_replied)는 인바운드 쓰기 API 자체가
+  없어 소스가 없고, N04/N05(런 상태 전이)·N10~N14(아침 다이제스트 스케줄러)·N20~N22(주간
+  묶음)는 스코프 밖(후속, R3/R4). 외부 푸시 발송은 `services/push_adapter.py`(자격증명 게이트
+  스텁)만 있다 — `PUSH_PROVIDER_CREDENTIALS`가 없는 이 저장소·CI·리뷰어 환경에서는 항상
+  로그 전용 no-op이고, 값이 있어도 실 FCM/APNs SDK 연동 자체는 아직 없다(§13-7 "발신 확인
+  없음" 설계와 정합 — `notifications`에는 애초에 발신 확인 컬럼이 없다).

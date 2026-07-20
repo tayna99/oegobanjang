@@ -8,6 +8,7 @@ from app.api.v1.cases import router as cases_router
 from app.api.v1.citations import router as citations_router
 from app.api.v1.delegations import router as delegations_router
 from app.api.v1.evidence import router as evidence_router
+from app.api.v1.notifications import router as notifications_router
 from app.api.v1.packages import router as packages_router
 from app.api.v1.runs import router as runs_router
 from app.api.v1.threads import router as threads_router
@@ -18,7 +19,8 @@ app = FastAPI(
     description="docs/DB_SCHEMA.md 정본 기반 백엔드 접속점. 화면 라우터는 화면이 백엔드에 "
     "붙는 순서대로 점진 추가된다 — 현재는 로그인(phone+OTP)·승인 요청/결정(PIN·위임 검증)· "
     "근거 라이브러리 조회·오케스트레이션 런(SSE)·데일리 브리핑 생성/조회·케이스/스레드 읽기· "
-    "판단 기록 기록/조회·행정사 패키지 링크·위임 조회(R2.4~R2.6)까지(plans/HANDOFF.md).",
+    "판단 기록 기록/조회·행정사 패키지 링크·위임 조회(R2.4~R2.6)·알림 센터 조회/읽음 처리(R5.4)까지"
+    "(plans/HANDOFF.md).",
 )
 
 # R2.1 — 프론트가 실서버 모드(VITE_API_MODE=real)에서 브라우저 fetch로 이 API를 직접
@@ -41,6 +43,7 @@ app.include_router(threads_router)
 app.include_router(evidence_router)
 app.include_router(packages_router)
 app.include_router(delegations_router)
+app.include_router(notifications_router)
 
 
 @app.get("/health")

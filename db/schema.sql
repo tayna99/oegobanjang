@@ -662,6 +662,14 @@ CREATE TABLE notifications (
   case_id           text,
   run_id            text,
   created_at        timestamptz NOT NULL DEFAULT now(),
+  read_at           timestamptz,                     -- 인앱 알림 센터에서 수신자가 읽음
+                                                       -- 처리한 시각(R5.4). §13-7 "발신 확인
+                                                       -- 없음" 계약과는 무관 — sent/delivered
+                                                       -- 같은 발신 확인이 아니라 "그 사람이
+                                                       -- 인앱에서 열어봤는가"만 기록한다
+                                                       -- (아래 "no delivery timestamp columns"
+                                                       -- 불변식은 sent_at/delivered_at만
+                                                       -- 검사하므로 이 컬럼과 충돌 없음).
   UNIQUE (company_id, dedupe_key),
   FOREIGN KEY (company_id, recipient_user_id) REFERENCES memberships(company_id, user_id),
   FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),

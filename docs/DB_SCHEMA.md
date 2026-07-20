@@ -607,7 +607,7 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | **rank** | int | | 발행 시점 정렬 스냅샷(hero=1). 이후 상태 변화는 케이스에서 파생 |
 | **created_at** | timestamptz | | |
 
-### 4.10 알림 — P3 (M4·알림톡 어댑터 마일스톤)
+### 4.10 알림 — 생성/큐잉·인앱 조회 R5.4 구현(푸시 발송은 자격증명 게이트 스텁, M4·알림톡 어댑터는 여전히 후속)
 
 #### notifications — 알림 전송 의도 큐 (2단계 카탈로그 N01~N22)
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -626,9 +626,11 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | scheduled_for | timestamptz | | 큐 처리 후보 시각. 발송·전달 timestamp는 존재하지 않음 |
 | case_id / run_id | uuid | `(company_id,…)` FK | |
 | **created_at** | timestamptz | | |
+| read_at | timestamptz | R5.4 신규 | 인앱 알림 센터에서 수신자가 읽음 처리한 시각. `sent_at`/`delivered_at`(발신 확인)과는 별개 — "그 사람이 인앱에서 열어봤는가"만 기록(db/validate.py "no delivery timestamp columns" 불변식은 그대로 유지) |
 
 - 일일 상한(P1 5건/일)·쿨다운(24h)·48h 재알림은 이 큐 위의 향후 스케줄러 규칙이다. MVP에는 실제 발송이나 `notification_sent` evidence가 없다.
 - N05b(프로액티브 런 완료)는 **개별 푸시 금지** — 카드 상태로만(스키마가 아니라 발송 규칙이지만 계약으로 명기).
+- **R5.4(2026-07-20) 구현 범위**: 이 큐에 행을 적재하는 생성 경로(`backend/app/services/notifications.py`)를 서버가 이미 감지하는 이벤트 3종(승인 요청 N01·승인/반려 결정 N06·CRITICAL 리스크 N03)에 배선했다. `GET /api/v1/notifications`(본인 수신함 조회)·`POST /api/v1/notifications/{id}/read`(읽음 처리)로 인앱 알림 센터가 이 큐를 소비한다. 실제 외부 푸시 발송은 자격증명(`PUSH_PROVIDER_CREDENTIALS`) 게이트 뒤 로그 전용 스텁(`backend/app/services/push_adapter.py`)만 있다 — 이 저장소·CI·리뷰어 환경 어디에도 그 값이 없어 항상 no-op이다. N02(worker_replied)는 인바운드 쓰기 API 자체가 아직 없어(R3 몫) 소스가 없고, N04/N05(런 상태 전이)·N10~N14(아침 다이제스트 스케줄러)·N20~N22(주간 묶음)는 이번 범위 밖(후속).
 
 ### 4.11 온보딩·수집 — P3
 

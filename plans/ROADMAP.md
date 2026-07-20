@@ -393,3 +393,27 @@ P2 1건): 재발급 API 실패에도 UI가 성공으로 기록하고 응답의 `
 발송 어댑터·알림톡은 R2 배선과 별개로 계속 범위 밖이다¹.
 
 ¹ outbox(발송 대기열)+`SmsAdapter`+응답 링크 인바운드까지의 로드맵은 `docs/MESSAGING_CHANNELS.md` §5(단계 로드맵)에 정리돼 있다 — 이 저장소는 현재 ①(프론트 Message 도메인 + `MockAdapter`)까지만.
+
+## R5.4 — 알림 생성·큐잉 + 인앱 알림 센터 (푸시 발송은 자격증명 게이트 스텁, 2026-07-20)
+
+> 출처: `plans/NEXT_ROADMAP_2026-07-16.md` §5.4 "알림·푸시 — 알림 카탈로그(N01~) 실발송 — 딥링크
+> 맵은 이미 구현돼 있어 수신부만"의 승격. `notifications` ORM 모델은 이 태스크 착수 전까지
+> 어떤 서비스·라우터에서도 쓰이지 않았다(P3 미구현 10테이블 중 하나). §13-7 "MVP는 발신 확인
+> 없음" 설계(`notifications.status`는 `queued/held/suppressed`만, `sent`/`delivered`/`failed`는
+> DB CHECK가 구조적으로 차단)는 그대로 유지 — 이 태스크는 알림 큐 **생성/조회**와 인앱 알림
+> **센터**만 실구현하고, 외부 푸시 발송 자체는 자격증명 게이트 뒤 로그 전용 스텁만 둔다.
+
+| # | 태스크 | 레벨 | 스펙 | DoD |
+|---|---|---|---|---|
+| ✅ 5.4 | 알림 생성/큐잉 + 인앱 센터 | L2 | NEXT_ROADMAP §5.4, 2단계_알림카탈로그_딥링크맵_v1.md | `backend/app/services/notifications.py` 신설 — 서버가 이미 감지하는 이벤트 3종(승인 요청 N01·승인/반려 결정 N06·CRITICAL 리스크 N03)에 배선(`services/approvals.py`·`services/briefing_service.py`). `GET/POST /api/v1/notifications`(목록·읽음 처리, 본인 수신함 스코프) + `notifications.read_at` 컬럼 신설(마이그레이션 `0006_r5_4_notification_read_at.py`, `sent_at`/`delivered_at`과 무관 — §13-7 유지). 프론트 `src/lib/api/notifications.ts`(citations.ts/briefings.ts 관례)·`src/stores/notificationStore.ts`·`src/features/notifications/NotificationBell.tsx`(bell+BottomSheet, Shell.tsx nav 신규 진입점)·`src/features/briefing/BriefingHomePage.tsx`의 `unreadNotifications:0` 하드코딩을 real 모드 실카운트로 교체(mock 모드는 무변경). 푸시 발송은 `backend/app/services/push_adapter.py`(자격증명 게이트 스텁, `PUSH_PROVIDER_CREDENTIALS` 미설정 시 로그 전용 no-op — 이 저장소·CI·리뷰어 환경 전부 해당) |
+
+**5.4 완료(2026-07-20).** 서버가 이미 감지하는 이벤트에만 배선했다 — N02(worker_replied)는
+인바운드 쓰기 API 자체가 없어(A3, R3 몫) 소스가 없고, N04/N05(런 상태 전이)·N10~N14(아침
+다이제스트 스케줄러)·N20~N22(주간 묶음)는 스코프 밖(후속)이다. 발견·교정한 실제 버그: 여러
+수신자(owner+manager)에게 같은 이벤트를 알릴 때 `dedupe_key`에 수신자 id를 넣지 않아
+`UNIQUE(company_id, dedupe_key)` 충돌로 두 번째 수신자부터 알림이 조용히 유실되던 것을
+`test_notifications_service.py`가 잡아 교정(`{case_id}:{type}:{...}:{recipient_id}`로 변경).
+검증: backend `TEST_DB_NAME=ogb_test_r54 uv run pytest` 258/258(신규 18건 포함) 전부 PASS,
+`db/validate.py --reset`(디스포저블 DB `ogb_r54_validate`) 181/181 PASS("notification sent
+status is blocked" 등 §13-7 가드레일 불변, `read_at` 추가와 무충돌 확인). 프론트
+`npm run verify`는 하단 기록 참조.
