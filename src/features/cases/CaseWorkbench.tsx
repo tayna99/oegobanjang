@@ -1,27 +1,36 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { SafetyNotice } from '@/components/SafetyNotice';
 import { useNextAction } from '@/lib/actionNav';
-import { caseTimelineActivity } from '@/lib/audit';
+import { caseActivityFromEvents, caseTimelineActivity } from '@/lib/audit';
+import { API_MODE } from '@/lib/api/config';
+import { type CaseDetail, fetchCaseDetail } from '@/lib/api/cases';
 import { CASE_FILTERS, applyDocUpdatesOverlay, buildCaseGroups, caseGroupFor, filterCases, type CaseFilterPreset } from '@/lib/cases';
 import { CASE_STAGES, DELIVERY_STAGES, caseStageIndex, deliveryStageIndex } from '@/lib/caseStage';
 import { severityTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
 import { dDayLabel, dDayTextClass } from '@/lib/dday';
 import { SECTION_TITLE_CLASS } from '@/lib/sectionTitle';
-import { CASE_SHEETS, type CaseSheet } from '@/mocks/fixtures';
+import { CASE_SHEETS, type CaseActivityEntry, type CaseCheckedItem, type CaseDoc, type CaseSheet } from '@/mocks/fixtures';
 import { draftForCase } from '@/mocks/drafts';
 import { useCaseStore } from '@/stores/caseStore';
 import { usableCitations } from '@/stores/citationStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
 import { useRoleStore } from '@/stores/roleStore';
-import type { CaseCard, Severity } from '@/types';
+import type { CaseCard, Citation, Severity } from '@/types';
 
 // PC 케이스 워크벤치(M2.5.4) — reference/design-system/외고반장 PC.dc.html §3b(234~455행)
 // "목록 · 상세 · AI/근거 레일" 3열. 데이터는 기존 계약(CaseCard·CASE_SHEETS·DRAFTS)만 사용하고
 // 필터·그룹·정렬은 src/lib/cases selector를 그대로 재사용한다(2.1 결정 사항).
 // lg 미만에서는 이 컴포넌트가 마운트되지 않는다(useIsDesktop 분기 — 모바일 회귀 차단).
+//
+// SD-6(plans/SEED_DESIGN_2026-07-20.md Part B5(c)) — real 모드에서 CASE_SHEETS에 매치가 없는
+// 케이스(진짜 서버 caseId)는 선택된 케이스 1건만 GET /api/v1/cases/{id}로 보강해 렌더한다
+// (ApprovePage/CaseReviewPage와 동일 패턴 — 목록 전체를 N+1로 불러오지 않는다). 근거는 개수만
+// 내려오고(usable_citation_count) 개별 레코드는 없어(전용 케이스별 citations 엔드포인트가
+// 없음) EvidenceRail의 "연결 근거" 목록은 real 모드에서 헤더 카운트만 보여주고 개별 카드
+// 목록은 생략한다(CaseReviewPage가 이미 쓰는 것과 동일한 정직한 단순화).
 
 export interface CaseWorkbenchProps {
   cards: CaseCard[];
@@ -184,19 +193,19 @@ function StageStepper({ card, sheet }: { card: CaseCard; sheet?: CaseSheet }) {
   );
 }
 
-function DocChecklist({ sheet }: { sheet: CaseSheet }) {
-  if (!sheet.docs || sheet.docs.length === 0) return null;
-  const doneCount = sheet.docs.filter((doc) => doc.status === 'received').length;
+function DocChecklist({ docs }: { docs: CaseDoc[] | undefined }) {
+  if (!docs || docs.length === 0) return null;
+  const doneCount = docs.filter((doc) => doc.status === 'received').length;
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
         <span className={RAIL_SECTION_TITLE}>필수 서류 체크리스트</span>
         <span className="text-pc-2xs text-faint">
-          필수 {sheet.docs.length} 중 {doneCount} 완료
+          필수 {docs.length} 중 {doneCount} 완료
         </span>
       </div>
       <ul className="overflow-hidden rounded-in border border-hairline">
-        {sheet.docs.map((doc) => (
+        {docs.map((doc) => (
           <li key={doc.name} className="flex items-center gap-2 border-b border-hairline px-3 py-2 last:border-none">
             {doc.status === 'received' ? (
               <span aria-hidden="true" className="flex size-3.5 items-center justify-center rounded bg-success">
@@ -243,18 +252,31 @@ function DraftPanel({ caseId }: { caseId: string }) {
   );
 }
 
-function CaseTimeline({ sheet, onOpenRun }: { sheet: CaseSheet; onOpenRun?: (runRef: string) => void }) {
-  // D-3(NEXT_ROADMAP): sheet.activity는 CASE_SHEETS 정적 데이터라 행정사 회신·해석 확인
-  // 같은 런타임 이벤트가 반영되지 않았다 — evidenceStore를 병합해 실시간으로 얹는다.
-  // 코드리뷰 효율 지적: caseTimelineActivity의 filter+map을 useMemo 없이 매 렌더 재계산하고
-  // 있었다 — CaseWorkbench의 검색어·선택 케이스 등 이 값과 무관한 상태가 바뀔 때도 다시
-  // 돌던 것을 막는다(evidenceStore 자체의 이벤트가 실제로 바뀌었을 때만 재계산).
+function CaseTimeline({
+  caseId,
+  staticActivity,
+  nextWake,
+  hasMockSheet,
+  onOpenRun,
+}: {
+  caseId: string;
+  staticActivity: readonly CaseActivityEntry[];
+  nextWake?: string;
+  hasMockSheet: boolean;
+  onOpenRun?: (runRef: string) => void;
+}) {
+  // D-3(NEXT_ROADMAP): mock 모드는 sheet.activity(CASE_SHEETS 정적 데이터) 위에 행정사 회신·
+  // 해석 확인 같은 런타임 이벤트만 얹는다(caseTimelineActivity, 기존 동작 그대로 불변).
+  // real 모드는 mock 매치가 없어 정적 activity 자체가 없다 — 그 케이스의 판단 기록 전체를
+  // 대신 승격한다(caseActivityFromEvents, SD-6). 코드리뷰 효율 지적: filter+map을 useMemo
+  // 없이 매 렌더 재계산하고 있었다 — evidenceStore 자체의 이벤트가 실제로 바뀌었을 때만
+  // 재계산되게 막는다.
   const events = useEvidenceStore((s) => s.events);
   const activity = useMemo(
-    () => caseTimelineActivity(sheet.caseId, sheet.activity, events),
-    [sheet.caseId, sheet.activity, events],
+    () => (hasMockSheet ? caseTimelineActivity(caseId, staticActivity, events) : caseActivityFromEvents(caseId, events)),
+    [hasMockSheet, caseId, staticActivity, events],
   );
-  if (activity.length === 0 && !sheet.nextWake) return null;
+  if (activity.length === 0 && !nextWake) return null;
   return (
     <section aria-label="케이스 타임라인" className="flex flex-col gap-2">
       <span className={RAIL_SECTION_TITLE}>케이스 타임라인</span>
@@ -284,26 +306,38 @@ function CaseTimeline({ sheet, onOpenRun }: { sheet: CaseSheet; onOpenRun?: (run
           ))}
         </ul>
       )}
-      {sheet.nextWake && (
-        <p className="rounded-in bg-surface px-3 py-2.5 text-caption1 text-muted">{sheet.nextWake}</p>
-      )}
+      {nextWake && <p className="rounded-in bg-surface px-3 py-2.5 text-caption1 text-muted">{nextWake}</p>}
     </section>
   );
 }
 
 // 우측 AI/근거 레일(디자인 §3b 396~452행) — AI가 확인한 내용·연결 근거·승인/전달 상태·행정사 전달.
-function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
+function EvidenceRail({
+  card,
+  checkedItems,
+  citations,
+  usableCount,
+  nextWake,
+}: {
+  card: CaseCard;
+  checkedItems: CaseCheckedItem[];
+  // mock은 개별 근거 레코드(Citation[])까지 있지만 real 모드는 개수(usableCount)만 있다 —
+  // undefined면 헤더 카운트만 보여주고 목록은 생략한다(CaseReviewPage와 동일 단순화).
+  citations: Citation[] | undefined;
+  usableCount: number;
+  nextWake?: string;
+}) {
   const deliveryCurrent = deliveryStageIndex(card);
   return (
     <aside
       aria-label="AI·근거 레일"
       className="flex w-[340px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-hairline bg-canvas p-4"
     >
-      {sheet.checkedItems.length > 0 && (
+      {checkedItems.length > 0 && (
         <section className="flex flex-col gap-2">
           <span className={RAIL_SECTION_TITLE}>AI가 확인한 내용</span>
           <dl className="flex flex-col">
-            {sheet.checkedItems.map(({ label, value }) => (
+            {checkedItems.map(({ label, value }) => (
               <div key={label} className="flex justify-between gap-3 border-b border-hairline py-2 text-caption1 last:border-none">
                 <dt className="text-muted">{label}</dt>
                 <dd className="font-semibold text-ink tabular-nums">{value}</dd>
@@ -315,14 +349,14 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
 
       <section className="flex flex-col gap-2">
         {/* 코드리뷰 지적: 헤더 카운트·0건 게이트가 F등급을 세고 있었다 — citationLocked와 동일 규칙으로 교정. */}
-        <span className={RAIL_SECTION_TITLE}>연결 근거 ({usableCitations(sheet.citations).length})</span>
-        {usableCitations(sheet.citations).length === 0 ? (
+        <span className={RAIL_SECTION_TITLE}>연결 근거 ({usableCount})</span>
+        {usableCount === 0 ? (
           <p className="rounded-in bg-approvalbg px-3 py-2.5 text-caption1 leading-relaxed text-approval">
             공식 근거가 연결되지 않았습니다. 승인 전 확인이 필요합니다.
           </p>
-        ) : (
+        ) : citations ? (
           <ul className="flex flex-col gap-1.5">
-            {sheet.citations.map((citation) => (
+            {citations.map((citation) => (
               <li key={citation.title} className="flex items-center gap-2 rounded-in border border-hairline px-2.5 py-2">
                 <span
                   aria-hidden="true"
@@ -335,7 +369,7 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </section>
 
       <section className="flex flex-col gap-2">
@@ -377,12 +411,10 @@ function EvidenceRail({ card, sheet }: { card: CaseCard; sheet: CaseSheet }) {
         </ol>
       </section>
 
-      {sheet.nextWake && (
+      {nextWake && (
         <section className="flex flex-col gap-2">
           <span className={RAIL_SECTION_TITLE}>다음 액션 (AI 제안)</span>
-          <p className="rounded-in border border-hairline px-3 py-2.5 text-pc-xs leading-relaxed text-ink">
-            {sheet.nextWake}
-          </p>
+          <p className="rounded-in border border-hairline px-3 py-2.5 text-pc-xs leading-relaxed text-ink">{nextWake}</p>
         </section>
       )}
 
@@ -432,9 +464,37 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
   // 해석 확인(caseStore.applyInterpretationUpdates)이 남긴 docUpdates를 문서 상태 라벨에
   // 오버레이한다 — CaseReviewPage(모바일)와 공유하는 selector(lib/cases.ts, D-4).
   const sheet = useMemo(() => applyDocUpdatesOverlay(baseSheet, docUpdates), [baseSheet, docUpdates]);
+
+  // SD-6 — real 모드 + mock 시트 없음(진짜 서버 caseId)이면 선택된 케이스 1건만 서버에서
+  // 보강한다(ApprovePage/CaseReviewPage와 동일 "선택 시 fetch" 패턴 — 목록 전체를 N+1로
+  // 불러오지 않는다).
+  const [realDetail, setRealDetail] = useState<CaseDetail | null>(null);
+  useEffect(() => {
+    if (API_MODE !== 'real' || sheet || !selected) return;
+    let cancelled = false;
+    // 목록에서 다른 케이스를 선택하면 이전 선택의 상세가 잠깐이라도 잘못 붙어있지 않게 먼저 비운다.
+    setRealDetail(null);
+    fetchCaseDetail(selected.caseId)
+      .then((detail) => {
+        if (!cancelled) setRealDetail(detail);
+      })
+      .catch((err: unknown) => console.error('[CaseWorkbench] 케이스 상세 조회 실패', err));
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, sheet]);
+
+  // mock/real 공용 파생값 — sheet가 있으면(mock) 기존 그대로, 없으면(real) realDetail에서.
+  const guardNote = sheet?.guardNote ?? realDetail?.guardNote ?? undefined;
+  const checkedItems = sheet?.checkedItems ?? realDetail?.checkedItems ?? [];
+  const docs = sheet?.docs ?? realDetail?.docs;
+  const nextWake = sheet?.nextWake ?? realDetail?.nextWake;
+  const citations = sheet?.citations; // real 모드는 개별 레코드가 없다(EvidenceRail 주석 참고).
+  const usableCount = sheet ? usableCitations(sheet.citations).length : (realDetail?.usableCitationCount ?? 0);
   // GOTCHAS §2 근거 품질 게이트 — CaseSheet와 동일한 잠금 규칙.
-  // F등급(합성 데이터)은 근거로 세지 않는다(§3c 각주 비준, 2.5.4b).
-  const citationLocked = sheet ? usableCitations(sheet.citations).length === 0 : true;
+  // F등급(합성 데이터)은 근거로 세지 않는다(§3c 각주 비준, 2.5.4b) — real 모드는 서버가
+  // usable_citation_count를 산출할 때 이미 F등급을 제외한다(services.approvals와 동일 로직).
+  const citationLocked = usableCount === 0;
 
   return (
     <section aria-label="케이스 워크벤치" className="flex h-[calc(100dvh-4rem)] overflow-hidden bg-surface">
@@ -522,7 +582,7 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
 
       {/* 중앙: 케이스 상세 (디자인 §3b 310~394행) */}
       <section aria-label="케이스 상세" className="flex min-w-0 flex-1 flex-col bg-canvas">
-        {!selected || !sheet ? (
+        {!selected || (API_MODE !== 'real' && !sheet) ? (
           <p className="p-6 text-body2 text-muted">조건에 맞는 케이스가 없습니다</p>
         ) : (
           <>
@@ -603,17 +663,23 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
             </header>
 
             <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-4">
-              {sheet.guardNote && (
+              {guardNote && (
                 <p className="rounded-in bg-approvalbg px-3.5 py-3 text-body2 leading-relaxed text-approval">
-                  {sheet.guardNote}
+                  {guardNote}
                 </p>
               )}
               <StageStepper card={selected} sheet={sheet} />
               <div className="grid grid-cols-2 gap-6">
-                <DocChecklist sheet={sheet} />
+                <DocChecklist docs={docs} />
                 <DraftPanel caseId={selected.caseId} />
               </div>
-              <CaseTimeline sheet={sheet} onOpenRun={onOpenRun} />
+              <CaseTimeline
+                caseId={selected.caseId}
+                staticActivity={sheet?.activity ?? []}
+                nextWake={nextWake}
+                hasMockSheet={Boolean(sheet)}
+                onOpenRun={onOpenRun}
+              />
             </div>
 
             <footer className="flex justify-center border-t border-hairline px-6 py-2">
@@ -623,7 +689,9 @@ export function CaseWorkbench({ cards, preset, selectedCaseId, onSelectCase, onS
         )}
       </section>
 
-      {selected && sheet && <EvidenceRail card={selected} sheet={sheet} />}
+      {selected && (sheet || API_MODE === 'real') && (
+        <EvidenceRail card={selected} checkedItems={checkedItems} citations={citations} usableCount={usableCount} nextWake={nextWake} />
+      )}
     </section>
   );
 }

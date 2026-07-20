@@ -188,6 +188,72 @@ export function caseTimelineActivity(
   return [...runtimeEntries, ...filteredStatic];
 }
 
+// SD-6(plans/SEED_DESIGN_2026-07-20.md Part B5(c)) — real 모드에서 mock CASE_SHEETS 매치가
+// 아예 없는 케이스(진짜 서버 caseId)의 "케이스 타임라인"을 판단 기록(evidenceStore)만으로
+// 구성한다. caseTimelineActivity(위)는 mock 정적 activity 위에 특정 런타임 이벤트 2종만
+// 얹는 좁은 목적이라 그대로 재사용할 수 없다 — 이 함수는 mock 기반이 아예 없을 때 해당
+// 케이스의 판단 기록 전체를 CaseActivityEntry로 승격한다. 재생 가능한 런 단위 서사(mock의
+// "#4788 서류요청 준비" 같은 상세 문구)는 없다 — evidence type 단위의 더 거친 신호이고,
+// 이는 의도적으로 남겨두는 단순화다(activity 상세가 아니라 "무슨 일이 있었는지 순서"가 목적).
+//
+// outcome 매핑 근거(4값 'approved'|'pending'|'question'|'replanned'로 24종 EvidenceType을
+// 근사): ①승인이 실제로 확정/완료/실행된 것(approval_decided·exported·dispatch_executed·
+// delivery_confirmed·interpretation_confirmed·구성원/위임/역할 관리 이벤트 — 관리 조작
+// 자체는 그 즉시 완결)은 'approved'. ②아직 진행 중이거나 확정 전(탐지·계획·근거조회·도구실행·
+// 요청·검토시작·체크리스트 완료 — 체크리스트 완료는 승인 "직전" 단계라 완료가 아님·응답 초안
+// 생성)은 'pending'. ③반려·에스컬레이션처럼 원래 경로가 막혀 다른 조치가 필요해진 경우는
+// 'replanned'. ④사람의 추가 확인/응답을 기다리는 안내성 이벤트(행정사 회신)는 'question' —
+// 기존 caseTimelineActivity의 CASE_TIMELINE_OUTCOME과 겹치는 두 타입(interpretation_confirmed·
+// package_reply)은 그 값('approved'·'question')을 그대로 승계해 두 selector 간 의미가
+// 어긋나지 않게 했다.
+const CASE_ACTIVITY_OUTCOME: Record<EvidenceType, CaseActivityEntry['outcome']> = {
+  intent_classified: 'pending',
+  plan_created: 'pending',
+  tool_executed: 'pending',
+  rag_retrieved: 'pending',
+  risk_flagged: 'pending',
+  approval_requested: 'pending',
+  approval_decided: 'approved',
+  approval_rejected: 'replanned',
+  review_started: 'pending',
+  checklist_completed: 'pending',
+  exported: 'approved',
+  final_response_generated: 'pending',
+  interpretation_confirmed: 'approved',
+  role_granted: 'approved',
+  role_changed: 'approved',
+  member_invited: 'approved',
+  member_removed: 'approved',
+  delegation_granted: 'approved',
+  delegation_revoked: 'approved',
+  approval_escalated: 'replanned',
+  package_link_issued: 'approved',
+  package_link_viewed: 'approved',
+  dispatch_executed: 'approved',
+  delivery_confirmed: 'approved',
+  package_reply: 'question',
+};
+
+// evidence_events.at은 ISO 타임스탬프("2026-07-09T08:00:00Z") — mock activity.at의 상대
+// 표기("오늘 07:58")와 형식이 달라 그대로 못 쓴다. 여기선 시:분만 짧게 잘라 보여준다
+// (날짜까지 필요한 정밀도는 이 리스트의 목적이 아니다 — CaseHistoryPage처럼 전체 이력을
+// 다루는 화면이 아니라 케이스 상세의 최근 활동 요약이라 절대 시각 대신 짧은 표기로 충분).
+function shortTimeLabel(iso: string): string {
+  return iso.length >= 16 ? iso.slice(11, 16) : iso;
+}
+
+export function caseActivityFromEvents(caseId: string, events: readonly EvidenceEvent[]): CaseActivityEntry[] {
+  return mergedAuditLog(events)
+    .filter((event) => event.caseId === caseId)
+    .map((event) => ({
+      runRef: replayableRunRef(event.evidenceRef),
+      label: AUDIT_TYPE_LABEL[event.type],
+      detail: event.summary ?? '',
+      at: shortTimeLabel(event.at),
+      outcome: CASE_ACTIVITY_OUTCOME[event.type],
+    }));
+}
+
 // 자동 에스컬레이션(7단계 §3.2) 표면화 — 큐 행의 "승인 지연" Chip이 참조하는 단일 출처.
 // 시드+런타임 병합은 mergedAuditLog 하나로 통일했다(D-4, NEXT_ROADMAP — 이 함수와
 // CaseHistoryPage.tsx가 각자 같은 병합 로직을 다시 구현하고 있었다, "EVIDENCE_SEED 병합 3벌").

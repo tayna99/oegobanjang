@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchCases, toCaseCard, type CaseDto } from './cases';
+import { fetchCaseDetail, fetchCases, toCaseCard, type CaseDetailDto, type CaseDto } from './cases';
 
 // R2.3 — lib/api/cases.ts는 순수 fetch+DTO 변환만 한다(toCaseCard는 case.py CaseOut을 그대로 매핑).
 describe('lib/api/cases', () => {
@@ -85,5 +85,82 @@ describe('lib/api/cases', () => {
     expect(card.assignee).toBeUndefined();
     expect(card.evidenceCompleteness).toBeUndefined();
     expect(card.preparedRunRef).toBeUndefined();
+  });
+});
+
+// SD-6 — fetchCaseDetail 확장분(checked_items/next_wake/documents). 승인·근거수·pending
+// approval은 R2.4에서 이미 배선됐고 여기선 테스트가 없었다 — 새 필드와 함께 신설한다.
+describe('lib/api/cases — fetchCaseDetail(SD-6)', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  function makeCaseDetailDto(overrides: Partial<CaseDetailDto> = {}): CaseDetailDto {
+    return {
+      id: 'cs1',
+      case_code: 'case_001',
+      title: '체류기간 연장 서류 요청',
+      severity: 'HIGH',
+      state: 'approval_pending',
+      agent_stage: 'awaiting_approval',
+      due_date: '2026-08-09',
+      approval_required: true,
+      prepared_by: 'agent',
+      prepared_run_id: null,
+      worker: null,
+      primary_action: null,
+      secondary_action: null,
+      usable_citation_count: 2,
+      guard_note: null,
+      pending_approval: null,
+      checked_items: [{ label: '체류만료일', value: '2026.08.09 · D-30' }],
+      next_wake: '다음: 발송 후 2일간 응답 없으면 리마인드 여부를 판단합니다',
+      documents: [
+        { doc_type: '여권 사본', status: 'missing', due_date: null, expires_at: null },
+        { doc_type: '재직증명서', status: 'received', due_date: null, expires_at: '2030-01-01' },
+      ],
+      ...overrides,
+    };
+  }
+
+  it('checked_items/next_wake/documents를 mock CaseSheet과 같은 필드명으로 변환한다', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(makeCaseDetailDto()), { status: 200 }));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await fetchCaseDetail('cs1');
+
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/v1/cases/cs1'), expect.any(Object));
+    expect(result.checkedItems).toEqual([{ label: '체류만료일', value: '2026.08.09 · D-30' }]);
+    expect(result.nextWake).toBe('다음: 발송 후 2일간 응답 없으면 리마인드 여부를 판단합니다');
+    expect(result.docs).toEqual([
+      { name: '여권 사본', status: 'missing', statusLabel: '누락' },
+      { name: '재직증명서', status: 'received', statusLabel: '확보' },
+    ]);
+  });
+
+  it('next_wake가 null이면 undefined로, documents가 빈 배열이면 그대로 빈 배열로 변환한다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(makeCaseDetailDto({ next_wake: null, documents: [], checked_items: [] })), { status: 200 }),
+    ) as unknown as typeof fetch;
+
+    const result = await fetchCaseDetail('cs4');
+    expect(result.nextWake).toBeUndefined();
+    expect(result.docs).toEqual([]);
+    expect(result.checkedItems).toEqual([]);
+  });
+
+  it('알 수 없는 문서 상태값은 원문 그대로를 라벨로 폴백한다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify(
+          makeCaseDetailDto({ documents: [{ doc_type: '기타 서류', status: 'unknown_status', due_date: null, expires_at: null }] }),
+        ),
+        { status: 200 },
+      ),
+    ) as unknown as typeof fetch;
+
+    const result = await fetchCaseDetail('cs5');
+    expect(result.docs).toEqual([{ name: '기타 서류', status: 'unknown_status', statusLabel: 'unknown_status' }]);
   });
 });

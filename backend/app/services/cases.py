@@ -13,13 +13,16 @@ from sqlalchemy.orm import Session
 
 from app.models.approval import Approval
 from app.models.case import Case, NextAction
+from app.models.document import WorkerDocument
 from app.models.worker import Worker
 from app.schemas.case import (
     ApprovalChecklistItemOut,
     CaseDetailOut,
     CaseOut,
+    CheckedItemOut,
     NextActionOut,
     PendingApprovalOut,
+    WorkerDocumentOut,
     WorkerRefOut,
 )
 from app.services.approvals import usable_citation_count
@@ -95,10 +98,37 @@ def _pending_approval_out(approval: Approval | None) -> PendingApprovalOut | Non
     )
 
 
+def _checked_items_out(checked_items: object) -> list[CheckedItemOut]:
+    if not isinstance(checked_items, list):
+        return []
+    return [CheckedItemOut(**item) for item in checked_items]
+
+
+def _worker_documents_out(db: Session, company_id: str, worker_id: str | None) -> list[WorkerDocumentOut]:
+    """worker_id가 없는 케이스(예: 커맨드 런 기원)는 워커 엔티티가 없으므로 빈 배열 —
+    SD-6, mock CaseSheet.docs와 동일 개념."""
+    if worker_id is None:
+        return []
+    documents = (
+        db.execute(
+            select(WorkerDocument)
+            .where(WorkerDocument.company_id == company_id, WorkerDocument.worker_id == worker_id)
+            .order_by(WorkerDocument.created_at, WorkerDocument.id)
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        WorkerDocumentOut(doc_type=d.doc_type, status=d.status, due_date=d.due_date, expires_at=d.expires_at)
+        for d in documents
+    ]
+
+
 def get_case_detail_out(db: Session, company_id: str, case: Case) -> CaseDetailOut:
-    """GET /api/v1/cases/{case_id} 전용 조립 — get_case_out(목록용) 위에 승인 화면이
-    필요로 하는 필드를 얹는다(R2.4, Blocker A+B 해소: 프론트가 mock CASE_SHEETS 대신
-    이 응답으로 체크리스트·근거수·가드노트·pending approval_id를 얻는다)."""
+    """GET /api/v1/cases/{case_id} 전용 조립 — get_case_out(목록용) 위에 승인 화면·케이스
+    시트 화면(SD-6)이 필요로 하는 필드를 얹는다(R2.4 Blocker A+B 해소: 프론트가 mock
+    CASE_SHEETS 대신 이 응답으로 체크리스트·근거수·가드노트·pending approval_id를 얻는다.
+    SD-6은 여기에 checked_items·next_wake(컬럼 그대로 노출)·worker_documents를 더한다)."""
     base = get_case_out(db, company_id, case)
     pending = db.execute(
         select(Approval).where(
@@ -110,6 +140,9 @@ def get_case_detail_out(db: Session, company_id: str, case: Case) -> CaseDetailO
         usable_citation_count=usable_citation_count(db, company_id, case.id),
         guard_note=case.guard_note,
         pending_approval=_pending_approval_out(pending),
+        checked_items=_checked_items_out(case.checked_items),
+        next_wake=case.next_wake_condition,
+        documents=_worker_documents_out(db, company_id, case.worker_id),
     )
 
 
