@@ -4,6 +4,7 @@ import { KpiTile } from '@/components/KpiTile';
 import type { ChipTone } from '@/lib/chipTone';
 import { cn } from '@/lib/cn';
 import { AUDIT_FILTERS, AUDIT_TYPE_LABEL, AUDIT_TYPE_TONE, filterAudit, mergedAuditLog, type AuditFilterKey } from '@/lib/audit';
+import { useSeedCitations } from '@/lib/dataSeed';
 import { SECTION_TITLE_CLASS } from '@/lib/sectionTitle';
 import { CASE_SHEETS } from '@/mocks/fixtures';
 import { citationKpis, linkedCaseCount, useCitationStore } from '@/stores/citationStore';
@@ -40,6 +41,7 @@ const STATUS_LABEL: Record<CitationStatus, string> = {
 const SECTION_TITLE = SECTION_TITLE_CLASS;
 
 function CitationLibrary() {
+  useSeedCitations();
   const records = useCitationStore((s) => s.records);
   const kpis = useMemo(() => citationKpis(records), [records]);
   const sheets = useMemo(() => Object.values(CASE_SHEETS), []);

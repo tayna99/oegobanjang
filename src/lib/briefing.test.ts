@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { greetingText, recommendReason, visibleCardsForRole } from './briefing';
+import { formatBriefingDate, greetingText, recommendReason, visibleCardsForRole } from './briefing';
 import type { CaseCard } from '@/types';
 
 function card(overrides: Partial<CaseCard>): CaseCard {
@@ -63,5 +63,16 @@ describe('recommendReason', () => {
 
   it('dDay가 없으면 undefined를 반환한다', () => {
     expect(recommendReason(card({ dDay: undefined }))).toBeUndefined();
+  });
+});
+
+describe('formatBriefingDate — SD-3 real 모드 헤더', () => {
+  it('ISO 날짜를 "N월 N일 (요일)" 형식으로 변환한다', () => {
+    // DEMO_TODAY='2026-07-10'과 동일 날짜 — mock 헤더 하드코딩 문구("7월 10일 (금)")와 일치해야 한다.
+    expect(formatBriefingDate('2026-07-10')).toBe('7월 10일 (금)');
+  });
+
+  it('로컬 타임존과 무관하게 UTC 자정 기준으로 계산한다', () => {
+    expect(formatBriefingDate('2026-01-01')).toBe('1월 1일 (목)');
   });
 });

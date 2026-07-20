@@ -45,6 +45,9 @@ interface SessionStoreState {
   status: SessionStatus;
   token: string | null;
   user: SessionUser | null;
+  /** memberships[0]의 companyId(role과 동일한 "단일 회사 데모 세계관" 가정) — SD-3부터
+   * company_id 쿼리 파라미터가 필요한 API(예: GET /citations)가 이걸 쓴다. */
+  companyId: string | null;
   error: string | null;
   /** O1 "인증번호 받기" — 성공 시 로컬 환경이면 debugCode를 돌려준다(실 SMS 미연동, backend와 동일 관례). */
   requestOtp: (phone: string) => Promise<{ debugCode: string | null }>;
@@ -61,6 +64,7 @@ const initialState = {
   status: 'anonymous' as SessionStatus,
   token: null as string | null,
   user: null as SessionUser | null,
+  companyId: null as string | null,
   error: null as string | null,
 };
 
@@ -99,7 +103,13 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       // 요청의 진짜 결과를 안다). 스테일 성공은 조용히 무시하고 최신 상태를 건드리지 않는다.
       if (requestId === activeRequestId) {
         persistToken(verified.sessionToken);
-        set({ status: 'authenticated', token: verified.sessionToken, user: verified.user, error: null });
+        set({
+          status: 'authenticated',
+          token: verified.sessionToken,
+          user: verified.user,
+          companyId: verified.memberships[0]?.companyId ?? null,
+          error: null,
+        });
         useRoleStore.getState().setRole(roleFromMemberships(verified.memberships));
       }
     } catch (err) {
@@ -124,7 +134,13 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
     try {
       const me = await fetchMe(token);
       if (requestId !== activeRequestId) return;
-      set({ status: 'authenticated', token, user: me.user, error: null });
+      set({
+        status: 'authenticated',
+        token,
+        user: me.user,
+        companyId: me.memberships[0]?.companyId ?? null,
+        error: null,
+      });
       useRoleStore.getState().setRole(roleFromMemberships(me.memberships));
     } catch (err) {
       if (requestId !== activeRequestId) return;

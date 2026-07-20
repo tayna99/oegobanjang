@@ -31,3 +31,12 @@ export function recommendReason(card: CaseCard): string | undefined {
   }
   return `${dueText}이라 오늘 확인이 필요합니다`;
 }
+
+// SD-3 — real 모드 브리핑 헤더용. 'YYYY-MM-DD' → "7월 10일 (금)"(mock 헤더의 하드코딩 문구와
+// 동일 형식). UTC 자정 기준으로 파싱해 로컬 타임존에 흔들리지 않는다(dday.ts의 원칙과 동일).
+export function formatBriefingDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const weekday = new Intl.DateTimeFormat('ko-KR', { weekday: 'short', timeZone: 'UTC' }).format(date);
+  return `${m}월 ${d}일 (${weekday})`;
+}
