@@ -61,12 +61,12 @@ describe('hasUnresolvedRows', () => {
     expect(hasUnresolvedRows([{ fileId: '1', fileName: 'x', status: 'unmatched' }])).toBe(true);
   });
 
-  it('확인 필요(저신뢰) 행만 있으면 false다 — 미매칭만 막는다', () => {
-    expect(hasUnresolvedRows([{ fileId: '1', fileName: 'x', status: 'low_confidence', docType: '여권 사본' }])).toBe(false);
+  it('근로자와 서류 유형이 모두 지정된 저신뢰 행만 false다', () => {
+    expect(hasUnresolvedRows([{ fileId: '1', fileName: 'x', status: 'low_confidence', workerName: 'Oyunaa T.', docType: '여권 사본' }])).toBe(false);
   });
 
-  it('미매칭 행이라도 수동으로 근로자가 지정되면 false다', () => {
-    expect(hasUnresolvedRows([{ fileId: '1', fileName: 'x', status: 'unmatched', workerName: 'Oyunaa T.' }])).toBe(false);
+  it('근로자만 지정되고 서류 유형이 없으면 true다', () => {
+    expect(hasUnresolvedRows([{ fileId: '1', fileName: 'x', status: 'low_confidence', workerName: 'Oyunaa T.' }])).toBe(true);
   });
 
   it('전부 정상 매칭이면 false다', () => {

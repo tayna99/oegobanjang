@@ -63,5 +63,5 @@ export function classifyScanFiles(fileNames: string[], workers: CaseCard[]): Sca
 // 함께 반영된다. 서류 확보 여부는 개별 근로자에게 중요해 자동 누락보다 사람의 전량 확인을
 // 우선한다.
 export function hasUnresolvedRows(results: ScanResult[]): boolean {
-  return results.some((r) => r.status === 'unmatched' && !r.workerName);
+  return results.some((r) => !r.workerName || !r.docType);
 }
