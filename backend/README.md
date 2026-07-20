@@ -59,6 +59,16 @@ uv run pytest
 | GET | `/api/v1/evidence` | 판단 기록 목록(R2.5) — 인증 필요, 자기 회사만, `case_id` 쿼리로 필터 |
 | POST | `/api/v1/packages/{case_id}/link` | 행정사 패키지 열람 링크 발급/재발급(R2.6) — manager/owner 인증 + 케이스의 `create_handoff` 승인 완료 필요, 7일 유효기간 갱신, 응답에 회전된 `link_token` 포함 |
 | GET | `/api/v1/packages/link/{link_token}` | 행정사 패키지 열람 링크 검증(R2.6) — **무인증**(ExpertLinkPage 전용). `case_id`가 아니라 발급/재발급마다 회전하는 `link_token`으로만 조회(코드리뷰 지적 — `case_id`는 PK라 불변이라 비밀로 쓰면 재발급으로 기존 유출 링크를 회수할 수 없었다). 미발급·만료·대상없음 전부 404 |
+| POST | `/api/v1/expert/grants` | 행정사 위탁 발급(R5.1, owner/manager 내부 세션) — 사업자등록번호 일치 시 기존 사무소 재사용, 아니면 신규 사무소 + 최초 사무소 구성원(담당자, isOfficeAdmin) 부트스트랩. `until` 필수(무기한 위탁 금지, 결정 C) |
+| POST | `/api/v1/expert/grants/{grant_id}/authorize` | 위탁계약 근거 확인(invited→company_authorized, owner/manager) |
+| POST | `/api/v1/expert/grants/{grant_id}/revoke` | 위탁 철회(→revoked, **owner 전용** — manager는 초대까지만) |
+| GET | `/api/v1/expert/grants` | 회사의 위탁 목록(owner/manager) — 조회 시 `until` 경과 grant를 지연 평가로 `expired` 전이 |
+| POST | `/api/v1/expert/auth/otp/request` | 화이트라벨 세션 로그인 — 이메일로 OTP 요청(로컬 환경에서만 `debug_code` 응답 포함) |
+| POST | `/api/v1/expert/auth/otp/verify` | OTP 검증 → 화이트라벨 세션 토큰 발급. 이 사무소의 `company_authorized` grant를 전부 `active`로 전이(spec §5.1 "최초 로그인") |
+| GET | `/api/v1/expert/office-members` | 자기 사무소 구성원 로스터 조회(화이트라벨 세션) |
+| POST | `/api/v1/expert/office-members` | 사무소 구성원 등록/재활성화(**isOfficeAdmin 전용**) |
+| PATCH | `/api/v1/expert/office-members/{member_id}` | 구성원 상태(active/suspended)·admin 권한 변경(**isOfficeAdmin 전용**) |
+| GET | `/api/v1/expert/packages/{package_id}` | 화이트라벨 세션 패키지 조회(R5.1, spec §4.2) — tenant scope + 사무소(`expert_account_id`) 일치 + 케이스 `human_approved` 이상 3중 체크, 실패 시 전부 동일 404. 성공 시 `PackageViewLog` 1행 기록(evidence_events가 아님 — 목적이 다른 별도 감사 로그, spec §6). 문서 콘텐츠는 반환하지 않음(R2.6과 동일 스코프 경계) |
 | GET | `/health` | 헬스체크 |
 
 승인/반려·생성은 액션(케이스) 단위 단건 처리만 존재한다 — **일괄 승인 엔드포인트는 만들지 않는다**(GOTCHAS §3).
@@ -85,34 +95,42 @@ app/
   db/session.py            엔진·세션 팩토리(lock_timeout)
   db/ids.py                new_id() = UUIDv7 발급 단일 지점
   db/counters.py           case_seq·evidence_seq 원자 증가 단일 지점
-  models/                  33테이블 ORM 매핑(컬럼만 — FK/CHECK/트리거/뷰는 DB 소유)
+  models/                  40테이블 ORM 매핑(컬럼만 — FK/CHECK/트리거/뷰는 DB 소유)
   domain/
     case_transitions.py    src/stores/caseStore.ts CASE_TRANSITIONS와 동일한 전이 화이트리스트
     auth_tokens.py          세션 토큰 발급·해시·검증
     auth_exceptions.py      인증 도메인 예외 — 라우터가 HTTP 상태로 변환
     exceptions.py            승인 도메인 예외 — 라우터가 HTTP 상태로 변환
     pii.py                 자유 텍스트 PII 패턴 차단(rules/safety.md)
-  schemas/approval.py, auth.py, evidence.py, package.py, delegation.py   요청/응답 Pydantic 모델
+    expert_exceptions.py   행정사 화이트라벨 도메인 예외(R5.1) — 라우터가 HTTP 상태로 변환
+  schemas/approval.py, auth.py, evidence.py, package.py, delegation.py, expert.py   요청/응답 Pydantic 모델
   services/approvals.py    승인 요청·결정 트랜잭션 — 게이트(PIN·checklist·위임 포함, R2.4)·FOR UPDATE·전이·evidence append.
     usable_citation_count는 services/cases.py도 재사용(get_case_detail_out)
   services/auth.py         OTP 발급/검증, 세션 발급/조회/폐기
   services/cases.py        케이스 목록/상세 조립(R2.3·R2.4) — get_case_detail_out이 pending approval·근거수·guard_note를 얹는다
   services/delegations.py  현재 세션 사용자의 유효 위임 조회(R2.4)
   services/evidence.py     일반 판단 기록 기록/조회(R2.5) + next_event_no(evidence_seq 원자 증가, approvals.py도 재사용)
-  services/packages.py     행정사 패키지 링크 발급/재발급/열람(R2.6) — 문서 콘텐츠는 다루지 않음
+  services/packages.py     행정사 패키지 링크 발급/재발급/열람(R2.6) + view_expert_package(R5.1, 화이트라벨
+    세션 3중 체크 + PackageViewLog 기록) — 문서 콘텐츠는 다루지 않음
+  services/expert.py       위탁(Grant) 생애주기·사무소 구성원 CRUD·email+OTP 화이트라벨 세션(R5.1)
   api/v1/approvals.py      라우터 — 도메인 예외 → HTTP 상태 매핑, batch 엔드포인트 없음
   api/v1/auth.py           라우터 — OTP 요청/검증/me/로그아웃
   api/v1/cases.py          라우터 — GET 목록(R2.3)/상세(R2.4)
   api/v1/delegations.py    라우터 — GET /api/v1/delegations/mine(R2.4)
   api/v1/evidence.py       라우터 — POST/GET /api/v1/evidence(R2.5, 인증 필요)
   api/v1/packages.py       라우터 — POST(인증) /api/v1/packages/{case_id}/link · GET(무인증) /api/v1/packages/link/{link_token}(R2.6)
+  api/v1/expert.py         라우터 — /api/v1/expert/*(위탁 CRUD·사무소 구성원 CRUD·email OTP 로그인·패키지 조회, R5.1)
   api/deps.py              get_current_user_id/get_current_membership — Bearer 세션 토큰에서 신원·소속 도출
+  api/expert_deps.py       get_current_expert_member — 화이트라벨 세션 토큰에서 ExpertOfficeMember 도출(R5.1)
 migrations/
   versions/0001_p1_core_schema.py   실배포(PR #10) 동결 스냅샷 — 더 이상 손대지 않는다
   versions/0002_r2_5_evidence_and_r2_6_package_links.py   evidence_events.type CHECK 확장 +
     handoff_packages.link_issued_at/link_expires_at 추가(ALTER 리비전)
   versions/0003_r2_4_delegated_approval_decider.py   trg_approvals_decider_role에 위임 OR-arm 추가
-    (ALTER 리비전). 다음 스키마 변경은 0004+
+    (ALTER 리비전)
+  versions/0005_r5_1_expert_whitelabel.py   행정사 화이트라벨 v1 신규 테이블 7개 + handoff_packages.
+    expert_account_id + evidence_events.type CHECK 확장(ALTER 리비전). 다음 스키마 변경은 0006+
+    (0004는 병렬 작업 중인 다른 mission에 배정돼 번호 충돌을 피해 건너뛰었다)
 tests/
   conftest.py              전용 테스트 DB + savepoint 격리
   test_ddl_parity.py       모델 ↔ 마이그레이션된 DB 컬럼/타입/nullable 대조
@@ -123,6 +141,8 @@ tests/
   test_api_delegations.py  위임 조회 — 유효·만료·철회·본인 소유 위임 제외(R2.4)
   test_api_evidence.py     일반 판단 기록 기록/조회 — 허용 타입·PII 차단·테넌트 격리(R2.5)
   test_api_packages.py     행정사 패키지 링크 발급/재발급/열람 — 권한·만료·404(R2.6)
+  test_api_expert.py       행정사 화이트라벨 v1 — 위탁 생애주기·사무소 CRUD·email OTP 로그인·패키지
+    3중 체크(cross-tenant·cross-office 격리 포함, R5.1)
 ```
 
 ## 알려진 스코프 경계 (의도적)

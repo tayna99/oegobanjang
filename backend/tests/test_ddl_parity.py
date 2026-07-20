@@ -33,6 +33,8 @@ EXPECTED_TABLES = {
     "drafts", "draft_variants", "thread_messages", "interpretations", "status_update_proposals",
     "handoff_packages", "package_exports", "briefings", "briefing_items", "notifications",
     "csv_imports", "autonomy_grants", "agent_notes", "stat_snapshots",
+    "expert_accounts", "expert_office_members", "expert_grants", "expert_login_otps",
+    "expert_sessions", "package_view_log", "pii_field_policies",
 }
 
 MODEL_CLASSES = [getattr(models, name) for name in models.__all__]
