@@ -388,6 +388,38 @@ P2 1건): 재발급 API 실패에도 UI가 성공으로 기록하고 응답의 `
 - 검증: backend `uv run pytest` 171/171(격리 DB), `db/validate.py` 181/181, 프론트
   `npm run verify`(typecheck→lint→test 561건→build) 전부 PASS.
 
+## R4.6 — 평가 하네스 복원 (2026-07-20, `plans/NEXT_ROADMAP_2026-07-16.md` R4.6 승격)
+
+> 근거: `legacy/evals/datasets/`(원본 9종 데이터셋), `legacy/docs/EVAL_HARNESS.md`("Safety
+> violation 0" 최소 통과 기준). R4의 다른 이관(4.1~4.5, 4.7)과 독립적으로 착수 가능 — `rag/`
+> M7 오케스트레이션(Router·Guard·Graph)이 이미 완성돼 있어 채점 대상이 준비돼 있었다.
+> 상세 설계·측정치는 `rag/docs/ORCHESTRATION_EVAL_HARNESS.md`가 정본.
+
+| # | 태스크 | 레벨 | DoD | 상태 |
+|---|---|---|---|---|
+| 4.6 | `intent_router_cases`·`safety_guardrail_cases`·`workflow_e2e_cases`(10/13/10건, legacy 원본 이관) + `oe_rag/evaluate_orchestration.py`(현재 결정론 오케스트레이션에 맞게 신규 작성한 채점 로직) + CLI `rag eval-orchestration` + CI `rag` 잡에 게이트 편입 | L2 | `cd rag && uv run pytest` 전건 통과, `rag eval-orchestration` safety violation=0로 PASS 종료, CI YAML 검증 | ✅ |
+
+- **이관 범위**: legacy 데이터셋 9종 중 3종(intent_router·safety_guardrail·workflow_e2e 10개
+  핵심 케이스)만 이번에 복원했다. `document_gap_cases`·`message_generation_cases`·
+  `translation_quality_cases`·`worker_reply_understanding_cases`와 workflow_e2e의 확장 11개
+  케이스는 현재 아키텍처에 대응하는 컴포넌트가 없어(번역 품질 검사기 등, R4.4/4.5 이관 대기)
+  미이관 — 사유는 `rag/docs/ORCHESTRATION_EVAL_HARNESS.md` Scope 표에 기록.
+- **채점 로직 재작성 이유**: legacy 하네스는 매 요청마다 LLM이 안전 여부를 판단했지만, 현재
+  `rag/` 오케스트레이션은 결정론 키워드 라우터 + 미션별 독립 승인 게이트로 설계가 다르다.
+  그 결과 이 아키텍처에서 **intent 오분류는 안전 위반이 아니다**(라우터가 틀려도 그래프가
+  fail-closed·승인 게이트로 다시 막는다) — 채점을 safety assertion(하드 게이트)과 structural
+  assertion(정보성)으로 분리했다(legacy `scripts/run_evals.py`의 PASS/FAIL/PARTIAL/KNOWN_GAP
+  철학 계승).
+- **측정 결과(2026-07-20, deterministic 임베딩)**: `safety_guardrail_cases` 13/13 PASS
+  (violations=0), `workflow_e2e_cases` 10/10 PASS(violations=0, 구조적 intent 라벨 불일치
+  4건은 정보성 — 라우터가 legacy보다 이르게 차단하거나 좁은 키워드 allowlist라 fail-closed로
+  빠지는 것뿐 안전 위반 아님), `intent_router_cases` 5/10 accuracy=0.50(legacy의 LLM 분류기
+  대비 taxonomy 차이 — 회귀 방지 하한만 걸고 80%로 끌어올리는 건 별도 후속 과제로 남김).
+- **검증**: `cd rag && uv run pytest` 150 passed(기존 140 + 신규 10건, pgvector 로컬 인덱스
+  기준), `uv run python -m oe_rag.cli eval-orchestration` exit 0(GATE: PASS), `.github/workflows/ci.yml`
+  YAML 파싱 검증 통과. `backend/`·`src/`·`db/schema.sql` 비접촉 — `npm run verify`/backend
+  pytest 무영향.
+
 ## 발송 어댑터·알림톡 (R2 이후 — 별도 계획, PRD Sprint 6)
 
 발송 어댑터·알림톡은 R2 배선과 별개로 계속 범위 밖이다¹.
