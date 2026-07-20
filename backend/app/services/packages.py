@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.ids import new_id
+from app.domain.expert_exceptions import ExpertPackageNotFoundError
 from app.domain.package_exceptions import (
     PackageCaseNotFoundError,
     PackageForbiddenError,
@@ -24,14 +25,21 @@ from app.domain.package_exceptions import (
 from app.models.approval import Approval
 from app.models.case import Case, NextAction
 from app.models.evidence import EvidenceEvent
+from app.models.expert import ExpertOfficeMember, PackageViewLog
 from app.models.handoff import HandoffPackage
 from app.models.membership import Membership
 from app.models.user import User
 from app.services.evidence import next_event_no
+from app.services.expert import resolve_expert_allowed_tenant_ids
 
 LINK_VALIDITY = dt.timedelta(days=7)  # 7단계 §4 "만료형(기본 7일)" — src/lib/packageLink.ts와 동일
 ISSUER_ROLES = ("owner", "manager")
 HANDOFF_ACTION_TYPE = "create_handoff"
+
+# R5.1 — 화이트라벨 세션 뷰(spec §4.2)의 승인 게이트. GOTCHAS.md §2 상태머신:
+# draft → risk_review → approval_pending → human_approved → completed. "human_approved
+# 이상"만 허용 — 그 앞 단계는 아직 외부 노출 승인이 나지 않은 상태다.
+_EXPERT_VIEW_ALLOWED_CASE_STATES = ("human_approved", "completed")
 
 
 def _latest_package_for_case(db: Session, case_id: str) -> HandoffPackage | None:
@@ -132,6 +140,49 @@ def issue_package_link(db: Session, membership: Membership, case_id: str) -> Han
     db.commit()
     db.refresh(pkg)
     return pkg
+
+
+def view_expert_package(db: Session, member: ExpertOfficeMember, package_id: str) -> tuple[HandoffPackage, dt.datetime]:
+    """GET /api/v1/expert/packages/{package_id} — 화이트라벨 세션 뷰(R5.1, spec §4.2).
+
+    무인증 단발 링크(위 view_package_link)와는 별개 경로다 — 이쪽은 로그인한
+    ExpertOfficeMember의 상시 셀프서비스 조회이고, 열람 감사 로그는 evidence_events가
+    아니라 PackageViewLog에 남긴다(spec §6.1/§6.2 — "이 사람이 봤다"까지 추적해야 하는
+    목적이 다르므로 테이블도 분리). 3중 체크(scope + 사무소 일치 + 승인 게이트) 중 하나라도
+    실패하면 전부 동일한 404 하나로 응답한다(존재 비노출 원칙).
+
+    문서 콘텐츠는 반환하지 않는다 — view_package_link와 동일한 R2.6 스코프 경계(§4.5 노트):
+    여기서는 "조회 자격이 있는가"만 서버가 확정하고 기록한다.
+    """
+    allowed_tenant_ids = resolve_expert_allowed_tenant_ids(db, member)
+
+    pkg = db.get(HandoffPackage, package_id)
+    if pkg is None:
+        raise ExpertPackageNotFoundError()
+    if pkg.company_id not in allowed_tenant_ids:
+        raise ExpertPackageNotFoundError()
+    if pkg.expert_account_id is None or pkg.expert_account_id != member.expert_account_id:
+        raise ExpertPackageNotFoundError()
+
+    case = db.execute(
+        select(Case).where(Case.company_id == pkg.company_id, Case.id == pkg.case_id)
+    ).scalar_one_or_none()
+    if case is None or case.state not in _EXPERT_VIEW_ALLOWED_CASE_STATES:
+        raise ExpertPackageNotFoundError()
+
+    now = dt.datetime.now(dt.timezone.utc)
+    db.add(
+        PackageViewLog(
+            id=new_id(),
+            package_id=pkg.id,
+            tenant_id=pkg.company_id,
+            expert_office_member_id=member.id,
+            viewed_at=now,
+        )
+    )
+    db.commit()
+    db.refresh(pkg)
+    return pkg, now
 
 
 def view_package_link(db: Session, link_token: str) -> HandoffPackage:

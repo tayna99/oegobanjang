@@ -8,6 +8,7 @@ from app.api.v1.cases import router as cases_router
 from app.api.v1.citations import router as citations_router
 from app.api.v1.delegations import router as delegations_router
 from app.api.v1.evidence import router as evidence_router
+from app.api.v1.expert import router as expert_router
 from app.api.v1.packages import router as packages_router
 from app.api.v1.runs import router as runs_router
 from app.api.v1.threads import router as threads_router
@@ -27,7 +28,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_allow_origins,
     allow_credentials=False,  # Bearer 토큰만 쓴다 — 쿠키 기반 인증 아님(자격 증명 공유 불필요)
-    allow_methods=["GET", "POST"],
+    # R5.1 — PATCH 추가(사무소 구성원 상태 변경, /api/v1/expert/office-members/{id}).
+    # 이전까지는 GET/POST만 있었다(이 리포지토리 최초의 PATCH 엔드포인트).
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -41,6 +44,7 @@ app.include_router(threads_router)
 app.include_router(evidence_router)
 app.include_router(packages_router)
 app.include_router(delegations_router)
+app.include_router(expert_router)
 
 
 @app.get("/health")

@@ -580,6 +580,100 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 
 - `package_exports` INSERT는 approved handoff package에만 허용되고, 성공한 INSERT가 package 상태를 `exported`로 동기화한다. PDF 생성은 내부 산출물이며, 메일·알림톡 등 실제 외부 전달 채널을 기록하는 테이블은 MVP에 없다(R3 delivery adapter 몫). 무인증 열람 링크 자체의 발급·만료는 `package_exports`가 아니라 §4.8 위 `handoff_packages.link_issued_at/link_expires_at` + evidence(`package_link_issued`)가 담당한다(R2.6).
 
+### 4.8-1 행정사 화이트라벨 v1 (R5.1)
+
+정본: `reference/specs/7-1_행정사_화이트라벨_v1.md`. v0(mock, M4.6)의 `Tenant`/`ExpertAccount`/
+`ExpertMembership`(`src/types.ts:163-180`, `src/mocks/expert.ts`)을 실서비스 계약으로 승격한다.
+"tenant"는 별도 테이블이 아니라 `companies` 값 공간이다(spec §2.6) — 아래 `tenant_id`는 전부
+`companies(id)`를 참조한다. **법무 미확정**: 위탁(§26) vs 제3자 제공(§17) 법적 성격 분류가
+확정되지 않았다(spec §5.5/§9/§10) — 이 스키마는 spec의 잠정 가정(회사 단위 위탁, 결정 C)을
+그대로 구현한 것이며, 법무 결과에 따라 `ExpertGrant`가 tenant+worker 단위로 확장될 수 있다.
+
+#### expert_accounts — 행정사무소 (브랜드·과금 경계, 결정 B)
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| **id** | uuid | PK | |
+| **office_name / brand_initial / brand_color** | text | | v0 `ExpertAccount` 필드 그대로 승계 |
+| **status** | text | CHECK(`active,suspended`) | |
+| business_registration_no | text | UNIQUE | 동명 사무소 오초대 방지 고유 식별자(spec §2.2 UX #15) |
+| **created_at / updated_at** | timestamptz | | |
+
+#### expert_office_members — 사무소 소속 개인 계정 (결정 B)
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| **id** | uuid | PK | |
+| **expert_account_id** | uuid | →expert_accounts | UNIQUE(expert_account_id, id) |
+| **name / email** | text | UNIQUE(expert_account_id, email) | 사무소 내부 개인 이름 — 로그인 시 이메일로 기존 구성원 재사용(spec §3.2) |
+| **status** | text | CHECK(`active,suspended`) | |
+| **is_office_admin** | bool | default false | 이 사무소의 다른 구성원을 등록/정지할 권한(spec §5.6). 최초 초대 수락자 기본값 true |
+| **created_at / updated_at** | timestamptz | | |
+
+- PIPA 열람기록 요건의 최소 단위: "사무소가 봤다"가 아니라 "이 사람이 봤다"까지 남아야 한다(spec §6) — 그래서 `PackageViewLog`는 `expert_account_id`가 아니라 이 테이블의 PK를 참조한다.
+
+#### expert_grants — 위탁(Grant) 생애주기 (`ExpertMembership`의 승격, 결정 C)
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| **id** | uuid | PK | 재초대 시 과거 grant와 새 grant를 구분하는 이력 추적에 필수(spec §2.3) |
+| **status** | text | CHECK(`invited,company_authorized,active,expired,revoked`) | 단일 진실 공급원 — `active: boolean` 파생 필드 없음(spec §5.1) |
+| **expert_account_id** | uuid | →expert_accounts | |
+| **tenant_id** | uuid | →companies | |
+| **scope** | text | CHECK(`= 'package_review'`) | v1 고정값(spec §10 세분화는 후속) |
+| **granted_by** | uuid | `(tenant_id,granted_by)` →memberships, **트리거로 활성 owner/manager 검사** | |
+| **basis** | text | CHECK(`= 'processing_agreement'`) | 회사 단위 위탁계약 근거(결정 C) — 법무 확정 시 값 종류 추가(spec §9) |
+| **from_date / until_date** | date | **`until_date` NOT NULL + CHECK(until_date > from_date)** | **무기한 위탁 금지(결정 C) — 서버(DB) 레벨로 강제**. spec §2.3 각주가 지적한 "타입 레벨 제약은 컴파일타임뿐"이라는 한계를 CHECK 제약으로 메운다 |
+| review_interval_days | int | default 365, CHECK(`> 0`) | 재확인 주기(상태 전이 아님, 배지만 — spec §5.1) |
+| revoked_reason | text | CHECK(`expired,manual`) | status가 expired/revoked로 전이될 때만 채움 |
+| **created_at / updated_at** | timestamptz | | |
+
+- **가드레일**: `expert_grants_granter_active` 트리거가 `granted_by`를 그 `tenant_id`의 활성 owner/manager로 제한한다(cases/runs/delegations의 assignee/starter 활성 검사와 동일 패턴) — 다른 회사 소속 사용자를 `granted_by`로 넣는 위조를 차단한다.
+- 상태 전이(`invited→company_authorized→active→expired|revoked`)는 서비스 계층에서 강제한다 — `handoff_packages`/`drafts`와 달리 이 테이블엔 DB 트리거 상태머신을 두지 않았다(의도적 단순화, §13 결정 기록 참고).
+
+#### expert_login_otps / expert_sessions — 화이트라벨 세션 로그인 (spec §3, email+OTP)
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| expert_login_otps.email | text | | `login_otps.phone`과 동일 원리(email 축 특수화) |
+| expert_login_otps.code_hash | text | | HMAC-SHA256(pepper, code) |
+| expert_sessions.expert_office_member_id | uuid | →expert_office_members | |
+| expert_sessions.token_hash | text | UNIQUE | 불투명 세션 토큰(원문 미저장) |
+| expert_sessions.expires_at | timestamptz | CHECK(`> created_at`) | |
+
+- **spec §3.1 편차(설계 의도)**: spec은 legacy JWT(서명은 있으나 `exp` 미검증) 계보를 참고해 신규 JWT 디코더를 만들라고 지시하지만, 이 저장소엔 JWT가 전혀 없다(내부 owner/manager/viewer도 `login_otps`/`sessions`의 불투명 토큰을 쓴다). v1은 이미 검증된 phone+OTP+불투명 세션 패턴을 email 축으로 **특수화**한다(spec §4.1 "재사용이 아니라 패턴 특수화" 원칙을 인증에도 적용) — `expires_at` 비교가 spec이 요구하는 "exp 클레임 신규 검증"을 충족하고, `revoked_at`이 세션 폐기를 제공한다. spec §3.1의 email+비밀번호(PBKDF2)는 구현하지 않았다 — 이 코드베이스 어디에도 비밀번호 해시 인프라가 없어(내부 계정도 전화 OTP만 쓴다) 새로 도입하면 인증 메커니즘이 두 갈래로 갈라진다. 이 편차는 §10 후속(진짜 JWT+비밀번호 전환)으로 남긴다.
+- `login_otps`/`sessions`와 동일한 불변식 트리거(update guard)를 적용한다.
+
+#### package_view_log — 열람 감사 로그 (spec §6, `evidence_events`와 별도 테이블)
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| **id** | uuid | PK | |
+| **package_id / tenant_id** | uuid | `(tenant_id,package_id)` →handoff_packages(company_id,id) | 복합 FK로 "다른 회사 패키지에 로그 위조" 자체를 DB가 차단 |
+| **expert_office_member_id** | uuid | →expert_office_members | "이 사람이 봤다"(결정 B) — `expert_account_id`가 아니라 개인 PK 참조 |
+| **viewed_at** | timestamptz | default now() | |
+| ip | text | | 프론트 구현 범위 밖 — 서버 접속 로그 연동 시 채움 |
+
+- **append-only**(evidence_events와 동일 원칙 — `package_view_log_no_update`/`_no_delete` 트리거). PII 필드가 원천적으로 없다(id 참조뿐)이므로 §7 "응답 단계 redaction 이중 방어" 관례가 자연히 성립한다(spec §6.2).
+- `evidence_events`와 목적이 다르다(evidence=판단 근거 추적, 이 테이블=접근 통제 증빙)는 이유로 검색·보존기간 정책을 따로 가져간다(spec §6.1/§6.2) — **보존기간(3년 제안)의 실제 파기 배치는 이번 v1 범위 밖**(spec §6.3, §10 후속).
+
+#### pii_field_policies — PII 노출 정책 테이블 (결정 A의 구현, spec §2.4)
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| **field** | text | PK(field, role) | `'HandoffPackage.workerName'` 등 spec §2.4 필드 경로 |
+| **role** | text | CHECK(`owner,manager,viewer,expert`) | |
+| **exposure** | text | CHECK(`plain,masked,hidden`) | |
+| **updated_at** | timestamptz | | |
+
+- 역할×필드 노출 수준을 코드 분기로 하드코딩하지 않는다 — 법무 검토로 특정 필드의 노출 수준이 바뀌면 이 표의 행 하나만 바꾼다(spec §9 결정 A "뒤집는 법"). Alembic 0005가 spec §2.4 채택값(근로자 표시명·국적 평문, 외국인등록번호·여권·전화 마스킹)으로 기본 행을 시드한다(전 환경 필수 — 이 리포지토리엔 아직 `db/seed_reference.sql` 분리가 없어 마이그레이션 자체에 데이터 시드를 둔다).
+- **범위 경계**: 이 테이블은 정책 인프라만 제공한다. 이를 실제로 소비해 패키지 콘텐츠를 마스킹/평문 렌더링하는 API 엔드포인트는 아직 없다(`handoff_packages.masked_payload`는 여전히 프론트 mock 콘텐츠 — R2.6 노트와 동일한 경계). 향후 패키지 콘텐츠 API가 생기면 그 API가 이 표를 조회해야 한다.
+- **spec §2.4.1 자유 텍스트 PII 스캔 방어**(정규식 재귀 스캔, `PackageDocSection.lines` 등)는 이번 R5.1 범위 밖이다 — `app/domain/pii.py`의 `contains_pii()`가 이미 동형의 정규식(외국인등록번호/전화/여권)을 구현해두었으므로 향후 그 콘텐츠 API가 이를 재사용하면 된다. 이번 R5.1이 새로 쓰는 evidence summary(`expert_access_granted`/`_revoked`)와 `PackageViewLog`엔 애초에 자유 텍스트 PII 필드가 없어 이 방어가 당장 필요하지 않다.
+
+#### GET /api/v1/expert/packages/{package_id} — 3중 체크 세션 뷰 (spec §4.2)
+`handoff_packages`에 `expert_account_id`(nullable, v0 패키지와의 하위 호환) 컬럼을 추가했다.
+조회는 (1) 세션 토큰 검증 → (2) `tenant_id`가 이 office member의 **활성(`status='active'`)**
+grant 목록에 있는가(`resolve_expert_allowed_company_ids` 패턴 특수화, spec §4.1) → (3)
+`handoff_packages.expert_account_id`가 이 office member 소속 사무소와 일치하는가 → (4) 연결된
+케이스가 `human_approved` 이상인가, 순서로 3중 체크 + 승인 게이트를 적용한다. 넷 중 하나라도
+실패하면 전부 동일한 404("존재하지 않음")로 응답한다(spec §4.2 — scope 밖은 존재 비노출).
+패키지 문서 콘텐츠는 반환하지 않는다(`/link/:linkToken`과 동일 경계 — "링크/세션이 살아있는가"만
+서버가 확정한다) — 성공 시 `PackageViewLog` 1행을 기록한다.
+
 ### 4.9 브리핑
 
 #### briefings — 일일 브리핑 실행 (레거시 PRD §11 계약 승계)

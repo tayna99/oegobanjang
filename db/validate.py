@@ -112,7 +112,12 @@ n_tables = scalar(
     "SELECT count(*) AS n FROM information_schema.tables "
     "WHERE table_schema='public' AND table_type='BASE TABLE'"
 )["n"]
-ok("33 tables (login_otps, sessions added)", n_tables == 33, f"actual={n_tables}")
+ok(
+    "40 tables (R5.1 expert whitelabel: expert_accounts/expert_office_members/expert_grants/"
+    "expert_login_otps/expert_sessions/package_view_log/pii_field_policies added)",
+    n_tables == 40,
+    f"actual={n_tables}",
+)
 n_views = scalar("SELECT count(*) AS n FROM information_schema.views WHERE table_schema='public'")["n"]
 ok("4 views", n_views == 4, f"actual={n_views}")
 ok(
@@ -669,6 +674,73 @@ ok("worker delete retains its case tenant after thread cascades",
 ok("worker delete cascades its thread message interpretation graph",
   scalar("SELECT count(*) AS n FROM interpretations WHERE id='int_tran'")["n"] == 0
   and scalar("SELECT count(*) AS n FROM status_update_proposals WHERE id='sup_tran_contract'")["n"] == 0)
+
+# ---------------------------------------------------------------------------
+# 행정사 화이트라벨 v1 (R5.1, 2026-07-20) — ExpertGrant/ExpertOfficeMember/PackageViewLog/
+# PiiFieldPolicy. spec: reference/specs/7-1_행정사_화이트라벨_v1.md §2/§6/§9.
+# ---------------------------------------------------------------------------
+
+run("""
+  INSERT INTO expert_accounts (id, office_name, brand_initial, brand_color, business_registration_no) VALUES
+    ('exa_kimlee', '김앤리 행정사무소', 'K', '#2f6fed', '111-22-33333');
+  INSERT INTO expert_office_members (id, expert_account_id, name, email, is_office_admin) VALUES
+    ('eom_lee', 'exa_kimlee', '이아무개', 'lee@kimlee.example', true);
+""")
+ok("expert_accounts/expert_office_members insert succeeds", True)
+
+expect_throw(
+    "expert grant rejects an unbounded (missing until_date) grant — 결정 C 무기한 금지",
+    "INSERT INTO expert_grants (id, expert_account_id, tenant_id, granted_by, from_date, until_date) "
+    "VALUES ('exg_bad_null', 'exa_kimlee', 'cmp_greenfood', 'usr_owner', '2026-07-20', NULL)",
+)
+expect_throw(
+    "expert grant rejects until_date not after from_date",
+    "INSERT INTO expert_grants (id, expert_account_id, tenant_id, granted_by, from_date, until_date) "
+    "VALUES ('exg_bad_range', 'exa_kimlee', 'cmp_greenfood', 'usr_owner', '2026-07-20', '2026-07-20')",
+)
+
+run(
+    "INSERT INTO expert_grants (id, expert_account_id, tenant_id, granted_by, from_date, until_date) "
+    "VALUES ('exg_greenfood', 'exa_kimlee', 'cmp_greenfood', 'usr_owner', '2026-07-20', '2027-07-20')"
+)
+ok("expert grant insert succeeds with a valid bounded range", True)
+
+expect_throw(
+    "expert grant rejects a granter with no membership in the tenant (cross-tenant forgery)",
+    "INSERT INTO expert_grants (id, expert_account_id, tenant_id, granted_by, from_date, until_date) "
+    "VALUES ('exg_cross_granter', 'exa_kimlee', 'cmp_greenfood', 'usr_other', '2026-07-20', '2027-07-20')",
+    "active owner or manager",
+)
+
+# 열람 감사 로그 — append-only + tenant/package 복합 FK로 위조(다른 회사 패키지에 로그를
+# 붙이는 시도)를 원천 차단한다(spec §6.2, tenant scoping의 최고위험 지점).
+run(
+    "INSERT INTO package_view_log (id, package_id, tenant_id, expert_office_member_id) "
+    "VALUES ('pvl_1', 'hp_batbayar', 'cmp_greenfood', 'eom_lee')"
+)
+ok("package_view_log insert succeeds", True)
+expect_throw("package_view_log UPDATE is blocked", "UPDATE package_view_log SET ip='1.2.3.4' WHERE id='pvl_1'", "append-only")
+expect_throw("package_view_log DELETE is blocked", "DELETE FROM package_view_log WHERE id='pvl_1'", "append-only")
+expect_throw(
+    "package_view_log rejects a package that belongs to a different tenant (cross-tenant log forgery)",
+    "INSERT INTO package_view_log (id, package_id, tenant_id, expert_office_member_id) "
+    "VALUES ('pvl_cross', 'hp_other', 'cmp_greenfood', 'eom_lee')",
+)
+
+run("""
+  INSERT INTO pii_field_policies (field, role, exposure) VALUES
+    ('HandoffPackage.workerName', 'expert', 'plain'),
+    ('HandoffPackage.alienRegistrationNumber', 'expert', 'masked');
+""")
+ok("pii_field_policies insert succeeds", True)
+expect_throw(
+    "pii_field_policies rejects a duplicate (field, role) pair",
+    "INSERT INTO pii_field_policies (field, role, exposure) VALUES ('HandoffPackage.workerName', 'expert', 'masked')",
+)
+expect_throw(
+    "pii_field_policies rejects an exposure value outside plain/masked/hidden",
+    "INSERT INTO pii_field_policies (field, role, exposure) VALUES ('HandoffPackage.phone', 'expert', 'anonymous')",
+)
 
 ok("final foreign_key_check has no violations", True)
 

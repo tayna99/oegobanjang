@@ -31,6 +31,9 @@ class HandoffPackage(Base):
     link_token: Mapped[str | None] = mapped_column(Text)
     link_issued_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     link_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    # R5.1 — 화이트라벨 v1 §2.2/§2.7 "expertAccountId FK 정규화". NULL 허용(v0 시절 발급된
+    # 패키지와의 하위 호환) — services/packages.py의 view_expert_package() 3중 체크 6번 항목.
+    expert_account_id: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
