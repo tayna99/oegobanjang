@@ -152,7 +152,7 @@
 | 4.3 | 런엔진 교체 | 각본 재생 → LangChain/LangGraph `create_agent` 스트리밍. **`RunConfig`/`useRunEngine` 인터페이스 불변**(설계상 보장 지점). Safety·EvidenceCapture 미들웨어와 도구 5등급(TOOL_CONTRACT) 승계 — 발송 도구는 여전히 부재/`pending_approval` 강제 | `legacy/backend/app/agent_runtime/langchain_v1/`(runtime·middleware), `legacy/docs/TOOL_CONTRACT.md` |
 | 4.4 | 다국어 초안 실생성 | 템플릿 22종(vi 11 + id 11) + 번역 모듈(rule 기본 + LLM opt-in, 실패 시 rule 폴백) → DraftPage 실초안·R1.7 수정 요청의 실 재생성 | `legacy/data-pipeline/seed/message_templates.csv`, `legacy/backend/app/agent_runtime/translation/` |
 | 4.5 | M6 응답 해석 실연동 | reply_interpreter 이식 — `isFinal:false`·담당자 확인 필수 계약 유지, R3.2 인바운드와 접합 | `legacy/.../translation/reply_interpreter` 등, `legacy/docs/AGENT_COMMON_CONTRACTS.md` §10 |
-| 4.6 | 평가 하네스 복원 | safety_guardrail·intent_router·workflow_e2e 등 데이터셋을 CI에 편입 — "Safety violation 0" 기준선 회복 | `legacy/evals/datasets/`, `legacy/docs/EVAL_HARNESS.md` |
+| 4.6 | 평가 하네스 복원 ✅(2026-07-20) | safety_guardrail·intent_router·workflow_e2e 등 데이터셋을 CI에 편입 — "Safety violation 0" 기준선 회복. `plans/ROADMAP.md` "R4.6 — 평가 하네스 복원" 절로 승격, 상세는 `rag/docs/ORCHESTRATION_EVAL_HARNESS.md` 정본 | `legacy/evals/datasets/`, `legacy/docs/EVAL_HARNESS.md` |
 | 4.7 | 프로액티브 런 실트리거 | 각본 프리시드 → 실제 이벤트(D-day 임계·인바운드) 기반 자동 런 + nextWake, 48h/72h 에스컬레이션 타이머 실구현(현재 프리시드 대체분) | ROADMAP M3, 7단계 §4 |
 
 ### R5 — 파일럿 확장 (독립 트랙, R2~R4와 부분 병행 가능)

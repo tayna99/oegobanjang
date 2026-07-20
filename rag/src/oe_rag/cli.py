@@ -173,6 +173,26 @@ def cmd_eval(args: argparse.Namespace) -> int:
     return 0 if passed else 1
 
 
+def cmd_eval_orchestration(args: argparse.Namespace) -> int:
+    from . import evaluate_orchestration as eo
+    from .retriever import close_indexes
+
+    try:
+        summary = eo.run_all(
+            intent_router_path=args.intent_router_dataset,
+            safety_guardrail_path=args.safety_guardrail_dataset,
+            workflow_e2e_path=args.workflow_e2e_dataset,
+            min_intent_accuracy=args.min_intent_accuracy,
+        )
+    finally:
+        close_indexes()
+    report_path = eo.write_report(summary)
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(f"JSON report: {report_path}")
+    print(f"GATE: {'PASS' if summary['gate_passed'] else 'FAIL'}")
+    return 0 if summary["gate_passed"] else 1
+
+
 def cmd_chat(args: argparse.Namespace) -> int:
     from .agent.factory import create_workforce_rag_agent
     from .agent.tools import retrieve_workforce_materials
@@ -376,6 +396,29 @@ def build_parser() -> argparse.ArgumentParser:
     p_eval.add_argument("--report-csv", type=Path, default=_ew.DEFAULT_REPORT_CSV)
     p_eval.add_argument("--report-json", type=Path, default=_ew.DEFAULT_REPORT_JSON)
     p_eval.set_defaults(func=cmd_eval)
+
+    from . import evaluate_orchestration as _eo
+
+    p_eval_orch = sub.add_parser(
+        "eval-orchestration",
+        help="오케스트레이션 안전성·의도분류 평가 (R4.6 — safety violation=0 게이트, intent 정확도 리포트)",
+    )
+    p_eval_orch.add_argument(
+        "--intent-router-dataset", type=Path, default=_eo.INTENT_ROUTER_DATASET
+    )
+    p_eval_orch.add_argument(
+        "--safety-guardrail-dataset", type=Path, default=_eo.SAFETY_GUARDRAIL_DATASET
+    )
+    p_eval_orch.add_argument(
+        "--workflow-e2e-dataset", type=Path, default=_eo.WORKFLOW_E2E_DATASET
+    )
+    p_eval_orch.add_argument(
+        "--min-intent-accuracy",
+        type=float,
+        default=0.50,
+        help="intent_router_cases 정확도 회귀 방지 하한(정보성 — 현재 결정론 키워드 라우터 측정치 0.50)",
+    )
+    p_eval_orch.set_defaults(func=cmd_eval_orchestration)
 
     p_chat = sub.add_parser(
         "chat", help="워크포스 RAG 에이전트 대화 (--offline: OPENAI_API_KEY 불필요 스모크)"
