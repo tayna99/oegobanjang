@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchThreadDetail, fetchThreads } from './threads';
-import type { MessageDto, ThreadDetailDto, ThreadDto } from './threads';
+import { fetchResponseLink, fetchThreadDetail, fetchThreads, submitResponseLink } from './threads';
+import type { MessageDto, ResponseLinkViewDto, ThreadDetailDto, ThreadDto } from './threads';
+import { ApiError } from './client';
 
 // R2.3 — lib/api/threads.ts는 순수 fetch+DTO 변환만 한다(요약/상세 매핑, 배지 파생은 lib/threads.ts 몫).
 describe('lib/api/threads', () => {
@@ -246,6 +247,53 @@ describe('lib/api/threads', () => {
 
       const result = await fetchThreadDetail('t1');
       expect(result.channelLabel).toBe('kakao');
+    });
+  });
+
+  // R3 stage ② — 응답 링크(무인증). MESSAGING_CHANNELS.md §3.
+  describe('fetchResponseLink / submitResponseLink', () => {
+    const viewDto: ResponseLinkViewDto = {
+      thread_id: 'th1',
+      worker: { display_name: 'Nguyen Van A', nationality: '베트남' },
+      lang: 'vi',
+      prompt: 'Hay gui ho so.',
+      choices: { received: '확인했습니다', not_yet: '아직입니다' },
+    };
+
+    it('fetchResponseLink는 GET /api/v1/response-link/{token}을 무인증으로 호출한다', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(viewDto), { status: 200 }));
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      const result = await fetchResponseLink('tok_abc');
+
+      expect(mockFetch).toHaveBeenCalledWith('http://localhost:8000/api/v1/response-link/tok_abc', expect.anything());
+      const headers = mockFetch.mock.calls[0][1]?.headers as Record<string, string>;
+      expect(headers.Authorization).toBeUndefined();
+      expect(result.threadId).toBe('th1');
+      expect(result.worker).toEqual({ displayName: 'Nguyen Van A', nationality: '베트남' });
+      expect(result.choices.received).toBe('확인했습니다');
+    });
+
+    it('만료·미발급 링크는 404 ApiError를 던진다', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ detail: '만료되었습니다' }), { status: 404 })) as unknown as typeof fetch;
+
+      await expect(fetchResponseLink('no-such-token')).rejects.toBeInstanceOf(ApiError);
+    });
+
+    it('submitResponseLink는 choice/freeText를 snake_case로 변환해 POST한다', async () => {
+      const mockFetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ received: true }), { status: 201 }));
+      global.fetch = mockFetch as unknown as typeof fetch;
+
+      await submitResponseLink('tok_abc', { choice: 'received', freeText: '감사합니다' });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:8000/api/v1/response-link/tok_abc',
+        expect.objectContaining({ method: 'POST' }),
+      );
+      const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
+      expect(body).toEqual({ choice: 'received', free_text: '감사합니다' });
     });
   });
 });

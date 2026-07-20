@@ -152,3 +152,50 @@ export async function fetchThreadDetail(threadId: string): Promise<MessageThread
   const dto = await apiFetch<ThreadDetailDto>(`/api/v1/threads/${threadId}`, { token });
   return toThreadDetail(dto);
 }
+
+// --- 응답 링크(무인증) — R3 stage ②, MESSAGING_CHANNELS.md §3 -----------------------------
+// GET/POST /api/v1/response-link/{token}. ExpertLinkPage/packages.ts와 동일한 무인증-토큰
+// 관례(로그인 없이 URL의 회전 토큰만으로 접근) — 여기서는 근로자가 응답 링크 페이지에서
+// 버튼 선택/자유입력으로 회신한다.
+export interface ResponseLinkViewDto {
+  thread_id: string;
+  worker: { display_name: string; nationality: string } | null;
+  lang: string | null;
+  prompt: string;
+  choices: Record<string, string>;
+}
+
+export interface ResponseLinkView {
+  threadId: string;
+  worker: { displayName: string; nationality: string } | null;
+  lang: string | null;
+  prompt: string;
+  choices: Record<string, string>;
+}
+
+function toResponseLinkView(dto: ResponseLinkViewDto): ResponseLinkView {
+  return {
+    threadId: dto.thread_id,
+    worker: dto.worker ? { displayName: dto.worker.display_name, nationality: dto.worker.nationality } : null,
+    lang: dto.lang,
+    prompt: dto.prompt,
+    choices: dto.choices,
+  };
+}
+
+// 404(ApiError)는 "링크 없음/만료"를 뜻한다 — 호출부가 잡아서 안내 화면으로 렌더한다(R2.6
+// ExpertLinkPage와 동일 관례).
+export async function fetchResponseLink(token: string): Promise<ResponseLinkView> {
+  const dto = await apiFetch<ResponseLinkViewDto>(`/api/v1/response-link/${token}`);
+  return toResponseLinkView(dto);
+}
+
+export async function submitResponseLink(
+  token: string,
+  payload: { choice?: string; freeText?: string },
+): Promise<void> {
+  await apiFetch(`/api/v1/response-link/${token}`, {
+    method: 'POST',
+    body: { choice: payload.choice, free_text: payload.freeText },
+  });
+}

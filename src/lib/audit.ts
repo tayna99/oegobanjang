@@ -36,6 +36,7 @@ export const AUDIT_TYPE_LABEL: Record<EvidenceType, string> = {
   dispatch_executed: '발송 실행',
   delivery_confirmed: '전달 확인',
   package_reply: '행정사 회신',
+  worker_reply_received: '근로자 응답 수신', // N02 — 응답 링크·Zalo webhook 인바운드(R3 stage ②·④)
 };
 
 export const AUDIT_TYPE_TONE: Record<EvidenceType, ChipTone> = {
@@ -66,6 +67,7 @@ export const AUDIT_TYPE_TONE: Record<EvidenceType, ChipTone> = {
   dispatch_executed: 'neutral',
   delivery_confirmed: 'positive',
   package_reply: 'approval',
+  worker_reply_received: 'approval', // 응답 도착 — 검토 유도(interpretation_confirmed 이전 단계)
 };
 
 export type AuditFilterKey = 'all' | 'risk' | 'approval' | 'export';

@@ -1,4 +1,4 @@
-"""ORM 쿼리 전용 모델 — db/schema.sql의 33개 테이블 전부를 매핑한다.
+"""ORM 쿼리 전용 모델 — db/schema.sql의 테이블 전부를 매핑한다(R3 stage ②부터 outbox 포함).
 
 실제 스키마(테이블·FK·CHECK·트리거·뷰)는 db/schema.sql을 그대로 실행하는 마이그레이션이 만든다.
 이 패키지의 모델은 테이블명 + 컬럼만 매핑해 서비스 계층이 조회·삽입할 수 있게 한다.
@@ -22,6 +22,7 @@ from app.models.handoff import HandoffPackage, PackageExport
 from app.models.interpretation import Interpretation, StatusUpdateProposal
 from app.models.membership import Membership
 from app.models.notification import Notification
+from app.models.outbox import Outbox
 from app.models.run import Run, RunStep
 from app.models.stat_snapshot import StatSnapshot
 from app.models.thread import Thread, ThreadMessage
@@ -55,6 +56,7 @@ __all__ = [
     "UserSession",
     "Membership",
     "Notification",
+    "Outbox",
     "Run",
     "RunStep",
     "StatSnapshot",

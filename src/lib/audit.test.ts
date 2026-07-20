@@ -19,7 +19,7 @@ const ALL_TYPES: EvidenceType[] = [
   'role_granted', 'role_changed', 'member_invited', 'member_removed',
   'delegation_granted', 'delegation_revoked', 'approval_escalated',
   'package_link_issued', 'package_link_viewed',
-  'dispatch_executed', 'delivery_confirmed', 'package_reply',
+  'dispatch_executed', 'delivery_confirmed', 'package_reply', 'worker_reply_received',
 ];
 
 describe('audit type maps — 전 EvidenceType 커버(런타임 undefined 방지)', () => {
