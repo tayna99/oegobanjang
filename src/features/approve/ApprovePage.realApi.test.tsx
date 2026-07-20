@@ -42,6 +42,9 @@ const CASE_DETAIL_DTO = {
   secondary_action: null,
   usable_citation_count: 2,
   guard_note: null,
+  checked_items: [],
+  next_wake: null,
+  documents: [],
   pending_approval: {
     id: 'apv1',
     action_id: 'act1',

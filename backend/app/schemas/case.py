@@ -61,11 +61,37 @@ class PendingApprovalOut(BaseModel):
     requested_at: dt.datetime
 
 
+class CheckedItemOut(BaseModel):
+    """cases.checked_items(JSONB) 원소 1건 — 이미 `[{label,value}]` 모양으로 저장돼 있어
+    변환 없이 그대로 노출한다(SD-5 draft.py의 langs와 달리 여기는 재매핑이 필요 없다)."""
+
+    label: str
+    value: str
+
+
+class WorkerDocumentOut(BaseModel):
+    """worker_documents 1건 — status 값은 이미 프론트 CaseDocStatus 유니온과 동일하다
+    (missing/requested/received/expiring/company_check/pending, db/schema.sql CHECK 참고)."""
+
+    doc_type: str
+    status: str
+    due_date: dt.date | None
+    expires_at: dt.date | None
+
+
 class CaseDetailOut(CaseOut):
-    """GET /api/v1/cases/{case_id} 전용 — 목록(CaseOut)에 승인 화면(ApprovePage)이 필요로
-    하는 필드를 얹는다(R2.4). usable_citation_count는 services.approvals.usable_citation_count와
-    동일 로직(F등급 제외 + 전역/자사 스코프)."""
+    """GET /api/v1/cases/{case_id} 전용 — 목록(CaseOut)에 승인 화면(ApprovePage)·케이스 시트
+    화면(SD-6)이 필요로 하는 필드를 얹는다. usable_citation_count는
+    services.approvals.usable_citation_count와 동일 로직(F등급 제외 + 전역/자사 스코프).
+
+    SD-6(plans/SEED_DESIGN_2026-07-20.md Part B5(c)): checked_items·next_wake는 cases 테이블에
+    이미 그 모양대로 존재하던 컬럼을 노출만 한 것(변환 없음, next_wake는 컬럼명
+    next_wake_condition에서 개명). documents는 worker_id로 스코프한 worker_documents —
+    worker_id가 없는 케이스(예: 커맨드 런 기원)는 빈 배열."""
 
     usable_citation_count: int
     guard_note: str | None
     pending_approval: PendingApprovalOut | None
+    checked_items: list[CheckedItemOut]
+    next_wake: str | None
+    documents: list[WorkerDocumentOut]

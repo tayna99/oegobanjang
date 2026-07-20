@@ -6,7 +6,7 @@ import { Chip } from '@/components/Chip';
 import { useNextAction } from '@/lib/actionNav';
 import { useApprovalActions } from '@/lib/approval';
 import { API_MODE } from '@/lib/api/config';
-import { fetchCaseDetail } from '@/lib/api/cases';
+import { type CaseDetail, fetchCaseDetail } from '@/lib/api/cases';
 import { applyDocUpdatesOverlay } from '@/lib/cases';
 import { useSeedCases, useSeedEvidence } from '@/lib/dataSeed';
 import { dDayLabel } from '@/lib/dday';
@@ -25,8 +25,12 @@ import { useRoleStore } from '@/stores/roleStore';
 // 승인은 2c 체크리스트 페이지에서만("카드에서는 검토만, 승인은 체크리스트 화면에서").
 //
 // R2.4 — sheet(mock CASE_SHEETS)는 real 모드 caseId와 매칭되지 않는다. real 모드는 카드만으로
-// 최소 렌더하고(풍부한 mock 콘텐츠는 범위 밖, plans/HANDOFF.md 참조), guardNote만 서버
-// GET /api/v1/cases/{id}에서 보강한다 — "검토 계속" 버튼 동작(ApprovePage 진입)은 항상 보장한다.
+// 최소 렌더하고(풍부한 mock 콘텐츠 중 이 화면이 원래 안 쓰는 것 — 예: summary — 은 범위 밖,
+// plans/HANDOFF.md 참조), guardNote·근거수·누락서류는 서버 GET /api/v1/cases/{id}에서
+// 보강한다(SD-6, plans/SEED_DESIGN_2026-07-20.md Part B5(c)) — "검토 계속" 버튼 동작
+// (ApprovePage 진입)은 항상 보장한다. checkedItems/activity는 이 화면이 mock 모드에서도
+// 애초에 렌더하지 않던 섹션이라(§3b PC 전용 개념) real 모드에서도 새로 추가하지 않는다 —
+// "기존 분기 확장"이지 "없던 섹션 신설"이 아니다.
 
 interface CaseRouteState {
   returnTo?: string;
@@ -75,26 +79,28 @@ export function CaseReviewPage() {
     });
   }, [card, appendEvidence]);
 
-  const missingDocs = useMemo(() => sheet?.docs?.filter((doc) => doc.status !== 'received') ?? [], [sheet]);
-  const citations = sheet?.citations ?? [];
-
-  // real 모드 + mock 시트 없음 — guardNote만 서버에서 보강한다(문서 콘텐츠 전체는 범위 밖).
-  const [realGuardNote, setRealGuardNote] = useState<string | null>(null);
-  const [realUsableCount, setRealUsableCount] = useState<number | null>(null);
+  // real 모드 + mock 시트 없음 — guardNote·근거수·문서 상태를 서버에서 보강한다(SD-6).
+  const [detail, setDetail] = useState<CaseDetail | null>(null);
   useEffect(() => {
     if (API_MODE !== 'real' || sheet || !caseId) return;
     let cancelled = false;
     fetchCaseDetail(caseId)
-      .then((detail) => {
-        if (cancelled) return;
-        setRealGuardNote(detail.guardNote);
-        setRealUsableCount(detail.usableCitationCount);
+      .then((d) => {
+        if (!cancelled) setDetail(d);
       })
       .catch((err: unknown) => console.error('[CaseReviewPage] 케이스 상세 조회 실패', err));
     return () => {
       cancelled = true;
     };
   }, [caseId, sheet]);
+
+  // SD-6 — sheet(mock)가 있으면 기존 그대로, 없으면(real 모드) 서버 GET /cases/{id}.documents로
+  // 같은 "받지 못한 서류" 목록을 구성한다(CaseDoc 모양을 맞춰뒀으므로 필터 로직 재사용).
+  const missingDocs = useMemo(() => {
+    const docs = sheet?.docs ?? detail?.docs;
+    return docs?.filter((doc) => doc.status !== 'received') ?? [];
+  }, [sheet, detail]);
+  const citations = sheet?.citations ?? [];
 
   if (!card) {
     return (
@@ -111,8 +117,8 @@ export function CaseReviewPage() {
 
   // 고위험(기한 경과 blocked)은 앱 승인 경로가 아니라 행정사 전달 전용(GOTCHAS 고위험 처리 버튼 금지).
   const highRisk = card.state === 'blocked';
-  const guardNote = sheet?.guardNote ?? realGuardNote;
-  const usableCount = sheet ? usableCitations(citations).length : (realUsableCount ?? 0);
+  const guardNote = sheet?.guardNote ?? detail?.guardNote;
+  const usableCount = sheet ? usableCitations(citations).length : (detail?.usableCitationCount ?? 0);
 
   const onContinue = async () => {
     // 반려됐던 케이스는 재검토 위해 승인 대기로 되돌린 뒤 승인 화면으로(코드리뷰 A1/B2 크래시 방지).

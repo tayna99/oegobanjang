@@ -50,7 +50,8 @@ uv run pytest
 | GET | `/api/v1/auth/me` | 세션 사용자 + 활성 멤버십(회사별 역할) 조회(R2.2 — 프론트 roleStore가 새로고침 후에도 세션에서 role을 다시 파생) |
 | POST | `/api/v1/auth/logout` | 세션 폐기(멱등 — 이미 무효한 토큰도 204) |
 | GET | `/api/v1/cases` | 케이스 목록(R2.3) — 회사 스코프 |
-| GET | `/api/v1/cases/{case_id}` | 케이스 상세(R2.4) — 목록 필드 + `usable_citation_count`·`guard_note`·`pending_approval`(id·action_id·checklist). ApprovePage가 real 모드에서 mock CASE_SHEETS 대신 쓴다 |
+| GET | `/api/v1/cases/{case_id}` | 케이스 상세(R2.4, SD-6 확장) — 목록 필드 + `usable_citation_count`·`guard_note`·`pending_approval`(id·action_id·checklist) + `checked_items`·`next_wake`(cases 컬럼 그대로)·`documents`(worker_documents, worker_id 없으면 빈 배열). ApprovePage/CaseReviewPage/CaseWorkbench가 real 모드에서 mock CASE_SHEETS 대신 쓴다 |
+| GET | `/api/v1/cases/{case_id}/draft` | 케이스의 가장 최근 살아있는(non-rejected/superseded) 초안(SD-5) — `draft_id`·`channel`·`purpose`·`status`·`langs`(draft_variants, `is_revised` 포함). 초안이 아예 없으면 404. DraftPage가 real 모드에서 mock DRAFTS 대신 쓴다 |
 | POST | `/api/v1/approvals` | 승인 요청 생성(`action_id` 기준, manager 세션 전용) |
 | POST | `/api/v1/approvals/{approval_id}/approve` | 승인 결정 — 게이트 강제(citation-0 잠금·**PIN 서버 검증**·checklist 제출 반영·**위임 유효성 검증**·high risk handoff 전용·manager 정책 등, R2.4) |
 | POST | `/api/v1/approvals/{approval_id}/reject` | 반려 결정 — 사유·PIN 본인확인 필수 + PII 패턴 차단, 케이스 `returned` 전이. evidence type은 `approval_rejected`(R2.4 — 이전엔 승인과 동일하게 `approval_decided`로 오기록됐다) |
