@@ -5,8 +5,9 @@ Run:  DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegoban
 Env:  DATABASE_URL (default: local Docker PG on :55432)
 
 db/schema.sql(정본) + db/seed_reference.sql(전역 참조) + db/seed_demo.sql을 대상 스키마에
-로드한 뒤, 테넌트 격리·승인 상태머신·외부 실행 차단·참조 시드 불변식 등 187개 회귀를
-검증한다. 이 파일은 db/validate.cjs(SQLite)의
+로드한 뒤, 테넌트 격리·승인 상태머신·외부 실행 차단·참조 시드 불변식·발송 대기열(outbox)
+승인 게이트·응답 링크·행정사 화이트라벨(위탁·열람 로그) 등의 회귀를 검증한다. 이 파일은
+db/validate.cjs(SQLite)의
 PG 이식본이다 — 검증 이름·시맨틱은 1:1로 보존하고, SQLite 전용(PRAGMA·sqlite_master·
 boolean 0/1)만 PG로 옮겼다.
 
@@ -113,9 +114,10 @@ n_tables = scalar(
     "WHERE table_schema='public' AND table_type='BASE TABLE'"
 )["n"]
 ok(
-    "40 tables (R5.1 expert whitelabel: expert_accounts/expert_office_members/expert_grants/"
-    "expert_login_otps/expert_sessions/package_view_log/pii_field_policies added)",
-    n_tables == 40,
+    "41 tables (R3 stage ② outbox + R5.1 expert whitelabel: expert_accounts/"
+    "expert_office_members/expert_grants/expert_login_otps/expert_sessions/"
+    "package_view_log/pii_field_policies added)",
+    n_tables == 41,
     f"actual={n_tables}",
 )
 n_views = scalar("SELECT count(*) AS n FROM information_schema.views WHERE table_schema='public'")["n"]
@@ -661,6 +663,67 @@ run("UPDATE approvals SET status='approved', decided_by_user_id='usr_other', ide
 run("UPDATE cases SET state='completed' WHERE id='cs_other'")
 ok("case completes after its approved completion action",
   scalar("SELECT state FROM cases WHERE id='cs_other'")["state"] == "completed")
+
+# --- 발송 대기열(outbox, R3 stage ②) — MESSAGING_CHANNELS.md §2 ------------------------------
+# 구조적 승인 게이트: outbox는 반드시 status='approved'인 approval을 가리킬 때만 존재할 수 있다
+# ("human_approved-adjacent authorization trail" 없이는 삽입 자체가 불가능).
+run("""
+  INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval) VALUES
+    ('act_other_outbox_pending', 'cmp_other', 'cs_other', 'approve', 'send_message', 'Outbox pending gate', 'ready', true);
+  INSERT INTO approvals (id, company_id, case_id, action_id, status, requested_by_actor, requested_at) VALUES
+    ('apv_other_outbox_pending', 'cmp_other', 'cs_other', 'act_other_outbox_pending', 'pending', 'user', '2026-07-10T00:00:00Z');
+""")
+expect_throw("outbox insert requires an approved approval",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_needs_approval','cmp_other','cs_other','act_other_outbox_pending','apv_other_outbox_pending','th_other','zalo','cs_other:dispatch:act_other_outbox_pending','x','usr_other_manager')",
+  "requires an approved approval")
+
+# apv_other_message(위에서 approved로 결정됨)+act_other_message(send_message)를 재사용해 정상
+# outbox 행을 만든다.
+run("""
+  INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) VALUES
+    ('ob_other', 'cmp_other', 'cs_other', 'act_other_message', 'apv_other_message', 'th_other', 'zalo', 'cs_other:dispatch:act_other_message', 'Xin chao', 'usr_other_manager');
+""")
+ok("outbox insert succeeds with an approved approval", True)
+
+# 이벤트 idempotency(§2 "같은 case+event_type+임계값은 1회만") — dedupe_key UNIQUE가 구조적으로 강제.
+expect_throw("outbox dedupe_key is unique per company (event idempotency)",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_dup','cmp_other','cs_other','act_other_message','apv_other_message','th_other','zalo','cs_other:dispatch:act_other_message','y','usr_other_manager')")
+
+expect_throw("outbox core fields are immutable after creation",
+  "UPDATE outbox SET body='changed' WHERE id='ob_other'", "immutable")
+
+run("UPDATE outbox SET status='sent', external_id='stub:zalo:test', sent_at=now() WHERE id='ob_other'")
+ok("outbox status/external_id/sent_at remain mutable for delivery updates",
+  scalar("SELECT status FROM outbox WHERE id='ob_other'")["status"] == "sent")
+
+expect_throw("outbox rejects an unsupported channel",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_bad_channel','cmp_other','cs_other','act_other_message','apv_other_message','th_other','email','cs_other:dispatch:bad_channel','x','usr_other_manager')")
+
+expect_throw("outbox rejects a foreign case",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_cross_case','cmp_other','cs_nguyen','act_other_message','apv_other_message','th_other','zalo','cs_nguyen:dispatch:cross','x','usr_other_manager')")
+
+expect_throw("outbox rejects a requester without membership in the company",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_cross_requester','cmp_other','cs_other','act_other_message','apv_other_message','th_other','zalo','cs_other:dispatch:cross_requester','x','usr_kim')")
+
+expect_throw("outbox deletion is not allowed", "DELETE FROM outbox WHERE id='ob_other'", "outbox deletion")
+
+# 응답 링크(§3) — thread_messages.response_token은 만료 시각과 함께여야 하고, 회전 토큰은 전역 유일.
+expect_throw("thread_messages response_token requires an expiry",
+  "INSERT INTO thread_messages (id, thread_id, company_id, direction, response_token) "
+  "VALUES ('tm_bad_token','th_other','cmp_other','system','tok_bad')")
+run("""
+  INSERT INTO thread_messages (id, thread_id, company_id, direction, response_token, response_token_expires_at) VALUES
+    ('tm_with_token', 'th_other', 'cmp_other', 'system', 'tok_ok', now() + interval '14 days');
+""")
+ok("thread_messages accepts a response_token paired with an expiry", True)
+expect_throw("thread_messages response_token is unique",
+  "INSERT INTO thread_messages (id, thread_id, company_id, direction, response_token, response_token_expires_at) "
+  "VALUES ('tm_dup_token','th_other','cmp_other','system','tok_ok', now() + interval '7 days')")
 
 # Deleting a worker retains the case's tenant and clears only its worker reference.
 run("DELETE FROM workers WHERE id='wrk_rahmat'")

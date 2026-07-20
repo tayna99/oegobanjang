@@ -506,21 +506,69 @@ CREATE TABLE draft_variants (
 CREATE INDEX ix_draft_variants_draft ON draft_variants (draft_id);
 
 CREATE TABLE thread_messages (
-  id            text PRIMARY KEY,
-  thread_id     text NOT NULL,
-  company_id    text NOT NULL REFERENCES companies(id),
-  direction     text NOT NULL CHECK (direction IN ('inbound','system')),
-  draft_id      text,
-  lang          text,
-  body_original text,                              -- 원문 전문(PII) — 스레드 상세 전용(§7)
-  body_ko       text,
-  received_at   timestamptz,
-  created_at    timestamptz NOT NULL DEFAULT now(),
+  id                         text PRIMARY KEY,
+  thread_id                  text NOT NULL,
+  company_id                 text NOT NULL REFERENCES companies(id),
+  direction                  text NOT NULL CHECK (direction IN ('inbound','system')),
+  draft_id                   text,
+  lang                       text,
+  body_original              text,                  -- 원문 전문(PII) — 스레드 상세 전용(§7)
+  body_ko                    text,
+  received_at                timestamptz,
+  -- R3 stage ② — 응답 링크 인바운드(MESSAGING_CHANNELS.md §3). 아웃박스가 발송한
+  -- direction='system' 메시지에만 채워진다: 만료형 토큰 하나가 그 발신 메시지에 대한 근로자
+  -- 응답을 받는 유일한 창구다. NULL=응답 링크 없음(재해석·구시드 메시지 등).
+  response_token             text UNIQUE,
+  response_token_expires_at  timestamptz,
+  created_at                 timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id, id),
   FOREIGN KEY (company_id, thread_id) REFERENCES threads(company_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (company_id, draft_id) REFERENCES drafts(company_id, id)
+  FOREIGN KEY (company_id, draft_id) REFERENCES drafts(company_id, id),
+  CHECK (response_token IS NULL OR response_token_expires_at IS NOT NULL)
 );
 CREATE INDEX ix_thread_messages_thread ON thread_messages (thread_id, created_at);
+CREATE INDEX ix_thread_messages_response_token ON thread_messages (response_token) WHERE response_token IS NOT NULL;
+
+-- 발송 대기열(R3 stage ②) — Approval → Outbox → ChannelAdapter(MESSAGING_CHANNELS.md §2).
+-- next_actions.action_type='send_message' 승인 후 manager의 "실행 확인"(§1 각주² — 승인과
+-- 실행의 분리) 1건이 정확히 1행을 만든다. 근로자 채널(sms/alimtalk/zalo)만 다룬다 — 행정사
+-- 패키지 이메일 알림은 별도 경로(services/packages.py + EmailAdapter, 이 큐를 거치지 않는다).
+CREATE TABLE outbox (
+  id                    text PRIMARY KEY,
+  company_id            text NOT NULL REFERENCES companies(id),
+  case_id               text NOT NULL,
+  action_id             text NOT NULL,
+  approval_id           text NOT NULL,               -- 실행 확인의 유일한 권한 근거 — 구조적 승인 게이트(트리거로 강제, 아래)
+  thread_id             text,
+  channel               text NOT NULL CHECK (channel IN ('sms','alimtalk','zalo')),
+  event_type            text NOT NULL DEFAULT 'dispatch' CHECK (event_type IN ('dispatch','reminder','resend')),
+  dedupe_key            text NOT NULL,                -- '{case_id}:{event_type}:{threshold}' — notifications.dedupe_key와 동일 관례. 이벤트 idempotency(§2)를 구조적으로 강제
+  body                  text NOT NULL,
+  lang                  text,
+  recipient_ref         text,                         -- 수신처 표시용(마스킹) — 실 연락처 컬럼은 스키마에 없음(§7 PII 최소화 원칙)
+  status                text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','sent','delivered','failed')),
+  external_id           text,                         -- 채널사 발급 ID(진짜) 또는 'stub:...'(자격 증명 없음). NULL=미시도
+  attempt_count         integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  fallback_from_id      text,                         -- 알림톡 실패 후 SMS로 대체 발송된 행이 원본을 가리킴("채널 중복 금지" — fallback만, 중복 발송 아님)
+  scheduled_for         timestamptz,                  -- 발송 창 보류(21:00~08:00, CRITICAL은 22:00까지 허용) 해제 시각. NULL=즉시 시도
+  sent_at               timestamptz,
+  failed_reason         text,
+  requested_by_user_id  text NOT NULL,                -- "실행 확인"을 누른 manager
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (company_id, id),
+  UNIQUE (company_id, dedupe_key),
+  FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),
+  FOREIGN KEY (company_id, case_id, action_id) REFERENCES next_actions(company_id, case_id, id),
+  FOREIGN KEY (company_id, case_id, approval_id) REFERENCES approvals(company_id, case_id, id),
+  FOREIGN KEY (company_id, thread_id) REFERENCES threads(company_id, id),
+  FOREIGN KEY (company_id, requested_by_user_id) REFERENCES memberships(company_id, user_id),
+  FOREIGN KEY (company_id, fallback_from_id) REFERENCES outbox(company_id, id),
+  CHECK (status <> 'sent' OR sent_at IS NOT NULL),
+  CHECK (status NOT IN ('sent','delivered') OR external_id IS NOT NULL)
+);
+CREATE INDEX ix_outbox_company_status ON outbox (company_id, status);
+CREATE INDEX ix_outbox_case ON outbox (case_id);
 
 -- 응답 해석(M6) — 제안은 언제나 비확정(isFinal=false는 성격 자체라 컬럼 없음)
 CREATE TABLE interpretations (
@@ -1647,6 +1695,48 @@ $$;
 CREATE TRIGGER package_exports_mark_package_exported
   AFTER INSERT ON package_exports
   FOR EACH ROW EXECUTE FUNCTION trg_package_exports_mark_exported();
+
+-- outbox 행은 "승인된" approval을 가리킬 때만 존재할 수 있다 — "human_approved-adjacent
+-- authorization trail" 없이는 삽입 자체가 불가능하다(MESSAGING_CHANNELS.md §1 각주² —
+-- 승인과 실행은 같은 순간이 아니지만, 실행은 반드시 승인 뒤에서만 일어난다).
+CREATE FUNCTION trg_outbox_requires_approved_approval() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM approvals a
+    WHERE a.company_id = NEW.company_id AND a.id = NEW.approval_id AND a.status = 'approved'
+  ) THEN
+    RAISE EXCEPTION 'outbox item requires an approved approval';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER outbox_requires_approved_approval
+  BEFORE INSERT ON outbox
+  FOR EACH ROW EXECUTE FUNCTION trg_outbox_requires_approved_approval();
+
+-- outbox 핵심 필드(대상·채널·본문·중복방지 키)는 생성 후 불변 — 상태 전이(queued→sent/failed 등)만 허용.
+CREATE FUNCTION trg_outbox_immutable_core() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.company_id <> OLD.company_id OR NEW.case_id <> OLD.case_id OR NEW.action_id <> OLD.action_id
+     OR NEW.approval_id <> OLD.approval_id OR NEW.dedupe_key <> OLD.dedupe_key
+     OR NEW.channel <> OLD.channel OR NEW.body <> OLD.body THEN
+    RAISE EXCEPTION 'outbox core fields are immutable after creation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER outbox_immutable_core
+  BEFORE UPDATE OF company_id, case_id, action_id, approval_id, dedupe_key, channel, body ON outbox
+  FOR EACH ROW EXECUTE FUNCTION trg_outbox_immutable_core();
+
+-- outbox는 append-only에 가깝다 — evidence_events와 동일하게 삭제를 금지한다(감사 무결성).
+CREATE FUNCTION trg_outbox_no_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'outbox deletion is not allowed';
+END;
+$$;
+CREATE TRIGGER outbox_no_delete BEFORE DELETE ON outbox
+  FOR EACH ROW EXECUTE FUNCTION trg_outbox_no_delete();
 
 -- agent_notes.subject 는 같은 회사 소속이어야 한다(worker/company/expert)
 CREATE FUNCTION trg_agent_notes_subject_scope() RETURNS trigger LANGUAGE plpgsql AS $$

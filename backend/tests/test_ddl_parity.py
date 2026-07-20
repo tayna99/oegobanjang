@@ -2,7 +2,7 @@
 
 Alembic 0001이 `db/schema.sql`을 그대로 적용하므로 설계 킷과 백엔드 DDL은 **구조적으로 동일**하다
 (드리프트 F5 원천 차단). 남는 드리프트 위험은 "모델이 실제 DB 컬럼과 어긋나는 것"뿐이므로,
-이 테스트가 그것을 잡는다 — 31테이블 전부에 대해 모델 컬럼 집합·nullable·타입 카테고리가
+이 테스트가 그것을 잡는다 — EXPECTED_TABLES 전부에 대해 모델 컬럼 집합·nullable·타입 카테고리가
 information_schema와 일치하는지 대조한다.
 
 이번 PR에서 실제로 났던 드리프트(예: 모델의 stale `drafts.sent_at`, 잘못된 case_citations PK)를
@@ -32,7 +32,7 @@ EXPECTED_TABLES = {
     "run_steps", "next_actions", "approvals", "case_citations", "evidence_events", "threads",
     "drafts", "draft_variants", "thread_messages", "interpretations", "status_update_proposals",
     "handoff_packages", "package_exports", "briefings", "briefing_items", "notifications",
-    "csv_imports", "autonomy_grants", "agent_notes", "stat_snapshots",
+    "csv_imports", "autonomy_grants", "agent_notes", "stat_snapshots", "outbox",
     "expert_accounts", "expert_office_members", "expert_grants", "expert_login_otps",
     "expert_sessions", "package_view_log", "pii_field_policies",
 }

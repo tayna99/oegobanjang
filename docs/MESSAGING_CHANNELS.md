@@ -146,10 +146,43 @@ export interface MessageThread {
 | 단계 | 범위 | 비고 |
 |---|---|---|
 | ① 현 MVP | 프론트 `Message` 도메인 + mock 경계 | 이번 태스크(2.2). 어댑터는 `MockAdapter`만 |
-| ② 백엔드 접속점 | outbox 테이블 + `SmsAdapter` + 응답 링크 인바운드 API | `MessageDeliveryStatus` 확장(`queued`/`delivered`/`failed`) 시점 |
-| ③ 알림톡 확장 | `AlimtalkAdapter` + SMS fallback 체인 | 알림톡 실패 시에만 SMS 폴백 (2단계 §5.2 "채널 중복 금지"와 동일 원칙) |
-| ④ Zalo 확장 | `ZaloAdapter`(OA webhook 인바운드 합류) | §3의 정규화 지점에 합류, 응답 링크와 공존 |
-| 행정사 패키지 | `EmailAdapter` | 별도 태스크(2.4, 패키지 화면). 근로자 채널과 분리 유지 |
+| ✅ ② 백엔드 접속점 | `outbox` 테이블 + `SmsAdapter` + 응답 링크 인바운드 API | `MessageDeliveryStatus` 확장(`queued`/`delivered`/`failed`, `src/types.ts`) 완료. R3(2026-07-20) |
+| ✅ ③ 알림톡 확장 | `AlimtalkAdapter` + SMS fallback 체인 | 알림톡 실패 시에만 SMS 폴백(2단계 §5.2 "채널 중복 금지"와 동일 원칙) 완료. R3(2026-07-20) |
+| ✅ ④ Zalo 확장 | `ZaloAdapter` + OA webhook 인바운드 합류 | §3의 정규화 지점(`ingest_inbound_reply`)에 합류, 응답 링크와 공존. 완료. R3(2026-07-20) |
+| ✅ 행정사 패키지 | `EmailAdapter` | 어댑터 자체는 구현·테스트 완료(R3) — 근로자 채널(outbox)과 분리 유지. `services/packages.py` 자동 발송 배선은 의도적으로 보류(§5-1 참고) |
+
+### R3(2026-07-20) 구현 요약 — 자격 증명 게이팅
+
+전 채널(`SmsAdapter`/`AlimtalkAdapter`/`ZaloAdapter`/`EmailAdapter`, `backend/app/services/channels/`)이
+`backend/app/api/v1/auth.py`의 `debug_code=code if get_settings().is_local else None`과 동일한
+원칙을 따른다: 필요 자격 증명(`SOLAPI_*`/`KAKAO_ALIMTALK_*`/`ZALO_OA_*`/`SMTP_*`, 전부
+`backend/app/config.py`에 기본값 `None`)이 하나라도 비어 있으면 `httpx`/`smtplib` 연결을
+아예 만들지 않고 `external_id`에 `stub:{channel}:{uuid}` 접두 값을 남기는 스텁 결과를
+반환한다 — 이 저장소·CI·리뷰어 환경엔 실계정이 없으므로 항상 이 경로를 탄다. 자격 증명이
+설정된 실 발송 경로는 각 채널사 공개 API 계약대로 작성했고 `respx`로만 테스트한다(실계정
+검증 불가, `backend/tests/test_services_channels.py`).
+
+**5-1. 의도적으로 보류한 것**:
+- `EmailAdapter`를 `services/packages.py`(행정사 패키지 링크 발급)에 자동 배선하지 않았다 —
+  이 스키마엔 행정사/전문가의 이메일 주소를 저장하는 컬럼이 어디에도 없다(`ExpertAccount`류
+  테이블 자체가 백엔드 DB에 없음, `plans/SEED_DESIGN_2026-07-20.md` Part A4). 배선하려면
+  그 저장소를 새로 설계해야 하는데, 이미 여러 P1 코드리뷰를 거친 `packages.py`(링크 회전·
+  승인 게이트)의 회귀 위험을 늘리면서까지 이번 태스크 범위를 넓히지 않기로 판단했다 —
+  어댑터 자체는 완성·테스트됐으니 그 저장소가 생기는 시점에 한 줄로 연결 가능하다.
+- Zalo OA webhook의 발신자 식별 — 실 Zalo는 자체 `user_id`를 주는데 근로자당 그 값을 저장할
+  컬럼이 없다(전화번호와 동일한 PII 최소화 판단). 이번 MVP webhook은 `thread_id`를 페이로드에
+  직접 받는다(`backend/app/services/webhooks.py` 모듈 docstring 참고) — "인바운드가 같은
+  정규화 지점에 합류"라는 §3의 요구는 충족하지만, "Zalo user_id → thread_id 해석"은 그 매핑
+  컬럼이 생기는 후속 과제로 명시적으로 남겼다.
+- 24h 리마인드 쿨다운·48h 미응답 재발송은 서비스 함수(`enqueue` 시 `event_type='reminder'|
+  'resend'`)로 구현·테스트했지만, 이를 주기적으로 자동 트리거하는 스케줄러/워커는 이
+  저장소에 아직 없다(7단계 §3.2의 48h/72h 에스컬레이션 타이머를 "물리적으로 불가능"으로
+  판단해 프리시드 evidence로 대체한 기존 선례와 동일한 판단) — 사람/후속 자동화가 호출하면
+  규칙은 정확히 강제되지만, 자동 호출 자체는 범위 밖이다.
+- `POST /api/v1/outbox`가 만드는 outbox 큐는 `DispatchQueuePage`의 real-mode "발송 실행"
+  버튼에서 fire-and-forget으로 호출될 뿐, 그 화면의 큐 목록·이력 자체를 실서버 데이터로
+  다시 그리진 않는다(여전히 로컬 파생이 정본) — "화면 자체를 다시 만들지 않는다"는 태스크
+  경계를 지켰다.
 
 ## 6. 기존 스펙 정합 표
 

@@ -456,11 +456,41 @@ P2 1건): 재발급 API 실패에도 UI가 성공으로 기록하고 응답의 `
   YAML 파싱 검증 통과. `backend/`·`src/`·`db/schema.sql` 비접촉 — `npm run verify`/backend
   pytest 무영향.
 
-## 발송 어댑터·알림톡 (R2 이후 — 별도 계획, PRD Sprint 6)
+## R3 — 발송 어댑터·알림톡 (2026-07-20 완료 — PRD Sprint 6)
 
-발송 어댑터·알림톡은 R2 배선과 별개로 계속 범위 밖이다¹.
+`docs/MESSAGING_CHANNELS.md` §5(단계 로드맵) ②~④ + 행정사 EmailAdapter 완료. Approval →
+Outbox → ChannelAdapter(§2) 발신 파이프라인과 응답 링크(§3) 수신 파이프라인을 실제로
+구현했다 — 어댑터는 자격 증명 게이팅(다음 결정 사항 참고)으로 이 dev 환경에서 실 외부
+발송이 절대 일어나지 않는다.
 
-¹ outbox(발송 대기열)+`SmsAdapter`+응답 링크 인바운드까지의 로드맵은 `docs/MESSAGING_CHANNELS.md` §5(단계 로드맵)에 정리돼 있다 — 이 저장소는 현재 ①(프론트 Message 도메인 + `MockAdapter`)까지만.
+| # | 태스크 | 레벨 | DoD |
+|---|---|---|---|
+| ✅ R3.1 | `outbox` 테이블 + 트리거(승인 게이트·불변 핵심 필드·삭제 금지) + 마이그레이션 0004 | L2 | `db/validate.py` 신규 12건(승인 게이트·idempotency·불변·채널 CHECK·응답 토큰) |
+| ✅ R3.2 | `backend/app/services/channels/`(Sms/Alimtalk/Zalo/Email) — 자격 증명 게이팅 | L2 | `test_services_channels.py` 9건(미설정→스텁·실 HTTP 0건 / 설정→respx로 요청 형태만 검증) |
+| ✅ R3.3 | `services/outbox.py` — "실행 확인"(승인≠실행, §1 각주²), 발송 창(21:00~08:30, CRITICAL 22:00), 리마인드 24h 쿨다운, 48h 미응답 재발송 1회, 알림톡 실패→SMS fallback | L3 | `test_api_outbox.py` 22건 |
+| ✅ R3.4 | 응답 링크 인바운드(`response_link.py`) + Zalo webhook(`webhooks.py`, 공유 시크릿 게이팅) — 둘 다 `ingest_inbound_reply` 단일 정규화 지점 합류 | L2 | `test_api_response_link.py` 12건 + `test_api_webhooks.py` 5건, 원문 미노출(GOTCHAS §3) 검증 포함 |
+| ✅ R3.5 | 프론트 real-mode 배선 — `DispatchQueuePage`(fire-and-forget `POST /api/v1/outbox`), 신규 `ResponseLinkPage`(`/r/:token`, 무인증) | L1 | mock 모드 무변경(기존 테스트 전건), typecheck/lint 클린 |
+
+**결정 사항(다음 세션이 알아야 할 것)**:
+- 자격 증명 env var는 전부 `backend/app/config.py`에 기본값 `None`(`SOLAPI_*`/
+  `KAKAO_ALIMTALK_*`/`ZALO_OA_*`/`ZALO_WEBHOOK_SECRET`/`SMTP_*`) — `backend/app/api/v1/auth.py`의
+  `debug_code=code if get_settings().is_local else None`과 동일한 게이팅 원칙. 하나라도 비면
+  어댑터가 `httpx`/`smtplib` 연결을 아예 만들지 않고 `external_id`에 `stub:{channel}:{uuid}`
+  접두를 남긴다 — 실 발송(`external_id`가 채널사 발급값)과 절대 혼동되지 않는다.
+- `EmailAdapter`는 완성·테스트됐지만 `services/packages.py`에 자동 배선하지 않았다 — 행정사
+  이메일 주소를 저장할 컬럼/테이블이 스키마에 아예 없다(`ExpertAccount`류 부재). 자세한 판단은
+  `docs/MESSAGING_CHANNELS.md` §5-1.
+- Zalo webhook은 실 Zalo `user_id → thread_id` 해석 없이 `thread_id`를 페이로드로 직접 받는다
+  (같은 이유 — 근로자당 Zalo user_id를 저장할 컬럼이 없음). §3이 요구하는 "같은 정규화 지점
+  합류"는 충족했다.
+- 리마인드 쿨다운(24h)·재발송(48h) 규칙은 서비스 함수로 구현·테스트됐지만 이를 주기적으로
+  트리거하는 스케줄러는 없다(7단계 §3.2 48h/72h 에스컬레이션 타이머를 "물리적으로 불가능"으로
+  판단한 기존 선례와 동일 — RunEngine 각본 철학 참고).
+- 마이그레이션 번호는 `0004`(직전 최신 `0003_r2_4_delegated_approval_decider.py` 확인 후 채택 —
+  R5.1이 독립적으로 `0005`를 잡아 병합 시 두 브랜치 모두 `down_revision=0003`이던 것을
+  0004→0005 체인으로 재정렬했다).
+- 검증: backend `uv run pytest` 285/285(TEST_DB_NAME 격리), `db/validate.py --reset` 193/193
+  (기존 181 + 신규 12), 프론트 `npm run verify`(typecheck→lint→test→build) PASS.
 
 ## SD — 시드·필러 데이터 트랙 (2026-07-20, `plans/SEED_DESIGN_2026-07-20.md` 승격)
 

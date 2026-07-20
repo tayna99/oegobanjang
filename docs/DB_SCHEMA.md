@@ -35,7 +35,7 @@
 
 - 실행 가능한 설계 정본은 `db/schema.sql`(PostgreSQL DDL)이고, 이 문서의 타입은 논리 타입이다. DDL이 물리 정본이다.
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
-- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_reference.sql`(전역 참조 시드 — 전 환경 필수) · `db/seed_demo.sql`(데모 시드 — 로컬·데모만) · `db/load.py`(순서 로더) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단·참조 시드 불변식을 포함한 187항목 회귀 검증, psycopg) — 사용법·로드 순서(schema→reference→demo)는 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(187)를 다시 통과시킨다.
+- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_reference.sql`(전역 참조 시드 — 전 환경 필수) · `db/seed_demo.sql`(데모 시드 — 로컬·데모만) · `db/load.py`(순서 로더) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단·참조 시드 불변식·발송 대기열(outbox) 승인 게이트·행정사 화이트라벨 격리를 포함한 회귀 검증, psycopg) — 사용법·로드 순서(schema→reference→demo)는 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`를 다시 통과시킨다.
 - **backend 범위:** 루트 `backend/`가 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다(`tests/test_ddl_parity.py`가 보증). 인증(OTP·세션)·승인 결정(approve/reject, PIN 서버 검증·위임 유효성 검증 포함)·판단 기록·행정사 패키지 링크 endpoint는 이미 구현돼 있다(§13-10 참조). 케이스/브리핑/스레드 등 read API·프론트 배선은 `plans/ROADMAP.md` R2 범위다.
 
 ## 2. 공통 규약
@@ -518,7 +518,15 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | body_original | text | | **원문 전문(PII)** — 스레드 상세에서만 노출, 목록 미리보기·evidence 복사 금지(§7) |
 | body_ko | text | | 한국어 번역/원문 |
 | received_at | timestamptz | | inbound 수신 시각. `sent_at`은 존재하지 않음 |
+| response_token | text | UNIQUE | R3 stage ② — 응답 링크(`/r/:token`) 비밀값. outbox가 만든 direction='system' 행에만 채워진다. NULL=응답 링크 없음 |
+| response_token_expires_at | timestamptz | CHECK(`response_token NOT NULL ⇒ 이 컬럼도 NOT NULL`) | 응답 링크 만료 시각(발송 시점 + 14일) |
 | **created_at** | timestamptz | | |
+
+- **R3 stage ②(2026-07-20) — 발송 완료(outbound) 표현이 여기서 처음 생긴다**: direction='system'
+  행은 이제 outbox가 실제로 보낸 메시지를 나타낸다(§4.7-1 outbox 참고, "outbound는 MVP에서
+  금지" 원칙은 §1의 프론트 mock 세계관 시절 이야기 — `direction` CHECK 자체는 여전히
+  `inbound,system`이고 바뀐 적 없다, 'system'이 이제 실제 발신 기록을 겸한다). `response_token`은
+  그 발신 메시지에 대한 근로자 응답 창구다.
 
 #### interpretations — 응답 해석 (M6)
 | 컬럼 | 타입 | 제약 | 설명 |
@@ -544,6 +552,45 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | **from_value / to_value** | text | | "missing" → "received" |
 | **status** | text | CHECK(`proposed,confirmed,rejected`) | 확인된 항목만 실제 테이블(worker_documents 등)에 반영 |
 | **created_at** | timestamptz | | |
+
+#### outbox — 발송 대기열 (R3 stage ②, MESSAGING_CHANNELS.md §2)
+| 컬럼 | 타입 | 제약 | 설명 |
+|---|---|---|---|
+| **id** | uuid | PK | |
+| **company_id** | uuid | →companies.id, idx | |
+| **case_id** | uuid | `(company_id,case_id)` →cases | |
+| **action_id** | uuid | `(company_id,case_id,action_id)` →next_actions | `action_type='send_message'`만 |
+| **approval_id** | uuid | `(company_id,case_id,approval_id)` →approvals, **트리거로 status='approved' 강제** | 구조적 승인 게이트 — "human_approved-adjacent authorization trail" 없이 삽입 불가 |
+| thread_id | uuid | `(company_id,thread_id)` →threads | |
+| **channel** | text | CHECK(`sms,alimtalk,zalo`) | 근로자 채널만(이메일은 행정사 전용, 이 큐를 거치지 않는다) |
+| **event_type** | text | CHECK(`dispatch,reminder,resend`), default `dispatch` | |
+| **dedupe_key** | text | UNIQUE(company_id, dedupe_key) | `'{case_id}:{event_type}:{threshold}'` — 이벤트 idempotency(§2)를 구조적으로 강제(notifications.dedupe_key와 동일 관례) |
+| **body** | text | | 발송 시점 확정 본문(draft_variants에서 복사) |
+| lang | text | | |
+| recipient_ref | text | | 수신처 표시용(마스킹) — 실 연락처 원문 컬럼은 스키마에 없음(§7) |
+| **status** | text | CHECK(`queued,sent,delivered,failed`), default `queued` | `sent/delivered`는 `external_id NOT NULL` CHECK와 짝(아래) |
+| external_id | text | | 채널사 발급 ID(진짜) 또는 `stub:{channel}:{uuid}`(자격 증명 없음) — 실 발송과 절대 혼동되지 않는다 |
+| attempt_count | integer | default 0 | |
+| fallback_from_id | uuid | `(company_id,fallback_from_id)` →outbox | 알림톡 실패 → SMS 대체 발송("채널 중복 금지" — fallback, 중복 발송 아님) |
+| scheduled_for | timestamptz | | 발송 창(21:00~08:30, CRITICAL은 22:00까지 허용) 보류 해제 시각. NULL=즉시 시도 |
+| sent_at | timestamptz | CHECK(`status='sent' ⇒ NOT NULL`) | |
+| failed_reason | text | | |
+| **requested_by_user_id** | uuid | `(company_id,user_id)` →memberships | "실행 확인"을 누른 manager |
+| **created_at / updated_at** | timestamptz | | |
+
+- **승인과 실행은 다른 순간**(MESSAGING_CHANNELS.md §1 각주²): `approvals.status='approved'`(owner/manager
+  승인 결정)와 outbox 행 생성("manager의 실행 확인")은 별개 이벤트다. `trg_outbox_requires_approved_approval`
+  트리거가 INSERT 시점에 `approval_id`가 가리키는 approval이 실제로 approved인지 매번 재확인한다.
+- 핵심 필드(회사·케이스·액션·승인·중복방지키·채널·본문)는 생성 후 불변(`trg_outbox_immutable_core`) —
+  상태 전이(`status`/`external_id`/`sent_at`/`failed_reason`/`scheduled_for`)만 갱신 가능. 삭제는
+  전면 금지(`trg_outbox_no_delete`, evidence_events와 동일한 append-only 원칙).
+- 리마인드 24h 쿨다운·48h 미응답 재발송 1회는 DB 제약으로 표현하기 애매한 "시간 윈도우 + 조건부
+  집계" 규칙이라 서비스 계층(`backend/app/services/outbox.py`
+  `_check_reminder_cooldown`/`_check_resend_eligible`)에서 강제한다 — 발송 창 판정(`compute_send_window`)도
+  마찬가지로 순수 시간 계산이라 서비스 계층에 둔다(이 문서 §0 설계 원칙 "DB가 표현 못 하는
+  규칙만 서비스 계층").
+- 성공 발송은 `thread_messages`(direction='system') 1행 + `response_token`(§4.7 위) 발급 +
+  evidence(`dispatch_executed`)를 같은 트랜잭션에서 남긴다.
 
 ### 4.8 행정사 패키지
 

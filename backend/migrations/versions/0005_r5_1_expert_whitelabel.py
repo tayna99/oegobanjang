@@ -11,9 +11,11 @@ handoff_packages에 expert_account_id(nullable, v0 하위호환) 컬럼 추가.
 evidence_events.type CHECK에 expert_access_granted/expert_access_revoked 추가.
 
 0001은 동결 스냅샷, 0002/0003이 그 이후 변경분 — 이 리비전이 db/schema.sql의 R5.1분(§4.8-1)이다.
+R3(outbox, 0004)와 병렬 세션에서 독립적으로 작업돼 둘 다 애초엔 down_revision=0003이었다 —
+병합 시 0004→0005로 체인 재정렬(backend/README.md 마이그레이션 절 참조).
 
 Revision ID: 0005
-Revises: 0003
+Revises: 0004
 Create Date: 2026-07-20
 
 """
@@ -23,7 +25,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0005"
-down_revision: Union[str, Sequence[str], None] = "0003"
+down_revision: Union[str, Sequence[str], None] = "0004"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
