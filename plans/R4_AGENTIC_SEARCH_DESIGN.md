@@ -71,7 +71,9 @@ R4에서 새로 채우는 것:
 
 ## 3. 아키텍처 — Orchestrator + 미션 에이전트 (참고 이미지 2)
 
-참고 이미지 2의 "Orchestrator(라우터) → 전문 에이전트(각자 Tools/Data/Workflow) + 하단 Guardrail" 패턴이 이 코드에 1:1로 존재한다.
+참고 이미지 2의 "Orchestrator(라우터) → 전문 에이전트(각자 Tools/Data/Workflow) + 하단 Guardrail" 패턴이 이 코드에 존재한다. **단, fan-out 박스는 LLM이 판단·합성하는 진짜 에이전트만이다** — 검색·Rule·집계처럼 LLM을 안 쓰는 결정론 부품은 에이전트가 아니라 *에이전트가 쓰는 도구·재료*(하단 밴드)다.
+
+> **정정(2026-07-20)**: 이전 판은 "브리핑(rule-only·LLM 0회)"을 에이전트 자리에 그렸으나 — **LLM 0회짜리는 에이전트가 아니라 스케줄 잡**이다. 브리핑은 Rule 랭킹(결정론) 위에 LLM 내러티브를 얹어 에이전트로 승격하고(§8·§11 R4.9), 검색·Rule·Evidence 조회는 도구·재료로 내렸다.
 
 ```
                           사용자 입력 (CommandBar / 챗)
@@ -81,19 +83,14 @@ R4에서 새로 채우는 것:
                        ┌───────────▼───────────┐
                        │  Orchestrator (라우터)  │  route_message() — 키워드 정본 + LLM 향상
                        └───────────┬───────────┘
-        ┌──────────────┬──────────┼───────────┬──────────────┐
-        ▼              ▼          ▼            ▼              ▼
-  ┌───────────┐ ┌───────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-  │ 인력확보   │ │ 비자·서류  │ │ 다국어    │ │ 근거·감사 │ │ 브리핑    │
-  │ m1_work   │ │ m2_visa   │ │ m3_contact│ │ audit    │ │ (rule만) │
-  │──────────│ │──────────│ │──────────│ │          │ │ LLM 0회  │
-  │Tools: RAG │ │Tools: RAG │ │Tools: RAG │ └──────────┘ └──────────┘
-  │Data: pgv  │ │Data: pgv+ │ │Data: pgv+ │
-  │  +quota   │ │ worker_doc│ │ threads   │
-  │Workflow:  │ │Workflow:  │ │Workflow:  │
-  │ 채용/후보 │ │ 만료/누락 │ │ 온보딩/해석│
-  └───────────┘ └───────────┘ └──────────┘
-        └──────────────┴──────────┬───────────┴──────────────┘
+   ── 에이전트 (LLM이 판단·합성·툴콜 — API 키 사용) ──────────────
+     · 인력확보(m1) · 비자·서류(m2) · 다국어(m3)
+         └ 각자 Tools(RAG 검색툴) · Data(pgvector+SQL) · Workflow(미션 스텝), 내부 LLM 합성 1회
+     · 브리핑 = Rule 랭킹(결정론) → LLM 내러티브 + 첫 액션 제안 (하루 1회/회사 캐시)
+                                   │  에이전트가 아래 도구·재료를 호출 (LLM 없음)
+   ── 도구·재료 (에이전트가 쓰는 부품 — 에이전트가 아니다) ──────────
+     · RAG 검색(벡터+어휘 수학) · Rule 엔진(severity·D-day) · SQL 상태(worker_docs·cases) · Evidence 조회(감사 로그)
+                                   │
                                    ▼
                       [aggregator] Rule findings × 미션 결과 융합
                                    ▼
@@ -108,7 +105,8 @@ R4에서 새로 채우는 것:
 
 이미지 2와의 대응:
 - **Orchestrator(라우터)** = [`router.py`](../rag/src/oe_rag/orchestration/router.py) `route_message` (12 intent → 미션 dict)
-- **전문 에이전트** = [`missions/`](../rag/src/oe_rag/missions/) m1_workforce·m2_visa·m3_contact (각자 Tools=RAG툴 / Data=pgvector 컬렉션+SQL / Workflow=미션 스텝)
+- **에이전트 (LLM 사용)** = [`missions/`](../rag/src/oe_rag/missions/) m1_workforce·m2_visa·m3_contact (각자 Tools=RAG툴 / Data=pgvector+SQL / Workflow=미션 스텝, 내부 LLM 합성 1회) + 브리핑(Rule 랭킹 → LLM 내러티브, §8)
+- **도구·재료 (LLM 없음)** = RAG 검색(벡터 수학)·Rule 엔진(날짜계산)·SQL 상태·Evidence 조회 — 에이전트가 호출하는 부품이지 에이전트가 아니다
 - **하단 Guardrail** = [`guard.py`](../rag/src/oe_rag/orchestration/guard.py) + `approval_gate`
 
 ### 3.1 두 실행 모델의 관계 — 대화 셸이 미션 그래프를 감싼다
@@ -320,7 +318,7 @@ Proposer 출력 → `CaseCard.primaryAction`/`secondaryAction`(이미 `NextActio
 | 경로 | 방식 | LLM | 이유 |
 |---|---|---|---|
 | **검색/챗/조립** | `/runs/:id` **SSE 스트리밍**(M7 B3' 설계됨) → `StepTimeline` 실시간 | ✅ | 사고 스텝을 흘려 신뢰·투명성 |
-| **데일리 브리핑** | `briefings` 테이블 **머티리얼라이즈**(rule-only, 캐시, M7 G6) | ❌ | 매일 아침이라 비싸면 안 됨 |
+| **데일리 브리핑** | Rule 랭킹 = `briefings` 머티리얼라이즈(결정론·캐시, M7 G6) + LLM 내러티브(하루 1회/회사 캐시) | 랭킹 ❌ / 내러티브 ✅ | 랭킹은 매일·전사라 rule-only, 내러티브·첫 액션만 LLM(캐시로 비용 통제) |
 
 - 읽기 API는 이미 R2.3 배선됨(`/cases`·`/briefings/latest`·`/threads`).
 - 프론트 렌더 지점: `next_actions.slot`(primary/secondary)+`state`(ready/locked/scheduled) = "에이전트 제안을 케이스 카드에 렌더한 것". StepTimeline은 [`src/features/run/`](../src/features/run/RunScreen.tsx)에 이미 존재 — 챗 UI 신규 제작 불필요.
@@ -346,7 +344,7 @@ Proposer 출력 → `CaseCard.primaryAction`/`secondaryAction`(이미 `NextActio
 | 검색 0건 | `missing_evidence=true` → "근거 없음, 행정사 검토 필요" | **웹검색 대체 안 함** — 등급필터 인덱스 밖 근거는 법 도메인에서 금지 |
 | LLM 호출 실패 | 지수 백오프 재시도 → 실패 시 키워드 라우터/어휘 재랭킹으로 degrade | 키 없어도 정본 동작 |
 | 미션 미구현 | `rag_answer` 폴백 + `MISSION_NOT_IMPLEMENTED` 플래그(조용한 폴백 금지) | 이미 `graph.py` |
-| API 키 없음 | 결정론 라우터 + 무LLM 검색 + rule-only 브리핑 | §10 |
+| API 키 없음 | 결정론 라우터 + 무LLM 검색 + 브리핑 랭킹만(LLM 내러티브 생략) | §10 |
 
 ---
 
@@ -358,9 +356,9 @@ API 키는 `.env`(rag/·backend/)에 주입. **키가 실제로 쓰이는 곳은
 3. Grounded 합성 (§5.2 B-2)
 4. NextAction 맥락 종합 (§7)
 
-**나머지는 키 없이 동작**(`_default_model`이 키 없으면 명시적 에러, 상위에서 degrade): 결정론 라우터, 무LLM 벡터/어휘 검색, rule 판정, 브리핑, 전 가드레일. 스토리: **"당신의 API 키는 향상 레이어를 켜지만, 안전 바닥은 키 없이도 돈다."**
+**나머지는 키 없이 동작**(`_default_model`이 키 없으면 명시적 에러, 상위에서 degrade): 결정론 라우터, 무LLM 벡터/어휘 검색, rule 판정, 브리핑 랭킹, 전 가드레일. 스토리: **"당신의 API 키는 향상 레이어를 켜지만, 안전 바닥은 키 없이도 돈다."**
 
-비용 모델: 브리핑=무LLM 캐시(0원). 검색=self-query 1 + (재랭킹 1) + 합성 1 ≈ 2~3콜/질의. 조립=미션당 합성 1~2콜. 재랭킹은 유료층·저신뢰 질의로 게이팅. temperature=0(결정성·재현성).
+비용 모델: 브리핑 랭킹=무LLM(0원) + 내러티브=하루 1회/회사 캐시(1콜). 검색=self-query 1 + (재랭킹 1) + 합성 1 ≈ 2~3콜/질의. 조립=미션당 합성 1~2콜. 재랭킹은 유료층·저신뢰 질의로 게이팅. temperature=0(결정성·재현성).
 
 ---
 
@@ -378,8 +376,9 @@ API 키는 `.env`(rag/·backend/)에 주입. **키가 실제로 쓰이는 곳은
 | R4.6 | **Tier2 조립 에이전트** (초안·패키지 → approval_gate) | L3 | 조립이 승인 없이 발송 안 됨(safety 회귀), drafts/next_actions 제안 기록, run 1건=evidence 1건 | R4.4 |
 | R4.7 | **NextAction Proposer** (요구 7, `interpretation.recommendedActions` 일반화) | L3 | Rule severity/D-day 불변 소비, 액션+rationale+citation 출력, `next_actions` CHECK 유지, 룰베이스 폴백 | R4.4 |
 | R4.8 | **Tier3 프로액티브 실연결** (이벤트→자동 런→승인 대기) | L3 | 재생 뷰 읽기전용, 발송 전 정지 스텝, `autonomy_grants` L1 게이팅 | R4.6 |
+| R4.9 | **브리핑 에이전트 승격** (Rule 랭킹 위 LLM 내러티브·첫 액션) | L2 | Rule 랭킹 불변(결정론) 소비, LLM이 severity/D-day 못 바꿈(가드 테스트), 하루 1회/회사 캐시, 키 없으면 랭킹만 | R4.7 |
 
-권장 순서: R4.1(배선 슬라이스) → R4.2·R4.3(검색 품질 무LLM) → R4.4(LLM 접점) → R4.5(멀티턴) → R4.6·R4.7(조립·다음액션) → R4.8(프로액티브).
+권장 순서: R4.1(배선 슬라이스) → R4.2·R4.3(검색 품질 무LLM) → R4.4(LLM 접점) → R4.5(멀티턴) → R4.6·R4.7(조립·다음액션) → R4.8(프로액티브) → R4.9(브리핑 에이전트 승격).
 
 ---
 
@@ -397,4 +396,4 @@ API 키는 `.env`(rag/·backend/)에 주입. **키가 실제로 쓰이는 곳은
 ## 부록 — 참고 이미지 매핑 요약
 
 **이미지 1(8 빌딩블록)** → §2 표. 5개 완비(System Prompt·Tools·Middleware·HITL·Guardrail), 3개(Messages·Memory·Fallback) R4에서 보강.
-**이미지 2(Orchestrator 멀티에이전트)** → §3. Orchestrator=router.py, 전문에이전트=missions(Tools/Data/Workflow), Guardrail=guard.py+approval_gate. 배송/상품/주문결제/상담 에이전트 자리에 **인력확보/비자·서류/다국어컨택/근거·감사/브리핑** 에이전트가 1:1로 앉는다.
+**이미지 2(Orchestrator 멀티에이전트)** → §3. Orchestrator=router.py, 에이전트(LLM)=missions m1/m2/m3 + 브리핑(Rule 랭킹+LLM 내러티브), Guardrail=guard.py+approval_gate. **검색·Rule·Evidence 조회는 에이전트가 아니라 도구·재료**(LLM 없음) — 이전 판이 rule-only 브리핑·감사 조회를 에이전트로 그린 오류를 정정.
