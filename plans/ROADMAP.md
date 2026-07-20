@@ -393,3 +393,31 @@ P2 1건): 재발급 API 실패에도 UI가 성공으로 기록하고 응답의 `
 발송 어댑터·알림톡은 R2 배선과 별개로 계속 범위 밖이다¹.
 
 ¹ outbox(발송 대기열)+`SmsAdapter`+응답 링크 인바운드까지의 로드맵은 `docs/MESSAGING_CHANNELS.md` §5(단계 로드맵)에 정리돼 있다 — 이 저장소는 현재 ①(프론트 Message 도메인 + `MockAdapter`)까지만.
+
+## SD — 시드·필러 데이터 트랙 (2026-07-20, `plans/SEED_DESIGN_2026-07-20.md` 승격)
+
+전체 미구현 전수조사 + 시드/필러 데이터 설계(정본: `plans/SEED_DESIGN_2026-07-20.md`)에서 도출.
+R3~R5와 독립 트랙 — "빈 DB(신규 테넌트)에서도 제품이 동작하려면 필요한 전역 참조 시드"를 분리·승격한다.
+스키마 변경 0(마이그레이션 0004 불필요)이 전 태스크 공통. SD-3/SD-4는 `plans/BACKEND_CONNECT.md` B4의 실체.
+
+| # | 태스크 | 레벨 | 스펙 | DoD |
+|---|---|---|---|---|
+| ✅ SD-0 | mock-forever 경계 문서화 + 검증 수치 정합 | L1 | SEED_DESIGN §Part B5(d) | `docs/ARCHITECTURE.md` §5.1(영구 mock 경계: RUN_CONFIGS·replay·DEMO_TODAY·KPI 필러·B-5 미사용 타입) 신설, 178/181 혼재 → 실측 187로 전 문서 정합, 코드 변경 0 |
+| ✅ SD-1 | 참조 시드 + 로더 | L2 | SEED_DESIGN §Part B1·B2·B3·B7 | `db/seed_reference.sql`(전역 citations 20 A/B + document_requirements 22, 한국어 정본·rag 매핑 주석) + `db/load.py`(`--reset/--reference-only/--with-demo`), seed_demo에서 전역 시드 이동, validate.py 로드 순서(schema→reference→demo)+불변식 5건 → **PASS 187** |
+| ✅ SD-2 | 데모 패리티 시드 + runbook | L1 | SEED_DESIGN §Part B4 | 이대표(owner)·최감사(viewer) 계정, th_nguyen·th_bayar 스레드+발신 메시지(direction='system')+evidence #4720/#4742(dispatch_executed), `docs/REALMODE_DEMO_RUNBOOK.md`. 프리셋 케이스·link_token 시드 없음 |
+| ✅ SD-3 | citations hydrate + briefings 슬롯 배선 (B4a) | L2 | SEED_DESIGN §Part B5(a) | `src/lib/api/citations.ts` 신설 + `citationStore.hydrate`(실패 시 mock 폴백), 브리핑 전용 스토어 슬롯(`briefingStore`) + `fetchLatestBriefing` 배선. mock 테스트 무변경, `npm run verify` PASS(586/586) |
+| SD-4 | 런 SSE 배선 (B4b) | L3 | SEED_DESIGN §Part B5(a) | `streamRunSteps`(EventSource, cancel=close) + `useRunEngine` 소스 선택. `executeRun`·`RunConfig`·반환 계약 불변, replay는 각본 유지. real 모드 커맨드 런이 서버 runs/evidence 생성 브라우저 실검증 |
+| SD-5 | drafts read API + DraftPage real 배선 | L2 | SEED_DESIGN §Part B5(b), A3 | `GET /api/v1/cases/{id}/draft`(테넌트 인가, ko/vi/revised 계약 테스트), DraftPage real 모드 시드 초안 렌더. 쓰기(실재생성)는 R4.4 |
+| SD-6 | 케이스 시트 콘텐츠 패리티 | L3 | SEED_DESIGN §Part B5(c) | `GET /cases/{id}` 확장(checked_items·next_wake)+worker_documents read+activity 프론트 파생. 2b/CaseWorkbench가 real 모드에서 mock과 동등 렌더. R5 화면 트랙과 병행 |
+| SD-7 | KPI 실집계(stat_snapshots) | — | SEED_DESIGN §Part B6 | **R5.3에 흡수, 별도 착수 금지** — R5.3 DoD에 stat_snapshots nightly 집계+데모 7일치 시드, EXECUTED_WEEKLY·델타·추이·평균 승인 소요의 real 모드 파생 전환(mock 모드는 영구 mock) |
+
+**SD-0~SD-2 완료(2026-07-20).** `db/validate.py --reset` → PASS 187/FAIL 0(citations 22·evidence 12·
+threads 3·users 5·document_requirements 22). 프론트 무접촉이라 `npm run verify` 무영향. 상세는
+`plans/SEED_DESIGN_2026-07-20.md` Part C.
+
+**SD-3 완료(2026-07-20).** `src/lib/api/citations.ts`+`citationStore.hydrate`, `src/stores/briefingStore.ts`
+신설(fetchLatestBriefing 최초 배선). sessionStore에 `companyId`(citations.py의 명시적 쿼리 요구
+대응) 추가. `GovernancePage`/`BriefingHomePage`에 배선, mock 모드는 두 훅 모두 no-op. `npm run verify`
+(typecheck→lint→test 586건→build) 전부 PASS, 브라우저 실검증(모바일 BriefingHomePage·데스크톱
+GovernancePage 둘 다 mock 모드 시각 변화 없음) 완료. 부수적으로 `.claude/launch.json`의 로컬 프리뷰
+서버 실행 방식 버그(vite 직접 require 실패)를 별도 커밋으로 수정.

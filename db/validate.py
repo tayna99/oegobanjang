@@ -4,8 +4,9 @@ Run:  DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegoban
         uv run --no-project --with "psycopg[binary]" python db/validate.py --reset
 Env:  DATABASE_URL (default: local Docker PG on :55432)
 
-db/schema.sql(정본) + db/seed_demo.sql을 대상 스키마에 로드한 뒤, 테넌트 격리·승인
-상태머신·외부 실행 차단 등 181개 회귀를 검증한다. 이 파일은 db/validate.cjs(SQLite)의
+db/schema.sql(정본) + db/seed_reference.sql(전역 참조) + db/seed_demo.sql을 대상 스키마에
+로드한 뒤, 테넌트 격리·승인 상태머신·외부 실행 차단·참조 시드 불변식 등 187개 회귀를
+검증한다. 이 파일은 db/validate.cjs(SQLite)의
 PG 이식본이다 — 검증 이름·시맨틱은 1:1로 보존하고, SQLite 전용(PRAGMA·sqlite_master·
 boolean 0/1)만 PG로 옮겼다.
 
@@ -97,6 +98,9 @@ ok("schema.sql executes", True)
 # PostgreSQL은 FK를 항상 강제한다(SQLite의 연결 스위치가 없다).
 ok("foreign key enforcement is active (PostgreSQL always enforces)", True)
 
+run((DIR / "seed_reference.sql").read_text(encoding="utf-8"))
+ok("seed_reference.sql executes", True)
+
 run((DIR / "seed_demo.sql").read_text(encoding="utf-8"))
 ok("seed_demo.sql executes", True)
 
@@ -132,10 +136,28 @@ for table in [
 print(f"  seed counts: {counts}")
 ok("seed has 6 cases", counts["cases"] == 6)
 ok("seed has 6 workers", counts["workers"] == 6)
-ok("seed has 9 citations", counts["citations"] == 9)
-ok("seed has 10 evidence events", counts["evidence_events"] == 10)
+# citations = reference(전역 A/B 20) + demo(회사 스코프 E 2) = 22
+ok("seed has 22 citations", counts["citations"] == 22, f"actual={counts['citations']}")
+ok("seed has 12 evidence events", counts["evidence_events"] == 12, f"actual={counts['evidence_events']}")
 ok("seed PDF export marks its package exported",
    scalar("SELECT status FROM handoff_packages WHERE id='hp_batbayar'")["status"] == "exported")
+
+# --- 참조 시드(seed_reference.sql) 불변식 -----------------------------------
+# 전역 근거는 A/B등급만(E는 내부 자산이라 회사 스코프, D/F는 근거로 금지).
+ok("reference seed: global citations are all A/B grade",
+   scalar("SELECT count(*) AS n FROM citations WHERE company_id IS NULL AND grade NOT IN ('A','B')")["n"] == 0)
+ok("reference seed: no F-grade citations exist anywhere",
+   scalar("SELECT count(*) AS n FROM citations WHERE grade='F'")["n"] == 0)
+ok("reference/demo split: internal E-grade citations stay company-scoped",
+   scalar("SELECT count(*) AS n FROM citations WHERE grade='E' AND company_id IS NULL")["n"] == 0)
+# document_requirements: citation_id는 전역 근거만, case_type은 cases enum 부분집합.
+ok("reference seed: document requirement citations are all global",
+   scalar("SELECT count(*) AS n FROM document_requirements dr "
+          "JOIN citations c ON c.id = dr.citation_id WHERE c.company_id IS NOT NULL")["n"] == 0)
+ok("reference seed: document requirement case_type is within the case enum",
+   scalar("SELECT count(*) AS n FROM document_requirements WHERE case_type NOT IN "
+          "('visa_expiry','missing_document','contract_visa_conflict','reporting_deadline',"
+          "'quota_review','hiring','onboarding','other')")["n"] == 0)
 
 # Immutable evidence remains enforced.
 expect_throw("evidence UPDATE is blocked", "UPDATE evidence_events SET summary='x' WHERE id='ev_4783'", "append-only")

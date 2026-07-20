@@ -57,6 +57,8 @@ describe('sessionStore (R2.2 — 실서버 세션, API_MODE=real일 때만 쓰�
     expect(useSessionStore.getState().status).toBe('authenticated');
     expect(useSessionStore.getState().token).toBe('tok-1');
     expect(useSessionStore.getState().user).toEqual(USER);
+    // SD-3 — memberships[0].companyId가 sessionStore.companyId로 저장된다(role과 동일 소스).
+    expect(useSessionStore.getState().companyId).toBe('cmp_greenfood');
     expect(useRoleStore.getState().role).toBe('owner');
     expect(window.localStorage.getItem('oegobanjang-session-token')).toBe('tok-1');
     // 코드리뷰 효율 지적 회귀: verify 응답에 멤버십이 실려 오므로 로그인 흐름에서 fetchMe를
@@ -70,6 +72,7 @@ describe('sessionStore (R2.2 — 실서버 세션, API_MODE=real일 때만 쓰�
     await useSessionStore.getState().verifyOtp('010-0000-0001', '123456');
 
     expect(useRoleStore.getState().role).toBe('viewer');
+    expect(useSessionStore.getState().companyId).toBeNull();
   });
 
   it('인식 못 하는 role 값(예: expert)도 viewer로 fail-closed 처리한다', async () => {
@@ -144,6 +147,7 @@ describe('sessionStore (R2.2 — 실서버 세션, API_MODE=real일 때만 쓰�
 
     expect(useSessionStore.getState().status).toBe('authenticated');
     expect(useSessionStore.getState().token).toBe('tok-saved');
+    expect(useSessionStore.getState().companyId).toBe('cmp_greenfood');
     expect(useRoleStore.getState().role).toBe('manager');
   });
 

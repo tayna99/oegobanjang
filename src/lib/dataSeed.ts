@@ -1,10 +1,15 @@
 import { useEffect } from 'react';
 import { CASE_CARDS } from '@/mocks/fixtures';
 import { THREADS } from '@/mocks/threads';
+import { useBriefingStore } from '@/stores/briefingStore';
 import { useCaseStore } from '@/stores/caseStore';
+import { useCitationStore } from '@/stores/citationStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useThreadStore } from '@/stores/threadStore';
+import { fetchLatestBriefing } from './api/briefings';
 import { fetchCases } from './api/cases';
+import { fetchCitationLibrary } from './api/citations';
 import { API_MODE } from './api/config';
 import { fetchEvidence } from './api/evidence';
 import { fetchThreadDetail, fetchThreads } from './api/threads';
@@ -78,5 +83,33 @@ export function useSeedEvidence(): void {
     fetchEvidence()
       .then(hydrate)
       .catch((err: unknown) => console.error('[dataSeed] 판단 기록 조회 실패', err));
+  }, [hydrate]);
+}
+
+// SD-3(B4a) — citationStore의 초기값은 mock 모드에서도 CITATION_LIBRARY로 이미 채워져 있어
+// (다른 훅들의 "스토어 비어있으면" 가드가 여기선 안 통한다) real 모드에서 거버넌스 화면
+// 진입 시 서버 응답으로 전량 교체한다(BACKEND_CONNECT §3-3). companyId가 아직 없으면(세션
+// 복원 전) 조용히 건너뛰고 mock 값을 유지 — 다음 렌더에서 companyId가 채워지면 재시도된다.
+export function useSeedCitations(): void {
+  const hydrate = useCitationStore((s) => s.hydrate);
+  const companyId = useSessionStore((s) => s.companyId);
+  useEffect(() => {
+    if (API_MODE !== 'real' || !companyId) return;
+    fetchCitationLibrary(companyId)
+      .then(hydrate)
+      .catch((err: unknown) => console.error('[dataSeed] 근거 라이브러리 조회 실패', err));
+  }, [companyId, hydrate]);
+}
+
+// SD-3(B4a) — fetchLatestBriefing()은 R2.3부터 구현돼 있었으나 어느 화면에도 배선되지 않았다
+// (caseStore 오염 방지를 위해 전용 슬롯이 필요했던 이유는 이 파일 상단 주석 참조). mock
+// 모드는 호출하지 않는다 — 브리핑 화면은 지금처럼 caseStore 파생으로만 렌더된다(동작 무변경).
+export function useSeedBriefing(): void {
+  const hydrate = useBriefingStore((s) => s.hydrate);
+  useEffect(() => {
+    if (API_MODE !== 'real') return;
+    fetchLatestBriefing()
+      .then(hydrate)
+      .catch((err: unknown) => console.error('[dataSeed] 브리핑 조회 실패', err));
   }, [hydrate]);
 }

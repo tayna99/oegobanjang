@@ -22,6 +22,10 @@ export interface CitationLibraryKpis {
 interface CitationStoreState {
   records: CitationRecord[];
   register: (record: CitationRecord) => void;
+  /** SD-3 — real 모드 부팅/화면 진입 시 서버 근거 라이브러리로 전량 교체(seed 전용, 재기록
+   * 아님). mock 레코드와 병합하지 않는다 — fetchCases가 mock CASE_CARDS를 완전히 대체하는
+   * 것과 동일 원칙(mergeSeedAndRuntime real 가드와 대칭). */
+  hydrate: (records: CitationRecord[]) => void;
   reset: () => void;
 }
 
@@ -33,6 +37,7 @@ export const useCitationStore = create<CitationStoreState>((set) => ({
         ? s.records.map((r) => (r.id === record.id ? record : r))
         : [...s.records, record],
     })),
+  hydrate: (records) => set({ records }),
   reset: () => set({ records: CITATION_LIBRARY }),
 }));
 

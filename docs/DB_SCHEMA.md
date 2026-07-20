@@ -35,7 +35,7 @@
 
 - 실행 가능한 설계 정본은 `db/schema.sql`(PostgreSQL DDL)이고, 이 문서의 타입은 논리 타입이다. DDL이 물리 정본이다.
 - Chroma(벡터 저장소)는 이 문서 범위 밖. service DB와의 접점은 `citations` 한 테이블(§4.4)뿐이다.
-- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_demo.sql`(데모 시드) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단을 포함한 181항목 회귀 검증, psycopg) — 사용법은 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(181)를 다시 통과시킨다.
+- **실행 산출물(설계 킷)**: `db/schema.sql`(DDL) · `db/seed_reference.sql`(전역 참조 시드 — 전 환경 필수) · `db/seed_demo.sql`(데모 시드 — 로컬·데모만) · `db/load.py`(순서 로더) · `db/validate.py`(테넌트 교차 INSERT/UPDATE·승인 상태머신·외부 실행 차단·참조 시드 불변식을 포함한 187항목 회귀 검증, psycopg) — 사용법·로드 순서(schema→reference→demo)는 `db/README.md`. 스키마 변경은 이 문서와 DDL을 **같은 PR에서** 함께 갱신하고 `validate.py`(187)를 다시 통과시킨다.
 - **backend 범위:** 루트 `backend/`가 이 `db/schema.sql`을 그대로 적용해 스키마 동등성을 유지한다(`tests/test_ddl_parity.py`가 보증). 인증(OTP·세션)·승인 결정(approve/reject, PIN 서버 검증·위임 유효성 검증 포함)·판단 기록·행정사 패키지 링크 endpoint는 이미 구현돼 있다(§13-10 참조). 케이스/브리핑/스레드 등 read API·프론트 배선은 `plans/ROADMAP.md` R2 범위다.
 
 ## 2. 공통 규약
