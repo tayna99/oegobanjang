@@ -39,7 +39,7 @@ uv run pytest
 `create_all()`을 쓰지 않는다 — 세션 1회 전용 테스트 DB(`ogb_test`)에 `alembic upgrade head`로 스키마를
 구축하고(=db/schema.sql 적용), 테스트별로는 커넥션 외곽 트랜잭션 + savepoint 롤백으로 격리한다
 (`tests/conftest.py`). 서비스 코드의 `db.commit()`은 SAVEPOINT 릴리스로 흡수된다. DB 레벨 가드레일
-(테넌트 격리·승인 상태머신 등 181건)은 `db/validate.py`가 담당하며, 이 pytest는 서비스 계층에 집중한다.
+(테넌트 격리·승인 상태머신·참조 시드 불변식 등 187건)은 `db/validate.py`가 담당하며, 이 pytest는 서비스 계층에 집중한다.
 
 ## API
 

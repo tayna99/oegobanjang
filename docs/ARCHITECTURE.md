@@ -15,7 +15,7 @@
 | 화면 셸(탭바/헤더) | `src/Shell.tsx` — <1024px 모바일 탭바, 이상 PC 헤더 |
 | 화면 컴포넌트 | `src/features/<도메인>/` — 화면 코드는 전부 features 아래. 예: `src/features/briefing/`(M1) — `BriefingScreen`(5상태 프레젠테이션) + `BriefingHomePage`(caseStore·threadStore 시딩 컨테이너) 분리 패턴, M2~M9도 이걸 따른다. `src/features/case/`(M2) — `CaseReviewPage`(2b 사례 검토, citation 0건 승인 잠금, caseStore.docUpdates 오버레이) + `CaseHistoryPage`(2d 승인 이력). `src/features/approve/ApprovePage.tsx`(2c, M2.6.3) — 체크리스트 4/4 + citation-lock + PIN 게이트, 결정은 `lib/approval.ts`의 `useApprovalActions`(approve/reject) 공유 유닛이 수행. `src/features/run/`(M9, 1.5) — `StepTimeline`(RunStep 리스트, guardrail만 경고 톤) + `RunScreen`(5상태 프레젠테이션, mode='approval'\|'command'\|'replay') + `RunPage`(`/run/:runId` 전용 — RUN_CONFIGS를 runKey로 조회, mode 무관 단일 라우트. 케이스 최종 승인(`/case/:id/approve`)과는 별개 화면·별개 결정 경로다). `src/features/messages/`(2.2, 메시지 탭) — 모바일은 `MessagesScreen`(default/empty 프레젠테이션, `sortThreads`로 응답 도착 스레드 최상단 고정) + `MessagesPage`(threadStore 시딩 컨테이너, lg+에서는 `MessagesWorkbench`(PC 4c)로 분기 — 모바일과 같은 `threadStore`/`mocks/threads.ts`를 데이터 소스로 쓴다(R0.3, 2026-07-17 — 이전엔 독립 mock `mocks/messages.ts`였다), 프레젠테이션만 분리). `src/features/thread/`(2.2, M6) — `ThreadScreen`(5상태, `default` 안에 `interpretation`(M6 해석 확인)/`timeline`(대화+확정 카드) 2모드) + `InterpretationCard`(surface 카드, 유일한 파랑 CTA "상태 반영 확인") + `ThreadPage`(threadStore 조회 + confirmInterpretation→caseStore.applyInterpretationUpdates→evidenceStore.append 오케스트레이션, 승인 대기 초안 스레드는 `<Navigate>`로 M3 직행). (`src/screens/`는 도메인 화면이 아직 없는 라우트를 덮는 공용 `PlaceholderScreen` 전용) |
 | 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4), Message·MessageThread·Interpretation(2.2, 스펙 원본은 `docs/MESSAGING_CHANNELS.md` §4), CompanyMember·DelegationConfig·ApprovalPolicy·Tenant·ExpertAccount·ExpertMembership(7단계 RBAC·행정사 화이트라벨) |
-| DB 설계 계약 | `docs/DB_SCHEMA.md` — PostgreSQL 16+ 서비스 DB의 데이터 계약 정본. 실행 DDL·데모 시드·181개 회귀 검증은 `db/`(`db/schema.sql`, `db/seed_demo.sql`, `db/validate.py`)에 있고, 루트 `backend/`가 이 DDL을 Alembic 0001로 그대로 적용해 OTP 인증(+`GET /me`)·승인 API를 제공한다(`backend/README.md`) |
+| DB 설계 계약 | `docs/DB_SCHEMA.md` — PostgreSQL 16+ 서비스 DB의 데이터 계약 정본. 실행 DDL·전역 참조 시드·데모 시드·187개 회귀 검증은 `db/`(`db/schema.sql`, `db/seed_reference.sql`, `db/seed_demo.sql`, `db/validate.py`; 로드 순서 schema→reference→demo)에 있고, 루트 `backend/`가 이 DDL을 Alembic 0001로 그대로 적용해 OTP 인증(+`GET /me`)·승인 API를 제공한다(`backend/README.md`) |
 | API 클라이언트 | `src/lib/api/`(R2.1) — `config.ts`(mock/real 전환 플래그 `API_MODE`, 기본 mock) · `client.ts`(`apiFetch` 공용 래퍼) · `auth.ts`(backend 인증 어댑터, snake_case↔camelCase 경계) · `cases.ts`(R2.3 목록 + R2.4 `fetchCaseDetail` 상세) · `briefings.ts`/`threads.ts`(R2.3, 읽기 전용) · `evidence.ts`(R2.5 — `evidenceStore.append`가 real 모드에서 자동 호출) · `packages.ts`(R2.6 — `fetchPackageLink`는 무인증) · `approvals.ts`/`delegations.ts`(R2.4 — 승인 결정·요청 생성, 위임 조회). `real` 모드에서만 이 어댑터들이 실제로 호출된다 — mock 모드(기본값)에서는 아무 화면도 이 계층을 타지 않는다. `lib/dataSeed.ts`(`useSeedCases`/`useSeedThreads`/`useSeedThreadDetail`/`useSeedEvidence`)가 부팅 시 seeding을 담당한다 |
 | 상태 | `src/stores/` — caseStore(docUpdates 포함), approvalStore, evidenceStore, citationStore, roleStore, companyStore, threadStore(2.2 — `upsert`/`confirmInterpretation`. 발송 함수 없음: 승인은 `interpretationStatus`를 `confirmed`로 옮길 뿐, 실제 채널 발송은 approvalStore.dispatch 몫), sessionStore(R2.2 — real 모드 전용 세션. localStorage에 세션 토큰만 영속화하고 부팅 시 복원, 성공 시 roleStore를 세션 멤버십으로 갱신) |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
@@ -66,6 +66,22 @@ runEngine.execute(config: RunConfig)
 - MVP의 런은 **각본 기반**(fixtures의 step 배열 재생). 실 LLM 연결은 백엔드 단계 — 인터페이스(RunConfig)를 바꾸지 않고 교체 가능해야 한다
 - 프로액티브 런 = `startedBy:'event'` + 도구 화이트리스트(읽기+초안) + 종착점 승인 요청
 - **구현(1.5):** `src/lib/runEngine.ts`의 `executeRun(config, onStep, onDone)`이 React 비의존 순수 함수로 위 계약을 구현 — approval/command는 `430ms * (index+1)` 간격 스텝 emit, replay는 지연 없이 전체 즉시 emit. `src/lib/useRunEngine.ts`가 React 훅으로 감싸 `{steps, status, currentIndex}`를 노출. M2.6.3부터 M4 케이스 최종 승인(`/case/:id/approve`)은 `ApprovePage`(체크리스트 4/4 + citation-lock + PIN 게이트, `lib/approval.ts`의 `useApprovalActions`로 결정)가 전담하고, `RunPage`/`RunScreen`은 M9(`/run/:runId`) 전용이다(§2). 1.6부터 approval mode 승인 버튼은 approvalStore.decide() → caseStore.transition(..., 'human_approved') → evidenceStore.append('approval_decided') → `/case/:id/history`(2d)로 이어진다.
+
+### 5.1 영구 mock 경계 (실데이터화 금지 목록)
+
+real 모드(`VITE_API_MODE=real`) 배선이 진행돼도 **의도적으로 영구 mock으로 남기는 것**들이다.
+후속 세션이 "미구현"으로 오인해 지우거나 서버 배선하지 않도록 여기 고정한다(시드 트랙 SD-0).
+
+| 대상 | 위치 | 이유 |
+|---|---|---|
+| `RUN_CONFIGS` / replay 런(#4788 재생) | `src/mocks/runs.ts` | replay·오프라인 데모의 정본. real 모드 커맨드 런은 `POST /runs/stream`(SSE)로 별도 배선되지만(SD-4), replay는 서버 대체 대상이 아니다(`plans/BACKEND_CONNECT.md` §3-2 "RUN_CONFIGS는 삭제하지 않는다") |
+| `DEMO_TODAY='2026-07-10'` 세계관 | `src/lib/packageLink.ts` 등 | 데모 시드 기준일. 링크 만료·D-day 계산이 이 고정 날짜에 맞춰져 있다(실벽시계 혼용 시 D-6 왜곡) |
+| 컨트롤타워·사장님 KPI 필러 | `OwnerHomeWorkbench`(MOCK_APPROVAL_DURATION), `pipeline.ts`(EXECUTED_WEEKLY_MOCK), 컨트롤타워 PIPELINE_DELTAS·WEEKLY_ACTIVE_TREND | 지난주 이력값이라 활성 상태에서 파생 불가. **mock 모드는 영구 mock**, real 모드 파생만 R5.3(`stat_snapshots` 집계)에서 붙인다(SD-7) |
+| 미사용 타입 정의(B-5) | `src/types.ts`(`NextActionState`의 `locked/scheduled/waiting`·`CitationGrade`의 `'C'`), `src/mocks/drafts.ts`(`DraftLangCode`의 `'en'`) | 스펙·스키마 유니온과의 정합을 위해 **의도적으로 보존**하는 미사용 값 — 목데이터에 안 쓰인다고 삭제하지 않는다(스키마 CHECK·향후 화면이 참조) |
+
+> 반대로 "API는 이미 있는데 프론트가 아직 안 부르는 것"(`GET /citations`·`GET /briefings/latest`·
+> `POST /runs/stream`)은 영구 mock이 **아니다** — 배선 대기(SD-3·SD-4)다. 구분은 시드 설계 문서
+> `plans/SEED_DESIGN_2026-07-20.md` Part A/B와 ROADMAP의 SD 트랙 표를 정본으로 한다.
 
 ## 6. 의존 방향 (위반 금지)
 
