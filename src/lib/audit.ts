@@ -234,6 +234,9 @@ const CASE_ACTIVITY_OUTCOME: Record<EvidenceType, CaseActivityEntry['outcome']> 
   dispatch_executed: 'approved',
   delivery_confirmed: 'approved',
   package_reply: 'question',
+  // R3(N02) — 응답이 도착했을 뿐 아직 담당자 해석 확인(interpretation_confirmed) 전이라
+  // package_reply와 같은 범주('question' — 사람의 추가 확인/응답을 기다리는 안내성 이벤트).
+  worker_reply_received: 'question',
 };
 
 // evidence_events.at은 ISO 타임스탬프("2026-07-09T08:00:00Z") — mock activity.at의 상대
