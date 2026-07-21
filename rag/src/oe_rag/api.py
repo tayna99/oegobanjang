@@ -264,6 +264,7 @@ async def _graph_event_stream(
 
     final_structured: dict[str, Any] | None = None
     final_approval: dict[str, Any] | None = None
+    final_citation_catalog: list[dict[str, Any]] = []
     try:
         async for chunk in graph.astream(initial_state, stream_mode="updates"):
             for node, update in chunk.items():
@@ -276,6 +277,8 @@ async def _graph_event_stream(
                     yield _sse_event("evidence", event)
                 if update.get("structured_response"):
                     final_structured = update["structured_response"]
+                if isinstance(update.get("citation_catalog"), list):
+                    final_citation_catalog = update["citation_catalog"]
                 if update.get("approval"):
                     final_approval = update["approval"]
     except Exception as exc:  # noqa: BLE001 — SSE 내부 오류는 error 이벤트로
@@ -287,6 +290,7 @@ async def _graph_event_stream(
         {
             "request_id": request_id,
             "answer": final_structured,
+            "citation_catalog": final_citation_catalog,
             "approval": final_approval,
         },
     )

@@ -72,6 +72,8 @@ def run_m3_contact_mission(
             evidence_grade=str(r.get("evidence_grade", "")),
         )
         for r in records
+        if str(r.get("source_id", "")).strip()
+        and str(r.get("evidence_grade", "")).upper() in {"A", "B", "E"}
     ]
     events.append(
         make_event(
@@ -105,6 +107,7 @@ def run_m3_contact_mission(
         "status": "SUCCESS",
         "artifact": result.get("artifact"),
         "structured_response": answer.model_dump(),
+        "citation_catalog": [citation.model_dump() for citation in citations],
         "approval_required": True,  # 컨택 산출물은 항상 담당자 승인 필요 (legacy 계약)
         "risk_flags": result.get("risk_flags", []),
         "evidence_events": events,

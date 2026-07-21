@@ -112,6 +112,8 @@ def run_m2_visa_mission(
             evidence_grade=str(c.get("evidence_grade", "")),
         )
         for c in policy.get("citations", [])
+        if str(c.get("source_id", "")).strip()
+        and str(c.get("evidence_grade", "")).upper() in {"A", "B", "E"}
     ]
     events.append(
         make_event(
@@ -169,6 +171,7 @@ def run_m2_visa_mission(
         "document_priority": prioritized,
         "handoff": {"prepared": handoff_needed, "approval_required": handoff_needed},
         "structured_response": answer.model_dump(),
+        "citation_catalog": [citation.model_dump() for citation in citations],
         "approval_required": handoff_needed,
         "risk_flags": answer.risk_flags,
         "evidence_events": events,

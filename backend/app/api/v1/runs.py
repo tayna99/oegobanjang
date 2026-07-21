@@ -29,10 +29,8 @@ def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-async def _event_stream(db: Session, *, company_id: str, user_id: str, message: str, thread_id: str | None) -> AsyncIterator[str]:
-    async for frame in execute_command_run(
-        db, company_id=company_id, user_id=user_id, message=message, thread_id=thread_id
-    ):
+async def _event_stream(db: Session, *, company_id: str, user_id: str, message: str) -> AsyncIterator[str]:
+    async for frame in execute_command_run(db, company_id=company_id, user_id=user_id, message=message):
         event_type = frame.pop("type")
         yield _sse(event_type, frame)
 
@@ -59,7 +57,6 @@ def create_run_stream(
             company_id=request.company_id,
             user_id=user_id,
             message=request.message,
-            thread_id=request.thread_id,
         ),
         media_type="text/event-stream",
     )

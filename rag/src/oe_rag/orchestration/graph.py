@@ -156,6 +156,10 @@ def build_orchestration_graph(chat_model: BaseChatModel | None = None):
             (r["structured_response"] for r in results if r.get("structured_response")),
             None,
         )
+        citation_catalog = next(
+            (r["citation_catalog"] for r in results if isinstance(r.get("citation_catalog"), list)),
+            [],
+        )
         if structured is None:
             structured = RagAnswer(
                 final_response="처리할 미션 결과가 없습니다.",
@@ -169,7 +173,11 @@ def build_orchestration_graph(chat_model: BaseChatModel | None = None):
             "approval_needed": approval_needed,
             "mission_count": len(results),
         }
-        return {"aggregated": aggregated, "structured_response": structured}
+        return {
+            "aggregated": aggregated,
+            "structured_response": structured,
+            "citation_catalog": citation_catalog,
+        }
 
     def approval_gate(state: OrchestrationState) -> dict[str, Any]:
         route = state.get("route", {})

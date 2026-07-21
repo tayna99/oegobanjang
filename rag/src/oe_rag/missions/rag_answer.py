@@ -56,11 +56,15 @@ def run_rag_answer_mission(
     ]
 
     answer = _synthesize(user_message, records, missing, chat_model)
+    citation_catalog = _citation_catalog(records)
 
     return {
         "mission": MISSION_NAME,
         "status": "SUCCESS",
         "structured_response": answer.model_dump(),
+        # backend가 LLM의 citation metadata를 신뢰하지 않고, 선택된 source_id를
+        # deterministic retrieval 결과의 정본 메타데이터로 재주입할 수 있게 한다.
+        "citation_catalog": [citation.model_dump() for citation in citation_catalog],
         "approval_required": False,
         "risk_flags": answer.risk_flags,
         "evidence_events": events,
@@ -81,15 +85,7 @@ def _synthesize(
             risk_flags=["MISSING_EVIDENCE"],
         )
 
-    citations = [
-        RagCitation(
-            source_id=str(r.get("source_id", "")),
-            title=str(r.get("title", "")),
-            evidence_grade=str(r.get("evidence_grade", "")),
-        )
-        for r in records
-        if str(r.get("evidence_grade", "")) not in {"D", "F"}
-    ]
+    citations = _citation_catalog(records)
 
     if chat_model is not None:
         structured = chat_model.with_structured_output(RagAnswer)
@@ -105,8 +101,18 @@ def _synthesize(
         )
         if isinstance(result, RagAnswer):
             # LLM이 만든 citation은 검색 결과 source_id 집합으로 제한(지어내기 차단)
-            allowed = {c.source_id for c in citations}
-            result.citations = [c for c in result.citations if c.source_id in allowed] or citations[:3]
+            # LLM이 만든 title·grade는 신뢰하지 않는다. source_id만 선택에 사용하고,
+            # deterministic retrieval candidate에서 정본 메타데이터를 재주입한다.
+            by_source_id = {citation.source_id: citation for citation in citations}
+            selected: list[RagCitation] = []
+            seen_source_ids: set[str] = set()
+            for citation in result.citations:
+                source_id = citation.source_id
+                if source_id in seen_source_ids or source_id not in by_source_id:
+                    continue
+                seen_source_ids.add(source_id)
+                selected.append(by_source_id[source_id].model_copy(deep=True))
+            result.citations = selected or [citation.model_copy(deep=True) for citation in citations[:3]]
             return result
 
     top = citations[:3]
@@ -116,3 +122,17 @@ def _synthesize(
         missing_evidence=False,
         risk_flags=[],
     )
+
+
+def _citation_catalog(records: list[dict[str, Any]]) -> list[RagCitation]:
+    """Retriever가 준 허용 후보만 정본 citation catalog으로 사용한다."""
+    return [
+        RagCitation(
+            source_id=str(record.get("source_id", "")),
+            title=str(record.get("title", "")),
+            evidence_grade=str(record.get("evidence_grade", "")),
+        )
+        for record in records
+        if str(record.get("source_id", "")).strip()
+        and str(record.get("evidence_grade", "")).upper() in {"A", "B", "E"}
+    ]

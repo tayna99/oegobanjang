@@ -17,7 +17,7 @@ evidence_grade E(내부 템플릿)는 company_id 없이 저장할 수 없다 —
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.db.counters import next_event_no
 from app.db.ids import new_id
+from app.domain.pii import redact_pii_payload
 from app.models.citation import Citation
 from app.models.evidence import EvidenceEvent
 
@@ -62,6 +63,10 @@ def ingest_rag_evidence_event(
     case가 존재하는 흐름(B3' 이후)에서 case_citations 연결을 추가한다.
     """
     import json
+
+    # RAG의 summary/metadata는 evidence와 SSE로 직결된다. 원문 input이 다시 들어오더라도
+    # append-only 감사 기록에 남지 않게 저장 전 마스킹한다.
+    event = cast(dict[str, Any], redact_pii_payload(event))
 
     db_type = map_event_type(str(event.get("event_type", "")))
     at = _parse_at(event.get("created_at"))
@@ -110,11 +115,62 @@ def _parse_at(value: Any) -> dt.datetime:
     return dt.datetime.now(dt.UTC)
 
 
+def canonicalize_citations(
+    *,
+    company_id: str,
+    citations: list[dict[str, Any]],
+    canonical_citations: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """RAG 모델이 선택한 source_id를 서버가 만든 candidate catalog으로 재주입한다.
+
+    모델 출력은 source_id 선택에만 사용하고 title·grade·URL을 신뢰하지 않는다. 이로써 존재하지 않는
+    source와 등급 승격, 타사 internal citation의 우회 저장을 차단한다.
+    """
+    catalog: dict[str, dict[str, Any]] = {}
+    for candidate in canonical_citations:
+        if not isinstance(candidate, dict):
+            continue
+        source_id = str(candidate.get("source_id", "")).strip()
+        grade = str(candidate.get("evidence_grade", "")).upper()
+        if not source_id or grade not in _GRADE_TO_STATUS:
+            continue
+        # A/B는 전역 공식 근거만, E는 현재 회사로 scope가 증명된 내부 근거만 허용한다.
+        # RAG catalog에 company_id가 없으면 E를 거부하는 것이 타사 근거를 현재 회사에
+        # 재귀속시키는 것보다 안전하다.
+        scope_company_id = candidate.get("company_id")
+        if grade == "E" and scope_company_id != company_id:
+            continue
+        if grade in {"A", "B"} and scope_company_id is not None and scope_company_id != "":
+            continue
+        catalog[source_id] = {
+            "source_id": source_id,
+            "title": str(candidate.get("title") or source_id),
+            "evidence_grade": grade,
+            "url": candidate.get("url"),
+        }
+
+    selected: list[dict[str, Any]] = []
+    seen_source_ids: set[str] = set()
+    for citation in citations:
+        if not isinstance(citation, dict):
+            continue
+        source_id = str(citation.get("source_id", "")).strip()
+        if source_id in seen_source_ids:
+            continue
+        canonical = catalog.get(source_id)
+        if canonical is None:
+            continue
+        seen_source_ids.add(source_id)
+        selected.append(canonical)
+    return selected
+
+
 def upsert_citations(
     db: Session,
     *,
     company_id: str,
     citations: list[dict[str, Any]],
+    canonical_citations: list[dict[str, Any]],
 ) -> list[Citation]:
     """RagCitation dict 목록(source_id/title/evidence_grade)을 citations 테이블에
     멱등 upsert한다. id=source_id 그대로 재사용 — rag 검색 결과 자체가 이미 안정적인
@@ -125,6 +181,11 @@ def upsert_citations(
     title을 source 필드 폴백으로 쓴다. 정밀한 출처 문자열이 필요해지면 rag 쪽
     citation 계약(agent/factory.RagCitation)에 publisher/url을 추가하는 후속 작업이 맞다.
     """
+    citations = canonicalize_citations(
+        company_id=company_id,
+        citations=citations,
+        canonical_citations=canonical_citations,
+    )
     if not citations:
         return []
 
@@ -139,6 +200,13 @@ def upsert_citations(
             continue  # RAG_STRATEGY: D/F는 답변 근거로 쓸 수 없다 — citation 라이브러리에도 안 올린다
         status = _GRADE_TO_STATUS.get(grade, "review_needed")
         scoped_company_id = company_id if status == "internal" else None
+
+        # citations.id는 현재 전역 PK다. 서로 다른 테넌트가 같은 raw source_id를
+        # 사용했을 때 upsert가 기존 내부 근거를 덮어쓰지 않도록 같은 스코프만 갱신한다.
+        # 충돌한 근거를 현재 회사에 재귀속하지 않고 fail-closed한다.
+        existing = db.get(Citation, source_id)
+        if existing is not None and existing.company_id != scoped_company_id:
+            continue
 
         stmt = (
             pg_insert(Citation)
@@ -160,10 +228,11 @@ def upsert_citations(
                     "title": str(citation.get("title") or source_id),
                     "updated_at": now,
                 },
+                where=Citation.company_id.is_not_distinct_from(scoped_company_id),
             )
         )
         db.execute(stmt)
-        saved.append(
-            db.execute(select(Citation).where(Citation.id == source_id)).scalar_one()
-        )
+        saved_row = db.execute(select(Citation).where(Citation.id == source_id)).scalar_one_or_none()
+        if saved_row is not None and saved_row.company_id == scoped_company_id:
+            saved.append(saved_row)
     return saved
