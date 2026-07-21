@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 INSECURE_DEFAULT_AUTH_PEPPER = "local-dev-insecure-pepper-change-me"
@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     zalo_oa_access_token: str | None = None
     zalo_oa_id: str | None = None
     zalo_webhook_secret: str | None = None  # 미설정이면 인바운드 webhook은 503(§1 원칙을 인바운드에도 동일 적용)
+    # WORKER_CHANNEL_RECIPIENTS stores the confidential delivery directory as JSON:
+    # {"worker-id": {"sms": "010...", "zalo": "provider-user-id"}}.
+    # It is never copied into outbox rows or Evidence events.
+    worker_channel_recipients: dict[str, dict[str, str]] = Field(default_factory=dict)
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_user: str | None = None

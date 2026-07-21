@@ -7,6 +7,7 @@ idempotency·리마인드 쿨다운·48h 재발송·발송 창).
 from __future__ import annotations
 
 import datetime as dt
+import json
 
 import pytest
 from fastapi.testclient import TestClient
@@ -75,7 +76,11 @@ def client(seeded):
 
 
 @pytest.fixture(autouse=True)
-def _clear_settings_cache():
+def _clear_settings_cache(monkeypatch):
+    monkeypatch.setenv(
+        "WORKER_CHANNEL_RECIPIENTS",
+        json.dumps({"w1": {"sms": "01011112222", "alimtalk": "01011112222", "zalo": "zalo-user-1"}}),
+    )
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -107,17 +112,82 @@ def test_manager_can_dispatch_and_it_records_thread_message_and_evidence(client,
     assert data["external_id"].startswith("stub:sms:")  # 자격 증명 없음(dev 기본값) — 스텁 구분
 
     tm = seeded.execute(
-        text("SELECT direction, lang, body_original, response_token FROM thread_messages WHERE thread_id='th1'")
+        text("SELECT direction, lang, body_original, response_token, case_id FROM thread_messages WHERE thread_id='th1'")
     ).one()
     assert tm.direction == "system"
     assert tm.lang == "vi"
     assert tm.body_original == "Xin chao, vui long gui ho so."
     assert tm.response_token is not None
+    assert tm.case_id == "cs1"
 
     evt = seeded.execute(
         text("SELECT type, case_id, action_id, approval_id FROM evidence_events WHERE type='dispatch_executed'")
     ).one()
     assert evt.case_id == "cs1" and evt.action_id == "act1" and evt.approval_id == "apv1"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_resolves_the_secret_recipient_not_the_display_reference(seeded, monkeypatch):
+    monkeypatch.setenv("WORKER_CHANNEL_RECIPIENTS", json.dumps({"w1": {"sms": "01011112222"}}))
+    get_settings.cache_clear()
+    destinations: list[str] = []
+
+    class _CapturingAdapter:
+        channel = "sms"
+
+        async def send(self, *, to, body, lang=None):
+            destinations.append(to)
+            return AdapterResult(status="sent", external_id="provider-message-1")
+
+    monkeypatch.setitem(outbox_service.WORKER_CHANNEL_ADAPTERS, "sms", _CapturingAdapter())
+
+    item = await create_and_dispatch(seeded, "u_manager", "act1")
+
+    assert item.recipient_ref == "worker:w1"
+    assert destinations == ["01011112222"]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_fails_closed_without_a_secret_recipient(seeded, monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("AUTH_PEPPER", "test-only-pepper")
+    monkeypatch.delenv("WORKER_CHANNEL_RECIPIENTS", raising=False)
+    get_settings.cache_clear()
+    calls: list[str] = []
+
+    class _CapturingAdapter:
+        channel = "sms"
+
+        async def send(self, *, to, body, lang=None):
+            calls.append(to)
+            return AdapterResult(status="sent", external_id="provider-message-should-not-exist")
+
+    monkeypatch.setitem(outbox_service.WORKER_CHANNEL_ADAPTERS, "sms", _CapturingAdapter())
+
+    item = await create_and_dispatch(seeded, "u_manager", "act1")
+
+    assert item.status == "failed"
+    assert item.failed_reason == "delivery recipient is not configured"
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_dispatch_claim_is_persisted_before_adapter_call(seeded, monkeypatch):
+    observed: list[tuple[str, int]] = []
+
+    class _ClaimInspectingAdapter:
+        channel = "sms"
+
+        async def send(self, *, to, body, lang=None):
+            row = seeded.execute(text("SELECT status, attempt_count FROM outbox WHERE action_id='act1'")).one()
+            observed.append((row.status, row.attempt_count))
+            return AdapterResult(status="sent", external_id="provider-message-1")
+
+    monkeypatch.setitem(outbox_service.WORKER_CHANNEL_ADAPTERS, "sms", _ClaimInspectingAdapter())
+
+    await create_and_dispatch(seeded, "u_manager", "act1")
+
+    assert observed == [("dispatching", 1)]
 
 
 def test_owner_cannot_dispatch(client, seeded):

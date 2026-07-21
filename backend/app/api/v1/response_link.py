@@ -11,8 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.domain.response_link_exceptions import (
+    ResponseLinkAlreadySubmittedError,
     ResponseLinkError,
     ResponseLinkExpiredError,
+    ResponseLinkInvalidChoiceError,
     ResponseLinkNoContentError,
 )
 from app.schemas.response_link import (
@@ -27,7 +29,9 @@ router = APIRouter(prefix="/api/v1/response-link", tags=["response-link"])
 
 _ERROR_STATUS: dict[type[ResponseLinkError], int] = {
     ResponseLinkExpiredError: status.HTTP_404_NOT_FOUND,
+    ResponseLinkAlreadySubmittedError: status.HTTP_409_CONFLICT,
     ResponseLinkNoContentError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    ResponseLinkInvalidChoiceError: status.HTTP_422_UNPROCESSABLE_CONTENT,
 }
 
 

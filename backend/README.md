@@ -71,10 +71,10 @@ uv run pytest
 | POST | `/api/v1/expert/office-members` | 사무소 구성원 등록/재활성화(**isOfficeAdmin 전용**) |
 | PATCH | `/api/v1/expert/office-members/{member_id}` | 구성원 상태(active/suspended)·admin 권한 변경(**isOfficeAdmin 전용**) |
 | GET | `/api/v1/expert/packages/{package_id}` | 화이트라벨 세션 패키지 조회(R5.1, spec §4.2) — tenant scope + 사무소(`expert_account_id`) 일치 + 케이스 `human_approved` 이상 3중 체크, 실패 시 전부 동일 404. 성공 시 `PackageViewLog` 1행 기록(evidence_events가 아님 — 목적이 다른 별도 감사 로그, spec §6). 문서 콘텐츠는 반환하지 않음(R2.6과 동일 스코프 경계) |
-| POST | `/api/v1/outbox` | 발송 "실행 확인"(R3 — MESSAGING_CHANNELS.md §1 각주²) — manager 세션 전용. 승인된(`status='approved'`) `send_message` 액션에만 outbox 1행을 만들고, 발송 창(21:00~08:30, CRITICAL 22:00)이 아니면 즉시 ChannelAdapter로 처리한다 |
+| POST | `/api/v1/outbox` | 발송 "실행 확인"(R3 — MESSAGING_CHANNELS.md §1 각주²) — manager 세션 전용. 승인된(`status='approved'`) `send_message` 액션에만 outbox 1행을 만들고, provider 호출 전 `dispatching` claim을 커밋한다. 비밀 수신자 디렉터리에 대상이 없으면 어느 환경에서나 외부 요청 없이 실패한다 |
 | GET | `/api/v1/outbox` | 발송 대기열 목록(R3) — 인증 필요, 회사 스코프 |
 | GET | `/api/v1/response-link/{token}` | 근로자 응답 링크 조회(R3) — **무인증**. 발신 메시지 본문(모국어)·버튼 선택지를 내려준다. 만료·미발급 전부 404 |
-| POST | `/api/v1/response-link/{token}` | 근로자 응답 제출(R3) — **무인증**. 버튼 선택/자유입력 → 인바운드 정규화 + N02(`worker_reply_received`) + M6 Interpretation(proposed) |
+| POST | `/api/v1/response-link/{token}` | 근로자 응답 제출(R3) — **무인증**, 토큰 1회 소비. 버튼 선택/자유입력 → 인바운드 정규화 + N02(`worker_reply_received`) + M6 Interpretation(proposed). 같은 토큰 재제출은 409 |
 | POST | `/api/v1/webhooks/zalo` | Zalo OA 인바운드 webhook(R3 stage ④) — 공유 시크릿(`X-Webhook-Secret` 헤더) 게이팅, 미설정 시 항상 503 |
 | GET | `/api/v1/notifications` | 본인 수신함 조회(R5.4) — 최신순. 생성 엔드포인트는 없다(승인 요청/결정·CRITICAL 리스크 트랜잭션이 직접 기록, 아래 §알려진 스코프 경계) |
 | POST | `/api/v1/notifications/{notification_id}/read` | 알림 읽음 처리(R5.4) — 본인 수신함 스코프만(다른 사람 알림 id는 404), 멱등(최초 열람 시각 보존) |
@@ -156,6 +156,7 @@ migrations/
   versions/0005_r5_1_expert_whitelabel.py   행정사 화이트라벨 v1 신규 테이블 7개 + handoff_packages.
     expert_account_id + evidence_events.type CHECK 확장(ALTER 리비전)
   versions/0006_r5_4_notification_read_at.py   notifications.read_at 컬럼 추가(ALTER 리비전)
+  versions/0007_r3_message_integrity.py   응답 토큰 1회 소비 + 발신/응답 case_id + dispatching claim(ALTER 리비전)
   — 0004/0005/0006 세 리비전이 병렬 세션에서 독립적으로 작업돼 처음엔 전부 down_revision=0003
   이었다 — 병합 시 0004→0005→0006 선형 체인으로 재정렬(단일 head 확인: `alembic heads`).
   다음 스키마 변경은 0007+

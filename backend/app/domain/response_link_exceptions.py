@@ -20,3 +20,17 @@ class ResponseLinkNoContentError(ResponseLinkError):
 
     def __init__(self) -> None:
         super().__init__("응답 내용이 없습니다")
+
+
+class ResponseLinkAlreadySubmittedError(ResponseLinkError):
+    """A response token is single-use, so retries cannot duplicate inbound records."""
+
+    def __init__(self) -> None:
+        super().__init__("이 응답 링크로 이미 응답을 접수했습니다")
+
+
+class ResponseLinkInvalidChoiceError(ResponseLinkError):
+    """Reject a choice that was not supplied by the response-link page."""
+
+    def __init__(self) -> None:
+        super().__init__("알 수 없는 응답 선택지입니다")

@@ -18,11 +18,12 @@ import datetime as dt
 import secrets
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.ids import new_id
+from app.config import get_settings
 from app.domain.outbox_exceptions import (
     OutboxActionNotFoundError,
     OutboxActionTypeNotSupportedError,
@@ -44,7 +45,7 @@ from app.models.membership import Membership
 from app.models.outbox import Outbox
 from app.models.thread import Thread, ThreadMessage
 from app.models.worker import Worker
-from app.services.channels import WORKER_CHANNEL_ADAPTERS
+from app.services.channels import AdapterResult, WORKER_CHANNEL_ADAPTERS
 from app.services.evidence import next_event_no
 
 DISPATCHER_ROLES = ("manager",)  # 7단계 §2 각주² — owner는 승인만, 실행은 manager
@@ -76,6 +77,27 @@ def _dedupe_key(case_id: str, event_type: str, threshold: str) -> str:
 def _masked_recipient_ref(worker_id: str) -> str:
     # 이 스키마엔 근로자 연락처 원문 컬럼이 없다(§7 PII 최소화) — 표시용 참조만 남긴다.
     return f"worker:{worker_id}"
+
+
+def _resolve_delivery_recipient(db: Session, item: Outbox) -> str | None:
+    """Resolve a channel destination without persisting its PII in operational records.
+
+    ``recipient_ref`` deliberately remains a display-only worker reference.  The
+    actual phone number or provider user id is read from deployment secrets just
+    before a channel adapter is called.  Missing entries fail closed for every
+    environment; a credential can therefore never turn a display reference into a
+    provider destination by accident.
+    """
+    if item.thread_id is None:
+        return None
+    thread = db.get(Thread, item.thread_id)
+    if thread is None:
+        return None
+    settings = get_settings()
+    recipient = settings.worker_channel_recipients.get(thread.worker_id, {}).get(item.channel)
+    if recipient and recipient.strip():
+        return recipient.strip()
+    return None
 
 
 def _load_dispatcher_membership(db: Session, company_id: str, user_id: str) -> Membership | None:
@@ -175,16 +197,50 @@ def _check_resend_eligible(db: Session, company_id: str, case_id: str, action_id
             raise OutboxResendNotEligibleError()
 
 
-async def _process_item(db: Session, item: Outbox, *, now: dt.datetime | None = None) -> None:
-    """어댑터를 호출해 outbox 행을 갱신하고, 성공 시 thread_messages(system) + evidence를 남긴다.
+def _claim_item_for_delivery(db: Session, item: Outbox, *, now: dt.datetime) -> bool:
+    """Durably claim exactly one queued row before any provider side effect."""
+    claimed = db.execute(
+        update(Outbox)
+        .where(Outbox.id == item.id, Outbox.company_id == item.company_id, Outbox.status == "queued")
+        .values(
+            status="dispatching",
+            dispatch_started_at=now,
+            attempt_count=Outbox.attempt_count + 1,
+        )
+    ).rowcount
+    db.commit()
+    db.refresh(item)
+    return bool(claimed)
 
-    `now`는 호출부(create_and_dispatch)가 받은 시각을 그대로 전달한다 — 여기서 새로
-    `dt.datetime.now()`를 부르면 테스트가 주입한 시각과 어긋나 리마인드 쿨다운·48h 재발송
-    판정이 실제 벽시계에 좌우된다."""
-    adapter = WORKER_CHANNEL_ADAPTERS[item.channel]
-    result = await adapter.send(to=item.recipient_ref or "", body=item.body, lang=item.lang)
+
+async def _process_item(db: Session, item: Outbox, *, now: dt.datetime | None = None) -> None:
+    """Send only after a durable claim, then persist the resulting audit trail.
+
+    If the final persistence fails after a provider accepts the message, the
+    already-committed row remains ``dispatching`` and cannot be sent again by an
+    automatic retry.  It must be reconciled against the provider instead of
+    risking a duplicate external message.
+    """
     now = now if now is not None else dt.datetime.now(dt.timezone.utc)
-    item.attempt_count += 1
+    if not _claim_item_for_delivery(db, item, now=now):
+        return
+
+    recipient = _resolve_delivery_recipient(db, item)
+    if recipient is None:
+        result = AdapterResult(
+            status="failed",
+            external_id=None,
+            detail="delivery recipient is not configured",
+        )
+    else:
+        adapter = WORKER_CHANNEL_ADAPTERS[item.channel]
+        try:
+            result = await adapter.send(to=recipient, body=item.body, lang=item.lang)
+        except Exception:
+            # Do not include provider exceptions in audit fields: they can contain
+            # request details.  The claimed row remains an auditable failed attempt.
+            result = AdapterResult(status="failed", external_id=None, detail="channel adapter failed")
+
     if result.status == "sent":
         item.status = "sent"
         item.external_id = result.external_id
@@ -195,6 +251,8 @@ async def _process_item(db: Session, item: Outbox, *, now: dt.datetime | None = 
     db.flush()
 
     if item.status != "sent":
+        db.commit()
+        db.refresh(item)
         return
 
     response_token = secrets.token_urlsafe(32)
@@ -203,6 +261,7 @@ async def _process_item(db: Session, item: Outbox, *, now: dt.datetime | None = 
         thread_id=item.thread_id,
         company_id=item.company_id,
         direction="system",
+        case_id=item.case_id,
         lang=item.lang,
         body_original=item.body,
         body_ko=item.body if item.lang == "ko" else None,
@@ -234,7 +293,14 @@ async def _process_item(db: Session, item: Outbox, *, now: dt.datetime | None = 
             summary=f"발송 실행 · {item.channel} {stub_note}".strip(),
         )
     )
-    db.flush()
+    try:
+        db.commit()
+    except Exception:
+        # Roll back to the pre-send, durably committed ``dispatching`` state.  Do
+        # not retry this row automatically because the provider may have accepted it.
+        db.rollback()
+        raise
+    db.refresh(item)
 
 
 async def _create_and_process_sms_fallback(
@@ -265,7 +331,12 @@ async def _create_and_process_sms_fallback(
         updated_at=now,
     )
     db.add(fallback)
-    db.flush()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return original
+    db.refresh(fallback)
     await _process_item(db, fallback, now=now)
     return fallback
 
@@ -350,16 +421,18 @@ async def create_and_dispatch(
     db.add(item)
     try:
         db.flush()
+        # The idempotency key must survive before the provider can receive a send.
+        db.commit()
     except IntegrityError as exc:
         db.rollback()
         raise OutboxAlreadyQueuedError(dedupe_key) from exc
+    db.refresh(item)
 
     if scheduled_for is None:
         await _process_item(db, item, now=now)
         if item.channel == "alimtalk" and item.status == "failed":
             await _create_and_process_sms_fallback(db, item, now=now)
 
-    db.commit()
     db.refresh(item)
     return item
 

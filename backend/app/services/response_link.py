@@ -20,7 +20,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.ids import new_id
-from app.domain.response_link_exceptions import ResponseLinkExpiredError, ResponseLinkNoContentError
+from app.domain.response_link_exceptions import (
+    ResponseLinkAlreadySubmittedError,
+    ResponseLinkExpiredError,
+    ResponseLinkInvalidChoiceError,
+    ResponseLinkNoContentError,
+)
 from app.models.evidence import EvidenceEvent
 from app.models.interpretation import Interpretation
 from app.models.outbox import Outbox
@@ -40,6 +45,13 @@ RESPONSE_CHOICES: dict[str, str] = {
 
 def _find_outbound_message(db: Session, token: str) -> ThreadMessage | None:
     return db.execute(select(ThreadMessage).where(ThreadMessage.response_token == token)).scalar_one_or_none()
+
+
+def _lock_outbound_message(db: Session, token: str) -> ThreadMessage | None:
+    """Lock one response token so concurrent browser retries cannot both consume it."""
+    return db.execute(
+        select(ThreadMessage).where(ThreadMessage.response_token == token).with_for_update()
+    ).scalar_one_or_none()
 
 
 def _resolve_case_id(db: Session, company_id: str, thread_id: str | None) -> str | None:
@@ -67,7 +79,12 @@ class ResponseLinkView:
 def get_response_link(db: Session, token: str) -> ResponseLinkView:
     message = _find_outbound_message(db, token)
     now = dt.datetime.now(dt.timezone.utc)
-    if message is None or message.response_token_expires_at is None or message.response_token_expires_at < now:
+    if (
+        message is None
+        or message.response_token_expires_at is None
+        or message.response_token_expires_at < now
+        or message.response_token_consumed_at is not None
+    ):
         raise ResponseLinkExpiredError()
     thread = db.get(Thread, message.thread_id) if message.thread_id else None
     worker = db.get(Worker, thread.worker_id) if thread is not None else None
@@ -85,6 +102,8 @@ def ingest_inbound_reply(
     confidence: str,
     summary_ko: str,
     source: str,
+    case_id: str | None = None,
+    resolve_case_from_thread: bool = True,
 ) -> Interpretation:
     """인바운드 정규화의 단일 지점 — 응답 링크·Zalo webhook(stage ④) 모두 이 함수로 합류한다
     (§3 "인바운드 소스가 응답 링크든 webhook이든 그 다음 단계는 동일하다"). thread_messages
@@ -99,6 +118,7 @@ def ingest_inbound_reply(
         thread_id=thread_id,
         company_id=company_id,
         direction="inbound",
+        case_id=case_id,
         lang=lang,
         body_original=body_original,
         received_at=now,
@@ -108,12 +128,15 @@ def ingest_inbound_reply(
         thread.last_message_at = now
     db.flush()
 
-    case_id = _resolve_case_id(db, company_id, thread_id)
+    resolved_case_id = case_id
+    if resolved_case_id is None and resolve_case_from_thread:
+        resolved_case_id = _resolve_case_id(db, company_id, thread_id)
+        inbound.case_id = resolved_case_id
     interpretation = Interpretation(
         id=new_id(),
         company_id=company_id,
         thread_message_id=inbound.id,
-        case_id=case_id,
+        case_id=resolved_case_id,
         summary_ko=summary_ko,
         confidence=confidence,
         status="proposed",
@@ -129,7 +152,7 @@ def ingest_inbound_reply(
             event_no=event_no,
             type="worker_reply_received",
             at=now,
-            case_id=case_id,
+            case_id=resolved_case_id,
             actor_type="system",
             actor_display=f"근로자 응답({source})",
             summary=f"근로자 응답 수신 · {source}",
@@ -141,15 +164,24 @@ def ingest_inbound_reply(
 
 
 def submit_response(db: Session, token: str, *, choice: str | None, free_text: str | None) -> Interpretation:
+    free_text = free_text.strip() if free_text else None
     if not choice and not free_text:
         raise ResponseLinkNoContentError()
+    if choice and choice not in RESPONSE_CHOICES:
+        raise ResponseLinkInvalidChoiceError()
 
-    message = _find_outbound_message(db, token)
+    message = _lock_outbound_message(db, token)
     now = dt.datetime.now(dt.timezone.utc)
     if message is None or message.response_token_expires_at is None or message.response_token_expires_at < now:
         raise ResponseLinkExpiredError()
+    if message.response_token_consumed_at is not None:
+        raise ResponseLinkAlreadySubmittedError()
     if message.thread_id is None:
         raise ResponseLinkExpiredError()
+
+    # This update and the inbound/evidence write below share one transaction.  The
+    # row lock makes a second concurrent POST observe the committed consumption.
+    message.response_token_consumed_at = now
 
     thread = db.get(Thread, message.thread_id)
     worker = db.get(Worker, thread.worker_id) if thread is not None else None
@@ -176,4 +208,8 @@ def submit_response(db: Session, token: str, *, choice: str | None, free_text: s
         confidence=confidence,
         summary_ko=summary_ko,
         source="응답 링크",
+        case_id=message.case_id,
+        # Older outbound rows may not carry case_id.  Do not guess from a newer
+        # outbox row and misattribute that historical reply.
+        resolve_case_from_thread=False,
     )

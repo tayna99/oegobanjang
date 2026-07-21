@@ -510,6 +510,7 @@ CREATE TABLE thread_messages (
   thread_id                  text NOT NULL,
   company_id                 text NOT NULL REFERENCES companies(id),
   direction                  text NOT NULL CHECK (direction IN ('inbound','system')),
+  case_id                    text,
   draft_id                   text,
   lang                       text,
   body_original              text,                  -- 원문 전문(PII) — 스레드 상세 전용(§7)
@@ -520,14 +521,35 @@ CREATE TABLE thread_messages (
   -- 응답을 받는 유일한 창구다. NULL=응답 링크 없음(재해석·구시드 메시지 등).
   response_token             text UNIQUE,
   response_token_expires_at  timestamptz,
+  response_token_consumed_at timestamptz,
   created_at                 timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id, id),
   FOREIGN KEY (company_id, thread_id) REFERENCES threads(company_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),
   FOREIGN KEY (company_id, draft_id) REFERENCES drafts(company_id, id),
-  CHECK (response_token IS NULL OR response_token_expires_at IS NOT NULL)
+  CHECK (response_token IS NULL OR response_token_expires_at IS NOT NULL),
+  CHECK (response_token_consumed_at IS NULL OR response_token IS NOT NULL)
 );
 CREATE INDEX ix_thread_messages_thread ON thread_messages (thread_id, created_at);
 CREATE INDEX ix_thread_messages_response_token ON thread_messages (response_token) WHERE response_token IS NOT NULL;
+
+-- A response-link token is a one-way capability.  Its consumption can only move
+-- from NULL to a timestamp and cannot later be reset for another submission.
+CREATE FUNCTION trg_thread_messages_response_token_consumed_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.response_token_consumed_at IS DISTINCT FROM OLD.response_token_consumed_at THEN
+    IF OLD.response_token_consumed_at IS NOT NULL
+       OR NEW.response_token_consumed_at IS NULL
+       OR OLD.response_token IS NULL THEN
+      RAISE EXCEPTION 'response token consumption is immutable';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER thread_messages_response_token_consumed_guard
+  BEFORE UPDATE OF response_token_consumed_at ON thread_messages
+  FOR EACH ROW EXECUTE FUNCTION trg_thread_messages_response_token_consumed_guard();
 
 -- 발송 대기열(R3 stage ②) — Approval → Outbox → ChannelAdapter(MESSAGING_CHANNELS.md §2).
 -- next_actions.action_type='send_message' 승인 후 manager의 "실행 확인"(§1 각주² — 승인과
@@ -545,12 +567,13 @@ CREATE TABLE outbox (
   dedupe_key            text NOT NULL,                -- '{case_id}:{event_type}:{threshold}' — notifications.dedupe_key와 동일 관례. 이벤트 idempotency(§2)를 구조적으로 강제
   body                  text NOT NULL,
   lang                  text,
-  recipient_ref         text,                         -- 수신처 표시용(마스킹) — 실 연락처 컬럼은 스키마에 없음(§7 PII 최소화 원칙)
-  status                text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','sent','delivered','failed')),
+  recipient_ref         text,                         -- 수신처 표시용(마스킹). 실제 연락처는 배포 비밀 디렉터리에서만 해석하고 DB·Evidence에 저장하지 않음
+  status                text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','dispatching','sent','delivered','failed')),
   external_id           text,                         -- 채널사 발급 ID(진짜) 또는 'stub:...'(자격 증명 없음). NULL=미시도
   attempt_count         integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
   fallback_from_id      text,                         -- 알림톡 실패 후 SMS로 대체 발송된 행이 원본을 가리킴("채널 중복 금지" — fallback만, 중복 발송 아님)
   scheduled_for         timestamptz,                  -- 발송 창 보류(21:00~08:00, CRITICAL은 22:00까지 허용) 해제 시각. NULL=즉시 시도
+  dispatch_started_at   timestamptz,                  -- queued 행을 외부 provider 호출 전에 내구성 있게 claim한 시각
   sent_at               timestamptz,
   failed_reason         text,
   requested_by_user_id  text NOT NULL,                -- "실행 확인"을 누른 manager

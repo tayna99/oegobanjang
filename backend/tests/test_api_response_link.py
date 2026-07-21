@@ -14,6 +14,7 @@ from sqlalchemy import text
 
 from app.db.session import get_db
 from app.main import app
+from app.services import response_link as response_link_service
 
 
 def _seed_response_link(db, *, expires_at: str = "2026-08-01T00:00:00Z") -> None:
@@ -21,14 +22,16 @@ def _seed_response_link(db, *, expires_at: str = "2026-08-01T00:00:00Z") -> None
         INSERT INTO companies (id, name) VALUES ('cmp1','테스트 회사');
         INSERT INTO workers (id, company_id, display_name, nationality, stay_expires_at, preferred_language) VALUES
           ('w1','cmp1','Nguyen Van A','베트남','2026-08-01','vi');
+        INSERT INTO cases (id, company_id, case_code, worker_id, case_type, title, severity, state) VALUES
+          ('cs1','cmp1','case_001','w1','reporting_deadline','서류 요청','LOW','approval_pending');
         INSERT INTO threads (id, company_id, worker_id, channel, last_message_at) VALUES
           ('th1','cmp1','w1','sms', '2026-07-10T09:00:00Z');
     """))
     db.execute(
         text("""
-            INSERT INTO thread_messages (id, thread_id, company_id, direction, lang, body_original, body_ko,
+            INSERT INTO thread_messages (id, thread_id, company_id, direction, case_id, lang, body_original, body_ko,
                                           received_at, response_token, response_token_expires_at)
-            VALUES ('tm_out','th1','cmp1','system','vi','Hay gui ho so cua ban.','서류를 보내주세요.',
+            VALUES ('tm_out','th1','cmp1','system','cs1','vi','Hay gui ho so cua ban.','서류를 보내주세요.',
                     '2026-07-10T09:00:00Z','tok_valid', :expires_at)
         """),
         {"expires_at": expires_at},
@@ -86,18 +89,21 @@ def test_post_choice_creates_high_confidence_interpretation(db):
     assert resp.status_code == 201, resp.text
 
     inbound = db.execute(
-        text("SELECT direction, body_original FROM thread_messages WHERE thread_id='th1' AND direction='inbound'")
+        text("SELECT direction, body_original, case_id FROM thread_messages WHERE thread_id='th1' AND direction='inbound'")
     ).one()
     assert inbound.direction == "inbound"
     assert "확인했습니다" in inbound.body_original
+    assert inbound.case_id == "cs1"
 
-    interp = db.execute(text("SELECT confidence, status, summary_ko FROM interpretations")).one()
+    interp = db.execute(text("SELECT confidence, status, summary_ko, case_id FROM interpretations")).one()
     assert interp.confidence == "high"
     assert interp.status == "proposed"
+    assert interp.case_id == "cs1"
     assert "확인했습니다" in interp.summary_ko  # 정형 라벨은 허용 — 원문 자유입력은 아니다
 
-    evt = db.execute(text("SELECT type, summary FROM evidence_events WHERE type='worker_reply_received'")).one()
+    evt = db.execute(text("SELECT type, summary, case_id FROM evidence_events WHERE type='worker_reply_received'")).one()
     assert evt.type == "worker_reply_received"
+    assert evt.case_id == "cs1"
     assert "확인했습니다" not in evt.summary  # evidence summary는 절대 원문/선택 라벨을 담지 않는다
     app.dependency_overrides.clear()
 
@@ -142,4 +148,50 @@ def test_post_updates_thread_last_message_at(db):
 
     last_message_at = db.execute(text("SELECT last_message_at FROM threads WHERE id='th1'")).scalar_one()
     assert last_message_at > dt.datetime(2026, 7, 10, 9, 0, tzinfo=dt.timezone.utc)
+    app.dependency_overrides.clear()
+
+
+def test_post_response_token_is_single_use_and_creates_one_inbound_record(db):
+    _seed_response_link(db)
+    client = _client(db)
+
+    first = client.post("/api/v1/response-link/tok_valid", json={"choice": "received"})
+    second = client.post("/api/v1/response-link/tok_valid", json={"choice": "received"})
+
+    assert first.status_code == 201, first.text
+    assert second.status_code == 409, second.text
+    assert db.execute(text("SELECT count(*) FROM thread_messages WHERE direction='inbound'")).scalar_one() == 1
+    assert db.execute(text("SELECT count(*) FROM interpretations")).scalar_one() == 1
+    assert db.execute(text("SELECT count(*) FROM evidence_events WHERE type='worker_reply_received'")).scalar_one() == 1
+    assert db.execute(
+        text("SELECT response_token_consumed_at IS NOT NULL FROM thread_messages WHERE id='tm_out'")
+    ).scalar_one() is True
+    app.dependency_overrides.clear()
+
+
+def test_post_rejects_an_unknown_choice_without_creating_a_record(db):
+    _seed_response_link(db)
+    client = _client(db)
+
+    resp = client.post("/api/v1/response-link/tok_valid", json={"choice": "not-a-choice"})
+
+    assert resp.status_code == 422, resp.text
+    assert db.execute(text("SELECT count(*) FROM thread_messages WHERE direction='inbound'")).scalar_one() == 0
+    assert db.execute(text("SELECT count(*) FROM interpretations")).scalar_one() == 0
+    app.dependency_overrides.clear()
+
+
+def test_post_uses_the_case_on_the_token_message_not_a_latest_thread_guess(db, monkeypatch):
+    _seed_response_link(db)
+    client = _client(db)
+
+    def _latest_outbox_lookup_must_not_run(*_args, **_kwargs):
+        raise AssertionError("response links must use the source message case_id")
+
+    monkeypatch.setattr(response_link_service, "_resolve_case_id", _latest_outbox_lookup_must_not_run)
+
+    resp = client.post("/api/v1/response-link/tok_valid", json={"choice": "received"})
+
+    assert resp.status_code == 201, resp.text
+    assert db.execute(text("SELECT case_id FROM interpretations")).scalar_one() == "cs1"
     app.dependency_overrides.clear()

@@ -33,6 +33,7 @@ class Outbox(Base):
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     fallback_from_id: Mapped[str | None] = mapped_column(Text)
     scheduled_for: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    dispatch_started_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     failed_reason: Mapped[str | None] = mapped_column(Text)
     requested_by_user_id: Mapped[str] = mapped_column(Text, nullable=False)

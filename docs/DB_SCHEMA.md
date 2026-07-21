@@ -513,6 +513,7 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | **thread_id** | uuid | `(company_id,thread_id)` →threads, idx | |
 | **company_id** | uuid | →companies.id, idx | |
 | **direction** | text | CHECK(`inbound,system`) | system = 승인·생성 이력용 내부 캡션. outbound는 MVP에서 금지 |
+| case_id | uuid | `(company_id,case_id)` →cases | 발신·응답을 그 정확한 업무 케이스에 귀속. 스레드와 케이스는 1:1이 아니므로 응답 링크는 이 값을 사용 |
 | draft_id | uuid | `(company_id,draft_id)` →drafts | system 맥락 참조(선택) |
 | lang | text | | |
 | body_original | text | | **원문 전문(PII)** — 스레드 상세에서만 노출, 목록 미리보기·evidence 복사 금지(§7) |
@@ -520,6 +521,7 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | received_at | timestamptz | | inbound 수신 시각. `sent_at`은 존재하지 않음 |
 | response_token | text | UNIQUE | R3 stage ② — 응답 링크(`/r/:token`) 비밀값. outbox가 만든 direction='system' 행에만 채워진다. NULL=응답 링크 없음 |
 | response_token_expires_at | timestamptz | CHECK(`response_token NOT NULL ⇒ 이 컬럼도 NOT NULL`) | 응답 링크 만료 시각(발송 시점 + 14일) |
+| response_token_consumed_at | timestamptz | NULL→timestamp 1회 전이(trigger) | 첫 응답 접수 시각. 소비된 토큰의 재제출은 409이며, NULL로 되돌릴 수 없음 |
 | **created_at** | timestamptz | | |
 
 - **R3 stage ②(2026-07-20) — 발송 완료(outbound) 표현이 여기서 처음 생긴다**: direction='system'
@@ -567,12 +569,13 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | **dedupe_key** | text | UNIQUE(company_id, dedupe_key) | `'{case_id}:{event_type}:{threshold}'` — 이벤트 idempotency(§2)를 구조적으로 강제(notifications.dedupe_key와 동일 관례) |
 | **body** | text | | 발송 시점 확정 본문(draft_variants에서 복사) |
 | lang | text | | |
-| recipient_ref | text | | 수신처 표시용(마스킹) — 실 연락처 원문 컬럼은 스키마에 없음(§7) |
-| **status** | text | CHECK(`queued,sent,delivered,failed`), default `queued` | `sent/delivered`는 `external_id NOT NULL` CHECK와 짝(아래) |
+| recipient_ref | text | | 수신처 표시용(마스킹) — 실제 전화번호·provider user id는 배포 비밀 디렉터리에서만 해석하며 DB·Evidence에 저장하지 않음(§7) |
+| **status** | text | CHECK(`queued,dispatching,sent,delivered,failed`), default `queued` | `dispatching`은 외부 provider 호출 전에 내구성 있게 claim된 상태. `sent/delivered`는 `external_id NOT NULL` CHECK와 짝(아래) |
 | external_id | text | | 채널사 발급 ID(진짜) 또는 `stub:{channel}:{uuid}`(자격 증명 없음) — 실 발송과 절대 혼동되지 않는다 |
 | attempt_count | integer | default 0 | |
 | fallback_from_id | uuid | `(company_id,fallback_from_id)` →outbox | 알림톡 실패 → SMS 대체 발송("채널 중복 금지" — fallback, 중복 발송 아님) |
 | scheduled_for | timestamptz | | 발송 창(21:00~08:30, CRITICAL은 22:00까지 허용) 보류 해제 시각. NULL=즉시 시도 |
+| dispatch_started_at | timestamptz | | `queued → dispatching` claim 시각. provider 결과 영속화 실패 시 자동 재시도를 막고 조정(reconciliation) 대상으로 남김 |
 | sent_at | timestamptz | CHECK(`status='sent' ⇒ NOT NULL`) | |
 | failed_reason | text | | |
 | **requested_by_user_id** | uuid | `(company_id,user_id)` →memberships | "실행 확인"을 누른 manager |
@@ -589,8 +592,9 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
   `_check_reminder_cooldown`/`_check_resend_eligible`)에서 강제한다 — 발송 창 판정(`compute_send_window`)도
   마찬가지로 순수 시간 계산이라 서비스 계층에 둔다(이 문서 §0 설계 원칙 "DB가 표현 못 하는
   규칙만 서비스 계층").
-- 성공 발송은 `thread_messages`(direction='system') 1행 + `response_token`(§4.7 위) 발급 +
-  evidence(`dispatch_executed`)를 같은 트랜잭션에서 남긴다.
+- 외부 provider 호출 전에는 outbox `queued` 행을 `dispatching`으로 원자 claim하고 별도 커밋한다. 성공 결과만
+  `thread_messages`(direction='system') 1행 + `response_token`(§4.7 위) 발급 + evidence(`dispatch_executed`)와 함께
+  기록한다. provider 수락 뒤 결과 기록 커밋이 실패하면 이미 내구화된 `dispatching` 행은 자동 재시도하지 않고 조정 대상으로 남긴다.
 
 ### 4.8 행정사 패키지
 

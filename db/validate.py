@@ -697,6 +697,9 @@ expect_throw("outbox core fields are immutable after creation",
 run("UPDATE outbox SET status='sent', external_id='stub:zalo:test', sent_at=now() WHERE id='ob_other'")
 ok("outbox status/external_id/sent_at remain mutable for delivery updates",
   scalar("SELECT status FROM outbox WHERE id='ob_other'")["status"] == "sent")
+run("UPDATE outbox SET status='dispatching', dispatch_started_at=now() WHERE id='ob_other'")
+ok("outbox supports a durable pre-provider dispatching claim",
+  scalar("SELECT status FROM outbox WHERE id='ob_other'")["status"] == "dispatching")
 
 expect_throw("outbox rejects an unsupported channel",
   "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
@@ -721,6 +724,11 @@ run("""
     ('tm_with_token', 'th_other', 'cmp_other', 'system', 'tok_ok', now() + interval '14 days');
 """)
 ok("thread_messages accepts a response_token paired with an expiry", True)
+run("UPDATE thread_messages SET response_token_consumed_at=now() WHERE id='tm_with_token'")
+ok("response token consumption is recorded once",
+  scalar("SELECT response_token_consumed_at IS NOT NULL AS ok FROM thread_messages WHERE id='tm_with_token'")["ok"])
+expect_throw("response token consumption cannot be reset",
+  "UPDATE thread_messages SET response_token_consumed_at=NULL WHERE id='tm_with_token'", "immutable")
 expect_throw("thread_messages response_token is unique",
   "INSERT INTO thread_messages (id, thread_id, company_id, direction, response_token, response_token_expires_at) "
   "VALUES ('tm_dup_token','th_other','cmp_other','system','tok_ok', now() + interval '7 days')")

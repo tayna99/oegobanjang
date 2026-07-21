@@ -34,6 +34,7 @@ class ThreadMessage(Base):
     thread_id: Mapped[str] = mapped_column(Text, nullable=False)
     company_id: Mapped[str] = mapped_column(Text, nullable=False)
     direction: Mapped[str] = mapped_column(Text, nullable=False)
+    case_id: Mapped[str | None] = mapped_column(Text)
     draft_id: Mapped[str | None] = mapped_column(Text)
     lang: Mapped[str | None] = mapped_column(Text)
     body_original: Mapped[str | None] = mapped_column(Text)
@@ -42,4 +43,5 @@ class ThreadMessage(Base):
     # R3 stage ② — 응답 링크(MESSAGING_CHANNELS.md §3). direction='system' 발신 메시지에만 채워진다.
     response_token: Mapped[str | None] = mapped_column(Text)
     response_token_expires_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+    response_token_consumed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())

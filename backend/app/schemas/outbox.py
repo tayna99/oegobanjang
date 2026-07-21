@@ -29,6 +29,7 @@ class OutboxOut(BaseModel):
     attempt_count: int
     fallback_from_id: str | None
     scheduled_for: dt.datetime | None
+    dispatch_started_at: dt.datetime | None
     sent_at: dt.datetime | None
     failed_reason: str | None
     created_at: dt.datetime
