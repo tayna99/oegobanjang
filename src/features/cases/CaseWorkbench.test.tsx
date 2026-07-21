@@ -117,7 +117,7 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
   it('케이스 타임라인이 런 체인(#4788→#4712)과 nextWake를 렌더한다', async () => {
     renderAt('/case/nguyen');
     await screen.findByRole('region', { name: '케이스 상세' });
-    const timeline = screen.getByRole('region', { name: '케이스 타임라인' });
+    const timeline = await screen.findByRole('region', { name: '케이스 타임라인' });
 
     // 체인 렌더: 자동 실행 → 이전 승인 발송, 두 런이 시간 역순으로 모두 보인다.
     expect(within(timeline).getByText('#4788')).toBeInTheDocument();
@@ -132,7 +132,7 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
   it('행정사 회신(package_reply) evidence가 케이스 타임라인에 정적 이력보다 먼저 실시간으로 나타난다', async () => {
     renderAt('/case/batbayar');
     await screen.findByRole('region', { name: '케이스 상세' });
-    const timeline = screen.getByRole('region', { name: '케이스 타임라인' });
+    const timeline = await screen.findByRole('region', { name: '케이스 타임라인' });
 
     // 진입 시점: 정적 activity(위험 감지)만 있고 행정사 회신은 없다.
     expect(within(timeline).queryByText(/행정사 회신/)).not.toBeInTheDocument();
@@ -161,7 +161,7 @@ describe('CaseWorkbench (PC, M2.5.4 DoD)', () => {
   it('타임라인의 판단 기록 #을 누르면 재생 런(/run/:id)으로 진입한다', async () => {
     const router = renderAt('/case/nguyen');
     await screen.findByRole('region', { name: '케이스 상세' });
-    const timeline = screen.getByRole('region', { name: '케이스 타임라인' });
+    const timeline = await screen.findByRole('region', { name: '케이스 타임라인' });
 
     fireEvent.click(within(timeline).getByRole('button', { name: '판단 기록 #4788 재생 열기' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/run/4788'));
