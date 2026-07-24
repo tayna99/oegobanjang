@@ -1,9 +1,21 @@
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { SafetyNoticeEmphasis } from '@/components/SafetyNotice';
 import { dDayLabel, dDayTone } from '@/lib/dday';
 import type { RunConfig, RunStep } from '@/mocks/runs';
 import { StepTimeline } from './StepTimeline';
+
+// R4.1 — 라이브 QA 런(Tier1)의 최종 답변. 케이스 연결이 없는 순수 정보 응답이라
+// RunResultCase(케이스 카드)가 아니라 텍스트+근거로 표시한다.
+export interface RunAnswerView {
+  text: string;
+  citations: { sourceId: string; title: string; grade: string }[];
+  missingEvidence: boolean;
+  // structured.approval.required=true일 때만 채움 — 액션 버튼은 만들지 않는다(승인할 케이스/
+  // 초안이 없는 순수 QA), 침묵하지 않고 정보로만 알린다(AGENTS.md §8).
+  approvalNotice?: string;
+}
 
 // 3.2 커맨드 런 결과 카드 한 줄 — 런이 정리한 대상 케이스.
 export interface RunResultCase {
@@ -22,8 +34,12 @@ export type RunViewState =
       altLabel: string;
       steps: RunStep[];
       engineStatus: 'streaming' | 'done';
+      // replay 전용이 원래 의미이나(mocks/runs.ts RunConfig.readOnly), R4.1부터 라이브 QA
+      // 런(mode:'command', 케이스·초안 없이 답변만 보여줌 — 승인할 대상 자체가 없음)도
+      // readOnly:true로 넘겨 승인/대안 버튼 블록을 동일하게 숨기는 데 재사용한다.
       readOnly?: boolean;
       resultCases?: RunResultCase[];
+      answer?: RunAnswerView;
     }
   | { status: 'error'; reason: 'out_of_scope' | 'blocked' | 'unknown'; message: string }
   | { status: 'offline'; lastSyncedAt: string };
@@ -97,6 +113,30 @@ export function RunScreen({ state, onApprove, onAlt, onOpenCase }: RunScreenProp
               </li>
             ))}
           </ul>
+        </section>
+      )}
+      {state.engineStatus === 'done' && state.answer && (
+        <section aria-label="답변" className="mt-4">
+          <p className="text-body2 text-ink">{state.answer.text}</p>
+          {state.answer.missingEvidence && (
+            <p className="mt-2 text-label1 text-muted">근거를 찾지 못했습니다 — 행정사 검토가 필요합니다.</p>
+          )}
+          {state.answer.citations.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {state.answer.citations.map((c) => (
+                <li key={c.sourceId}>
+                  <Chip tone="neutral">
+                    {c.grade}등급 · {c.title}
+                  </Chip>
+                </li>
+              ))}
+            </ul>
+          )}
+          {state.answer.approvalNotice && (
+            <div className="mt-3">
+              <SafetyNoticeEmphasis>{state.answer.approvalNotice}</SafetyNoticeEmphasis>
+            </div>
+          )}
         </section>
       )}
       {!state.readOnly && (

@@ -16,6 +16,9 @@ export function useNav() {
     toApprove: (caseId: string) => navigate(ROUTES.caseApprove(caseId)),
     toCaseHistory: (caseId: string) => navigate(ROUTES.caseHistory(caseId)),
     toRun: (runId: string) => navigate(ROUTES.run(runId)),
+    // R4.1 — CommandBar real 모드 전용. message는 location.state로 전달(runId를 미리
+    // 발급받지 않음 — 백엔드가 SSE 첫 프레임으로 run_id를 만든다).
+    toLiveRun: (message: string) => navigate(ROUTES.runLive, { state: { message } }),
     toMessages: () => navigate(ROUTES.messages),
     toThread: (threadId: string) => navigate(ROUTES.thread(threadId)),
     toEvidence: (ref?: string) => navigate(ROUTES.evidence(ref)),
