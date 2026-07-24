@@ -1,12 +1,21 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
-import { routeConfig } from '@/router';
+import { NotificationSettingsPage } from '@/features/settings/NotificationSettingsPage';
+import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
 import { useCompanyStore } from '@/stores/companyStore';
 import { useRoleStore } from '@/stores/roleStore';
 
 function renderAt(path: string) {
-  return render(<RouterProvider router={createMemoryRouter(routeConfig, { initialEntries: [path] })} />);
+  const router = createMemoryRouter(
+    [
+      { path: '/', element: <div>홈</div> },
+      { path: '/settings', element: <SettingsHubPage /> },
+      { path: '/settings/notifications', element: <NotificationSettingsPage /> },
+    ],
+    { initialEntries: [path] },
+  );
+  return render(<RouterProvider router={router} />);
 }
 
 // 설정 허브 — 7단계 §6 역할 분기(운영급 RBAC 확장).
