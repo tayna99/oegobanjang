@@ -67,6 +67,8 @@ def run_m1_workforce_mission(
             evidence_grade=str(r.get("evidence_grade", "")),
         )
         for r in records
+        if str(r.get("source_id", "")).strip()
+        and str(r.get("evidence_grade", "")).upper() in {"A", "B", "E"}
     ]
     events.append(
         make_event(
@@ -129,6 +131,7 @@ def run_m1_workforce_mission(
         "candidate_readiness": readiness,
         "request_form_draft": draft,
         "structured_response": answer.model_dump(),
+        "citation_catalog": [citation.model_dump() for citation in citations],
         "approval_required": approval_required,
         "risk_flags": answer.risk_flags,
         "evidence_events": events,

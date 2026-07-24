@@ -18,6 +18,14 @@
 
 ---
 
+### [2026-07-21] PR #25 R4 계약 안전성 보강 — 완료
+
+- 변경: CommandBar의 유일한 사용자 진입점을 인증된 backend `/api/v1/runs/stream`으로 고정하고 client `thread_id`를 422로 거부했다. backend 입구에서 PII를 스크럽해 run·RAG·SSE·evidence에 원문이 남지 않게 했고, RAG candidate catalog로 citation source/title/grade를 정본화해 unknown source·등급 승격·타사 internal citation·전역 citation ID 충돌에 의한 타사 덮어쓰기를 차단했다.
+- 남은 작업 / 중단 지점: R4.5의 case 기반 PostgreSQL checkpoint, R4.6의 `create_agent_proposal` 원자 트랜잭션, claim-level faithfulness eval과 R4.8 자율성 정책은 설계/DoD로 고정했으며 별도 구현 태스크가 필요하다.
+- 결정 사항 (다음 세션이 알아야 할 것): `/agent/run`·`/graph/run`은 backend 전용 내부 API이고 R4 에이전트는 자유 텍스트 `agent_notes`를 읽거나 쓰지 않는다. `waiting_approval` 표시만으로는 approval 행/evidence를 대체하지 않는다.
+- verify 상태: PARTIAL — 변경 Python 파일의 `py_compile`, `git diff --check`, 신규 RAG citation 정본화 회귀(`1 passed`)는 통과했다. PostgreSQL 컨테이너가 기동된 뒤에도 backend 대상 pytest와 `npm run verify`는 이 환경에서 출력 없이 시간 초과되어, 실행 환경 지연을 별도로 해소한 재검증이 필요하다.
+- 지침/규칙 갱신: `plans/R4_AGENTIC_SEARCH_DESIGN.md`, `plans/BACKEND_CONNECT.md`에 테넌트·PII·citation·승인·자율성 계약과 회귀 DoD를 반영했다.
+
 ### [2026-07-18] R2.5+R2.6 코드리뷰 2라운드 — P1 3건 + P2 1건 수정 — 완료
 
 - 한 일: 아래 R2.5+R2.6 항목이 코드리뷰 2라운드를 거쳤다. 1라운드(P1 4건 — 링크 발급 승인

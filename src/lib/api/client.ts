@@ -40,7 +40,7 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 // `{"detail": "..."}` JSON으로 응답한다 — 원문 텍스트를 그대로 메시지로 쓰면 사용자에게
 // 깨진 JSON 문자열이 그대로 노출된다. detail 필드를 우선 추출하고, JSON이 아니거나
 // detail이 없으면 원문 텍스트로 폴백한다(테스트가 이 순서를 검증).
-async function extractErrorMessage(response: Response): Promise<string> {
+export async function extractErrorMessage(response: Response): Promise<string> {
   const text = await response.text().catch(() => '');
   if (!text) return response.statusText;
   try {

@@ -19,14 +19,19 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
 from app.db.ids import new_id
+from app.domain.pii import redact_pii, redact_pii_payload
 from app.models.run import Run, RunStep
 from app.services import context_service
-from app.services.evidence_ingest import ingest_rag_evidence_event, upsert_citations
+from app.services.evidence_ingest import (
+    canonicalize_citations,
+    ingest_rag_evidence_event,
+    upsert_citations,
+)
 from app.services.rag_client import RagServiceError, fetch_intent, stream_graph_run
 
 # runs.status CHECK — db/schema.sql 정본.
@@ -41,7 +46,6 @@ async def execute_command_run(
     company_id: str,
     user_id: str,
     message: str,
-    thread_id: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """자연어 커맨드 런 실행 — 진행 상황을 dict 프레임으로 yield하며 동시에 DB에 기록한다.
 
@@ -49,6 +53,9 @@ async def execute_command_run(
     {"type": "evidence", ...}* → {"type": "structured", ...} → {"type": "done", ...}
     (API 레이어가 이걸 그대로 SSE로 재직렬화한다 — api/v1/runs.py)
     """
+    # RAG가 입력 가드를 가지고 있어도, 이 레이어가 먼저 런을 commit하고 /intent를
+    # 호출한다. 따라서 DB·RAG·SSE 모두에 원문 대신 스크럽된 메시지만 통과시킨다.
+    safe_message = redact_pii(message)
     run_id = new_id()
     run = Run(
         id=run_id,
@@ -58,7 +65,7 @@ async def execute_command_run(
         started_by_user_id=user_id,
         agent_name="orchestration_graph",
         status="running",
-        goal_text=message[:2000],
+        goal_text=safe_message[:2000],
         started_at=dt.datetime.now(dt.UTC),
     )
     db.add(run)
@@ -66,10 +73,11 @@ async def execute_command_run(
     yield {"type": "run_created", "run_id": run_id}
 
     try:
-        route = await fetch_intent(message)
+        route = cast(dict[str, Any], redact_pii_payload(await fetch_intent(safe_message)))
     except RagServiceError as exc:
-        _mark_run_failed(db, run, f"intent 조회 실패: {exc}")
-        yield {"type": "error", "detail": str(exc)}
+        detail = redact_pii(f"intent 조회 실패: {exc}")
+        _mark_run_failed(db, run, detail)
+        yield {"type": "error", "detail": detail}
         return
 
     if not route.get("should_run"):
@@ -92,43 +100,78 @@ async def execute_command_run(
     seq = 0
     final_structured: dict[str, Any] | None = None
     final_approval: dict[str, Any] | None = None
+    final_citation_catalog: list[dict[str, Any]] = []
+    received_structured = False
     try:
         async for sse_event in stream_graph_run(
-            message=message,
-            thread_id=thread_id or run_id,
+            message=safe_message,
+            # 클라이언트가 checkpoint key를 지정하지 않는다. 다턴 checkpoint 시간에는 case
+            # membership으로부터 파생한 server key로 교체한다.
+            thread_id=f"run:{run_id}",
             request_id=run_id,
             context_snapshot=snapshot.model_dump(mode="json"),
         ):
+            data = cast(dict[str, Any], redact_pii_payload(sse_event.data))
             if sse_event.event == "step":
                 seq += 1
-                _record_run_step(db, run_id=run_id, company_id=company_id, seq=seq, step=sse_event.data)
+                _record_run_step(db, run_id=run_id, company_id=company_id, seq=seq, step=data)
                 db.commit()
-                yield {"type": "step", "step": sse_event.data}
+                yield {"type": "step", "step": data}
             elif sse_event.event == "evidence":
-                ingest_rag_evidence_event(db, company_id=company_id, event=sse_event.data, run_id=run_id)
+                ingest_rag_evidence_event(db, company_id=company_id, event=data, run_id=run_id)
                 db.commit()
-                yield {"type": "evidence", "event": sse_event.data}
+                yield {"type": "evidence", "event": data}
             elif sse_event.event == "structured":
-                final_structured = sse_event.data.get("answer")
-                final_approval = sse_event.data.get("approval")
-                yield {"type": "structured", "data": sse_event.data}
+                received_structured = True
+                answer = data.get("answer")
+                approval = data.get("approval")
+                catalog = data.get("citation_catalog")
+                final_structured = answer if isinstance(answer, dict) else None
+                final_approval = approval if isinstance(approval, dict) else None
+                final_citation_catalog = catalog if isinstance(catalog, list) else []
             elif sse_event.event == "error":
-                _mark_run_failed(db, run, str(sse_event.data.get("detail", "unknown error")))
-                yield {"type": "error", "detail": sse_event.data.get("detail")}
+                detail = redact_pii(str(data.get("detail", "unknown error")))
+                _mark_run_failed(db, run, detail)
+                yield {"type": "error", "detail": detail}
                 return
             elif sse_event.event == "done":
                 break
     except RagServiceError as exc:
-        _mark_run_failed(db, run, f"graph/run 스트림 실패: {exc}")
-        yield {"type": "error", "detail": str(exc)}
+        detail = redact_pii(f"graph/run 스트림 실패: {exc}")
+        _mark_run_failed(db, run, detail)
+        yield {"type": "error", "detail": detail}
         return
 
-    if final_structured and final_structured.get("citations"):
-        upsert_citations(db, company_id=company_id, citations=final_structured["citations"])
+    if final_structured is not None:
+        requested_citations = final_structured.get("citations")
+        selected_citations = canonicalize_citations(
+            company_id=company_id,
+            citations=requested_citations if isinstance(requested_citations, list) else [],
+            canonical_citations=final_citation_catalog,
+        )
+        # UI가 모델이 만든 title/grade를 출력하지 않게 하고, DB 저장과 같은
+        # server-side catalog을 보여 준다.
+        final_structured["citations"] = selected_citations
+        if selected_citations:
+            upsert_citations(
+                db,
+                company_id=company_id,
+                citations=selected_citations,
+                canonical_citations=final_citation_catalog,
+            )
+
+    if received_structured:
+        yield {
+            "type": "structured",
+            "data": {
+                "answer": final_structured,
+                "approval": final_approval,
+            },
+        }
 
     approval_required = bool(final_approval and final_approval.get("required"))
     run.status = _TERMINAL_WAITING_APPROVAL if approval_required else _TERMINAL_COMPLETED
-    run.result_summary = (final_structured or {}).get("final_response", "")[:2000]
+    run.result_summary = redact_pii(str((final_structured or {}).get("final_response", "")))[:2000]
     run.ended_at = dt.datetime.now(dt.UTC)
     db.commit()
 
@@ -151,6 +194,6 @@ def _record_run_step(db: Session, *, run_id: str, company_id: str, seq: int, ste
 
 def _mark_run_failed(db: Session, run: Run, reason: str) -> None:
     run.status = _TERMINAL_FAILED
-    run.result_summary = reason[:2000]
+    run.result_summary = redact_pii(reason)[:2000]
     run.ended_at = dt.datetime.now(dt.UTC)
     db.commit()

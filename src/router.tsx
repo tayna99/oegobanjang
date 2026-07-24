@@ -10,6 +10,7 @@ import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { CaseHistoryPage } from '@/features/case/CaseHistoryPage';
 import { ApprovePage } from '@/features/approve/ApprovePage';
 import { RunPage } from '@/features/run/RunPage';
+import { RunLivePage } from '@/features/run/RunLivePage';
 import { DraftPage } from '@/features/draft/DraftPage';
 import { ThreadPage } from '@/features/thread/ThreadPage';
 import { DonePage } from '@/features/done/DonePage';
@@ -59,6 +60,8 @@ export const routeConfig: RouteObject[] = [
         loader: validateIdParam('caseId'),
         element: <CaseHistoryPage />,
       },
+      // R4.1 — 정적 라우트라 run/:runId보다 항상 먼저 매칭된다(react-router v6, 순서 무관).
+      { path: ROUTE_PATHS.runLive, element: <RunLivePage /> },
       {
         path: ROUTE_PATHS.run,
         loader: validateIdParam('runId'),

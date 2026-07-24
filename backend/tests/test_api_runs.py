@@ -115,6 +115,13 @@ def test_happy_path_records_run_steps_evidence_and_citations(client: TestClient,
                     "missing_evidence": False,
                     "risk_flags": [],
                 },
+                "citation_catalog": [
+                    {
+                        "source_id": "E9_STAY_EXT_STEP1",
+                        "title": "체류연장 1단계",
+                        "evidence_grade": "B",
+                    }
+                ],
                 "approval": {"required": True, "status": "PENDING", "blocked_actions": [], "reason": "승인 필요"},
             },
         ),
@@ -214,6 +221,90 @@ def test_rag_service_down_marks_run_failed(client: TestClient, seeded: Session) 
     assert run.status == "failed"
 
 
+@respx.mock
+def test_redacts_pii_before_persisting_or_calling_rag(client: TestClient, seeded: Session) -> None:
+    raw_phone = "010-1234-5678"
+    raw_passport = "M12345678"
+    raw_message = f"Please check {raw_passport} and call {raw_phone}"
+    captured: dict[str, dict] = {}
+
+    def _intent_response(request: httpx.Request) -> httpx.Response:
+        captured["intent"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "should_run": True,
+                "intent": "visa_expiry",
+                "mission": "m2_visa",
+                "required_context": [],
+                "approval_required": False,
+                "execution_allowed": True,
+                "blocked_actions": [],
+                "plan_steps": [],
+                "entities": {},
+            },
+        )
+
+    def _graph_response(request: httpx.Request) -> httpx.Response:
+        captured["graph"] = json.loads(request.content)
+        body = _sse_body(
+            ("step", {"kind": "thinking", "label": "check", "detail": raw_phone}),
+            (
+                "evidence",
+                {
+                    "event_type": "intent_classified",
+                    "summary": raw_passport,
+                    "metadata": {"echo": raw_phone},
+                },
+            ),
+            (
+                "structured",
+                {
+                    "answer": {
+                        "final_response": f"Result for {raw_phone} / {raw_passport}",
+                        "citations": [],
+                        "missing_evidence": False,
+                        "risk_flags": [],
+                    },
+                    "citation_catalog": [],
+                    "approval": {"required": False, "status": "NOT_REQUIRED"},
+                },
+            ),
+            ("done", {}),
+        )
+        return httpx.Response(200, content=body, headers={"content-type": "text/event-stream"})
+
+    respx.post(f"{RAG_BASE}/intent").mock(side_effect=_intent_response)
+    respx.post(f"{RAG_BASE}/graph/run").mock(side_effect=_graph_response)
+
+    response = client.post(
+        "/api/v1/runs/stream",
+        json={"company_id": "cmp1", "message": raw_message},
+        headers=_auth_headers(client, "u_owner"),
+    )
+
+    assert response.status_code == 200
+    assert raw_phone not in response.text
+    assert raw_passport not in response.text
+    assert raw_phone not in captured["intent"]["message"]
+    assert raw_passport not in captured["graph"]["message"]
+    assert captured["graph"]["thread_id"].startswith("run:")
+
+    run_id = _parse_backend_sse(response.text)[0][1]["run_id"]
+    run = seeded.get(Run, run_id)
+    assert run is not None
+    assert raw_phone not in run.goal_text
+    assert raw_passport not in run.goal_text
+    assert raw_phone not in (run.result_summary or "")
+    assert raw_passport not in (run.result_summary or "")
+
+    step = seeded.execute(select(RunStep).where(RunStep.run_id == run_id)).scalar_one()
+    evidence = seeded.execute(select(EvidenceEvent).where(EvidenceEvent.run_id == run_id)).scalar_one()
+    assert raw_phone not in (step.detail or "")
+    assert raw_passport not in evidence.summary
+    assert raw_phone not in (evidence.payload_ref or "")
+
+
 def test_requires_authentication(client: TestClient) -> None:
     response = client.post("/api/v1/runs/stream", json={"company_id": "cmp1", "message": "질의"})
 
@@ -228,3 +319,13 @@ def test_rejects_run_for_company_without_membership(client: TestClient) -> None:
     )
 
     assert response.status_code == 403
+
+
+def test_rejects_client_controlled_thread_id(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/runs/stream",
+        json={"company_id": "cmp1", "message": "question", "thread_id": "cmp2:case-other"},
+        headers=_auth_headers(client, "u_owner"),
+    )
+
+    assert response.status_code == 422

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_MODE } from '@/lib/api/config';
 import { resolveCommandRunKey } from '@/lib/commandBar';
 import { useNav } from '@/lib/nav';
 
@@ -9,13 +10,20 @@ export interface CommandBarProps {
 // 1단계 스펙 §0.3 CommandBar — 제출 시 M9 에이전트 런을 시작한다. R1.6부터 입력→런
 // 매핑(lib/commandBar.resolveCommandRunKey)이 케이스 워커명을 인식해 해당 승인 런으로
 // 연결하고, 매칭이 없으면 기존 기본값(#4797, "이번 달 급한 직원만 정리해줘")으로 폴백한다
-// — 실 자연어 파싱은 R4(LLM 기반 의도 분류) 몫. 추천 칩은 입력만 채우지 않고 즉시 제출한다.
+// — mock 모드 전용 경로다. real 모드(R4.1)는 /run/live(RunLivePage)로 이동해 실제 백엔드
+// SSE 런(POST /api/v1/runs/stream)을 시작한다 — resolveCommandRunKey는 건드리지 않는다.
+// 추천 칩은 입력만 채우지 않고 즉시 제출한다.
 export function CommandBar({ suggestions }: CommandBarProps) {
   const [value, setValue] = useState('');
   const nav = useNav();
 
   const submit = (text: string) => {
     setValue('');
+    if (API_MODE === 'real') {
+      if (!text.trim()) return; // backend message: Field(min_length=1) — 공백만 제출 시 422 방지
+      nav.toLiveRun(text);
+      return;
+    }
     nav.toRun(resolveCommandRunKey(text));
   };
 

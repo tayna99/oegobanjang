@@ -13,6 +13,9 @@ export const ROUTES = {
   caseApprove: (caseId: string) => `/case/${caseId}/approve`,
   caseHistory: (caseId: string) => `/case/${caseId}/history`, // 2d 승인 이력 (M2.6.4 신설)
   run: (runId: string) => `/run/${runId}`,
+  // R4.1 — 실 백엔드 SSE 런(CommandBar real 모드). 정적 세그먼트라 run/:runId보다 항상 먼저
+  // 매칭된다(react-router v6, 순서 무관). location.state로 원문 message를 전달한다.
+  runLive: '/run/live',
   messages: '/messages',
   thread: (threadId: string) => `/thread/${threadId}`,
   evidence: (ref?: string) =>
@@ -42,6 +45,7 @@ export const ROUTE_PATHS = {
   caseApprove: 'case/:caseId/approve',
   caseHistory: 'case/:caseId/history',
   run: 'run/:runId',
+  runLive: 'run/live',
   messages: 'messages',
   thread: 'thread/:threadId',
   evidence: 'evidence',

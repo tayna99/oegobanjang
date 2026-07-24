@@ -39,5 +39,9 @@ class OrchestrationState(TypedDict, total=False):
     # 최종 구조화 응답 (RagAnswer.model_dump() 호환)
     structured_response: dict[str, Any]
 
+    # deterministic retrieval가 만든 citation 정본. backend는 모델 출력을 대신하여
+    # 이 catalog로 source_id/title/grade를 검증·재주입한다.
+    citation_catalog: list[dict[str, Any]]
+
     # 전 노드가 append하는 증빙 이벤트 (EvidenceEvent.model_dump())
     evidence_events: Annotated[list[dict[str, Any]], operator.add]
