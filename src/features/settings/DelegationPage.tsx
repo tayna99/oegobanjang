@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/Button';
 import { BackHeader } from '@/components/BackHeader';
+import { RoleBlockedNotice } from '@/components/RoleBlockedNotice';
 import { cn } from '@/lib/cn';
 import { useCompanyActions } from '@/lib/company';
 import { useNav } from '@/lib/nav';
@@ -24,11 +25,12 @@ export function DelegationPage() {
 
   if (role !== 'owner') {
     return (
-      <div className="p-5">
-        <p className="text-body2 text-muted">위임 관리는 대표 권한으로만 열 수 있습니다.</p>
-        <Button variant="outline" className="mt-4" onClick={() => nav.toSettings()}>
-          설정으로 돌아가기
-        </Button>
+      <div className="flex min-h-dvh flex-col bg-canvas">
+        <BackHeader title="위임 관리" onBack={() => nav.toSettings()} />
+        <RoleBlockedNotice
+          title="위임 관리는 대표 권한으로만 열 수 있습니다."
+          subtitle="위임 설정·해제는 대표만 가능합니다."
+        />
       </div>
     );
   }

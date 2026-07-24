@@ -10,8 +10,9 @@ import { useRoleStore } from '@/stores/roleStore';
 // 근로자 데이터 관리(PC 4b) — reference/design-system/외고반장 PC_4a-4f(신규티어).dc.html
 // §4b(135~239행) 이식. "케이스는 여기서 파생" — 이 앱엔 별도 워커 엔티티가 없어(GOTCHAS,
 // 온보딩/CSV와 동일 결정) 근로자 목록 = workerRef가 있는 CaseCard 전체를 그대로 보여준다.
-// 서류 스캔 자동분류는 OCR 파이프라인이 없어 정적 안내 카드로만 남긴다(순신규 분류, 2026-07-13
-// 델타 감사 §3 — "확인 대기" 상태까지만 그림, 실제 분류 로직은 후속).
+// 서류 스캔 자동분류는 별도 라우트 /cases/scan(DocScanWorkbench)로 옮겨졌다
+// (docs/DESIGN_SYNC_AUDIT_2026-07-17.md §2.2 — 목업이 CsvUploadWorkbench급 자체 워크벤치라
+// 이 340px 레일 안에 넣을 규모가 아니었다).
 export function WorkerDataWorkbench() {
   const role = useRoleStore((s) => s.role);
   const nav = useNav();
@@ -91,13 +92,20 @@ export function WorkerDataWorkbench() {
           </Button>
         </section>
 
-        <section className="flex flex-col gap-2.5 rounded-card border border-dashed border-line p-4">
-          <span className="text-label1 font-semibold text-ink">서류 스캔 업로드</span>
+        <section className="flex flex-col gap-2.5 rounded-card bg-surface p-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-in bg-approvalbg">
+              <IconDoc width={18} height={18} className="text-primary" />
+            </span>
+            <span className="text-label1 font-semibold text-ink">서류 스캔 업로드</span>
+          </div>
           <p className="text-caption1 leading-relaxed text-muted">
             여권·계약서·증명서 파일을 끌어다 놓으면 근로자·서류 유형을 자동 분류해 확인 대기로
             올립니다.
           </p>
-          <p className="text-caption1 text-faint">준비 중 — 이번 릴리스에는 포함되지 않습니다.</p>
+          <Button variant="outline" size="sm" onClick={() => nav.toCasesScan()}>
+            스캔 업로드 시작
+          </Button>
         </section>
 
         <p className="mt-auto rounded-in bg-surface px-2.5 py-2 text-pc-2xs text-muted">

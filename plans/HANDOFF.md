@@ -18,6 +18,60 @@
 
 ---
 
+### [2026-07-19] UI 선행 구현(UI-1/UI-2/UI-3) — 알림 설정·서류 스캔 분류·근로자 응답 링크 — 완료
+
+- 한 일: 사용자가 claude.ai/design에 브리프 3종(근로자 응답 링크·서류 스캔 업로드·알림 설정)을
+  투입해 만든 신규 목업 3개를 이 저장소 관례(고정→감사→ROADMAP 승격→구현)대로 처리했다.
+  1. `reference/design-system/`에 목업 3종 그대로 고정(`truncated:false`) + README 갱신.
+  2. `docs/DESIGN_SYNC_AUDIT_2026-07-17.md` 작성 — 3화면 체크리스트 검수. 서류 스캔 분류는
+     브리프 전제(우측 레일 내부 플로우)와 실제 목업(전체 3열 워크벤치)이 달라 구조를 재검토해
+     별도 라우트로 스코프를 넓혔다.
+  3. `plans/ROADMAP.md`에 UI-1/UI-2/UI-3 3태스크 승격.
+  4. **UI-1 알림 설정**(`/settings/notifications`, 68aa4e2) — 신규 `Toggle` 컴포넌트(pill
+     스위치, rules/design.md §6에 스펙 등재), `companyStore.notificationPrefs` 신설, 브리핑
+     시각은 허브와 이 화면이 `companyStore.briefingTime` 단일 소스를 공유.
+  5. **UI-3 근로자 응답 링크**(`/response/:token`, 무인증, 86e3e31) — `threadStore.receiveInbound`
+     신설(가드레일: 없는 스레드 거부·중복 messageId no-op), `isFinal:false` 계약 위반 없이
+     `interpretation` 없는 `pending_review` 상태만 세팅 — `ThreadPage`/`MessagesWorkbench`의
+     기존 안전 폴백을 그대로 신뢰. vi/ko 토글, 5상태(정상/제출완료/만료/이미응답/무효) 렌더.
+  6. **UI-2 서류 스캔 분류**(`/cases/scan`, PC 전용 신규 라우트, b9afa6a) — `lib/docScan.ts`
+     (파일명 키워드 결정론적 분류) + `DocScanWorkbench`(4단계: 업로드/분류 중/결과 확인/확인
+     대기 반영). `WorkerDataWorkbench`의 "준비 중" 카드를 실제 진입 버튼으로 교체.
+     **ui-matcher가 게이트 우회 버그를 찾아냈다** — 미매칭 행에 서류 유형만 지정하고 근로자는
+     지정하지 않아도 상태가 `low_confidence`로 잘못 승격돼 확인 대기 버튼이 활성화되던 문제
+     (해당 행은 `caseId`가 없어 실제로는 조용히 반영에서 빠지는데 완료 메시지는 전체 건수를
+     그대로 말함) — 근로자가 채워지기 전엔 원래 status를 유지하도록 수정, 회귀 테스트 추가.
+  7. 3화면 각각 구현 직후 ui-matcher+verifier 서브에이전트 병렬 검증(발견 사항은
+     `docs/DESIGN_SYNC_AUDIT_2026-07-17.md` §1.2b/§2.6에 기록) → 마지막에 3화면을 하나의
+     세트로 보는 교차 검증 1회 추가 실행(공유 상태 충돌·가드레일 일관성·문서 정합성).
+  8. `docs/ARCHITECTURE.md` §2(threadStore 설명에 `receiveInbound` 추가) · §3(라우트 표에
+     `/settings/notifications`·`/response/:token`·`/cases/scan` 3행 추가) 갱신.
+- 남은 일 / 중단 지점: 없음 — 계획한 3화면 전부 구현·검증·커밋 완료. **push·PR 생성은 계획
+  원문대로 사용자 확인 후 진행**(아직 요청 안 됨).
+- 결정 사항 (다음 세션이 알아야 할 것):
+  - 알림 설정의 "승인 요청 즉시 알림" 노출은 목업(owner만)이 아니라 브리프 기준(owner+manager)
+    으로 구현 — 목업이 도메인 모델(매니저도 승인자)과 어긋나는 것으로 판정, 감사 문서에
+    "디자인 내부 결함"으로 기록만 하고 임의 보정하지 않았다.
+  - 서류 스캔 분류 확인 대기 게이트는 "미매칭(근로자 미지정) 전건 해결"만 기준 — 저신뢰(확인
+    필요) 행은 수정 없이도 함께 반영된다(CSV 업로드의 "정상만 자동 등록"과 다른 원칙).
+  - 설정 화면군 4개(Members/Delegation/SettingsHub/NotificationSettings)의 viewer 차단 UI
+    아이콘 배지 통일은 이번 작업 중 별도로 실행된 백그라운드 세션(`task_16750de8`)이
+    `f08827b`로 독립 커밋 완료 — 이번 3화면 작업과 파일이 겹쳤으나 git 스테이징을 태스크별로
+    분리해 서로 덮어쓰지 않았다.
+  - 미착수 후속 항목(감사 문서에 이미 등재): `ExpertLinkPage`를 근로자 응답 링크 수준(아이콘
+    배지)으로 개선, "아침 브리핑 시각" 행의 실제 클릭 동작(네이티브 피커 vs 시트) 확정,
+    근로자 응답 링크 프리셋 색상 정밀 매칭(`task_80f515d3`, 낮은 우선순위로 보류).
+  - 무관하게 발견된 기존 결함: `CaseWorkbench.test.tsx`의 order-dependent flaky 테스트(3화면과
+    무관, `task_b8bd4870`로 별도 추적 — 재현할 때마다 다른 줄에서 실패하는 레이스).
+- verify 상태: PASS — `npm run verify`(typecheck→lint→vitest 98 files/612 tests→build)
+  전체 그린. 3화면 각각의 ui-matcher+verifier 검증 + 최종 교차 검증(공유 상태·가드레일·문서
+  정합성) 전부 PASS, 미해결 발견 사항 없음.
+- 지도/규칙 갱신: `docs/ARCHITECTURE.md` §2·§3, `plans/ROADMAP.md`(UI-1/UI-2/UI-3 승격),
+  `docs/DESIGN_SYNC_AUDIT_2026-07-17.md`(신설 + ui-matcher 대조 결과 §1.2b/§2.6 추가),
+  `rules/design.md` §6(Toggle 컴포넌트 스펙), `reference/design-system/README.md`.
+
+---
+
 ### [2026-07-18] R2.5+R2.6 코드리뷰 2라운드 — P1 3건 + P2 1건 수정 — 완료
 
 - 한 일: 아래 R2.5+R2.6 항목이 코드리뷰 2라운드를 거쳤다. 1라운드(P1 4건 — 링크 발급 승인

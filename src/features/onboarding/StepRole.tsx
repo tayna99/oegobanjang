@@ -33,7 +33,7 @@ export function StepRole({ role, onRoleChange, readOnly = false }: StepRoleProps
     return (
       <div className="flex flex-col gap-5">
         <h1 className="text-heading1 font-bold text-ink">확인된 역할</h1>
-        <div className="flex items-start gap-3 rounded-card bg-approvalbg p-4 shadow-rail-focus">
+        <div className="flex items-start gap-3 rounded-card bg-selectbg p-4 shadow-select-ring">
           <span className="flex flex-col gap-0.5">
             <span className="text-body2 font-semibold text-ink">
               {ROLE_LABEL[role]} <span className="text-caption1 font-medium text-subtle">{role}</span>
@@ -65,13 +65,13 @@ export function StepRole({ role, onRoleChange, readOnly = false }: StepRoleProps
               onClick={() => onRoleChange(r)}
               className={cn(
                 'flex items-start gap-3 rounded-card p-4 text-left transition-colors duration-btn ease-v2',
-                selected ? 'bg-approvalbg shadow-rail-focus' : 'shadow-outline hover:bg-surface',
+                selected ? 'bg-selectbg shadow-select-ring' : 'shadow-outline hover:bg-surface',
               )}
             >
               <span
                 className={cn(
                   'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full',
-                  selected ? 'shadow-rail-focus' : 'shadow-outline-strong',
+                  selected ? 'shadow-select-ring' : 'shadow-select-ring-idle',
                 )}
               >
                 {selected && <span className="size-2.5 rounded-full bg-primary" />}

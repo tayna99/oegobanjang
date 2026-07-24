@@ -19,6 +19,8 @@ export default {
         hairline: 'var(--color-line-solid-normal)',
         line: 'var(--color-line-normal)',
         primary: { DEFAULT: 'var(--color-primary-normal)', press: 'var(--color-primary-strong)' },
+        // Toggle 잠금 상태 전용(2026-07-17) — 일반 primary와 구분되는 반투명 트랙.
+        toggleLocked: 'var(--toggle-locked-bg)',
         critical: { DEFAULT: 'var(--chip-critical-fg)', text: 'var(--chip-critical-fg)' },
         warning: { DEFAULT: 'var(--chip-high-fg)', text: 'var(--chip-high-fg)' },
         success: 'var(--chip-positive-fg)',
@@ -31,6 +33,8 @@ export default {
         neutbg: 'var(--chip-neutral-bg)',
         approvalbg: 'var(--chip-approval-bg)',
         medbg: 'var(--chip-medium-bg)',
+        // 선택형 카드(라디오) 선택 배경 틴트 — rail-focus/approvalbg(PC 워크벤치 탭)와는 별개.
+        selectbg: 'var(--color-selection-tint)',
         draft: 'var(--chip-draft-fg)',
         draftbg: 'var(--chip-draft-bg)',
         detected: 'var(--chip-detected-fg)',
@@ -89,6 +93,7 @@ export default {
         sheet: 'var(--sheet-max-h)',
       },
       boxShadow: {
+        xsmall: 'var(--shadow-xsmall)',
         card: 'var(--shadow-medium)',
         lift: 'var(--shadow-large)',
         sheet: 'var(--sh-sheet)',
@@ -99,6 +104,9 @@ export default {
         'rail-active': 'inset 2px 0 0 var(--color-primary-normal)',
         'rail-focus': 'inset 0 0 0 1px var(--color-primary-normal)',
         'step-current': '0 0 0 4px var(--chip-approval-bg)',
+        // 선택형 카드(라디오) 전용 — rail-focus(1px)보다 두꺼운 2px 링(rules/design.md §4).
+        'select-ring': 'inset 0 0 0 2px var(--color-primary-normal)',
+        'select-ring-idle': 'inset 0 0 0 1.5px var(--color-line-strong)',
       },
       transitionDuration: {
         fast: 'var(--fast)',

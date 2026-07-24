@@ -10,6 +10,7 @@ export function useNav() {
     toCases: (filter?: string) => navigate(ROUTES.cases(filter)),
     toCasesImport: () => navigate(ROUTES.casesImport),
     toCasesWorkers: () => navigate(ROUTES.casesWorkers),
+    toCasesScan: () => navigate(ROUTES.casesScan),
     toCasesDispatch: () => navigate(ROUTES.casesDispatch),
     toCase: (caseId: string, options?: NavigateOptions) => navigate(ROUTES.case(caseId), options),
     toDraft: (caseId: string) => navigate(ROUTES.caseDraft(caseId)),
@@ -27,5 +28,6 @@ export function useNav() {
     toSettings: () => navigate(ROUTES.settings),
     toSettingsMembers: () => navigate(ROUTES.settingsMembers),
     toSettingsDelegation: () => navigate(ROUTES.settingsDelegation),
+    toSettingsNotifications: () => navigate(ROUTES.settingsNotifications),
   };
 }

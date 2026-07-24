@@ -9,7 +9,7 @@ function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/r/:token" element={<ResponseLinkPage />} />
+        <Route path="/response/:token" element={<ResponseLinkPage />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -33,7 +33,7 @@ describe('ResponseLinkPage', () => {
   it('유효한 토큰이면 프롬프트와 버튼 선택지를 보여준다', async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(viewBody), { status: 200 })) as unknown as typeof fetch;
 
-    renderAt('/r/tok_valid');
+    renderAt('/response/tok_valid');
 
     expect(await screen.findByText('서류를 보내주세요.')).toBeInTheDocument();
     expect(screen.getByText('Nguyen Van A님')).toBeInTheDocument();
@@ -45,7 +45,7 @@ describe('ResponseLinkPage', () => {
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ detail: '없음' }), { status: 404 })) as unknown as typeof fetch;
 
-    renderAt('/r/no-such-token');
+    renderAt('/response/no-such-token');
 
     expect(await screen.findByText('링크가 만료되었습니다')).toBeInTheDocument();
   });
@@ -57,7 +57,7 @@ describe('ResponseLinkPage', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ received: true }), { status: 201 }));
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    renderAt('/r/tok_valid');
+    renderAt('/response/tok_valid');
     await screen.findByText('서류를 보내주세요.');
 
     fireEvent.click(screen.getByRole('button', { name: '확인했습니다 (서류 준비 완료)' }));
@@ -76,7 +76,7 @@ describe('ResponseLinkPage', () => {
   it('선택도 자유입력도 없으면 보내기 버튼이 비활성화된다', async () => {
     global.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(viewBody), { status: 200 })) as unknown as typeof fetch;
 
-    renderAt('/r/tok_valid');
+    renderAt('/response/tok_valid');
     await screen.findByText('서류를 보내주세요.');
 
     expect(screen.getByRole('button', { name: '보내기' })).toBeDisabled();

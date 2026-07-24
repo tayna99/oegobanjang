@@ -519,7 +519,7 @@ R2.5 추가(프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있
 | body_original | text | | **원문 전문(PII)** — 스레드 상세에서만 노출, 목록 미리보기·evidence 복사 금지(§7) |
 | body_ko | text | | 한국어 번역/원문 |
 | received_at | timestamptz | | inbound 수신 시각. `sent_at`은 존재하지 않음 |
-| response_token | text | UNIQUE | R3 stage ② — 응답 링크(`/r/:token`) 비밀값. outbox가 만든 direction='system' 행에만 채워진다. NULL=응답 링크 없음 |
+| response_token | text | UNIQUE | R3 stage ② — 응답 링크(`/response/:token`, 기존 `/r/:token`도 호환) 비밀값. outbox가 만든 direction='system' 행에만 채워진다. NULL=응답 링크 없음 |
 | response_token_expires_at | timestamptz | CHECK(`response_token NOT NULL ⇒ 이 컬럼도 NOT NULL`) | 응답 링크 만료 시각(발송 시점 + 14일) |
 | response_token_consumed_at | timestamptz | NULL→timestamp 1회 전이(trigger) | 첫 응답 접수 시각. 소비된 토큰의 재제출은 409이며, NULL로 되돌릴 수 없음 |
 | **created_at** | timestamptz | | |

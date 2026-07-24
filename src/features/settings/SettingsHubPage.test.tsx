@@ -16,10 +16,14 @@ describe('SettingsHubPage', () => {
     useCompanyStore.getState().reset();
   });
 
-  it('viewer는 설정에 진입할 수 없다', async () => {
+  it('viewer는 설정에 진입할 수 없다 — 헤더는 유지되고 권한 배지 안내가 뜬다', async () => {
     useRoleStore.getState().setRole('viewer');
     renderAt('/settings');
-    expect(await screen.findByText('열람자 권한으로는 설정에 진입할 수 없습니다.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '설정' })).toBeInTheDocument();
+    expect(screen.getByText('열람자 권한으로는 설정에 진입할 수 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText('설정 변경은 대표·담당자만 가능합니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /브리핑으로/ })).not.toBeInTheDocument();
   });
 
   it('manager는 구성원 관리만 보고 위임 관리·승인 정책 섹션은 없다', async () => {
@@ -38,5 +42,13 @@ describe('SettingsHubPage', () => {
     fireEvent.click(ownerOnlyBtn);
     expect(useCompanyStore.getState().approvalPolicy).toBe('owner_only');
     expect(ownerOnlyBtn).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('알림 행이 알림 설정 화면으로 이동한다', async () => {
+    renderAt('/settings');
+    const notiRow = await screen.findByRole('button', { name: /알림/ });
+    expect(notiRow).toHaveTextContent('브리핑 08:00');
+    fireEvent.click(notiRow);
+    expect(await screen.findByText('아침 브리핑 시각')).toBeInTheDocument();
   });
 });
