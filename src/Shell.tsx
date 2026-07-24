@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import { IconBriefing, IconClock, IconFolder, IconMoon, IconMsg, IconSun } from '@/components/icons';
 import { API_MODE } from '@/lib/api/config';
 import { ROUTES } from '@/lib/routes';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { useThemeStore } from '@/stores/themeStore';
 import { useRoleStore } from '@/stores/roleStore';
 import { ROLE_LABEL } from '@/lib/role';
@@ -136,12 +137,14 @@ export function Shell() {
         </nav>
         <SettingsLink />
         <RoleToggle />
+        <NotificationBell />
         <ThemeToggle />
       </header>
 
       <div className="fixed right-3 top-3 z-20 flex gap-2 lg:hidden">
         <SettingsLink className="bg-canvas shadow-outline" />
         <RoleToggle className="bg-canvas shadow-outline" />
+        <NotificationBell className="bg-canvas shadow-outline" />
         <ThemeToggle className="bg-canvas shadow-outline" />
       </div>
 

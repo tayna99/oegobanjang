@@ -3,6 +3,8 @@ import { Button } from '@/components/Button';
 import { IconLock } from '@/components/icons';
 import { PcOnlyNotice } from '@/components/PcOnlyNotice';
 import { GuardrailError } from '@/lib/guardrail';
+import { API_MODE } from '@/lib/api/config';
+import { executeDispatch } from '@/lib/api/outbox';
 import { useSeedEvidence } from '@/lib/dataSeed';
 import { deriveDispatchQueue, type DispatchQueueItem } from '@/lib/dispatch';
 import { useNav } from '@/lib/nav';
@@ -15,7 +17,13 @@ import { useRoleStore } from '@/stores/roleStore';
 // 발송 실행 큐(PC 4d) — reference/design-system/외고반장 PC_4a-4f(신규티어).dc.html §4d
 // 이식. "승인된 것만 이 화면에 도착 · mock dispatch · 실행도 evidence 기록." R1.4부터 큐는
 // 고정 각본이 아니라 approvalStore+evidenceStore에서 파생된다(lib/dispatch.ts) — 실행
-// 버튼을 누르면 evidence(dispatch_executed)만 기록하고, 실제 발송 어댑터는 없다(mock).
+// 버튼을 누르면 evidence(dispatch_executed)를 기록한다. 화면 자체(큐 목록)는 mock 모드·
+// real 모드 공통으로 이 로컬 파생을 그대로 쓴다(변경 없음, "mock-mode behavior 100%
+// unchanged") — R3 stage ②부터 real 모드에서는 같은 클릭이 추가로 실제 백엔드 outbox
+// 엔드포인트(POST /api/v1/outbox, MESSAGING_CHANNELS.md §1 각주² "실행 확인")를 fire-and-
+// forget으로 호출한다(evidenceStore.append의 기존 real-모드 배선과 동일한 패턴, R2.5).
+// action_id가 실제 승인된 send_message 액션이 아니면(mock 각본 id 등) 서버가 4xx로 거부할
+// 뿐 화면에는 영향이 없다 — 이 화면의 큐/이력 렌더링은 여전히 로컬 파생이 정본이다.
 const ACTION_LABEL: Record<DispatchQueueItem['actionKind'], string> = { dispatch: '발송 실행 (mock)', link_issue: '링크 발급' };
 
 function DispatchQueueWorkbench() {
@@ -53,6 +61,14 @@ function DispatchQueueWorkbench() {
     });
     // 로컬 상태 불필요 — dispatch_executed가 기록되는 즉시 deriveDispatchQueue가 재계산돼
     // waiting 목록에서 자연히 빠진다.
+
+    // real 모드에서만, 그리고 위 로컬 기록과 별개로(fire-and-forget) 실제 outbox 엔드포인트를
+    // 호출한다 — 이 화면의 큐/이력은 여전히 로컬 파생이 정본이라 실패해도 UI를 막지 않는다.
+    if (API_MODE === 'real') {
+      executeDispatch(item.actionId).catch((err: unknown) => {
+        console.error('[DispatchQueuePage] real outbox dispatch 실패(로컬 mock 기록은 유지됨)', err);
+      });
+    }
   };
 
   return (

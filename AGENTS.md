@@ -39,7 +39,7 @@ src/
 = 현재 제품 UI, 라우팅, 화면 상태, 데모 런 엔진
 
 backend/, db/
-= 백엔드 접속점 선행 산출물 — PostgreSQL 정본 스키마(db/schema.sql)와 승인 API(FastAPI, Python 3.14)
+= 백엔드 접속점 산출물 — PostgreSQL 정본 스키마(db/schema.sql), 전역 참조 시드(db/seed_reference.sql, 전 환경 필수) + 데모 시드(db/seed_demo.sql), 승인 API(FastAPI, Python 3.14). 로드 순서·러너는 db/README.md
 
 rag/
 = RAG 인제스천 파이프라인 — 수집→청킹→pgvector 적재→LangChain 1.x 검색 (Python 3.13 독립 uv 프로젝트, ROADMAP M5)
@@ -51,7 +51,7 @@ legacy/
 = 이전 FastAPI 백엔드, 데이터 파이프라인, Agent Runtime, eval, 기존 문서 보관 영역
 ```
 
-루트 `backend/`는 `db/schema.sql`을 그대로 적용하는 FastAPI 서비스로 이미 존재하고 동작한다(OTP 인증·세션, 승인 요청 생성 + approve/reject, 오케스트레이션 런(SSE)·데일리 브리핑·케이스/스레드 읽기 엔드포인트, pytest 스위트가 CI에 편입). 다만 프론트(`src/`)는 아직 이 backend를 한 줄도 호출하지 않는다(fetch 0건) — 배선은 `plans/ROADMAP.md` R2 범위다. `rag/`는 legacy RAG 자산을 복사·정제해 이식한 별도 Python 3.13 uv 프로젝트로, backend가 내부망으로 호출한다. `legacy/backend/`는 이전 백엔드(Agent Runtime 포함)를 보존한 별개 경로이며, 새 프론트 MVP 작업이나 루트 `backend/`·`rag/`의 production import 대상이 아니다.
+루트 `backend/`는 `db/schema.sql`을 그대로 적용하는 FastAPI 서비스로 이미 존재하고 동작한다(OTP 인증·세션, 승인 요청 생성 + approve/reject, 오케스트레이션 런(SSE)·데일리 브리핑·케이스/스레드 읽기 엔드포인트, pytest 스위트가 CI에 편입). 프론트(`src/`)는 **R2에서 이 backend에 배선됐다** — `src/lib/api/*` 어댑터가 `VITE_API_MODE=real`일 때 실호출한다. 다만 **기본값은 mock**이고(561 프론트 테스트·8단계 데모 대본이 mock 세계관 전제), 아직 mock으로 남는 화면·"영구 mock 경계"는 `docs/ARCHITECTURE.md` §5.1 + `plans/SEED_DESIGN_2026-07-20.md`(미구현 전수조사·시드 설계 정본)가 관리한다. `rag/`는 legacy RAG 자산을 복사·정제해 이식한 별도 Python 3.13 uv 프로젝트로, backend가 내부망으로 호출한다. `legacy/backend/`는 이전 백엔드(Agent Runtime 포함)를 보존한 별개 경로이며, 새 프론트 MVP 작업이나 루트 `backend/`·`rag/`의 production import 대상이 아니다.
 
 Agent Runtime 관련 코드는 legacy 영역에 남아 있다.
 

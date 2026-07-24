@@ -32,3 +32,4 @@ class Notification(Base):
     case_id: Mapped[str | None] = mapped_column(Text)
     run_id: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    read_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))  # R5.4

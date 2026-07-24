@@ -119,9 +119,10 @@ export type EvidenceType =
   | 'approval_escalated' // 미응답 에스컬레이션(7단계 §3.2, reason 예: 'timeout_72h')
   | 'package_link_issued' // 행정사 패키지 링크 발급/재발급
   | 'package_link_viewed' // 행정사가 링크로 패키지를 열람
-  | 'dispatch_executed' // 발송 실행 큐(PC 4d) — 승인 완료된 액션의 mock 발송 실행
+  | 'dispatch_executed' // 발송 실행 큐(PC 4d) — 승인 완료된 액션의 발송 실행(real 모드는 outbox, R3 stage ②)
   | 'delivery_confirmed' // 발송 실행 완료 후 전달/응답 확인(4d "실행 완료 · 전달됨" 등)
-  | 'package_reply'; // 행정사 패키지 구조화된 회신(PC 4e 확장) — 계정 없이도 남는 회신 기록
+  | 'package_reply' // 행정사 패키지 구조화된 회신(PC 4e 확장) — 계정 없이도 남는 회신 기록
+  | 'worker_reply_received'; // N02(근로자 응답 수신) — 응답 링크·Zalo webhook 인바운드(R3 stage ②·④, MESSAGING_CHANNELS.md §3)
 
 export interface EvidenceEvent {
   id: string;
@@ -140,7 +141,10 @@ export interface EvidenceEvent {
 
 export type Channel = 'sms' | 'alimtalk' | 'zalo' | 'email';
 export type MessageDirection = 'out' | 'in';
-export type MessageDeliveryStatus = 'draft' | 'pending_approval' | 'sent';
+// 'queued'|'delivered'|'failed' — R3 stage ②(백엔드 접속점, MESSAGING_CHANNELS.md §4 "백엔드
+// 확장 예약")부터 실제로 쓰인다. 'queued'=outbox 생성됨(발송 창 보류 포함), 'delivered'는 채널사
+// 콜백(웹훅) 확인 전까지 구조적으로만 존재(현재 발행 경로 없음), 'failed'=어댑터 발송 실패.
+export type MessageDeliveryStatus = 'draft' | 'pending_approval' | 'queued' | 'sent' | 'delivered' | 'failed';
 export interface Message {
   messageId: string; threadId: string; direction: MessageDirection; channel: Channel;
   body: string; lang: string; at: string; deliveryStatus?: MessageDeliveryStatus;

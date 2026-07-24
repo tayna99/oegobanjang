@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CITATION_LIBRARY, libCitation } from '@/mocks/citations';
 import { CASE_SHEETS } from '@/mocks/fixtures';
-import { citationKpis, linkedCaseCount, usableCitations } from './citationStore';
+import { citationKpis, linkedCaseCount, usableCitations, useCitationStore } from './citationStore';
 import type { CitationRecord } from '@/types';
 
 describe('근거 라이브러리 (2.5.4b, 디자인 §3c)', () => {
@@ -44,5 +44,15 @@ describe('가드레일 — F등급(합성 데이터)은 근거로 사용 불가 
   it('usableCitations가 F등급을 제외한다 — citation-0 잠금 판정에 세지 않는다', () => {
     expect(usableCitations([fake])).toHaveLength(0);
     expect(usableCitations([fake, libCitation('cit_001')])).toHaveLength(1);
+  });
+});
+
+describe('hydrate — SD-3 real 모드 서버 근거 라이브러리 전량 교체', () => {
+  it('mock 레코드와 병합하지 않고 서버 응답으로 완전히 대체한다', () => {
+    const server: CitationRecord = { id: 'cit_server', grade: 'A', title: '서버 근거', source: '서버', updatedAt: '2026-07-20', status: 'official' };
+    useCitationStore.getState().hydrate([server]);
+    expect(useCitationStore.getState().records).toEqual([server]);
+    useCitationStore.getState().reset();
+    expect(useCitationStore.getState().records).toEqual(CITATION_LIBRARY);
   });
 });

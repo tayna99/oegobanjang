@@ -60,6 +60,7 @@ describe('CaseReviewPage — real 모드(R2.4)', () => {
             state: 'approval_pending', agent_stage: null, due_date: null, approval_required: true,
             prepared_by: 'rule', prepared_run_id: null, worker: null, primary_action: null, secondary_action: null,
             usable_citation_count: 3, guard_note: '체류기간 만료 경과 — 확인 필요', pending_approval: null,
+            checked_items: [], next_wake: null, documents: [],
           }),
         );
       }
@@ -80,5 +81,41 @@ describe('CaseReviewPage — real 모드(R2.4)', () => {
     const continueButton = await screen.findByRole('button', { name: '검토 계속' });
     continueButton.click();
     expect(await screen.findByText('최종 승인 화면')).toBeInTheDocument();
+  });
+
+  // SD-6 — worker_documents가 "누락 서류" 섹션의 real 모드 출처가 된다(mock CASE_SHEETS.docs와
+  // 동일 렌더 로직 재사용, status!=='received'만 필터).
+  it('서버 documents 중 미확보 서류만 "누락 서류" 섹션에 렌더한다', async () => {
+    global.fetch = vi.fn((input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/cases/cs_real_only')) {
+        return Promise.resolve(
+          jsonResponse({
+            id: 'cs_real_only', case_code: 'case_099', title: '서버 전용 케이스', severity: 'HIGH',
+            state: 'approval_pending', agent_stage: null, due_date: null, approval_required: true,
+            prepared_by: 'rule', prepared_run_id: null, worker: null, primary_action: null, secondary_action: null,
+            usable_citation_count: 1, guard_note: null, pending_approval: null,
+            checked_items: [],
+            next_wake: null,
+            documents: [
+              { doc_type: '여권 사본', status: 'missing', due_date: null, expires_at: null },
+              { doc_type: '재직증명서', status: 'received', due_date: null, expires_at: null },
+            ],
+          }),
+        );
+      }
+      if (url.endsWith('/api/v1/evidence') && (init?.method ?? 'GET') === 'GET') {
+        return Promise.resolve(jsonResponse([]));
+      }
+      return Promise.resolve(jsonResponse({}, 201));
+    }) as unknown as typeof fetch;
+
+    renderAt();
+
+    expect(await screen.findByText('누락 서류 (1)')).toBeInTheDocument();
+    expect(screen.getByText('여권 사본')).toBeInTheDocument();
+    expect(screen.getByText('누락')).toBeInTheDocument();
+    // 확보된 서류(재직증명서)는 목록에서 빠진다.
+    expect(screen.queryByText('재직증명서')).not.toBeInTheDocument();
   });
 });

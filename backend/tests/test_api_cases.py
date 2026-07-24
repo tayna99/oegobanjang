@@ -191,6 +191,57 @@ def test_get_case_detail_pending_approval_is_null_when_none(client, seeded):
     assert resp.json()["usable_citation_count"] == 0
 
 
+# SD-6 — checked_items·next_wake(next_wake_condition 개명)·documents(worker_documents) 확장.
+
+
+def test_get_case_detail_includes_checked_items_next_wake_and_documents(client, seeded):
+    seeded.execute(
+        text(
+            "INSERT INTO cases (id, company_id, case_code, worker_id, case_type, title, severity, "
+            "state, due_date, prepared_by, checked_items, next_wake_condition) VALUES "
+            "('cs3','cmp1','case_003','w1','visa_expiry','서류 준비 케이스','MEDIUM','draft',NULL,'rule',"
+            "CAST(:checked_items AS jsonb), '다음: 서류 확보 시 재계약 검토 자료 준비를 제안합니다')"
+        ),
+        {"checked_items": '[{"label":"체류만료일","value":"2026.08.09 · D-30"},{"label":"컨택 채널","value":"Zalo · 베트남어"}]'},
+    )
+    seeded.execute(text("""
+        INSERT INTO worker_documents (id, company_id, worker_id, doc_type, status, due_date, expires_at) VALUES
+          ('doc1','cmp1','w1','여권 사본','received', NULL, '2030-01-01'),
+          ('doc2','cmp1','w1','표준근로계약서 사본','missing', NULL, NULL);
+    """))
+    seeded.flush()
+
+    resp = client.get("/api/v1/cases/cs3", headers=_auth_header(seeded))
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["checked_items"] == [
+        {"label": "체류만료일", "value": "2026.08.09 · D-30"},
+        {"label": "컨택 채널", "value": "Zalo · 베트남어"},
+    ]
+    assert data["next_wake"] == "다음: 서류 확보 시 재계약 검토 자료 준비를 제안합니다"
+    assert data["documents"] == [
+        {"doc_type": "여권 사본", "status": "received", "due_date": None, "expires_at": "2030-01-01"},
+        {"doc_type": "표준근로계약서 사본", "status": "missing", "due_date": None, "expires_at": None},
+    ]
+
+
+def test_get_case_detail_defaults_checked_items_next_wake_and_documents_when_absent(client, seeded):
+    # worker_id가 없는 케이스(커맨드 런 기원 등)는 documents가 빈 배열이어야 한다(SD-6 명시 결정).
+    # checked_items/next_wake_condition 컬럼이 NULL이면 각각 빈 배열/None으로 내려간다.
+    seeded.execute(text("""
+        INSERT INTO cases (id, company_id, case_code, case_type, title, severity, state, prepared_by)
+        VALUES ('cs4','cmp1','case_004','other','근로자 미배정 케이스','LOW','draft','rule');
+    """))
+    seeded.flush()
+
+    resp = client.get("/api/v1/cases/cs4", headers=_auth_header(seeded))
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert data["checked_items"] == []
+    assert data["next_wake"] is None
+    assert data["documents"] == []
+
+
 def test_get_case_detail_for_other_company_case_is_not_found(client, seeded):
     seeded.execute(text("""
         INSERT INTO cases (id, company_id, case_code, case_type, title, severity, state, prepared_by)

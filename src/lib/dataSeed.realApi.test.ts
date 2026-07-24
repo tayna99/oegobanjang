@@ -5,9 +5,21 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // 경유하는 모든 import가 동일하게 관측한다 — StepPhoneAuth.realApi.test.tsx와 동일한 관례).
 vi.mock('./api/config', () => ({ API_BASE_URL: 'http://localhost:8000', API_MODE: 'real' }));
 
-import { useSeedCases, useSeedEvidence, useSeedThreadDetail, useSeedThreads } from './dataSeed';
+import {
+  useSeedBriefing,
+  useSeedCases,
+  useSeedCitations,
+  useSeedEvidence,
+  useSeedNotifications,
+  useSeedThreadDetail,
+  useSeedThreads,
+} from './dataSeed';
+import { useBriefingStore } from '@/stores/briefingStore';
 import { useCaseStore } from '@/stores/caseStore';
+import { useCitationStore } from '@/stores/citationStore';
 import { useEvidenceStore } from '@/stores/evidenceStore';
+import { useNotificationStore } from '@/stores/notificationStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useThreadStore } from '@/stores/threadStore';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -177,5 +189,103 @@ describe('useSeedEvidence — 실 API 모드(R2.5)', () => {
     renderHook(() => useSeedEvidence());
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+const CITATION_DTO = {
+  id: 'cit_server',
+  grade: 'A',
+  title: '서버 근거',
+  source: '서버',
+  status: 'official',
+  updated_at: '2026-07-20T00:00:00Z',
+};
+
+describe('useSeedCitations — 실 API 모드(SD-3)', () => {
+  afterEach(() => {
+    useCitationStore.getState().reset();
+    useSessionStore.getState().reset();
+    vi.restoreAllMocks();
+  });
+
+  it('companyId가 있으면 GET /api/v1/citations?company_id=…로 전량 교체한다', async () => {
+    useSessionStore.setState({ companyId: 'cmp_greenfood' });
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([CITATION_DTO])) as unknown as typeof fetch;
+
+    renderHook(() => useSeedCitations());
+
+    await waitFor(() => expect(useCitationStore.getState().records).toHaveLength(1));
+    expect(useCitationStore.getState().records[0].id).toBe('cit_server');
+  });
+
+  it('companyId가 없으면(세션 복원 전) fetch하지 않는다', () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([CITATION_DTO]));
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    renderHook(() => useSeedCitations());
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+const BRIEFING_DTO = {
+  id: 'brf_1',
+  briefing_date: '2026-07-20',
+  generated_at: '2026-07-20T08:00:00Z',
+  cases: [],
+};
+
+describe('useSeedBriefing — 실 API 모드(SD-3)', () => {
+  afterEach(() => {
+    useBriefingStore.getState().reset();
+    vi.restoreAllMocks();
+  });
+
+  it('GET /api/v1/briefings/latest 응답으로 전용 스토어 슬롯을 채운다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse(BRIEFING_DTO)) as unknown as typeof fetch;
+
+    renderHook(() => useSeedBriefing());
+
+    await waitFor(() => expect(useBriefingStore.getState().briefing?.briefingId).toBe('brf_1'));
+  });
+
+  it('404(브리핑 없음)는 null로 hydrate한다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse({ detail: '없음' }, 404)) as unknown as typeof fetch;
+
+    renderHook(() => useSeedBriefing());
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalled());
+    expect(useBriefingStore.getState().briefing).toBeNull();
+  });
+});
+
+const NOTIFICATION_DTO = {
+  id: 'nt_1',
+  type: 'N01',
+  priority: 'P1',
+  title: '승인 요청 1건',
+  body: '체류 만료 임박',
+  deeplink_path: 'case/cs1/approve',
+  channel: 'push',
+  status: 'queued',
+  case_id: 'cs1',
+  run_id: null,
+  created_at: '2026-07-20T09:00:00Z',
+  read_at: null,
+};
+
+describe('useSeedNotifications — 실 API 모드(R5.4)', () => {
+  afterEach(() => {
+    useNotificationStore.getState().reset();
+    vi.restoreAllMocks();
+  });
+
+  it('부팅 시 GET /api/v1/notifications로 hydrate한다', async () => {
+    global.fetch = vi.fn().mockResolvedValue(jsonResponse([NOTIFICATION_DTO])) as unknown as typeof fetch;
+
+    renderHook(() => useSeedNotifications());
+
+    await waitFor(() => expect(useNotificationStore.getState().records).toHaveLength(1));
+    expect(useNotificationStore.getState().records[0].id).toBe('nt_1');
   });
 });

@@ -1,6 +1,9 @@
 import { useState } from 'react';
+import { API_MODE } from '@/lib/api/config';
 import { resolveCommandRunKey } from '@/lib/commandBar';
 import { useNav } from '@/lib/nav';
+import { useLiveRunStore } from '@/stores/liveRunStore';
+import { useSessionStore } from '@/stores/sessionStore';
 
 export interface CommandBarProps {
   suggestions?: string[];
@@ -10,12 +13,26 @@ export interface CommandBarProps {
 // 매핑(lib/commandBar.resolveCommandRunKey)이 케이스 워커명을 인식해 해당 승인 런으로
 // 연결하고, 매칭이 없으면 기존 기본값(#4797, "이번 달 급한 직원만 정리해줘")으로 폴백한다
 // — 실 자연어 파싱은 R4(LLM 기반 의도 분류) 몫. 추천 칩은 입력만 채우지 않고 즉시 제출한다.
+//
+// SD-4 — real 모드는 mock 매핑 대신 POST /runs/stream을 실제로 연다(liveRunStore가 소유).
+// run_id는 서버가 첫 프레임으로 알려줄 때까지 모르므로, 그 프레임이 도착한 뒤에만
+// nav.toRun(runId)한다 — RunPage가 같은 스트림을 다시 열지 않고 이어받는다(중복 실행 방지,
+// stores/liveRunStore.ts 설계 주석 참조).
 export function CommandBar({ suggestions }: CommandBarProps) {
   const [value, setValue] = useState('');
   const nav = useNav();
+  const startCommandRun = useLiveRunStore((s) => s.startCommandRun);
+  const companyId = useSessionStore((s) => s.companyId);
 
   const submit = (text: string) => {
     setValue('');
+    if (API_MODE === 'real') {
+      if (!text.trim() || !companyId) return; // 세션 복원 전(companyId 없음)이면 조용히 무시.
+      startCommandRun({ companyId, message: text })
+        .then((runId) => nav.toRun(runId))
+        .catch((err: unknown) => console.error('[CommandBar] 런 시작 실패', err));
+      return;
+    }
     nav.toRun(resolveCommandRunKey(text));
   };
 

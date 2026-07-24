@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AUDIT_TYPE_LABEL,
   AUDIT_TYPE_TONE,
+  caseActivityFromEvents,
   caseTimelineActivity,
   filterAudit,
   mergedAuditLog,
@@ -19,7 +20,7 @@ const ALL_TYPES: EvidenceType[] = [
   'role_granted', 'role_changed', 'member_invited', 'member_removed',
   'delegation_granted', 'delegation_revoked', 'approval_escalated',
   'package_link_issued', 'package_link_viewed',
-  'dispatch_executed', 'delivery_confirmed', 'package_reply',
+  'dispatch_executed', 'delivery_confirmed', 'package_reply', 'worker_reply_received',
 ];
 
 describe('audit type maps — 전 EvidenceType 커버(런타임 undefined 방지)', () => {
@@ -100,6 +101,50 @@ describe('caseTimelineActivity — D-3 실시간 반영 + 모순 표시 제거(�
     ];
     const result = caseTimelineActivity('tranCase', staticActivity, events);
     expect(result).toEqual(staticActivity);
+  });
+});
+
+describe('caseActivityFromEvents — SD-6 real 모드(mock 시트 없음) 케이스 타임라인', () => {
+  it('caseId로 스코프하고 최신순으로 정렬한다', () => {
+    const events: EvidenceEvent[] = [
+      { id: 'e1', type: 'risk_flagged', at: '2026-07-09T08:00:00.000Z', caseId: 'cs1', summary: '위험 탐지' },
+      { id: 'e2', type: 'approval_decided', at: '2026-07-09T16:02:00.000Z', caseId: 'cs1', summary: '승인 완료' },
+      { id: 'e3', type: 'risk_flagged', at: '2026-07-09T09:00:00.000Z', caseId: 'other', summary: '다른 케이스' },
+    ];
+    const result = caseActivityFromEvents('cs1', events);
+    expect(result).toHaveLength(2);
+    expect(result[0].label).toBe('승인 완료'); // 최신(16:02)이 먼저
+    expect(result[1].label).toBe('위험 탐지');
+    expect(result.every((entry) => entry.detail !== undefined)).toBe(true);
+  });
+
+  it('시각은 ISO에서 시:분만 짧게 표기한다', () => {
+    const events: EvidenceEvent[] = [
+      { id: 'e1', type: 'risk_flagged', at: '2026-07-09T08:05:00.000Z', caseId: 'cs1', summary: '위험 탐지' },
+    ];
+    expect(caseActivityFromEvents('cs1', events)[0].at).toBe('08:05');
+  });
+
+  it('outcome 매핑: 승인 완료는 approved, 승인 요청은 pending, 반려는 replanned', () => {
+    const outcomeFor = (type: EvidenceType) =>
+      caseActivityFromEvents('cs1', [{ id: 'e1', type, at: '2026-07-09T08:00:00.000Z', caseId: 'cs1' }])[0].outcome;
+    expect(outcomeFor('approval_decided')).toBe('approved');
+    expect(outcomeFor('approval_requested')).toBe('pending');
+    expect(outcomeFor('approval_rejected')).toBe('replanned');
+  });
+
+  it('interpretation_confirmed/package_reply는 caseTimelineActivity의 CASE_TIMELINE_OUTCOME과 동일 값을 쓴다', () => {
+    const events: EvidenceEvent[] = [
+      { id: 'e1', type: 'interpretation_confirmed', at: '2026-07-09T08:00:00.000Z', caseId: 'cs1' },
+      { id: 'e2', type: 'package_reply', at: '2026-07-09T08:01:00.000Z', caseId: 'cs1' },
+    ];
+    const result = caseActivityFromEvents('cs1', events);
+    expect(result.find((e) => e.label === '해석 확인')?.outcome).toBe('approved');
+    expect(result.find((e) => e.label === '행정사 회신')?.outcome).toBe('question');
+  });
+
+  it('caseId가 일치하는 이벤트가 없으면 빈 배열', () => {
+    expect(caseActivityFromEvents('cs_none', [])).toEqual([]);
   });
 });
 

@@ -4,8 +4,10 @@ Run:  DATABASE_URL="postgresql://oegobanjang:oegobanjang@localhost:55432/oegoban
         uv run --no-project --with "psycopg[binary]" python db/validate.py --reset
 Env:  DATABASE_URL (default: local Docker PG on :55432)
 
-db/schema.sql(정본) + db/seed_demo.sql을 대상 스키마에 로드한 뒤, 테넌트 격리·승인
-상태머신·외부 실행 차단 등 181개 회귀를 검증한다. 이 파일은 db/validate.cjs(SQLite)의
+db/schema.sql(정본) + db/seed_reference.sql(전역 참조) + db/seed_demo.sql을 대상 스키마에
+로드한 뒤, 테넌트 격리·승인 상태머신·외부 실행 차단·참조 시드 불변식·발송 대기열(outbox)
+승인 게이트·응답 링크·행정사 화이트라벨(위탁·열람 로그) 등의 회귀를 검증한다. 이 파일은
+db/validate.cjs(SQLite)의
 PG 이식본이다 — 검증 이름·시맨틱은 1:1로 보존하고, SQLite 전용(PRAGMA·sqlite_master·
 boolean 0/1)만 PG로 옮겼다.
 
@@ -97,6 +99,9 @@ ok("schema.sql executes", True)
 # PostgreSQL은 FK를 항상 강제한다(SQLite의 연결 스위치가 없다).
 ok("foreign key enforcement is active (PostgreSQL always enforces)", True)
 
+run((DIR / "seed_reference.sql").read_text(encoding="utf-8"))
+ok("seed_reference.sql executes", True)
+
 run((DIR / "seed_demo.sql").read_text(encoding="utf-8"))
 ok("seed_demo.sql executes", True)
 
@@ -108,7 +113,13 @@ n_tables = scalar(
     "SELECT count(*) AS n FROM information_schema.tables "
     "WHERE table_schema='public' AND table_type='BASE TABLE'"
 )["n"]
-ok("33 tables (login_otps, sessions added)", n_tables == 33, f"actual={n_tables}")
+ok(
+    "41 tables (R3 stage ② outbox + R5.1 expert whitelabel: expert_accounts/"
+    "expert_office_members/expert_grants/expert_login_otps/expert_sessions/"
+    "package_view_log/pii_field_policies added)",
+    n_tables == 41,
+    f"actual={n_tables}",
+)
 n_views = scalar("SELECT count(*) AS n FROM information_schema.views WHERE table_schema='public'")["n"]
 ok("4 views", n_views == 4, f"actual={n_views}")
 ok(
@@ -132,10 +143,28 @@ for table in [
 print(f"  seed counts: {counts}")
 ok("seed has 6 cases", counts["cases"] == 6)
 ok("seed has 6 workers", counts["workers"] == 6)
-ok("seed has 9 citations", counts["citations"] == 9)
-ok("seed has 10 evidence events", counts["evidence_events"] == 10)
+# citations = reference(전역 A/B 20) + demo(회사 스코프 E 2) = 22
+ok("seed has 22 citations", counts["citations"] == 22, f"actual={counts['citations']}")
+ok("seed has 12 evidence events", counts["evidence_events"] == 12, f"actual={counts['evidence_events']}")
 ok("seed PDF export marks its package exported",
    scalar("SELECT status FROM handoff_packages WHERE id='hp_batbayar'")["status"] == "exported")
+
+# --- 참조 시드(seed_reference.sql) 불변식 -----------------------------------
+# 전역 근거는 A/B등급만(E는 내부 자산이라 회사 스코프, D/F는 근거로 금지).
+ok("reference seed: global citations are all A/B grade",
+   scalar("SELECT count(*) AS n FROM citations WHERE company_id IS NULL AND grade NOT IN ('A','B')")["n"] == 0)
+ok("reference seed: no F-grade citations exist anywhere",
+   scalar("SELECT count(*) AS n FROM citations WHERE grade='F'")["n"] == 0)
+ok("reference/demo split: internal E-grade citations stay company-scoped",
+   scalar("SELECT count(*) AS n FROM citations WHERE grade='E' AND company_id IS NULL")["n"] == 0)
+# document_requirements: citation_id는 전역 근거만, case_type은 cases enum 부분집합.
+ok("reference seed: document requirement citations are all global",
+   scalar("SELECT count(*) AS n FROM document_requirements dr "
+          "JOIN citations c ON c.id = dr.citation_id WHERE c.company_id IS NOT NULL")["n"] == 0)
+ok("reference seed: document requirement case_type is within the case enum",
+   scalar("SELECT count(*) AS n FROM document_requirements WHERE case_type NOT IN "
+          "('visa_expiry','missing_document','contract_visa_conflict','reporting_deadline',"
+          "'quota_review','hiring','onboarding','other')")["n"] == 0)
 
 # Immutable evidence remains enforced.
 expect_throw("evidence UPDATE is blocked", "UPDATE evidence_events SET summary='x' WHERE id='ev_4783'", "append-only")
@@ -635,6 +664,75 @@ run("UPDATE cases SET state='completed' WHERE id='cs_other'")
 ok("case completes after its approved completion action",
   scalar("SELECT state FROM cases WHERE id='cs_other'")["state"] == "completed")
 
+# --- 발송 대기열(outbox, R3 stage ②) — MESSAGING_CHANNELS.md §2 ------------------------------
+# 구조적 승인 게이트: outbox는 반드시 status='approved'인 approval을 가리킬 때만 존재할 수 있다
+# ("human_approved-adjacent authorization trail" 없이는 삽입 자체가 불가능).
+run("""
+  INSERT INTO next_actions (id, company_id, case_id, kind, action_type, label, state, requires_approval) VALUES
+    ('act_other_outbox_pending', 'cmp_other', 'cs_other', 'approve', 'send_message', 'Outbox pending gate', 'ready', true);
+  INSERT INTO approvals (id, company_id, case_id, action_id, status, requested_by_actor, requested_at) VALUES
+    ('apv_other_outbox_pending', 'cmp_other', 'cs_other', 'act_other_outbox_pending', 'pending', 'user', '2026-07-10T00:00:00Z');
+""")
+expect_throw("outbox insert requires an approved approval",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_needs_approval','cmp_other','cs_other','act_other_outbox_pending','apv_other_outbox_pending','th_other','zalo','cs_other:dispatch:act_other_outbox_pending','x','usr_other_manager')",
+  "requires an approved approval")
+
+# apv_other_message(위에서 approved로 결정됨)+act_other_message(send_message)를 재사용해 정상
+# outbox 행을 만든다.
+run("""
+  INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) VALUES
+    ('ob_other', 'cmp_other', 'cs_other', 'act_other_message', 'apv_other_message', 'th_other', 'zalo', 'cs_other:dispatch:act_other_message', 'Xin chao', 'usr_other_manager');
+""")
+ok("outbox insert succeeds with an approved approval", True)
+
+# 이벤트 idempotency(§2 "같은 case+event_type+임계값은 1회만") — dedupe_key UNIQUE가 구조적으로 강제.
+expect_throw("outbox dedupe_key is unique per company (event idempotency)",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_dup','cmp_other','cs_other','act_other_message','apv_other_message','th_other','zalo','cs_other:dispatch:act_other_message','y','usr_other_manager')")
+
+expect_throw("outbox core fields are immutable after creation",
+  "UPDATE outbox SET body='changed' WHERE id='ob_other'", "immutable")
+
+run("UPDATE outbox SET status='sent', external_id='stub:zalo:test', sent_at=now() WHERE id='ob_other'")
+ok("outbox status/external_id/sent_at remain mutable for delivery updates",
+  scalar("SELECT status FROM outbox WHERE id='ob_other'")["status"] == "sent")
+run("UPDATE outbox SET status='dispatching', dispatch_started_at=now() WHERE id='ob_other'")
+ok("outbox supports a durable pre-provider dispatching claim",
+  scalar("SELECT status FROM outbox WHERE id='ob_other'")["status"] == "dispatching")
+
+expect_throw("outbox rejects an unsupported channel",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_bad_channel','cmp_other','cs_other','act_other_message','apv_other_message','th_other','email','cs_other:dispatch:bad_channel','x','usr_other_manager')")
+
+expect_throw("outbox rejects a foreign case",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_cross_case','cmp_other','cs_nguyen','act_other_message','apv_other_message','th_other','zalo','cs_nguyen:dispatch:cross','x','usr_other_manager')")
+
+expect_throw("outbox rejects a requester without membership in the company",
+  "INSERT INTO outbox (id, company_id, case_id, action_id, approval_id, thread_id, channel, dedupe_key, body, requested_by_user_id) "
+  "VALUES ('ob_cross_requester','cmp_other','cs_other','act_other_message','apv_other_message','th_other','zalo','cs_other:dispatch:cross_requester','x','usr_kim')")
+
+expect_throw("outbox deletion is not allowed", "DELETE FROM outbox WHERE id='ob_other'", "outbox deletion")
+
+# 응답 링크(§3) — thread_messages.response_token은 만료 시각과 함께여야 하고, 회전 토큰은 전역 유일.
+expect_throw("thread_messages response_token requires an expiry",
+  "INSERT INTO thread_messages (id, thread_id, company_id, direction, response_token) "
+  "VALUES ('tm_bad_token','th_other','cmp_other','system','tok_bad')")
+run("""
+  INSERT INTO thread_messages (id, thread_id, company_id, direction, response_token, response_token_expires_at) VALUES
+    ('tm_with_token', 'th_other', 'cmp_other', 'system', 'tok_ok', now() + interval '14 days');
+""")
+ok("thread_messages accepts a response_token paired with an expiry", True)
+run("UPDATE thread_messages SET response_token_consumed_at=now() WHERE id='tm_with_token'")
+ok("response token consumption is recorded once",
+  scalar("SELECT response_token_consumed_at IS NOT NULL AS ok FROM thread_messages WHERE id='tm_with_token'")["ok"])
+expect_throw("response token consumption cannot be reset",
+  "UPDATE thread_messages SET response_token_consumed_at=NULL WHERE id='tm_with_token'", "immutable")
+expect_throw("thread_messages response_token is unique",
+  "INSERT INTO thread_messages (id, thread_id, company_id, direction, response_token, response_token_expires_at) "
+  "VALUES ('tm_dup_token','th_other','cmp_other','system','tok_ok', now() + interval '7 days')")
+
 # Deleting a worker retains the case's tenant and clears only its worker reference.
 run("DELETE FROM workers WHERE id='wrk_rahmat'")
 deleted_worker_case = scalar("SELECT company_id, worker_id FROM cases WHERE id='cs_rahmat'")
@@ -647,6 +745,73 @@ ok("worker delete retains its case tenant after thread cascades",
 ok("worker delete cascades its thread message interpretation graph",
   scalar("SELECT count(*) AS n FROM interpretations WHERE id='int_tran'")["n"] == 0
   and scalar("SELECT count(*) AS n FROM status_update_proposals WHERE id='sup_tran_contract'")["n"] == 0)
+
+# ---------------------------------------------------------------------------
+# 행정사 화이트라벨 v1 (R5.1, 2026-07-20) — ExpertGrant/ExpertOfficeMember/PackageViewLog/
+# PiiFieldPolicy. spec: reference/specs/7-1_행정사_화이트라벨_v1.md §2/§6/§9.
+# ---------------------------------------------------------------------------
+
+run("""
+  INSERT INTO expert_accounts (id, office_name, brand_initial, brand_color, business_registration_no) VALUES
+    ('exa_kimlee', '김앤리 행정사무소', 'K', '#2f6fed', '111-22-33333');
+  INSERT INTO expert_office_members (id, expert_account_id, name, email, is_office_admin) VALUES
+    ('eom_lee', 'exa_kimlee', '이아무개', 'lee@kimlee.example', true);
+""")
+ok("expert_accounts/expert_office_members insert succeeds", True)
+
+expect_throw(
+    "expert grant rejects an unbounded (missing until_date) grant — 결정 C 무기한 금지",
+    "INSERT INTO expert_grants (id, expert_account_id, tenant_id, granted_by, from_date, until_date) "
+    "VALUES ('exg_bad_null', 'exa_kimlee', 'cmp_greenfood', 'usr_owner', '2026-07-20', NULL)",
+)
+expect_throw(
+    "expert grant rejects until_date not after from_date",
+    "INSERT INTO expert_grants (id, expert_account_id, tenant_id, granted_by, from_date, until_date) "
+    "VALUES ('exg_bad_range', 'exa_kimlee', 'cmp_greenfood', 'usr_owner', '2026-07-20', '2026-07-20')",
+)
+
+run(
+    "INSERT INTO expert_grants (id, expert_account_id, tenant_id, granted_by, from_date, until_date) "
+    "VALUES ('exg_greenfood', 'exa_kimlee', 'cmp_greenfood', 'usr_owner', '2026-07-20', '2027-07-20')"
+)
+ok("expert grant insert succeeds with a valid bounded range", True)
+
+expect_throw(
+    "expert grant rejects a granter with no membership in the tenant (cross-tenant forgery)",
+    "INSERT INTO expert_grants (id, expert_account_id, tenant_id, granted_by, from_date, until_date) "
+    "VALUES ('exg_cross_granter', 'exa_kimlee', 'cmp_greenfood', 'usr_other', '2026-07-20', '2027-07-20')",
+    "active owner or manager",
+)
+
+# 열람 감사 로그 — append-only + tenant/package 복합 FK로 위조(다른 회사 패키지에 로그를
+# 붙이는 시도)를 원천 차단한다(spec §6.2, tenant scoping의 최고위험 지점).
+run(
+    "INSERT INTO package_view_log (id, package_id, tenant_id, expert_office_member_id) "
+    "VALUES ('pvl_1', 'hp_batbayar', 'cmp_greenfood', 'eom_lee')"
+)
+ok("package_view_log insert succeeds", True)
+expect_throw("package_view_log UPDATE is blocked", "UPDATE package_view_log SET ip='1.2.3.4' WHERE id='pvl_1'", "append-only")
+expect_throw("package_view_log DELETE is blocked", "DELETE FROM package_view_log WHERE id='pvl_1'", "append-only")
+expect_throw(
+    "package_view_log rejects a package that belongs to a different tenant (cross-tenant log forgery)",
+    "INSERT INTO package_view_log (id, package_id, tenant_id, expert_office_member_id) "
+    "VALUES ('pvl_cross', 'hp_other', 'cmp_greenfood', 'eom_lee')",
+)
+
+run("""
+  INSERT INTO pii_field_policies (field, role, exposure) VALUES
+    ('HandoffPackage.workerName', 'expert', 'plain'),
+    ('HandoffPackage.alienRegistrationNumber', 'expert', 'masked');
+""")
+ok("pii_field_policies insert succeeds", True)
+expect_throw(
+    "pii_field_policies rejects a duplicate (field, role) pair",
+    "INSERT INTO pii_field_policies (field, role, exposure) VALUES ('HandoffPackage.workerName', 'expert', 'masked')",
+)
+expect_throw(
+    "pii_field_policies rejects an exposure value outside plain/masked/hidden",
+    "INSERT INTO pii_field_policies (field, role, exposure) VALUES ('HandoffPackage.phone', 'expert', 'anonymous')",
+)
 
 ok("final foreign_key_check has no violations", True)
 

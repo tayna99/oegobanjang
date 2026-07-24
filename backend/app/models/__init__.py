@@ -1,4 +1,5 @@
-"""ORM 쿼리 전용 모델 — db/schema.sql의 33개 테이블 전부를 매핑한다.
+"""ORM 쿼리 전용 모델 — db/schema.sql의 41개 테이블 전부를 매핑한다
+(R3 stage ②부터 outbox·R5.1부터 expert 화이트라벨 7종 포함).
 
 실제 스키마(테이블·FK·CHECK·트리거·뷰)는 db/schema.sql을 그대로 실행하는 마이그레이션이 만든다.
 이 패키지의 모델은 테이블명 + 컬럼만 매핑해 서비스 계층이 조회·삽입할 수 있게 한다.
@@ -18,10 +19,20 @@ from app.models.delegation import Delegation
 from app.models.document import DocumentRequirement, WorkerDocument, WorkerIntakeFile
 from app.models.draft import Draft, DraftVariant
 from app.models.evidence import EvidenceEvent
+from app.models.expert import (
+    ExpertAccount,
+    ExpertGrant,
+    ExpertLoginOtp,
+    ExpertOfficeMember,
+    ExpertSession,
+    PackageViewLog,
+    PiiFieldPolicy,
+)
 from app.models.handoff import HandoffPackage, PackageExport
 from app.models.interpretation import Interpretation, StatusUpdateProposal
 from app.models.membership import Membership
 from app.models.notification import Notification
+from app.models.outbox import Outbox
 from app.models.run import Run, RunStep
 from app.models.stat_snapshot import StatSnapshot
 from app.models.thread import Thread, ThreadMessage
@@ -47,6 +58,13 @@ __all__ = [
     "Draft",
     "DraftVariant",
     "EvidenceEvent",
+    "ExpertAccount",
+    "ExpertGrant",
+    "ExpertLoginOtp",
+    "ExpertOfficeMember",
+    "ExpertSession",
+    "PackageViewLog",
+    "PiiFieldPolicy",
     "HandoffPackage",
     "PackageExport",
     "Interpretation",
@@ -55,6 +73,7 @@ __all__ = [
     "UserSession",
     "Membership",
     "Notification",
+    "Outbox",
     "Run",
     "RunStep",
     "StatSnapshot",

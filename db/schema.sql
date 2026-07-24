@@ -421,7 +421,9 @@ CREATE TABLE evidence_events (
                      -- R2.5(2026-07-17) — 프론트가 이미 발행 중이었으나 DB CHECK에 누락돼 있던
                      -- 타입(운영급 RBAC·행정사 패키지·메시지 해석·발송 실행, src/types.ts와 대조 정합).
                      'interpretation_confirmed','package_link_issued','package_link_viewed',
-                     'dispatch_executed','delivery_confirmed','package_reply')),
+                     'dispatch_executed','delivery_confirmed','package_reply',
+                     -- R5.1(2026-07-20) — 행정사 화이트라벨 v1, ExpertGrant 생애주기(spec §5.2).
+                     'expert_access_granted','expert_access_revoked')),
   at              timestamptz NOT NULL,            -- 발생 시각(주입 가능 — 테스트 결정성)
   case_id         text,
   action_id       text,
@@ -504,21 +506,92 @@ CREATE TABLE draft_variants (
 CREATE INDEX ix_draft_variants_draft ON draft_variants (draft_id);
 
 CREATE TABLE thread_messages (
-  id            text PRIMARY KEY,
-  thread_id     text NOT NULL,
-  company_id    text NOT NULL REFERENCES companies(id),
-  direction     text NOT NULL CHECK (direction IN ('inbound','system')),
-  draft_id      text,
-  lang          text,
-  body_original text,                              -- 원문 전문(PII) — 스레드 상세 전용(§7)
-  body_ko       text,
-  received_at   timestamptz,
-  created_at    timestamptz NOT NULL DEFAULT now(),
+  id                         text PRIMARY KEY,
+  thread_id                  text NOT NULL,
+  company_id                 text NOT NULL REFERENCES companies(id),
+  direction                  text NOT NULL CHECK (direction IN ('inbound','system')),
+  case_id                    text,
+  draft_id                   text,
+  lang                       text,
+  body_original              text,                  -- 원문 전문(PII) — 스레드 상세 전용(§7)
+  body_ko                    text,
+  received_at                timestamptz,
+  -- R3 stage ② — 응답 링크 인바운드(MESSAGING_CHANNELS.md §3). 아웃박스가 발송한
+  -- direction='system' 메시지에만 채워진다: 만료형 토큰 하나가 그 발신 메시지에 대한 근로자
+  -- 응답을 받는 유일한 창구다. NULL=응답 링크 없음(재해석·구시드 메시지 등).
+  response_token             text UNIQUE,
+  response_token_expires_at  timestamptz,
+  response_token_consumed_at timestamptz,
+  created_at                 timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id, id),
   FOREIGN KEY (company_id, thread_id) REFERENCES threads(company_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (company_id, draft_id) REFERENCES drafts(company_id, id)
+  FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),
+  FOREIGN KEY (company_id, draft_id) REFERENCES drafts(company_id, id),
+  CHECK (response_token IS NULL OR response_token_expires_at IS NOT NULL),
+  CHECK (response_token_consumed_at IS NULL OR response_token IS NOT NULL)
 );
 CREATE INDEX ix_thread_messages_thread ON thread_messages (thread_id, created_at);
+CREATE INDEX ix_thread_messages_response_token ON thread_messages (response_token) WHERE response_token IS NOT NULL;
+
+-- A response-link token is a one-way capability.  Its consumption can only move
+-- from NULL to a timestamp and cannot later be reset for another submission.
+CREATE FUNCTION trg_thread_messages_response_token_consumed_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.response_token_consumed_at IS DISTINCT FROM OLD.response_token_consumed_at THEN
+    IF OLD.response_token_consumed_at IS NOT NULL
+       OR NEW.response_token_consumed_at IS NULL
+       OR OLD.response_token IS NULL THEN
+      RAISE EXCEPTION 'response token consumption is immutable';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER thread_messages_response_token_consumed_guard
+  BEFORE UPDATE OF response_token_consumed_at ON thread_messages
+  FOR EACH ROW EXECUTE FUNCTION trg_thread_messages_response_token_consumed_guard();
+
+-- 발송 대기열(R3 stage ②) — Approval → Outbox → ChannelAdapter(MESSAGING_CHANNELS.md §2).
+-- next_actions.action_type='send_message' 승인 후 manager의 "실행 확인"(§1 각주² — 승인과
+-- 실행의 분리) 1건이 정확히 1행을 만든다. 근로자 채널(sms/alimtalk/zalo)만 다룬다 — 행정사
+-- 패키지 이메일 알림은 별도 경로(services/packages.py + EmailAdapter, 이 큐를 거치지 않는다).
+CREATE TABLE outbox (
+  id                    text PRIMARY KEY,
+  company_id            text NOT NULL REFERENCES companies(id),
+  case_id               text NOT NULL,
+  action_id             text NOT NULL,
+  approval_id           text NOT NULL,               -- 실행 확인의 유일한 권한 근거 — 구조적 승인 게이트(트리거로 강제, 아래)
+  thread_id             text,
+  channel               text NOT NULL CHECK (channel IN ('sms','alimtalk','zalo')),
+  event_type            text NOT NULL DEFAULT 'dispatch' CHECK (event_type IN ('dispatch','reminder','resend')),
+  dedupe_key            text NOT NULL,                -- '{case_id}:{event_type}:{threshold}' — notifications.dedupe_key와 동일 관례. 이벤트 idempotency(§2)를 구조적으로 강제
+  body                  text NOT NULL,
+  lang                  text,
+  recipient_ref         text,                         -- 수신처 표시용(마스킹). 실제 연락처는 배포 비밀 디렉터리에서만 해석하고 DB·Evidence에 저장하지 않음
+  status                text NOT NULL DEFAULT 'queued' CHECK (status IN ('queued','dispatching','sent','delivered','failed')),
+  external_id           text,                         -- 채널사 발급 ID(진짜) 또는 'stub:...'(자격 증명 없음). NULL=미시도
+  attempt_count         integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  fallback_from_id      text,                         -- 알림톡 실패 후 SMS로 대체 발송된 행이 원본을 가리킴("채널 중복 금지" — fallback만, 중복 발송 아님)
+  scheduled_for         timestamptz,                  -- 발송 창 보류(21:00~08:00, CRITICAL은 22:00까지 허용) 해제 시각. NULL=즉시 시도
+  dispatch_started_at   timestamptz,                  -- queued 행을 외부 provider 호출 전에 내구성 있게 claim한 시각
+  sent_at               timestamptz,
+  failed_reason         text,
+  requested_by_user_id  text NOT NULL,                -- "실행 확인"을 누른 manager
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (company_id, id),
+  UNIQUE (company_id, dedupe_key),
+  FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),
+  FOREIGN KEY (company_id, case_id, action_id) REFERENCES next_actions(company_id, case_id, id),
+  FOREIGN KEY (company_id, case_id, approval_id) REFERENCES approvals(company_id, case_id, id),
+  FOREIGN KEY (company_id, thread_id) REFERENCES threads(company_id, id),
+  FOREIGN KEY (company_id, requested_by_user_id) REFERENCES memberships(company_id, user_id),
+  FOREIGN KEY (company_id, fallback_from_id) REFERENCES outbox(company_id, id),
+  CHECK (status <> 'sent' OR sent_at IS NOT NULL),
+  CHECK (status NOT IN ('sent','delivered') OR external_id IS NOT NULL)
+);
+CREATE INDEX ix_outbox_company_status ON outbox (company_id, status);
+CREATE INDEX ix_outbox_case ON outbox (case_id);
 
 -- 응답 해석(M6) — 제안은 언제나 비확정(isFinal=false는 성격 자체라 컬럼 없음)
 CREATE TABLE interpretations (
@@ -577,6 +650,10 @@ CREATE TABLE handoff_packages (
   link_token        text,
   link_issued_at    timestamptz,
   link_expires_at   timestamptz,
+  -- R5.1(2026-07-20) — 화이트라벨 v1 §2.2/§2.7 "expertAccountId FK 정규화"(마이그레이션 #2).
+  -- 세션 뷰(§4.2)의 3중 체크 6번째 항목이 이 컬럼으로 "어느 사무소 앞 패키지인가"를 검사한다.
+  -- NULL 허용 — v0 시절 발급된 패키지(사무소 FK 없음)와의 하위 호환. 신규 발급 경로는 항상 채운다.
+  expert_account_id text,
   created_at        timestamptz NOT NULL DEFAULT now(),
   updated_at        timestamptz NOT NULL DEFAULT now(),
   UNIQUE (company_id, id),
@@ -607,6 +684,124 @@ CREATE INDEX ix_package_exports_package ON package_exports (package_id);
 -- 한해 "만료형 열람 링크"의 유효성만 서버가 검증하는 것 — SMS/알림톡/이메일로 실제 링크를
 -- 발송하는 delivery adapter(EmailAdapter 등)는 여전히 범위 밖이며 별도 마일스톤(R3)에서
 -- 도입한다(MESSAGING_CHANNELS §5).
+
+-- ---------------------------------------------------------------------------
+-- 4.8-1 행정사 화이트라벨 v1 (R5.1, 2026-07-20)
+-- 정본: reference/specs/7-1_행정사_화이트라벨_v1.md. v0(mock)의 Tenant/ExpertAccount/
+-- ExpertMembership(src/types.ts:163-180, src/mocks/expert.ts)을 실서비스 계약으로 승격한다.
+-- "tenant"는 별도 테이블이 아니라 companies 값 공간이다(spec §2.6 GLOSSARY 정리) — 아래
+-- tenant_id 컬럼은 전부 companies(id)를 참조한다.
+-- ---------------------------------------------------------------------------
+
+-- 행정사무소 — 브랜드·과금 경계(결정 B). 개인 신원·로그인은 expert_office_members가 담당.
+CREATE TABLE expert_accounts (
+  id                       text PRIMARY KEY,
+  office_name              text NOT NULL,
+  brand_initial            text NOT NULL,
+  brand_color              text NOT NULL,
+  status                   text NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended')),
+  business_registration_no text UNIQUE,   -- 동명 사무소 오초대 방지 고유 식별자(spec §2.2 UX #15)
+  created_at               timestamptz NOT NULL DEFAULT now(),
+  updated_at               timestamptz NOT NULL DEFAULT now()
+);
+
+-- handoff_packages.expert_account_id는 이 테이블 생성 이후에만 FK를 걸 수 있다(전방 참조).
+ALTER TABLE handoff_packages
+  ADD CONSTRAINT handoff_packages_expert_account_fk
+  FOREIGN KEY (expert_account_id) REFERENCES expert_accounts(id);
+
+-- 사무소 소속 개인 구성원 — CompanyMember(src/types.ts:139-143)의 대칭(결정 B). PIPA
+-- 열람기록 요건의 최소 단위: "이 사람이 봤다"까지 추적 가능해야 한다(spec §6).
+CREATE TABLE expert_office_members (
+  id                text PRIMARY KEY,
+  expert_account_id text NOT NULL REFERENCES expert_accounts(id),
+  name              text NOT NULL,
+  email             text NOT NULL,
+  status            text NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended')),
+  is_office_admin   boolean NOT NULL DEFAULT false,  -- 최초 초대 수락자 기본값 true(spec §2.3)
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (expert_account_id, id),
+  UNIQUE (expert_account_id, email)  -- 로그인 시 이메일로 기존 구성원 재사용(spec §3.2)
+);
+CREATE INDEX ix_expert_office_members_account ON expert_office_members (expert_account_id, status);
+
+-- 위탁(Grant) 생애주기 — ExpertMembership의 승격(결정 C). 무기한 위탁 금지: until_date는
+-- NOT NULL + from_date보다 뒤여야 한다(spec §2.3, §9 결정 C — 타입 레벨 강제는 컴파일타임
+-- 한정이라는 spec 각주를 받아들여, 여기서 서버(DB) 레벨로 강제한다).
+CREATE TABLE expert_grants (
+  id                    text PRIMARY KEY,
+  status                text NOT NULL DEFAULT 'invited'
+                        CHECK (status IN ('invited','company_authorized','active','expired','revoked')),
+  expert_account_id     text NOT NULL REFERENCES expert_accounts(id),
+  tenant_id             text NOT NULL REFERENCES companies(id),
+  scope                 text NOT NULL DEFAULT 'package_review' CHECK (scope = 'package_review'),
+  granted_by            text NOT NULL,               -- CompanyMember.id(owner/manager, spec §5.1)
+  basis                 text NOT NULL DEFAULT 'processing_agreement' CHECK (basis = 'processing_agreement'),
+  from_date             date NOT NULL,
+  until_date            date NOT NULL,
+  review_interval_days  integer NOT NULL DEFAULT 365 CHECK (review_interval_days > 0),
+  revoked_reason        text CHECK (revoked_reason IN ('expired','manual')),
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+  CHECK (until_date > from_date),
+  FOREIGN KEY (tenant_id, granted_by) REFERENCES memberships(company_id, user_id)
+);
+CREATE INDEX ix_expert_grants_tenant ON expert_grants (tenant_id, status);
+CREATE INDEX ix_expert_grants_account ON expert_grants (expert_account_id, status);
+
+-- 화이트라벨 세션 로그인(spec §3) — email+OTP. legacy JWT(서명은 있으나 exp 미검증, spec
+-- §3.1 지적)를 그대로 재사용하지 않고, 이 저장소가 이미 검증된 phone+OTP+불투명 세션
+-- 패턴(login_otps/sessions)을 email 축으로 특수화한다 — 패턴은 같고 신원 축만 다르다
+-- (§4.1 "재사용이 아니라 패턴 특수화" 원칙 적용). §3.1이 요구하는 "exp 클레임 신규 검증"은
+-- expert_sessions.expires_at 비교로 이미 충족된다(불투명 토큰이라 클레임 개념 자체가 없음).
+CREATE TABLE expert_login_otps (
+  id            text PRIMARY KEY,
+  email         text NOT NULL,
+  code_hash     text NOT NULL,
+  attempt_count integer NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  expires_at    timestamptz NOT NULL,
+  consumed_at   timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX ix_expert_login_otps_email ON expert_login_otps (email, created_at DESC);
+
+CREATE TABLE expert_sessions (
+  id                       text PRIMARY KEY,
+  expert_office_member_id  text NOT NULL REFERENCES expert_office_members(id),
+  token_hash               text NOT NULL UNIQUE,
+  created_at               timestamptz NOT NULL DEFAULT now(),
+  expires_at               timestamptz NOT NULL,
+  revoked_at               timestamptz,
+  CHECK (expires_at > created_at)
+);
+CREATE INDEX ix_expert_sessions_member ON expert_sessions (expert_office_member_id);
+
+-- 열람 감사 로그(spec §6) — evidence_events와 별도 테이블. 목적이 다르다(evidence_events=
+-- 판단 근거 추적, package_view_log=접근 통제 증빙)이므로 검색·보존기간 정책도 따로 간다
+-- (spec §6.2). append-only(evidence_events와 동일 원칙, 트리거는 하단 가드레일 섹션).
+-- PII 필드가 원천적으로 없다(id 참조뿐) — 이중 방어가 자연히 성립(spec §6.2).
+CREATE TABLE package_view_log (
+  id                       text PRIMARY KEY,
+  package_id               text NOT NULL,
+  tenant_id                text NOT NULL REFERENCES companies(id),
+  expert_office_member_id  text NOT NULL REFERENCES expert_office_members(id),
+  viewed_at                timestamptz NOT NULL DEFAULT now(),
+  ip                       text,
+  FOREIGN KEY (tenant_id, package_id) REFERENCES handoff_packages(company_id, id)
+);
+CREATE INDEX ix_package_view_log_package ON package_view_log (package_id, viewed_at);
+CREATE INDEX ix_package_view_log_member ON package_view_log (expert_office_member_id, viewed_at);
+
+-- PII 노출 정책 테이블(결정 A의 구현, spec §2.4) — 역할×필드 정책을 코드 분기로 하드코딩하지
+-- 않는다. 법무 검토로 노출 수준이 바뀌면 이 표의 행만 바꾼다(뒤집는 법, spec §9 결정 A).
+CREATE TABLE pii_field_policies (
+  field      text NOT NULL,      -- 'HandoffPackage.workerName' 등 spec §2.4 필드 경로
+  role       text NOT NULL CHECK (role IN ('owner','manager','viewer','expert')),
+  exposure   text NOT NULL CHECK (exposure IN ('plain','masked','hidden')),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (field, role)
+);
 
 -- ---------------------------------------------------------------------------
 -- 4.9 브리핑
@@ -662,6 +857,14 @@ CREATE TABLE notifications (
   case_id           text,
   run_id            text,
   created_at        timestamptz NOT NULL DEFAULT now(),
+  read_at           timestamptz,                     -- 인앱 알림 센터에서 수신자가 읽음
+                                                       -- 처리한 시각(R5.4). §13-7 "발신 확인
+                                                       -- 없음" 계약과는 무관 — sent/delivered
+                                                       -- 같은 발신 확인이 아니라 "그 사람이
+                                                       -- 인앱에서 열어봤는가"만 기록한다
+                                                       -- (아래 "no delivery timestamp columns"
+                                                       -- 불변식은 sent_at/delivered_at만
+                                                       -- 검사하므로 이 컬럼과 충돌 없음).
   UNIQUE (company_id, dedupe_key),
   FOREIGN KEY (company_id, recipient_user_id) REFERENCES memberships(company_id, user_id),
   FOREIGN KEY (company_id, case_id) REFERENCES cases(company_id, id),
@@ -1524,6 +1727,48 @@ CREATE TRIGGER package_exports_mark_package_exported
   AFTER INSERT ON package_exports
   FOR EACH ROW EXECUTE FUNCTION trg_package_exports_mark_exported();
 
+-- outbox 행은 "승인된" approval을 가리킬 때만 존재할 수 있다 — "human_approved-adjacent
+-- authorization trail" 없이는 삽입 자체가 불가능하다(MESSAGING_CHANNELS.md §1 각주² —
+-- 승인과 실행은 같은 순간이 아니지만, 실행은 반드시 승인 뒤에서만 일어난다).
+CREATE FUNCTION trg_outbox_requires_approved_approval() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM approvals a
+    WHERE a.company_id = NEW.company_id AND a.id = NEW.approval_id AND a.status = 'approved'
+  ) THEN
+    RAISE EXCEPTION 'outbox item requires an approved approval';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER outbox_requires_approved_approval
+  BEFORE INSERT ON outbox
+  FOR EACH ROW EXECUTE FUNCTION trg_outbox_requires_approved_approval();
+
+-- outbox 핵심 필드(대상·채널·본문·중복방지 키)는 생성 후 불변 — 상태 전이(queued→sent/failed 등)만 허용.
+CREATE FUNCTION trg_outbox_immutable_core() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.company_id <> OLD.company_id OR NEW.case_id <> OLD.case_id OR NEW.action_id <> OLD.action_id
+     OR NEW.approval_id <> OLD.approval_id OR NEW.dedupe_key <> OLD.dedupe_key
+     OR NEW.channel <> OLD.channel OR NEW.body <> OLD.body THEN
+    RAISE EXCEPTION 'outbox core fields are immutable after creation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER outbox_immutable_core
+  BEFORE UPDATE OF company_id, case_id, action_id, approval_id, dedupe_key, channel, body ON outbox
+  FOR EACH ROW EXECUTE FUNCTION trg_outbox_immutable_core();
+
+-- outbox는 append-only에 가깝다 — evidence_events와 동일하게 삭제를 금지한다(감사 무결성).
+CREATE FUNCTION trg_outbox_no_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'outbox deletion is not allowed';
+END;
+$$;
+CREATE TRIGGER outbox_no_delete BEFORE DELETE ON outbox
+  FOR EACH ROW EXECUTE FUNCTION trg_outbox_no_delete();
+
 -- agent_notes.subject 는 같은 회사 소속이어야 한다(worker/company/expert)
 CREATE FUNCTION trg_agent_notes_subject_scope() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -1544,6 +1789,75 @@ $$;
 CREATE TRIGGER agent_notes_subject_scope
   BEFORE INSERT OR UPDATE OF company_id, subject_type, subject_id ON agent_notes
   FOR EACH ROW EXECUTE FUNCTION trg_agent_notes_subject_scope();
+
+-- 열람 감사 로그 append-only(spec §6.2 "evidence_events와 동일 원칙" — evidence_events의
+-- immutable 트리거 패턴을 그대로 특수화한다, R5.1)
+CREATE FUNCTION trg_package_view_log_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'package_view_log is append-only';
+END;
+$$;
+CREATE TRIGGER package_view_log_no_update BEFORE UPDATE ON package_view_log
+  FOR EACH ROW EXECUTE FUNCTION trg_package_view_log_immutable();
+CREATE TRIGGER package_view_log_no_delete BEFORE DELETE ON package_view_log
+  FOR EACH ROW EXECUTE FUNCTION trg_package_view_log_immutable();
+
+-- expert_login_otps: login_otps_update_guard(위)와 동일 계약 — email 축으로 특수화(R5.1)
+CREATE FUNCTION trg_expert_login_otps_update_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.email IS DISTINCT FROM OLD.email
+     OR NEW.code_hash IS DISTINCT FROM OLD.code_hash
+     OR NEW.expires_at IS DISTINCT FROM OLD.expires_at
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at THEN
+    RAISE EXCEPTION 'expert login otp request is immutable';
+  END IF;
+  IF OLD.consumed_at IS NOT NULL AND NEW.consumed_at IS DISTINCT FROM OLD.consumed_at THEN
+    RAISE EXCEPTION 'expert login otp is already consumed';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER expert_login_otps_update_guard
+  BEFORE UPDATE ON expert_login_otps
+  FOR EACH ROW EXECUTE FUNCTION trg_expert_login_otps_update_guard();
+
+-- expert_sessions: sessions_update_guard(위)와 동일 계약(R5.1)
+CREATE FUNCTION trg_expert_sessions_update_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.expert_office_member_id IS DISTINCT FROM OLD.expert_office_member_id
+     OR NEW.token_hash IS DISTINCT FROM OLD.token_hash
+     OR NEW.created_at IS DISTINCT FROM OLD.created_at
+     OR NEW.expires_at IS DISTINCT FROM OLD.expires_at THEN
+    RAISE EXCEPTION 'expert session identity/expiry is immutable';
+  END IF;
+  IF OLD.revoked_at IS NOT NULL THEN
+    RAISE EXCEPTION 'expert session is already revoked';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER expert_sessions_update_guard
+  BEFORE UPDATE ON expert_sessions
+  FOR EACH ROW EXECUTE FUNCTION trg_expert_sessions_update_guard();
+
+-- expert_grants.granted_by는 위탁 성립 시점에 활성 owner/manager여야 한다(cases/runs/
+-- delegations의 assignee/starter 활성 검사와 동일 패턴, R5.1). 이후 그 멤버가 퇴사해도
+-- 과거 grant 이력 자체는 유지된다(회사 소속 변경 시에만 재검사).
+CREATE FUNCTION trg_expert_grants_granter_active() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM memberships
+    WHERE company_id = NEW.tenant_id AND user_id = NEW.granted_by
+      AND status = 'active' AND role IN ('owner','manager')
+  ) THEN
+    RAISE EXCEPTION 'expert grant granter must be an active owner or manager';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER expert_grants_granter_active
+  BEFORE INSERT OR UPDATE OF tenant_id, granted_by ON expert_grants
+  FOR EACH ROW EXECUTE FUNCTION trg_expert_grants_granter_active();
 
 -- ---------------------------------------------------------------------------
 -- 파생값 뷰(문서 §6) — "저장하지 않는다"의 실행 형태. 필요 시 셀렉터/뷰만 추가

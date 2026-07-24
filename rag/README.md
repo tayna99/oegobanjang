@@ -35,6 +35,9 @@ uv run python -m oe_rag.cli query-multilingual "상담센터 전화번호가 뭐
 uv run uvicorn oe_rag.api:app --port 8100
 curl http://127.0.0.1:8100/health
 
+# 7) 오케스트레이션 안전성 게이트 (safety_guardrail·workflow_e2e violation=0, R4.6)
+uv run python -m oe_rag.cli eval-orchestration
+
 # 테스트
 uv run pytest
 ```
