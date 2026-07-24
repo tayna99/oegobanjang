@@ -58,10 +58,10 @@ export function classifyScanFiles(fileNames: string[], workers: CaseCard[]): Sca
   });
 }
 
-// 확인 대기 반영 게이트 — CSV의 "정상만 자동 등록"과 다른 원칙이다(감사 §2.3). 미매칭 행이
-// 남아있으면(근로자 미지정) 전체 확정 자체를 막는다 — 저신뢰(확인 필요) 행은 수정 없이도
-// 함께 반영된다. 서류 확보 여부는 개별 근로자에게 중요해 자동 누락보다 사람의 전량 확인을
-// 우선한다.
+// 확인 대기 반영 게이트 — CSV의 "정상만 자동 등록"과 다른 원칙이다(감사 §2.3). 모든 행이
+// 근로자와 서류 유형을 둘 다 갖춰야 확정할 수 있고, 하나라도 비어 있으면(미매칭이든 저신뢰든)
+// 전체 확정을 막는다. 서류 확보 여부는 개별 근로자에게 중요해 자동 누락보다 사람의 전량
+// 확인·지정을 우선한다.
 export function hasUnresolvedRows(results: ScanResult[]): boolean {
   return results.some((r) => !r.workerName || !r.docType);
 }

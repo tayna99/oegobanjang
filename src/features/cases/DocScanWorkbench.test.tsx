@@ -81,9 +81,8 @@ describe('DocScanWorkbench (PC, UI-2 DoD)', () => {
     expect(screen.getByText('미매칭 건에 근로자를 지정해야 진행할 수 있습니다')).toBeInTheDocument();
   });
 
-  // 회귀(ui-matcher 지적): 미매칭 행에 서류 유형만 지정하고 근로자를 지정하지 않으면
-  // status가 low_confidence로 잘못 승격돼 게이트가 뚫렸었다 — 근로자가 없는 한 unmatched를
-  // 유지해야 한다.
+  // 확정 게이트는 모든 행이 근로자·서류 유형을 둘 다 갖출 것을 요구한다(hasUnresolvedRows,
+  // 3a3b2b7). 서류 유형만 지정하고 근로자를 지정하지 않으면 여전히 막혀야 한다.
   it('미매칭 행에 서류 유형만 지정하고 근로자는 지정하지 않으면 게이트가 계속 막힌다', async () => {
     renderAt('/cases/scan');
     await uploadFiles(['nguyen_passport.jpg', 'scan_0009.jpg']);
@@ -103,22 +102,30 @@ describe('DocScanWorkbench (PC, UI-2 DoD)', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
-  it('미매칭 행에 근로자를 수동 지정하면 버튼이 활성화되고, 확정 시 docUpdates·evidence에 반영된다(파일명 미노출)', async () => {
+  it('미매칭 행에 근로자·서류 유형을 모두 지정하면 버튼이 활성화되고, 확정 시 docUpdates·evidence에 반영된다(파일명 미노출)', async () => {
     renderAt('/cases/scan');
     await uploadFiles(['nguyen_passport.jpg', 'scan_0009.jpg']);
 
+    // 게이트(3a3b2b7)는 근로자와 서류 유형을 둘 다 요구하므로 미매칭 행에 둘 다 지정한다.
     fireEvent.click(screen.getByRole('button', { name: /지정 필요/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Siti R.' }));
+    fireEvent.click(screen.getByRole('button', { name: '외국인등록증' }));
     fireEvent.click(screen.getByRole('button', { name: '적용' }));
 
+    // 게이트가 풀리는 것을 비동기로 기다린 뒤 버튼 활성화를 확인한다 — 게이트 힌트 문구는
+    // blocked=false일 때만 렌더되므로 이 문구를 기다리는 것이 곧 재렌더 커밋을 기다리는 것.
+    // (동기 assert는 느린 CI에서 상태 커밋 한 틱 뒤 실행될 수 있어 플래키하다.)
+    expect(
+      await screen.findByText('정상 매칭·확인 필요 건도 함께 확인 대기로 올라갑니다', undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
     const confirmButton = screen.getByRole('button', { name: '확인 대기로 올리기' });
     expect(confirmButton).not.toBeDisabled();
-    expect(screen.getByText('정상 매칭·확인 필요 건도 함께 확인 대기로 올라갑니다')).toBeInTheDocument();
 
     fireEvent.click(confirmButton);
 
     const docUpdates = useCaseStore.getState().docUpdates;
     expect(docUpdates.nguyen?.['여권 사본']?.to).toBe('스캔 확인 대기');
+    expect(docUpdates.siti?.['외국인등록증']?.to).toBe('스캔 확인 대기');
 
     const events = useEvidenceStore.getState().events;
     const scanEvent = events.find((e) => e.type === 'tool_executed' && e.summary?.includes('서류 스캔 분류'));
