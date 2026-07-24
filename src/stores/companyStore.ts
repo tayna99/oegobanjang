@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ApprovalPolicy, CompanyMember, CompanyProfile, DelegationConfig } from '@/types';
+import type { ApprovalPolicy, CompanyMember, CompanyProfile, DelegationConfig, NotificationPrefs } from '@/types';
 import { COMPANY_MEMBERS } from '@/mocks/members';
 
 // 데모 세계관 기본 회사 프로필(2.5.4b) — 온보딩 O3에서 입력을 바꾸기 전까지의 표시값.
@@ -22,6 +22,11 @@ const DEFAULT_DELEGATION: DelegationConfig = {
 // 두고, owner_only는 설정 화면(Phase C)에서 전환해 그 분기를 시연하는 값으로 둔다.
 const DEFAULT_POLICY: ApprovalPolicy = 'manager_allowed';
 const DEFAULT_BRIEFING_TIME = '08:00';
+const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
+  responseImmediate: true,
+  criticalNight: true,
+  weeklyDigest: false,
+};
 
 interface CompanyStoreState {
   profile: CompanyProfile;
@@ -29,11 +34,13 @@ interface CompanyStoreState {
   delegation: DelegationConfig;
   approvalPolicy: ApprovalPolicy;
   briefingTime: string;
+  notificationPrefs: NotificationPrefs;
   setProfile: (profile: CompanyProfile) => void;
   setMembers: (members: CompanyMember[]) => void;
   setDelegation: (delegation: DelegationConfig) => void;
   setApprovalPolicy: (policy: ApprovalPolicy) => void;
   setBriefingTime: (time: string) => void;
+  setNotificationPrefs: (prefs: NotificationPrefs) => void;
   reset: () => void;
 }
 
@@ -46,11 +53,13 @@ export const useCompanyStore = create<CompanyStoreState>((set) => ({
   delegation: DEFAULT_DELEGATION,
   approvalPolicy: DEFAULT_POLICY,
   briefingTime: DEFAULT_BRIEFING_TIME,
+  notificationPrefs: DEFAULT_NOTIFICATION_PREFS,
   setProfile: (profile) => set({ profile }),
   setMembers: (members) => set({ members }),
   setDelegation: (delegation) => set({ delegation }),
   setApprovalPolicy: (approvalPolicy) => set({ approvalPolicy }),
   setBriefingTime: (briefingTime) => set({ briefingTime }),
+  setNotificationPrefs: (notificationPrefs) => set({ notificationPrefs }),
   reset: () =>
     set({
       profile: DEFAULT_PROFILE,
@@ -58,5 +67,6 @@ export const useCompanyStore = create<CompanyStoreState>((set) => ({
       delegation: DEFAULT_DELEGATION,
       approvalPolicy: DEFAULT_POLICY,
       briefingTime: DEFAULT_BRIEFING_TIME,
+      notificationPrefs: DEFAULT_NOTIFICATION_PREFS,
     }),
 }));

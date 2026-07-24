@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { BackHeader } from '@/components/BackHeader';
+import { RoleBlockedNotice } from '@/components/RoleBlockedNotice';
 import { cn } from '@/lib/cn';
 import { useCompanyActions } from '@/lib/company';
 import { useNav } from '@/lib/nav';
@@ -35,11 +36,12 @@ export function MembersPage() {
   // 7단계 §6 "설정: viewer –" — 열람자는 구성원 관리에 진입할 수 없다.
   if (role === 'viewer') {
     return (
-      <div className="p-5">
-        <p className="text-body2 text-muted">열람자 권한으로는 구성원 관리에 진입할 수 없습니다.</p>
-        <Button variant="outline" className="mt-4" onClick={() => nav.toSettings()}>
-          설정으로 돌아가기
-        </Button>
+      <div className="flex min-h-dvh flex-col bg-canvas">
+        <BackHeader title="구성원 관리" onBack={() => nav.toSettings()} />
+        <RoleBlockedNotice
+          title="열람자 권한으로는 구성원 관리에 진입할 수 없습니다."
+          subtitle="구성원 관리는 대표·담당자만 가능합니다."
+        />
       </div>
     );
   }

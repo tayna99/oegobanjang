@@ -18,10 +18,14 @@ describe('MembersPage', () => {
     useEvidenceStore.getState().reset();
   });
 
-  it('viewer는 구성원 관리에 진입할 수 없다', async () => {
+  it('viewer는 구성원 관리에 진입할 수 없다 — 헤더는 유지되고 권한 배지 안내가 뜬다', async () => {
     useRoleStore.getState().setRole('viewer');
     renderAt('/settings/members');
-    expect(await screen.findByText('열람자 권한으로는 구성원 관리에 진입할 수 없습니다.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '구성원 관리' })).toBeInTheDocument();
+    expect(screen.getByText('열람자 권한으로는 구성원 관리에 진입할 수 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText('구성원 관리는 대표·담당자만 가능합니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '뒤로' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /돌아가기/ })).not.toBeInTheDocument();
   });
 
   it('manager는 기존 구성원 목록을 보지만 역할 변경·제거 버튼은 없다', async () => {

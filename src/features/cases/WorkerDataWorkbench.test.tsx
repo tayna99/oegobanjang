@@ -47,6 +47,12 @@ describe('WorkerDataWorkbench (PC 4b)', () => {
     expect(router.state.location.pathname).toBe('/cases/import');
   });
 
+  it('스캔 업로드 시작 버튼이 /cases/scan으로 이동한다', () => {
+    const router = renderAt('/cases/workers');
+    fireEvent.click(screen.getByRole('button', { name: '스캔 업로드 시작' }));
+    expect(router.state.location.pathname).toBe('/cases/scan');
+  });
+
   // 회귀: CaseWorkbench를 거치지 않고 /cases/workers로 바로 진입해도(딥링크) 스토어가
   // 비어 있으면 자체적으로 로스터를 시드해야 한다 — 브라우저 실검증에서 발견된 버그.
   it('/cases/workers로 직접 진입해도 caseStore가 비어 있으면 로스터를 시드한다', () => {

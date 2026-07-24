@@ -5,6 +5,7 @@ import { HomePage } from '@/features/HomePage';
 import { CaseListPage } from '@/features/cases/CaseListPage';
 import { CsvUploadPage } from '@/features/cases/CsvUploadPage';
 import { WorkerDataPage } from '@/features/cases/WorkerDataPage';
+import { CasesScanPage } from '@/features/cases/CasesScanPage';
 import { DispatchQueuePage } from '@/features/cases/DispatchQueuePage';
 import { CaseSheetPage } from '@/features/case/CaseSheetPage';
 import { CaseHistoryPage } from '@/features/case/CaseHistoryPage';
@@ -17,11 +18,13 @@ import { EvidencePage } from '@/features/governance/EvidencePage';
 import { MessagesPage } from '@/features/messages/MessagesPage';
 import { PackagePage } from '@/features/packagePkg/PackagePage';
 import { ExpertLinkPage } from '@/features/packagePkg/ExpertLinkPage';
+import { ResponseLinkPage } from '@/features/response/ResponseLinkPage';
 import { ExpertDashboardPage } from '@/features/expert/ExpertDashboardPage';
 import { ExpertPackagePage } from '@/features/expert/ExpertPackagePage';
 import { SettingsHubPage } from '@/features/settings/SettingsHubPage';
 import { MembersPage } from '@/features/settings/MembersPage';
 import { DelegationPage } from '@/features/settings/DelegationPage';
+import { NotificationSettingsPage } from '@/features/settings/NotificationSettingsPage';
 import { OnboardingFlow } from '@/features/onboarding/OnboardingFlow';
 import { ROUTE_PATHS } from '@/lib/routes';
 import { validateIdParam } from '@/lib/deeplink';
@@ -37,6 +40,7 @@ export const routeConfig: RouteObject[] = [
       // CSV 일괄 등록(4.4) — PC 전용(4b), case/:caseId보다 앞에 둘 필요는 없다(다른 최상위 세그먼트).
       { path: ROUTE_PATHS.casesImport, element: <CsvUploadPage /> },
       { path: ROUTE_PATHS.casesWorkers, element: <WorkerDataPage /> },
+      { path: ROUTE_PATHS.casesScan, element: <CasesScanPage /> },
       { path: ROUTE_PATHS.casesDispatch, element: <DispatchQueuePage /> },
       {
         path: ROUTE_PATHS.case,
@@ -80,6 +84,7 @@ export const routeConfig: RouteObject[] = [
       { path: ROUTE_PATHS.settings, element: <SettingsHubPage /> },
       { path: ROUTE_PATHS.settingsMembers, element: <MembersPage /> },
       { path: ROUTE_PATHS.settingsDelegation, element: <DelegationPage /> },
+      { path: ROUTE_PATHS.settingsNotifications, element: <NotificationSettingsPage /> },
     ],
   },
   // Shell(로그인 앱 챙) 바깥의 최상위 형제 라우트 — 행정사는 계정이 없어 nav/tabbar가 없다
@@ -87,6 +92,12 @@ export const routeConfig: RouteObject[] = [
   {
     path: ROUTE_PATHS.packageLinkAbsolute,
     element: <ExpertLinkPage />,
+  },
+  // 근로자 응답 링크(R3.2) — packageLinkAbsolute와 동일 관례(무인증, loader 없음, 만료는
+  // 화면 내부 판정).
+  {
+    path: ROUTE_PATHS.responseLinkAbsolute,
+    element: <ResponseLinkPage />,
   },
   // 온보딩(4.1)도 로그인 전 전체 화면 플로우라 Shell 바깥 형제 라우트 — 상태 머신은
   // OnboardingFlow 내부에서 관리하고 딥링크 카탈로그(2단계)엔 O1~O5 개별 경로가 없다

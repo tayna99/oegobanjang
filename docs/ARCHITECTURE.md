@@ -17,7 +17,7 @@
 | 데이터 타입 | `src/types.ts` — CaseCard·NextActionRef·Approval·EvidenceEvent (1단계 스펙 §0.4), Message·MessageThread·Interpretation(2.2, 스펙 원본은 `docs/MESSAGING_CHANNELS.md` §4), CompanyMember·DelegationConfig·ApprovalPolicy·Tenant·ExpertAccount·ExpertMembership(7단계 RBAC·행정사 화이트라벨) |
 | DB 설계 계약 | `docs/DB_SCHEMA.md` — PostgreSQL 16+ 서비스 DB의 데이터 계약 정본. 실행 DDL·데모 시드·181개 회귀 검증은 `db/`(`db/schema.sql`, `db/seed_demo.sql`, `db/validate.py`)에 있고, 루트 `backend/`가 이 DDL을 Alembic 0001로 그대로 적용해 OTP 인증(+`GET /me`)·승인 API를 제공한다(`backend/README.md`) |
 | API 클라이언트 | `src/lib/api/`(R2.1) — `config.ts`(mock/real 전환 플래그 `API_MODE`, 기본 mock) · `client.ts`(`apiFetch` 공용 래퍼) · `auth.ts`(backend 인증 어댑터, snake_case↔camelCase 경계) · `cases.ts`(R2.3 목록 + R2.4 `fetchCaseDetail` 상세) · `briefings.ts`/`threads.ts`(R2.3, 읽기 전용) · `evidence.ts`(R2.5 — `evidenceStore.append`가 real 모드에서 자동 호출) · `packages.ts`(R2.6 — `fetchPackageLink`는 무인증) · `approvals.ts`/`delegations.ts`(R2.4 — 승인 결정·요청 생성, 위임 조회). `real` 모드에서만 이 어댑터들이 실제로 호출된다 — mock 모드(기본값)에서는 아무 화면도 이 계층을 타지 않는다. `lib/dataSeed.ts`(`useSeedCases`/`useSeedThreads`/`useSeedThreadDetail`/`useSeedEvidence`)가 부팅 시 seeding을 담당한다 |
-| 상태 | `src/stores/` — caseStore(docUpdates 포함), approvalStore, evidenceStore, citationStore, roleStore, companyStore, threadStore(2.2 — `upsert`/`confirmInterpretation`. 발송 함수 없음: 승인은 `interpretationStatus`를 `confirmed`로 옮길 뿐, 실제 채널 발송은 approvalStore.dispatch 몫), sessionStore(R2.2 — real 모드 전용 세션. localStorage에 세션 토큰만 영속화하고 부팅 시 복원, 성공 시 roleStore를 세션 멤버십으로 갱신) |
+| 상태 | `src/stores/` — caseStore(docUpdates 포함), approvalStore, evidenceStore, citationStore, roleStore, companyStore(briefingTime·notificationPrefs — `/settings/notifications`와 허브가 공유하는 단일 소스), threadStore(2.2 — `upsert`/`confirmInterpretation`/`receiveInbound`(R3.2 — 근로자 응답 링크가 보낸 인바운드 메시지를 반영, `interpretationStatus`를 `pending_review`로만 옮기고 가짜 `Interpretation`은 만들지 않는다 — `ThreadPage`/`MessagesWorkbench`가 이미 그 부재를 안전하게 처리). 발송 함수 없음: 승인은 `interpretationStatus`를 `confirmed`로 옮길 뿐, 실제 채널 발송은 approvalStore.dispatch 몫), sessionStore(R2.2 — real 모드 전용 세션. localStorage에 세션 토큰만 영속화하고 부팅 시 복원, 성공 시 roleStore를 세션 멤버십으로 갱신) |
 | 디자인 토큰 | `src/styles/tokens.css` + `tailwind.config` theme |
 | mock 데이터 | `src/mocks/` — `fixtures.ts`(CASE_CARDS·CASE_SHEETS, 6인 로스터: Batbayar·Nguyen·Siti·Tran·Rahmat·Oyunaa) · `drafts.ts`(DRAFT) · `runs.ts`(RUN_CONFIGS — command/replay 포함) · `evidence.ts`(EVIDENCE_SEED) · `threads.ts`(2.2 — `THREADS` 스레드·해석 픽스처 + `threadIdForCase` caseId→threadId 매핑, 셀렉터는 `src/lib/threads.ts`의 `sortThreads`/`threadBadge`/`countArrivedResponses`/`formatClockTime`/`formatDateCaption`/`latestInboundMessage` — 모바일 `MessagesScreen`과 PC `MessagesWorkbench` 공통 소스, R0.3) · `packages.ts`(행정사 패키지, M2.4) |
 
@@ -37,6 +37,9 @@
 | `/package/:id` | 행정사 패키지 | 프로토타입 v3 pkg 화면 |
 | `/done` | M5 완료 (라우트보다 push 화면) | 1단계 M5 |
 | `/onboarding/workers` | O1 근로자 등록 (3단계 온보딩) | 2단계 딥링크맵 §3 (N21) |
+| `/settings/notifications` | 알림 설정(브리핑 시각·알림 토글, owner+manager) | 2단계 알림카탈로그 딥링크맵 §6, `docs/DESIGN_SYNC_AUDIT_2026-07-17.md` §1 |
+| `/response/:token` (Shell 바깥, 무인증) | 근로자 응답 링크(vi/ko, 프리셋+자유텍스트 응답) | `docs/DESIGN_SYNC_AUDIT_2026-07-17.md` §3 |
+| `/cases/scan` (PC 전용, 신규) | 서류 스캔 분류 워크벤치(파일명 키워드 분류→확인 대기 반영) | `docs/DESIGN_SYNC_AUDIT_2026-07-17.md` §2 |
 
 ## 4. 데이터 흐름 (단방향)
 

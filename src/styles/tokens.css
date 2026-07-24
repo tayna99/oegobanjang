@@ -32,6 +32,9 @@
   --color-label-muted43: rgba(55, 56, 60, .43);
   /* 진행바 트랙(.12) — 디자인 §3a/§3b 진행바 배경. */
   --color-track: rgba(112, 115, 124, .12);
+  /* Toggle 잠금 상태(2026-07-17, 알림 설정 "승인 요청 즉시 알림") — 항상 ON이라 끌 수 없음을
+     일반 ON(primary 100%)과 구분하는 반투명 트랙. Montage 램프 밖 이 프로젝트 확장. */
+  --toggle-locked-bg: rgba(0, 102, 255, .35);
   --color-bg-normal: #ffffff;
   --color-bg-alternative: #F7F7F8;
   --color-bg-canvas-alt: #EAEBEC;
@@ -42,6 +45,12 @@
   --color-line-solid-normal: #E1E2E4;
   --color-fill-normal: rgba(112, 115, 124, .08);
   --color-fill-strong: rgba(112, 115, 124, .16);
+  /* 선택형 카드(라디오) 전용 — Montage 램프 밖 이 프로젝트 확장(rules/design.md §4).
+     PC 워크벤치 rail-focus(1px 아웃라인)와는 다른 컴포넌트: 모바일 대형 선택 카드
+     (온보딩 역할 선택, 응답 링크 프리셋)의 선택 배경 틴트 / 라디오 점 아이들 링.
+     출처: 외고반장 온보딩.dc.html, 외고반장 근로자 응답 링크.dc.html. */
+  --color-selection-tint: rgba(0, 102, 255, .04);
+  --color-line-strong: rgba(112, 115, 124, .32);
   --color-material-dimmer: rgba(23, 23, 25, .52);
   --color-inverse-bg: #1B1C1E;
   --color-inverse-label: #F7F7F8;
@@ -139,6 +148,8 @@
   --color-line-solid-normal: #37383C;
   --color-fill-normal: rgba(112, 115, 124, .22);
   --color-fill-strong: rgba(112, 115, 124, .28);
+  --color-selection-tint: rgba(51, 133, 255, .08);
+  --color-line-strong: rgba(112, 115, 124, .42);
   --color-material-dimmer: rgba(23, 23, 25, .74);
   --color-inverse-bg: #ffffff;
   --color-inverse-label: #171719;
@@ -163,6 +174,7 @@
   --chip-detected-bg: rgba(40, 208, 237, .14);
   --color-label-muted43: rgba(174, 176, 182, .43);
   --color-track: rgba(112, 115, 124, .22);
+  --toggle-locked-bg: rgba(51, 133, 255, .35);
 }
 
 @media (prefers-reduced-motion: reduce) {
